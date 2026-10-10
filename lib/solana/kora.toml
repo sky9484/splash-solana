@@ -1,0 +1,145 @@
+# Splash Kora fee-payer config (Solana build, Colosseum Oct 2026).
+#
+# Mirrors lib/solana/kora.ts `validateSponsoredTransaction` (I-3): the fee payer pays network fees and
+# rent for accounts the allowlisted programs create (ATA, Squads multisig/transaction/proposal, SAS),
+# and never sends SOL or tokens. Splash's app validates locally first; Kora validates again here,
+# including inner (CPI) instructions found by simulation.
+#
+# Keys follow solana-foundation/kora at commit cbef22d (9 Oct 2026): kora.toml and
+# examples/devnet-deploy-paymaster/kora.toml. NOT yet loaded by a running Kora (no network in the
+# build container): run `kora config validate` (or start Kora with this file) before relying on it.
+
+[kora]
+rate_limit = 20
+# Set to the deployed app origin(s).
+cors_allow_origins = ["http://localhost:3000"]
+
+[kora.auth]
+# Set an API key (or HMAC secret) via Kora's own secret handling. Never commit one here.
+# api_keys = ["<set at deploy time>"]
+# hmac_secret = "<set at deploy time>"
+
+[kora.enabled_methods]
+liveness = true
+estimate_transaction_fee = false
+estimate_bundle_fee = false
+get_supported_tokens = false
+sign_transaction = true
+sign_and_send_transaction = true
+# Kora would build token transfers itself; Splash never asks Kora to move tokens.
+transfer_transaction = false
+get_blockhash = true
+get_config = true
+get_payer_signer = true
+get_version = true
+sign_bundle = false
+sign_and_send_bundle = false
+
+[kora.lighthouse]
+enabled = false
+
+[kora.cache]
+enabled = false
+
+[kora.plugins]
+enabled = []
+
+# Per-org daily cap. The app passes user_id = orgId on every sign request.
+[kora.usage_limit]
+enabled = true
+fallback_if_unavailable = false
+
+[[kora.usage_limit.rules]]
+type = "transaction"
+max = 50
+window_seconds = 86400
+
+[validation]
+# Ceiling on lamports the fee payer may spend per transaction (fees + rent). 0.02 SOL covers a
+# multisig + vault transaction + proposal + one ATA with margin.
+max_allowed_lamports = 20000000
+max_priority_fee_lamports = 100000
+max_signatures = 4
+price_source = "Mock"
+allow_durable_transactions = false
+cross_cluster_check = false
+
+allowed_programs = [
+    "11111111111111111111111111111111",              # System (reached by CPI for account creation only)
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",   # SPL Token
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",  # Associated Token Account
+    "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",   # SPL Memo v2
+    "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",   # Squads V4
+    "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC",  # CCTP V2 MessageTransmitterV2
+    "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",  # CCTP V2 TokenMessengerMinterV2
+    "22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG",  # Solana Attestation Service
+    "ComputeBudget111111111111111111111111111111",   # Compute Budget
+]
+# Devnet USDC. Use EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v on mainnet-beta.
+allowed_tokens = ["4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"]
+allowed_spl_paid_tokens = []
+disallowed_accounts = []
+
+[validation.price]
+type = "free"
+
+[validation.token_2022]
+transfer_hook_policy = "deny_mutable_for_delayed_signing"
+blocked_mint_extensions = []
+blocked_account_extensions = []
+
+[validation.fee_payer_policy]
+
+[validation.fee_payer_policy.system]
+allow_transfer = false          # never send SOL (also blocks a non-zero Squads creation fee)
+allow_assign = false
+allow_create_account = true     # rent for ATA / Squads / SAS accounts created by CPI
+allow_allocate = false
+
+[validation.fee_payer_policy.system.nonce]
+allow_initialize = false
+allow_advance = false
+allow_authorize = false
+allow_withdraw = false
+
+[validation.fee_payer_policy.spl_token]
+allow_transfer = false
+allow_burn = false
+allow_close_account = false
+allow_approve = false
+allow_revoke = false
+allow_set_authority = false
+allow_mint_to = false
+allow_initialize_mint = false
+allow_initialize_account = false
+allow_initialize_multisig = false
+allow_freeze_account = false
+allow_thaw_account = false
+allow_withdraw_excess_lamports = false
+allow_unwrap_lamports = false
+
+[validation.fee_payer_policy.token_2022]
+allow_transfer = false
+allow_burn = false
+allow_close_account = false
+allow_approve = false
+allow_revoke = false
+allow_set_authority = false
+allow_mint_to = false
+allow_initialize_mint = false
+allow_initialize_account = false
+allow_initialize_multisig = false
+allow_freeze_account = false
+allow_thaw_account = false
+allow_withdraw_excess_lamports = false
+allow_unwrap_lamports = false
+
+[validation.fee_payer_policy.alt]
+allow_create = false
+allow_extend = false
+allow_freeze = false
+allow_deactivate = false
+allow_close = false
+
+[metrics]
+enabled = false

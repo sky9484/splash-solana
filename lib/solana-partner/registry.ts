@@ -1,0 +1,117 @@
+/**
+ * Payout partner registry and the interface every partner adapter implements.
+ *
+ * The engine reads delivery networks from here, never from env. The only
+ * entry in this build is the labelled mock; a real sandbox adapter implements
+ * `PayoutPartner` and is added beside it with `signed: false` until a
+ * contract exists.
+ */
+import type { DeliveryNetwork, PartnerPayoutEvent } from '../solana/types.ts';
+
+export type PayoutRail = 'PESONet' | 'InstaPay';
+
+export interface PartnerRegistryEntry {
+  id: string;
+  /** Display name. The UI shows this, never a company name, for the mock. */
+  name: string;
+  /** true only once a partner agreement is signed. */
+  signed: boolean;
+  /** true for sandbox / devnet partners; the engine flags their quotes `mock_partner`. */
+  sandbox: boolean;
+  acceptedTargets: ReadonlyArray<{ network: DeliveryNetwork; token: 'USDC' }>;
+  rails: ReadonlyArray<PayoutRail>;
+}
+
+/**
+ * A partner's price for one payout size on one delivery network.
+ *
+ * Amounts are for the size requested: `grossUsdcMinor` is what must arrive at
+ * the deposit address, `feeUsdcMinor` is what the partner keeps out of it, and
+ * `netPhpMinor` is what the supplier's bank account receives.
+ */
+export interface PartnerQuote {
+  partnerId: string;
+  network: DeliveryNetwork;
+  pair: 'USD/PHP';
+  /** PHP per 1 USDC, decimal string. */
+  rate: string;
+  /** Where the rate came from. The mock says 'MOCK · not a live rate'. */
+  reference: string;
+  capturedAt: string;
+  expiresAt: string;
+  feeBps: number;
+  feeFixedUsdcMinor: bigint;
+  grossUsdcMinor: bigint;
+  feeUsdcMinor: bigint;
+  netPhpMinor: bigint;
+  rail: PayoutRail;
+  /** Partner side: deposit seen → bank credited. An estimate, not a finality claim. */
+  payoutEtaSec: number;
+  /** Plain words for the UI, e.g. 'same banking day'. */
+  arrival: string;
+  mock: boolean;
+}
+
+export type PartnerQuoteRequest = { amountUsdcMinor: bigint; amountPhpMinor?: never } | { amountPhpMinor: bigint; amountUsdcMinor?: never };
+
+export interface PartnerDepositAddress {
+  network: DeliveryNetwork;
+  token: 'USDC';
+  /** One-payment address: Solana base58 owner, or EIP-55 0x address on Polygon. */
+  address: string;
+}
+
+export type PartnerPayoutStatus = 'AWAITING_DEPOSIT' | 'RECEIVED' | 'PAID' | 'RETURNED';
+
+export interface PartnerPayout {
+  payoutId: string;
+  paymentId: string;
+  partnerId: string;
+  amountPhpMinor: bigint;
+  /** What must arrive (USDC minor) for the payout to be made in full. */
+  expectedUsdcMinor: bigint;
+  rail: PayoutRail;
+  beneficiary: { bank: string; accountLast4: string };
+  deposits: PartnerDepositAddress[];
+  status: PartnerPayoutStatus;
+  createdAt: string;
+}
+
+export interface CreatePayoutRequest {
+  paymentId: string;
+  amountPhpMinor: bigint;
+  expectedUsdcMinor: bigint;
+  beneficiary: { bank: string; accountLast4: string };
+  now?: Date;
+}
+
+export type WebhookVerification = { ok: true } | { ok: false; reason: string };
+
+export interface PayoutPartner {
+  readonly entry: PartnerRegistryEntry;
+  quote(req: PartnerQuoteRequest, opts?: { network?: DeliveryNetwork; now?: Date }): PartnerQuote;
+  createPayout(req: CreatePayoutRequest): PartnerPayout;
+  verifyWebhook(event: PartnerPayoutEvent, opts?: { now?: Date; maxAgeSec?: number }): WebhookVerification;
+}
+
+export const MOCK_PARTNER_ENTRY: PartnerRegistryEntry = Object.freeze({
+  id: 'mock-partner',
+  name: 'Mock partner · devnet',
+  signed: false,
+  sandbox: true,
+  acceptedTargets: Object.freeze([
+    Object.freeze({ network: 'solana' as const, token: 'USDC' as const }),
+    Object.freeze({ network: 'polygon' as const, token: 'USDC' as const }),
+  ]),
+  rails: Object.freeze(['PESONet', 'InstaPay'] as PayoutRail[]),
+});
+
+export const PARTNER_REGISTRY: ReadonlyArray<PartnerRegistryEntry> = Object.freeze([MOCK_PARTNER_ENTRY]);
+
+export function getPartnerEntry(id: string): PartnerRegistryEntry | undefined {
+  return PARTNER_REGISTRY.find((p) => p.id === id);
+}
+
+export function partnerAccepts(entry: PartnerRegistryEntry, network: DeliveryNetwork): boolean {
+  return entry.acceptedTargets.some((t) => t.network === network && t.token === 'USDC');
+}

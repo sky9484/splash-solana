@@ -404,6 +404,18 @@ export const envSchema = z.object({
   MEMWAL_ACCOUNT_ID: objectId,
   MEMWAL_SERVER_URL: url,
   MEMWAL_NAMESPACE: optional,
+
+  /* Solana build (Colosseum). lib/solana/config.ts readSolanaEnv validates the
+   * values; offline is the default and touches no network. */
+  SPLASH_SOLANA_MODE: opt(z.enum(['offline', 'devnet'])),
+  SOLANA_CLUSTER: opt(z.enum(['devnet', 'mainnet-beta'])),
+  SOLANA_RPC_URL: optional,
+  KORA_RPC_URL: optional,
+  KORA_API_KEY: optional,
+  /** Route engine home lane for this build. */
+  ENGINE_HOME_CHAIN: opt(z.enum(['solana', 'sui', 'arbitrum'])),
+  /** HMAC secret for the mock payout partner's webhooks (devnet demo only). */
+  MOCK_PARTNER_WEBHOOK_SECRET: optional,
 });
 
 export type Env = z.infer<typeof envSchema>;
