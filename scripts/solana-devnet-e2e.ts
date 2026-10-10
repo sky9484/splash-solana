@@ -23,6 +23,11 @@
  *   SPLASH_E2E_CCTP=1           also burn the same amount to Polygon Amoy (domain 7) via CCTP V2.
  *   SPLASH_E2E_EVM_RECIPIENT    required with SPLASH_E2E_CCTP: 0x address on Amoy that receives the mint.
  *   SPLASH_E2E_ALLOW_CREATION_FEE=1  continue even if Squads charges a multisig creation fee.
+ *   SPLASH_E2E_CCTP_CHANGE      optional. One line naming what this CCTP attempt changed (A2 changes
+ *                               one thing at a time); stored with the attempt in cctpAttempts[].
+ *
+ * Earlier runs in the output file are kept under previousRuns[], and every CCTP attempt (passed or
+ * failed, with its program logs) under cctpAttempts[]. A later failure never erases an earlier proof.
  *
  * Output: docs/solana-build/devnet-run.json, rewritten after every step (so a failure leaves a
  * partial record). It holds public keys, signatures and explorer links only: no secrets, no words.
@@ -66,12 +71,41 @@ import { createKoraClient, defaultSponsorPolicy, serializeForKora, validateSpons
 const CLUSTER = 'devnet' as const;
 const OUT = path.join(process.cwd(), 'docs/solana-build/devnet-run.json');
 
+/** Earlier runs in OUT are kept, never overwritten: a later failure must not erase an earlier proof. */
+interface CctpAttempt {
+  at: string;
+  outcome: 'ok' | 'failed';
+  /** What changed versus the previous attempt (A2 changes one thing at a time). */
+  change: string;
+  burnSignature?: string;
+  attestationStatus?: string;
+  attestationSec?: number;
+  error?: string;
+  /** Program logs of the failing transaction (public on-chain data, no secrets). */
+  logs?: string[];
+}
+const prior = (() => {
+  try {
+    const p = JSON.parse(readFileSync(OUT, 'utf8')) as { previousRuns?: unknown[]; cctpAttempts?: CctpAttempt[] } & Record<string, unknown>;
+    const { previousRuns = [], cctpAttempts = [], ...last } = p;
+    return { previousRuns: [...previousRuns, last], cctpAttempts };
+  } catch {
+    return { previousRuns: [] as unknown[], cctpAttempts: [] as CctpAttempt[] };
+  }
+})();
+/** Set while the CCTP section runs, so a failure there is recorded as an attempt. */
+let cctpStage: string | null = null;
+
 function fail(message: string): never {
   console.error(`\n✗ ${message}\n`);
   try {
     run.status = 'failed';
     run.error = message.split('\n')[0] ?? message;
     run.finishedAt = new Date().toISOString();
+    if (cctpStage) {
+      const lines = message.split('\n');
+      prior.cctpAttempts.push({ at: run.finishedAt, outcome: 'failed', change: cctpChange(), error: `${cctpStage}: ${lines[0]}`, logs: lines.slice(1).filter(Boolean).slice(-40) });
+    }
     save();
   } catch {
     /* the record is best effort; the console message above is the source of truth */
@@ -123,9 +157,14 @@ const run = {
   ],
 };
 
+function cctpChange(): string {
+  return process.env.SPLASH_E2E_CCTP_CHANGE?.trim() || 'baseline: vault is event_rent_payer, event account = Squads ephemeral signer 0';
+}
+
 function save() {
   mkdirSync(path.dirname(OUT), { recursive: true });
-  writeFileSync(OUT, `${JSON.stringify(run, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}\n`);
+  const out = { ...run, cctpAttempts: prior.cctpAttempts, previousRuns: prior.previousRuns };
+  writeFileSync(OUT, `${JSON.stringify(out, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}\n`);
 }
 
 function record(name: string, signature: string) {
@@ -199,7 +238,11 @@ async function main() {
       fail(`${name}: send failed: ${(e as Error).message}${logs ? `\n${logs.join('\n')}` : ''}`);
     }
     const conf = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
-    if (conf.value.err) fail(`${name}: transaction ${signature} failed on chain: ${JSON.stringify(conf.value.err)}\n${explorerTxUrl(signature, CLUSTER)}`);
+    if (conf.value.err) {
+      const failed = await connection.getTransaction(signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 }).catch(() => null);
+      const logs = failed?.meta?.logMessages ?? [];
+      fail(`${name}: transaction ${signature} failed on chain: ${JSON.stringify(conf.value.err)} ${explorerTxUrl(signature, CLUSTER)}\n${logs.join('\n')}`);
+    }
     record(name, signature);
     return signature;
   }
@@ -290,6 +333,8 @@ async function main() {
   // 6. Optional CCTP V2 burn to Polygon Amoy.
   if (wantCctp) {
     console.log('\n4/4 CCTP V2 burn from the vault to Polygon Amoy (UNVERIFIED path: Squads + ephemeral event account)');
+    console.log(`  Attempt change: ${cctpChange()}`);
+    cctpStage = 'cctp_setup';
     // The vault is event_rent_payer: it needs SOL for the MessageSent account rent. Funded by the
     // local keypair, never by Kora (I-3). This is the open "you don't need SOL" gap for this lane.
     await send('vault_sol_for_cctp_event_rent', [SystemProgram.transfer({ fromPubkey: local.publicKey, toPubkey: plan.vaultPda, lamports: Math.round(0.01 * LAMPORTS_PER_SOL) })], {}, false);
@@ -300,12 +345,17 @@ async function main() {
     const inner = [burn.instruction, buildMemoInstruction(buildSplashMemo(burnCommitment))];
     const burnProposal = buildVaultProposal({ multisigPda: plan.multisigPda, transactionIndex: index, member: device.publicKey, feePayer, innerInstructions: inner, ephemeralSigners: 1 });
     const bgroups = groupProposalTransactions(burnProposal, feePayer, PublicKey.default.toBase58());
+    cctpStage = 'cctp_propose';
     for (const [i, g] of bgroups.entries()) await send(`cctp_propose_${i + 1}_of_${bgroups.length}`, g, { devices: [device] });
+    cctpStage = 'cctp_execute';
     const bexec = await buildVaultExecuteInstructionFromChain(connection, plan.multisigPda, index, device.publicKey);
     const burnSig = await send('cctp_deposit_for_burn_execute', [bexec.instruction], { devices: [device] });
     run.cctp = { destinationDomain: 7, mintRecipient: evmRecipient, amountMinor: amountMinor.toString(), messageSentEventData: burn.messageSentEventData.toBase58(), iris: irisMessagesUrl(CLUSTER, burnSig) };
     save();
     console.log(`  Attestation: ${run.cctp.iris}`);
+    cctpStage = null;
+    const burnAt = Date.now();
+    let attestationSec: number | undefined;
     for (let i = 0; i < 60; i++) {
       try {
         const res = await fetch(run.cctp.iris);
@@ -313,13 +363,17 @@ async function main() {
           const body = (await res.json()) as { messages?: Array<{ status?: string }> };
           const status = body.messages?.[0]?.status;
           if (status) run.cctp.attestationStatus = status;
-          if (status === 'complete') break;
+          if (status === 'complete') {
+            attestationSec = Math.round((Date.now() - burnAt) / 1000);
+            break;
+          }
         }
       } catch {
         /* keep polling */
       }
       await sleep(10_000);
     }
+    prior.cctpAttempts.push({ at: new Date().toISOString(), outcome: 'ok', change: cctpChange(), burnSignature: burnSig, attestationStatus: run.cctp.attestationStatus, attestationSec });
     save();
     console.log(`  Iris status: ${run.cctp.attestationStatus ?? 'unknown'}. Mint on Amoy with receiveMessage (message + attestation from Iris) from any wallet.`);
   } else {
