@@ -1,0 +1,83 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/artifacts/
+
+# next.js
+/.next/
+/out/
+
+# local temp redirect (used when the system temp drive is full)
+/.tmp/
+/.sui-home/
+
+# production
+/build
+/move/build/
+# Post-split: each Move package has its own build/ output.
+/move/*/build/
+/.tools/
+
+# misc
+.DS_Store
+*.pem
+
+# local dev admin session secret (generated when ADMIN_SESSION_SECRET is unset)
+.admin-session-secret.local
+.customer-session-secret.local
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+!.env.testnet.example
+
+# admin-managed runtime config (contract IDs etc.)
+/data/contract-config.json
+/data/contract-config.json.tmp.*
+/data/operating-settings.json
+/data/operating-settings.json.tmp.*
+/data/seal-policies.json
+/data/seal-policies.json.tmp.*
+/data/circuit-breakers.json
+/data/circuit-breakers.json.tmp.*
+/data/waitlist.json
+/data/waitlist.json.tmp.*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Machine-local skill symlinks (npx skills creates them per-machine)
+/.claude/skills/
+
+
+# The durable local dev database (DEV_DB_DIR=.dev-db) and its lock file.
+/.dev-db/
+/.dev-db.lock
+
+# Local scratch: dev-server logs and the design-exploration previews.
+# Neither belongs in the published tree.
+*.log
+.dev-*.log
+/public/_previews/
+.tmp-*.mjs

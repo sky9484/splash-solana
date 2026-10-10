@@ -1,0 +1,368 @@
+openapi: 3.1.0
+info:
+  title: Splash Admin API
+  version: 0.1.0
+  summary: Internal admin endpoints for operating the Splash protocol.
+  description: |
+    Endpoints under `/api/admin/*` are gated by the `splash_admin_session`
+    cookie. Sign in via `POST /api/admin/login` to obtain it.
+
+    This document currently covers the contract-config surface used by the
+    admin **Contract config** page. Other admin endpoints (KYB, support,
+    wallet, transactions) are not yet specified here.
+
+servers:
+  - url: https://splashz.xyz
+    description: Production (v4)
+  - url: https://v3.splashz.xyz
+    description: v3
+  - url: https://v2.splashz.xyz
+    description: v2
+  - url: http://localhost:3000
+    description: Local dev
+
+tags:
+  - name: Auth
+    description: Admin session lifecycle.
+  - name: Contract config
+    description: On-chain object IDs (package, treasury, peg state, ...).
+
+paths:
+  /api/admin/login:
+    post:
+      tags: [Auth]
+      summary: Sign in to the admin console
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoginRequest'
+      responses:
+        '200':
+          description: Session cookie set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: splash_admin_session=…; HttpOnly; Path=/; SameSite=Lax; Secure
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/logout:
+    post:
+      tags: [Auth]
+      summary: Clear the admin session cookie
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Session cleared
+
+  /api/admin/contracts:
+    get:
+      tags: [Contract config]
+      summary: Read the active contract config
+      description: |
+        Returns the merged view (runtime overrides applied over `.env.local`
+        fallbacks), the env-only baseline (so the UI can show "Revert to
+        env"), and metadata about the override file.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Active contract config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractConfigState'
+              examples:
+                testnet:
+                  value:
+                    config:
+                      packageId: '0xc92c328ca2b8cad2fcee4410b33f076fd23697cc10840921c0ed397c71143a5a'
+                      treasuryId: '0x0f520398af8901e84dad6d82689f3066910257c5e822ad75e2ba86504484ded3'
+                      adminCapId: '0xe596d36f33d20fb95a4183af567730c24be5bd8650d12bd84ebc76785be68592'
+                      pegStateId: '0x17c1ac56091f14b56588d02728fdeb5bc12b6aad810a73df852cd7ba2c3c9852'
+                      businessAccountId: '0x72e148fbf3ac98a60b718b18989e18779105a89d4d8760e4a31510c009c96463'
+                      transferCoinId: '0x76f9c59303c4437c5d3c234d68c7e2ec4371342af4151f873ce8fd61d32df333'
+                      settlementRegistryId: ''
+                      testRecipientAddress: '0xee6afd68c2138e1aa9e43b9c436c2da6d634e4a20ad4358bb0fbc149b4424bb9'
+                      operatorAddress: '0x2e9a99b3b9e42f41222934c2ac629ce1c5ff9d87280c295b45ee39d1cb16eb73'
+                      treasuryAddress: '0x2e9a99b3b9e42f41222934c2ac629ce1c5ff9d87280c295b45ee39d1cb16eb73'
+                      usdcType: '0x2::sui::SUI'
+                      usdtType: ''
+                      usdtBufferId: ''
+                    env:
+                      packageId: '0xf9aec3f6ded5c70dc84809d41393a32e01ede6bb1c6372db6f05964eba537beb'
+                      treasuryId: '0xd098f0a2953a18f9e9432b3cae262d4161439f9f65bc01775a2a035629a5e485'
+                      adminCapId: '0x76800c9cf9b21798e861c72eb296f8bdcb4fe623f63579b186dec1a79265a9e3'
+                      pegStateId: '0xb4d905b53623e2d646110e6feeac9a76374df8658141d4cd98bb994fdbdcf348'
+                      businessAccountId: '0x8b5bb82c9f7ad73ff6c62470d978235b30669d97323049aae9c9616ff1f56810'
+                      transferCoinId: ''
+                      settlementRegistryId: ''
+                      testRecipientAddress: '0xee6afd68c2138e1aa9e43b9c436c2da6d634e4a20ad4358bb0fbc149b4424bb9'
+                      operatorAddress: '0x2e9a99b3b9e42f41222934c2ac629ce1c5ff9d87280c295b45ee39d1cb16eb73'
+                      treasuryAddress: '0x2e9a99b3b9e42f41222934c2ac629ce1c5ff9d87280c295b45ee39d1cb16eb73'
+                      usdcType: '0x2::sui::SUI'
+                      usdtType: ''
+                      usdtBufferId: ''
+                    envKeys:
+                      packageId: SPLASH_PACKAGE_ID
+                      treasuryId: SPLASH_TREASURY_ID
+                      adminCapId: SPLASH_ADMIN_CAP_ID
+                      pegStateId: SPLASH_PEG_STATE_ID
+                      businessAccountId: SPLASH_BUSINESS_ACCOUNT_ID
+                      transferCoinId: SPLASH_TRANSFER_COIN_ID
+                      settlementRegistryId: SPLASH_SETTLEMENT_REGISTRY_ID
+                      testRecipientAddress: SPLASH_TEST_RECIPIENT_ADDRESS
+                      operatorAddress: OPERATOR_SUI_ADDRESS
+                      treasuryAddress: TREASURY_ADDRESS
+                      usdcType: USDC_TYPE
+                      usdtType: USDT_TYPE
+                      usdtBufferId: USDT_BUFFER_ID
+                    meta:
+                      path: /home/sebastian/splashz-v4/data/contract-config.json
+                      exists: true
+                      updatedAt: '2026-05-31T12:00:00.000Z'
+                    network: testnet
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Contract config]
+      summary: Update the active contract config
+      description: |
+        Writes the supplied fields to `data/contract-config.json` (atomic
+        rename). Empty strings are dropped — to clear an override, omit the
+        field or send an empty string and the loader will fall back to the
+        env value on the next read.
+
+        Validation runs server-side:
+
+        - All `*Id` fields and the package ID must match `^0x[a-fA-F0-9]+$`.
+          `packageId` additionally requires 64 hex characters.
+        - Address fields (`testRecipientAddress`, `operatorAddress`,
+          `treasuryAddress`) must be canonical (`0x` + 64 hex).
+        - Move-type fields (`usdcType`, `usdtType`) must match
+          `^0x[a-fA-F0-9]+::[a-zA-Z_][\w]*::[a-zA-Z_][\w<>:,\s]*$`.
+
+        Returns the merged config after save (overrides applied over env).
+        Changes apply to the *very next request* — there is no Next.js or
+        systemd restart involved.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractConfigInput'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [config, meta]
+                properties:
+                  config:
+                    $ref: '#/components/schemas/ContractConfig'
+                  meta:
+                    $ref: '#/components/schemas/ContractConfigFileMeta'
+        '400':
+          description: Validation failure — fields map keys to human messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    example: Invalid contract config
+                  fields:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    example:
+                      packageId: Package ID must be 0x + 64 hex characters.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Server error writing the override file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: splash_admin_session
+      description: |
+        Set by `POST /api/admin/login`. HTTP-only, `SameSite=Lax`, `Secure` in
+        production. Cleared by `POST /api/admin/logout`.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid admin session cookie
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Staff authentication required
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    AdminLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    SuiObjectId:
+      type: string
+      description: Sui object/package ID (`0x` + 1–64 hex characters).
+      pattern: '^0x[a-fA-F0-9]+$'
+      example: '0xc92c328ca2b8cad2fcee4410b33f076fd23697cc10840921c0ed397c71143a5a'
+
+    SuiAddress:
+      type: string
+      description: Canonical 32-byte Sui address (`0x` + 64 hex).
+      pattern: '^0x[a-fA-F0-9]{64}$'
+      example: '0x2e9a99b3b9e42f41222934c2ac629ce1c5ff9d87280c295b45ee39d1cb16eb73'
+
+    SuiMoveType:
+      type: string
+      description: Move type identifier (`0xpkg::module::TYPE`).
+      pattern: '^0x[a-fA-F0-9]+::[a-zA-Z_][\\w]*::[a-zA-Z_][\\w<>:,\\s]*$'
+      example: '0x2::sui::SUI'
+
+    ContractConfig:
+      type: object
+      description: Active contract IDs merged from env + runtime overrides.
+      required:
+        - packageId
+        - treasuryId
+        - adminCapId
+        - pegStateId
+        - businessAccountId
+        - transferCoinId
+        - settlementRegistryId
+        - testRecipientAddress
+        - operatorAddress
+        - treasuryAddress
+        - usdcType
+        - usdtType
+        - usdtBufferId
+      properties:
+        packageId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: Splash protocol Move package ID. Must be 64-hex.
+        treasuryId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: '`settlement::SettlementPool<SUI>` shared object.'
+        adminCapId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: '`business_account::AdminCap` owned by the operator.'
+        pegStateId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: '`peg_monitor::PegState` shared object.'
+        businessAccountId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: '`business_account::BusinessAccount` shared object.'
+        transferCoinId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: Pre-funded SUI coin used for test transfers (optional).
+        settlementRegistryId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: Settlement registry shared object (optional).
+        testRecipientAddress:
+          allOf: [{ $ref: '#/components/schemas/SuiAddress' }]
+          description: When set, single + batch settlements route here instead of the requested recipient.
+        operatorAddress:
+          allOf: [{ $ref: '#/components/schemas/SuiAddress' }]
+        treasuryAddress:
+          allOf: [{ $ref: '#/components/schemas/SuiAddress' }]
+        usdcType:
+          allOf: [{ $ref: '#/components/schemas/SuiMoveType' }]
+        usdtType:
+          allOf: [{ $ref: '#/components/schemas/SuiMoveType' }]
+          description: Optional. Empty when USDT is not configured.
+        usdtBufferId:
+          allOf: [{ $ref: '#/components/schemas/SuiObjectId' }]
+          description: Optional.
+
+    ContractConfigInput:
+      type: object
+      description: |
+        Subset of `ContractConfig` to write. Fields omitted (or sent as empty
+        strings) are cleared from the runtime override — the loader falls back
+        to the env value on next read.
+      additionalProperties: false
+      properties:
+        packageId: { type: string }
+        treasuryId: { type: string }
+        adminCapId: { type: string }
+        pegStateId: { type: string }
+        businessAccountId: { type: string }
+        transferCoinId: { type: string }
+        settlementRegistryId: { type: string }
+        testRecipientAddress: { type: string }
+        operatorAddress: { type: string }
+        treasuryAddress: { type: string }
+        usdcType: { type: string }
+        usdtType: { type: string }
+        usdtBufferId: { type: string }
+
+    ContractConfigFileMeta:
+      type: object
+      required: [path, exists]
+      properties:
+        path:
+          type: string
+          description: Absolute path of the override file on disk.
+          example: /home/sebastian/splashz-v4/data/contract-config.json
+        exists:
+          type: boolean
+          description: True once the admin has saved at least once.
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: mtime of the override file; null when `exists` is false.
+
+    ContractConfigState:
+      type: object
+      required: [config, env, envKeys, meta, network]
+      properties:
+        config:
+          $ref: '#/components/schemas/ContractConfig'
+        env:
+          $ref: '#/components/schemas/ContractConfig'
+        envKeys:
+          type: object
+          description: Maps each field to its `.env.local` key. Useful for UI hints.
+          additionalProperties:
+            type: string
+        meta:
+          $ref: '#/components/schemas/ContractConfigFileMeta'
+        network:
+          type: string
+          enum: [testnet, mainnet]

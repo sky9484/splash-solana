@@ -1,0 +1,50 @@
+# splash_custody — publishes ONLY when the Labuan e-money licence is granted.
+#
+# Every struct that holds a `Balance<T>` lives here: `SettlementPool`,
+# `SmartTreasury`, `UsdtBuffer`. With no e-money licence held, this package is
+# NOT PUBLISHED, so these functions do not exist on chain — there is no flag to
+# flip and no assert to bypass, because there is no bytecode.
+#
+# It depends on splash_core and cannot compile without it: at publish time it
+# inherits `AdminCap`, `AttestationCap` and the intent/receipt types from core.
+# Nothing in core changes when this publishes.
+[package]
+name = "splash_custody"
+version = "0.0.1"
+edition = "2024.beta"
+license = "Apache-2.0"
+authors = ["Splash Finance"]
+
+[dependencies]
+splash_core = { local = "../splash_core" }
+# Velocity bounds (A-11). Publishes UPGRADEABLE so ceilings stay tunable.
+splash_meter = { local = "../splash_meter" }
+# DeepBook pin.
+#
+# Moved FORWARD to daa5a951 on 2026-08-18, once the Sui CLI reached 1.77.2.
+#
+# History worth keeping, because the failure was counter-intuitive: `sui move
+# test` compiles a git dependency's own test files, and DeepBook's tests adopted
+# `std::unit_test::destroy` on 2025-11-20 (53d34351). That macro was added to the
+# Move stdlib by sui commit d95572e1c1 (#24078, 2025-11-11) and first shipped in
+# testnet-v1.61.1. On the CLI 1.59.1 this repo used to run, the stdlib exported
+# only `assert_eq`/`assert_ref_eq`, so every DeepBook rev after that date aborted
+# the whole test build before splash_custody's own modules were reached — the pin
+# was too NEW for the toolchain, not too old. It was parked at 7b48e61b (the
+# commit before the break) until the CLI caught up.
+#
+# Re-verified against 7b48e61b at the time of this move, rather than assumed:
+#   * FLOAT_SCALING is 1_000_000_000 in both revs. This is the constant
+#     `liquidity_guard::DEEPBOOK_PRICE_SCALING` must match, and a wrong value
+#     there is the Cetus failure mode.
+#   * get_quote_quantity_out_input_fee, mid_price and get_level2_range have
+#     byte-identical signatures in both.
+#   * Neither rev sets `published-at`, so no on-chain package address changes.
+#
+# REQUIRES Sui CLI >= 1.61.1. Below that, `sui move test` cannot compile
+# DeepBook's test files and this package's suite is unrunnable.
+deepbook = { git = "https://github.com/MystenLabs/deepbookv3.git", subdir = "packages/deepbook", rev = "daa5a9514908968f11be1d0388f673e0ee1a5059" }
+openzeppelin_math = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "math/core", rev = "a9703fe834a56990ccbcee3a1cf0802e7cd3b8d9" }
+
+[addresses]
+splash_custody = "0x0"

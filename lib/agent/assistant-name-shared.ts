@@ -1,0 +1,9 @@
+/**
+ * The name the assistant answers to when nobody has chosen one.
+ *
+ * Separate from `assistant-name.ts` so a client component can import the
+ * default without pulling in MemWal and the server-only module graph behind it.
+ */
+import { AGENT_DISPLAY_NAME } from './identity';
+
+export const DEFAULT_ASSISTANT_NAME = AGENT_DISPLAY_NAME;

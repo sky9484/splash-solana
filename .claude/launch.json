@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "splash-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000,
+      "autoPort": true,
+      "env": {
+        "TEMP": "D:\\latest-splash\\.tmp",
+        "TMP": "D:\\latest-splash\\.tmp",
+        "TMPDIR": "D:\\latest-splash\\.tmp",
+        "NEXT_TELEMETRY_DISABLED": "1",
+        "NODE_OPTIONS": "--use-system-ca"
+      }
+    }
+  ]
+}

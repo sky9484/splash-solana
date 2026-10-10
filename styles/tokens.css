@@ -1,0 +1,70 @@
+:root {
+  --bg: #F6F0ED;
+  --ink: #1F4452;
+  --slate: #326273;
+  --teal: #5C9EAD;
+  --coral: #E39774;
+  --gold: #D9A441;
+
+  --surface: #FFFFFF;
+  --surface-2: #FBF7F5;
+  --line: #E5DCD6;
+  --line-strong: #C9BDB5;
+
+  --ok: #2E7D6B;
+  --ok-bg: #E4F1ED;
+  --warn: #B4690E;
+  --warn-bg: #FBEFDD;
+  --error: #B3402F;
+  --error-bg: #F9E7E3;
+  --info: #326273;
+  --info-bg: #E7EEF1;
+  --pending: #6B7C85;
+  --pending-bg: #EDEFF0;
+
+  /* Keyboard focus: a --focus outline around a --focus-gap ring, two tones
+     (WCAG C40), so it holds 3:1 on white cards, on --bg and on the dark
+     sidebar alike (app/globals.css, the focus-ring utility). */
+  --focus: var(--slate);
+  --focus-gap: var(--surface);
+
+  --font-sans: 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-display: clamp(2.5rem, 5vw, 4rem);
+  --leading-tight: 1.15;
+  --leading-normal: 1.55;
+  --tracking-display: -0.02em;
+  --tracking-caps: 0.08em;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgb(31 68 82 / .06);
+  --shadow-2: 0 4px 12px rgb(31 68 82 / .08);
+  --shadow-3: 0 12px 32px rgb(31 68 82 / .12);
+
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-scene: 600ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-decel: cubic-bezier(0, 0, 0, 1);
+  --ease-accel: cubic-bezier(.3, 0, 1, 1);
+}

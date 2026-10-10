@@ -1,0 +1,43 @@
+# splash_core — the package that publishes to Sui mainnet.
+#
+# THE INVARIANT: no struct in this package holds a `Balance<T>`.
+#
+# Splash holds no licence permitting it to hold client funds, and does not
+# hold them. That is not
+# enforced here by a runtime flag or an assert someone could forget to call —
+# it is enforced by the ABSENCE of any field capable of accumulating value.
+# Client value exists only as a `Coin<T>` parameter that enters and leaves
+# `payment_intent::confirm_payment_intent` inside a single PTB. There is no
+# object to accumulate into.
+#
+# The question "how do I know Splash cannot hold my money?" is answered by
+# `grep -rn 'Balance<' move/splash_core/sources/` returning nothing, which
+# scripts/check-core-no-balance.mjs enforces on every build.
+#
+# Custody lives in ../splash_custody and publishes only when the Labuan e-money
+# licence is granted.
+[package]
+name = "splash_core"
+version = "0.0.1"
+edition = "2024.beta"
+license = "Apache-2.0"
+authors = ["Splash Finance"]
+
+# NO third-party dependencies.
+#
+# The DeepBook liquidity guard moved to splash_custody (it protects pooled funds,
+# which only exist there), and with it went the last reason for this package to
+# depend on anything but the Sui framework. Two consequences worth stating:
+#
+#   1. The mainnet package's dependency surface is the Sui framework and nothing
+#      else. Cetus was drained through a bug in a third-party math library; the
+#      strongest defence against that class is not auditing the dependency, it is
+#      not having one.
+#   2. `sui move test` runs. The pinned DeepBook rev ships test files that fail
+#      to compile against this toolchain, which aborted the whole test build
+#      before our modules were reached — that is why this repo had 93 lines of
+#      Move tests. Core can now be tested properly.
+[dependencies]
+
+[addresses]
+splash_core = "0x0"

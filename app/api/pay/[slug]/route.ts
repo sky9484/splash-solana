@@ -1,0 +1,88 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+import { readJsonBody } from '@/lib/server/http';
+import { RATE_LIMITS, clientIp, enforceRateLimit } from '@/lib/server/rate-limit';
+import { recordAnalyticsEvent } from '@/lib/server/operations';
+import { findInvoiceBySlug, patchInvoiceForStaff } from '@/lib/server/invoices-store';
+import { payLinkBankInstructions } from '@/lib/server/pay-link';
+import { findIssuerForPayLink, upsertRecipientFromInvoice } from '@/lib/server/recipients-store';
+import { publicUsdcForSlug } from '@/lib/server/usdc-invoice-payments';
+import { refuseOutsideLaunchScope, stablecoinOnly } from '@/lib/server/launch-scope';
+
+const paidSchema = z.object({
+  payerOrgName: z.string().trim().min(2),
+  payerOrgEmail: z.string().email(),
+  paymentReference: z.string().trim().min(4),
+});
+
+async function publicInvoice(slug: string) {
+  // Unscoped by design: the slug IS the capability. It is unguessable, it was
+  // handed to a payer who has no account, and it resolves to one invoice.
+  const invoice = await findInvoiceBySlug(slug);
+  if (!invoice) return null;
+  const issuer = await findIssuerForPayLink(invoice.orgId, invoice.issuerOrg);
+  return {
+    id: invoice.id,
+    issuerOrg: invoice.issuerOrg,
+    issuerVerified: issuer?.kybStatus === 'full',
+    amountUsd: invoice.amountUsd,
+    targetCurrency: invoice.targetCurrency,
+    dueDate: invoice.dueDate,
+    memo: invoice.memo,
+    status: invoice.status,
+    paymentReference: invoice.paymentReference ?? `SPL-${slug.toUpperCase()}-${invoice.id.slice(-4).toUpperCase()}`,
+    // A Splash collection account only once Splash may hold the funds; null in
+    // Phase 0, and the payer pays the issuer directly.
+    bankInstructions: payLinkBankInstructions(),
+    bankReports: !stablecoinOnly(),
+    usdc: await publicUsdcForSlug(slug),
+  };
+}
+
+export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const invoice = await publicInvoice(slug);
+  return invoice
+    ? NextResponse.json(invoice)
+    : NextResponse.json({ error: 'Payment request not found' }, { status: 404 });
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  // Public and unauthenticated: the only thing that bounds it is the network
+  // it comes from. Limited before the slug is even looked up, so probing
+  // slugs is bounded too.
+  const limited = await enforceRateLimit({
+    rule: RATE_LIMITS.payLinkIp,
+    key: clientIp(request),
+    message: 'Too many payment submissions from this network. Try again shortly.',
+  });
+  if (limited) return limited;
+  const outOfScope = refuseOutsideLaunchScope();
+  if (outOfScope) return outOfScope;
+
+  const { slug } = await params;
+  const invoice = await findInvoiceBySlug(slug);
+  if (!invoice) return NextResponse.json({ error: 'Payment request not found' }, { status: 404 });
+  const parsed = paidSchema.safeParse(await readJsonBody(request));
+  if (!parsed.success) return NextResponse.json({ error: 'Valid payer details are required' }, { status: 400 });
+
+  // The payer becomes a beneficiary of the ISSUING org, which the invoice now
+  // names directly rather than by looking its issuer up by name.
+  const recipient = await upsertRecipientFromInvoice({
+    orgId: invoice.orgId,
+    name: parsed.data.payerOrgName,
+    orgEmail: parsed.data.payerOrgEmail,
+  });
+  // By id, not by session: the payer has no account. The slug already
+  // established which invoice this is.
+  await patchInvoiceForStaff(invoice.id, {
+    payerOrgName: parsed.data.payerOrgName,
+    payerOrgEmail: parsed.data.payerOrgEmail,
+    paymentReference: parsed.data.paymentReference,
+    status: 'paid',
+  });
+  const counterpartyPull = recordAnalyticsEvent('counterparty_pull');
+  console.info('[kyb-invite] prepared', { recipientId: recipient.id, email: recipient.orgEmail });
+  return NextResponse.json({ ok: true, recipientId: recipient.id, counterpartyPull });
+}

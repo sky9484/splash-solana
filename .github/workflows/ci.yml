@@ -1,0 +1,78 @@
+# Lint, every test suite, and a production build — on every push and pull
+# request.
+#
+# Until this workflow existed, the only thing CI ran was the core invariant.
+# The commit protocol says lint and build must pass locally and not only in
+# CI, which assumed CI ran them. It did not: a green check on a PR meant
+# only that splash_core held no client value. It now means what it reads as.
+#
+# Node comes from .nvmrc, the same file package.json's engines field and the
+# engine-strict install gate are pinned to. Change the version in one place.
+#
+# Every suite here runs with no external service: test:db uses PGlite
+# in-process, and the build needs no environment variable set. If a step is
+# added that needs a secret or a database, give it its own job rather than
+# widening this one — this must stay green and fast enough that nobody is
+# tempted to skip it.
+name: ci
+
+on:
+  push:
+    branches: [main, 'w*/**', 'feat/**']
+  pull_request:
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: install from the lockfile
+        # --ignore-scripts: nothing in this tree needs a postinstall, and a
+        # dependency that gains one should not get to run code in CI silently.
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: lint
+        # check:core, then check:copy, then eslint — the two custom guards
+        # come first because they are the ones with the regulatory weight.
+        run: npm run lint
+
+      - name: test — auth, accounts and fail-closed authority
+        run: npm run test:auth
+
+      - name: test — funding
+        run: npm run test:funding
+
+      - name: test — oxwal
+        run: npm run test:oxwal
+
+      - name: test — db (PGlite, in-process)
+        run: npm run test:db
+
+      - name: test — batch parser
+        run: npm run test:batch
+
+      - name: test — environment contract
+        run: npm run test:env
+
+      - name: test — seal config loader
+        run: npm run test:seal
+
+      - name: test — health checks
+        run: npm run test:health
+
+      - name: test — explorer links follow the network
+        run: npm run test:explorer
+
+      - name: test — exact money arithmetic
+        run: npm run test:money
+
+      - name: production build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build

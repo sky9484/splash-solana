@@ -1,0 +1,49 @@
+{
+  "profiles": {
+    "demo@splash.finance": {
+      "email": "demo@splash.finance",
+      "displayName": "Sky Operator",
+      "organization": "Splash Demo Ltd",
+      "phone": "",
+      "country": "MY",
+      "timezone": "Asia/Kuala_Lumpur",
+      "tier": "TIER_1",
+      "updatedAt": "2026-07-11T08:05:27.237Z",
+      "appliedRequestId": "pcr_mrg2wr0v_coxbqr"
+    }
+  },
+  "requests": [
+    {
+      "id": "pcr_mrg2wr0v_coxbqr",
+      "email": "demo@splash.finance",
+      "state": "APPROVED",
+      "changes": {
+        "displayName": "Sky Operator",
+        "tier": "TIER_1"
+      },
+      "before": {
+        "displayName": "Demo",
+        "tier": "TIER_3"
+      },
+      "note": "Requesting prime tier",
+      "submittedAt": "2026-07-11T08:04:39.247Z",
+      "decidedAt": "2026-07-11T08:05:27.237Z",
+      "decidedBy": "staff@splash.finance",
+      "decisionReason": "Verified for prime tier - smoke test",
+      "auditTrail": [
+        {
+          "actor": "demo@splash.finance",
+          "action": "SUBMITTED",
+          "note": "Requesting prime tier",
+          "at": "2026-07-11T08:04:39.247Z"
+        },
+        {
+          "actor": "staff@splash.finance",
+          "action": "APPROVED",
+          "note": "Verified for prime tier - smoke test",
+          "at": "2026-07-11T08:05:27.237Z"
+        }
+      ]
+    }
+  ]
+}

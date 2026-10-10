@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Invoice INV-2026-0428 — Splash Demo Ltd</title>
+<style>
+  :root { --ink:#0c3e48; --teal:#0d6370; --slate:#326273; --line:#d9e3e6; --cream:#f6f0ed; --gold:#efc46f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #e7edee; color: var(--ink);
+    font-family: "Segoe UI", Inter, system-ui, -apple-system, Arial, sans-serif; }
+  .sheet { width: 210mm; min-height: 297mm; margin: 16px auto; background: #fff; padding: 22mm 20mm;
+    box-shadow: 0 12px 40px rgba(12,62,72,0.18); }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .logo { width: 42px; height: 42px; border-radius: 10px; background: radial-gradient(circle at 50% 35%, #eaf6f1, #cfe8e0);
+    display: grid; place-items: center; font-weight: 900; color: var(--teal); font-size: 20px; }
+  .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+  .brand small { color: var(--slate); font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; }
+  .doctitle { text-align: right; }
+  .doctitle .tag { font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--teal); }
+  .doctitle h2 { margin: 4px 0 0; font-size: 30px; letter-spacing: -0.02em; }
+  .meta { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card .label { font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--slate); }
+  .card .value { margin-top: 4px; font-size: 15px; font-weight: 700; }
+  .card .sub { color: var(--slate); font-size: 12px; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 26px; }
+  thead th { text-align: left; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #fff;
+    background: var(--ink); padding: 10px 12px; }
+  thead th.num { text-align: right; }
+  tbody td { padding: 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .totals { margin-top: 18px; margin-left: auto; width: 55%; }
+  .totals .row { display: flex; justify-content: space-between; padding: 7px 12px; font-size: 13px; }
+  .totals .grand { background: var(--cream); border-radius: 8px; font-weight: 900; font-size: 16px; }
+  .corridor { margin-top: 26px; border: 1px dashed var(--teal); border-radius: 10px; padding: 14px 16px;
+    display: flex; gap: 14px; align-items: center; background: rgba(13,99,112,0.05); }
+  .corridor .pill { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--teal); border: 1px solid rgba(13,99,112,0.3); border-radius: 999px; padding: 4px 10px; }
+  .corridor p { margin: 0; font-size: 12px; color: var(--slate); }
+  .foot { margin-top: 34px; border-top: 1px solid var(--line); padding-top: 14px;
+    display: flex; justify-content: space-between; gap: 24px; font-size: 11px; color: var(--slate); }
+  .foot strong { color: var(--ink); }
+  @media print {
+    html, body { background: #fff; }
+    .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 14mm; }
+    @page { size: A4; margin: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="top">
+      <div class="brand">
+        <div class="logo">S</div>
+        <div>
+          <h1>Splash Demo Ltd</h1>
+          <small>Global settlement engine</small>
+        </div>
+      </div>
+      <div class="doctitle">
+        <div class="tag">Tax invoice</div>
+        <h2>INV-2026-0428</h2>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div class="card">
+        <div class="label">Billed to</div>
+        <div class="value">Acme Manufacturing PH</div>
+        <div class="sub">Unit 12, Laguna Technopark</div>
+        <div class="sub">Biñan, Laguna 4024, Philippines</div>
+        <div class="sub">finance@acme-ph.example</div>
+      </div>
+      <div class="card">
+        <div class="label">Invoice details</div>
+        <div class="sub"><strong>Issued:</strong> 14 Jun 2026</div>
+        <div class="sub"><strong>Due:</strong> 28 Jun 2026</div>
+        <div class="sub"><strong>Terms:</strong> Net 14</div>
+        <div class="sub"><strong>Reference:</strong> Acme PH component supply</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="num">Qty</th>
+          <th class="num">Unit (USD)</th>
+          <th class="num">Amount (USD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Precision components — production run PR-0428</td>
+          <td class="num">1,000</td>
+          <td class="num">3.20</td>
+          <td class="num">3,200.00</td>
+        </tr>
+        <tr>
+          <td>Assembly &amp; QA services (June cycle)</td>
+          <td class="num">1</td>
+          <td class="num">1,400.00</td>
+          <td class="num">1,400.00</td>
+        </tr>
+        <tr>
+          <td>Freight &amp; export handling</td>
+          <td class="num">1</td>
+          <td class="num">400.00</td>
+          <td class="num">400.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div class="row"><span>Subtotal</span><span>USD 5,000.00</span></div>
+      <div class="row"><span>Tax (0%)</span><span>USD 0.00</span></div>
+      <div class="row grand"><span>Total due</span><span>USD 5,000.00</span></div>
+    </div>
+
+    <div class="corridor">
+      <span class="pill">USD → PHP</span>
+      <p>Settle via Splash on the Sui testnet corridor. Recipient receives PHP; an on-chain receipt and Walrus-anchored audit record are generated on settlement.</p>
+    </div>
+
+    <div class="foot">
+      <div>
+        <strong>Splash Demo Ltd</strong><br />
+        Level 8, Menara Splash, Kuala Lumpur<br />
+        SSM 202601000428 · billing@splash.finance
+      </div>
+      <div>
+        <strong>Pay this invoice</strong><br />
+        Upload to the 0xWal Invoice loop (Invoices → Inspection loop)<br />
+        Document is Seal-encrypted before Walrus storage.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

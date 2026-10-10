@@ -1,0 +1,22 @@
+# splash_meter — velocity bounds for custodial money movement (audit A-11).
+#
+# A separate package for two reasons. It publishes UPGRADEABLE under the cold
+# multisig, unlike splash_core which burns its UpgradeCap: a spend ceiling is
+# exactly the kind of parameter that must be tunable as volume grows, and
+# freezing the *mechanism* alongside the *limits* would be a mistake.
+#
+# And it has NO dependencies — not even splash_core. That keeps `sui move test`
+# runnable here, which matters more than it sounds: this is the only package
+# where the sliding-window arithmetic is executable, and window arithmetic that
+# has never run is a guess.
+[package]
+name = "splash_meter"
+version = "0.0.1"
+edition = "2024.beta"
+license = "Apache-2.0"
+authors = ["Splash Finance"]
+
+[dependencies]
+
+[addresses]
+splash_meter = "0x0"
