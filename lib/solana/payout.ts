@@ -11,6 +11,13 @@
  * The vault-level memo is the one the approver signed; the outer copy is for indexing only and the
  * reconciler must compare the two.
  *
+ * Optional Splash fee leg (canon: "fees are split inside the same transaction"): a second
+ * transferChecked from the vault ATA to the Splash fee account's ATA, inside the SAME vault
+ * transaction the approver signs, after the payout leg. The payout leg's destination is still only
+ * the partner deposit address (I-2); the fee account can never be the payout destination, the vault
+ * or the fee payer, and the fee must be smaller than the payout. The fee account's ATA is created
+ * idempotently before execute (payer = Kora fee payer: ATA rent only, as for the partner ATA).
+ *
  * Verified vs unverified:
  *   - Instruction layouts (transferChecked = tag 12 | u64 LE | u8 decimals; ATA CreateIdempotent =
  *     tag 1; Memo = raw UTF-8) follow the SPL programs and Mysten's cctp-kit; tests decode them.
@@ -123,6 +130,70 @@ export interface PayoutParams {
   reference: PublicKey;
   /** Every Splash-controlled key: fee payer, server keys, any Splash wallet or token account. */
   splashKeys: string[];
+  /** Optional Splash fee leg, split inside the same vault transaction. */
+  splashFee?: SplashFeeLeg;
+}
+
+export interface SplashFeeLeg {
+  /** Wallet that owns the Splash fee token account (its USDC ATA receives the fee). */
+  feeAccountOwner: string;
+  /** USDC minor units. Must be > 0 and smaller than the payout amount. */
+  amountMinor: bigint;
+}
+
+export interface SplashFeePlan {
+  /** ATA CreateIdempotent for the fee account (payer = Kora fee payer: rent only). */
+  preExecuteInstructions: TransactionInstruction[];
+  /** The fee transferChecked; goes inside the vault transaction. */
+  vaultInstructions: TransactionInstruction[];
+  feeAccountOwner: PublicKey;
+  feeTokenAccount: PublicKey;
+  amountMinor: bigint;
+}
+
+/**
+ * The Splash fee leg on its own, so the CCTP lane can add it beside a burn. Refuses a fee account
+ * that is the vault, the fee payer, or the payout's destination (owner or token account).
+ */
+export function buildSplashFeeInstructions(p: {
+  cluster: Cluster;
+  vaultPda: PublicKey;
+  feePayer: PublicKey;
+  fee: SplashFeeLeg;
+  /** The payout amount the fee rides on (transfer or burn), for the fee < payout check. */
+  payoutAmountMinor: bigint;
+  /** Payout destination owner (Solana lane) to keep the fee leg distinct from it. */
+  payoutDestinationOwner?: PublicKey;
+}): SplashFeePlan {
+  const mint = usdcMint(p.cluster);
+  let owner: PublicKey;
+  try {
+    owner = new PublicKey(p.fee.feeAccountOwner);
+  } catch {
+    throw new Error('Fee leg refused: fee account owner is not a valid Solana address');
+  }
+  if (p.fee.amountMinor <= 0n || p.fee.amountMinor > U64_MAX) throw new Error('Fee leg refused: fee must be in 1..u64::MAX minor units');
+  if (p.fee.amountMinor >= p.payoutAmountMinor) throw new Error('Fee leg refused: fee must be smaller than the payout');
+  if (owner.equals(PublicKey.default)) throw new Error('Fee leg refused: zero address');
+  if (owner.equals(p.vaultPda)) throw new Error('Fee leg refused: fee account cannot be the vault');
+  if (owner.equals(p.feePayer)) throw new Error('Fee leg refused: fee account cannot be the Kora fee payer (I-3)');
+  const feeTokenAccount = getAssociatedTokenAddress(mint, owner);
+  if (p.payoutDestinationOwner) {
+    if (owner.equals(p.payoutDestinationOwner) || feeTokenAccount.equals(getAssociatedTokenAddress(mint, p.payoutDestinationOwner))) {
+      throw new Error('Fee leg refused (I-2): fee account is the payout destination');
+    }
+  }
+  const source = getAssociatedTokenAddress(mint, p.vaultPda);
+  if (source.equals(feeTokenAccount)) throw new Error('Fee leg refused: source and fee account are the same');
+  return {
+    preExecuteInstructions: [buildCreateAtaIdempotentInstruction(p.feePayer, owner, mint)],
+    vaultInstructions: [
+      buildTransferCheckedInstruction({ source, mint, destination: feeTokenAccount, owner: p.vaultPda, amount: p.fee.amountMinor, decimals: USDC_DECIMALS }),
+    ],
+    feeAccountOwner: owner,
+    feeTokenAccount,
+    amountMinor: p.fee.amountMinor,
+  };
 }
 
 export interface PayoutPlan {
@@ -137,6 +208,8 @@ export interface PayoutPlan {
   destinationOwner: PublicKey;
   destinationTokenAccount: PublicKey;
   mint: PublicKey;
+  /** Present when a Splash fee leg was requested. */
+  fee?: SplashFeePlan;
 }
 
 /** I-2 check, separate so the route engine and evidence layer can call it too. */
@@ -157,11 +230,13 @@ export function assertPayoutDestination(destination: string, expectedDepositAddr
 
 export function buildPayoutInstructions(p: PayoutParams): PayoutPlan {
   const mint = usdcMint(p.cluster);
-  const destinationOwner = assertPayoutDestination(p.destination, p.expectedDepositAddress, p.splashKeys, [p.vaultPda, p.feePayer]);
+  // The Splash fee account is a Splash key: it can never be the payout destination (I-2).
+  const splashKeys = [...p.splashKeys, ...(p.splashFee ? [p.splashFee.feeAccountOwner] : [])];
+  const destinationOwner = assertPayoutDestination(p.destination, p.expectedDepositAddress, splashKeys, [p.vaultPda, p.feePayer]);
   const destinationTokenAccount = getAssociatedTokenAddress(mint, destinationOwner);
-  const deny = new Set(p.splashKeys);
+  const deny = new Set(splashKeys);
   if (deny.has(destinationTokenAccount.toBase58())) throw new Error('Payout refused (I-2): destination token account is Splash-controlled');
-  for (const key of p.splashKeys) {
+  for (const key of splashKeys) {
     try {
       if (getAssociatedTokenAddress(mint, new PublicKey(key)).equals(destinationTokenAccount)) {
         throw new Error('Payout refused (I-2): destination token account belongs to a Splash key');
@@ -176,8 +251,12 @@ export function buildPayoutInstructions(p: PayoutParams): PayoutPlan {
     throw new Error('Reference key must be a fresh, unrelated public key');
   }
   const memo = buildSplashMemo(p.commitmentHex);
+  const fee = p.splashFee
+    ? buildSplashFeeInstructions({ cluster: p.cluster, vaultPda: p.vaultPda, feePayer: p.feePayer, fee: p.splashFee, payoutAmountMinor: p.amountMinor, payoutDestinationOwner: destinationOwner })
+    : undefined;
+  if (fee && p.reference.equals(fee.feeAccountOwner)) throw new Error('Reference key must be a fresh, unrelated public key');
   return {
-    preExecuteInstructions: [buildCreateAtaIdempotentInstruction(p.feePayer, destinationOwner, mint)],
+    preExecuteInstructions: [buildCreateAtaIdempotentInstruction(p.feePayer, destinationOwner, mint), ...(fee?.preExecuteInstructions ?? [])],
     vaultInstructions: [
       buildTransferCheckedInstruction({
         source: sourceTokenAccount,
@@ -188,6 +267,7 @@ export function buildPayoutInstructions(p: PayoutParams): PayoutPlan {
         decimals: USDC_DECIMALS,
         references: [p.reference],
       }),
+      ...(fee?.vaultInstructions ?? []),
       buildMemoInstruction(memo),
     ],
     postExecuteInstructions: [buildMemoInstruction(memo)],
@@ -196,5 +276,6 @@ export function buildPayoutInstructions(p: PayoutParams): PayoutPlan {
     destinationOwner,
     destinationTokenAccount,
     mint,
+    ...(fee ? { fee } : {}),
   };
 }

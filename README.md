@@ -1,209 +1,87 @@
-# Splash Finance
+# Splash on Solana
 
-Splash Finance is a B2B cross-border settlement prototype for SEA exporters, marketplaces, and payroll operators. The app uses Next.js App Router, React Query, Tailwind CSS, server-driven settlement APIs, and Sui Move contracts.
+**Pay suppliers. Prove everything.**
+
+Every month, finance teams across Southeast Asia pay suppliers abroad, then spend days proving it: the invoice in email, the approval in WhatsApp, the rate in a screenshot. Splash pays the supplier in USDC on Solana and keeps one record of the whole payment: invoice, approval, transfer and rate.
+
+- **Your vault, your keys.** Every business gets its own autonomous Squads V4 vault. Splash holds no key that can move the money.
+- **AI that works, never spends.** Zeke reads the invoice and compares routes. A person signs every payment.
+- **One record per payment.** The evidence record is hashed into a Merkle root and anchored on Solana, and anyone holding the receipt can verify it.
+
+Built for Colosseum (submission 12 Oct 2026). First corridor: Malaysia to the Philippines.
+
+> **What is real and what is mock.** The vault, keys, transactions, policy checks, route ranking and evidence are real code with tests. The **payout partner is a labelled mock** ("Mock partner · devnet": its peso rate is a fixed reference, not a live rate). Wallet screening (KYT) is a stub. The demo runs **offline by default** with a chain simulator that checks every signature and Squads threshold; every screen and receipt then says "Simulated · devnet-ready". The same code path runs on devnet with `SPLASH_SOLANA_MODE=devnet`.
+
+## The problem
+- The World Bank's Remittance Prices Worldwide puts the average cost of sending money from Malaysia to the Philippines at **3.92%**, with banks charging **up to 9.56%** and **1.49%** hidden in the exchange rate (Q3 2025, US$200 and US$500 sends; retail prices, so a floor for business payments).
+- The Philippines makes compliant e-invoices mandatory on or before 31 Dec 2026 (BIR RMC 098-2026). Every supplier payment will need to match an invoice.
+
+## The flow (one payment, end to end)
+1. **Onboard.** Company name → a recovery kit of 24 words made in the browser (BIP39, SLIP-0010 `m/44'/501'/0'/0'`) → a non-extractable WebCrypto Ed25519 device key → an **autonomous Squads V4 vault** (members: device key + kit, threshold 1, `configAuthority` null). The server only ever sees public keys and proof-of-possession signatures.
+2. **Fund.** USDC to the vault (devnet: Circle's faucet).
+3. **Invoice.** Zeke's Reader extracts the fields in quarantine (no tools; document text is data, injected instructions are flagged). A person confirms every field. A new bank detail can't be paid until it is verified out of band.
+4. **Quote.** The engine compares **Solana direct** to the partner's one-payment deposit address with a **CCTP V2 burn on Solana minting at the partner's Polygon address**, and ranks them by **pesos the supplier receives**: Cheapest, Fastest, Safest. Zeke explains; it can't change a route.
+5. **Policy.** Deterministic checks: tier limits, per-payment cap, screening (stub), duplicate invoice, quote expiry, bank details verified.
+6. **Approve.** The approval card is built only from confirmed fields and the quote, never from model text. The device key signs the Squads proposal and approval; the vault executes. **Kora** pays the network fee, so the business doesn't need SOL on the direct route.
+7. **Deliver.** The mock partner sends HMAC-signed webhooks: received, then paid with a bank reference.
+8. **Prove.** A kind-3 evidence bundle (invoice commitment, approval chain, quoted vs executed route, signatures, FX rate, bank reference) is hashed into a Merkle root and anchored with an SPL Memo, or a Solana Attestation Service attestation. The receipt page re-verifies it, and fails when any field is tampered with.
 
 ## Architecture
 
-Splash holds no financial-services licence today; a Labuan FSA money-broking
-application is in preparation with counsel. Splash **cannot hold client funds** —
-a constraint that is self-imposed rather than licence-derived, and not a runtime
-flag either: it is a property of the type system. `splash_core`, the package
-that publishes to mainnet, contains no struct that can hold a `Balance`. Every
-struct that can lives in `splash_custody`, which is **not published** until the
-e-money licence is granted.
+| Layer | Choice | Where |
+|---|---|---|
+| Identity | App sign-in only; it never holds a key | — |
+| Daily signer | WebCrypto Ed25519, non-extractable, in IndexedDB | `lib/solana/device-key.ts` |
+| Recovery | 24-word kit made on the device; walk-away with the Squads app | `lib/solana/recovery-kit.ts` |
+| Wallet | Squads V4 autonomous multisig per business | `lib/solana/squads.ts` |
+| Asset | Native USDC (classic SPL, not Token-2022) | `lib/solana/config.ts` |
+| Invoice reference | SPL Memo with a salted commitment only, never a name or invoice number | `lib/solana/payout.ts` |
+| Fees | Kora fee payer; allowlisted programs; it never sends SOL or tokens | `lib/solana/kora.ts`, `kora.toml` |
+| Cross-chain | CCTP V2 burn from the vault (event account = Squads ephemeral signer) | `lib/solana/cctp-v2-solana.ts` |
+| Engine | Ranked by local currency received; home-lane rule; 0.33% all-in target | `lib/route-engine/` |
+| Evidence | Canonical JSON, domain-separated Merkle tree, Memo or SAS anchor | `lib/solana-evidence/` |
+| Agent | Zeke: quarantined Reader, explaining Router, no signing functions | `lib/solana-zeke/` |
+| App | Next.js routes under `/solana`, API under `/api/solana` | `app/solana/`, `lib/solana-app/` |
 
-```mermaid
-flowchart LR
-    payer["Payer wallet"] -->|"Coin&lt;T&gt;"| confirm
+**Invariants (each has a test):** Splash holds no key on any vault and `configAuthority` is null · a payout goes only to the partner's deposit address · the fee payer never moves SOL or tokens · every supplier payment needs a person's signature (execute without it returns 403) · memos carry only the salted commitment · the approval card renders only deterministic fields · simulated receipts are always labelled.
 
-    subgraph core["splash_core — MAINNET, immutable, no dependencies"]
-        direction TB
-        confirm["payment_intent<br/>confirm_payment_intent"]
-        anchor["audit_anchor<br/>consumes the receipt"]
-        peg["peg_monitor<br/>compliance_config"]
-        confirm -->|"SettleReceipt<br/>hot potato"| anchor
-    end
-
-    confirm -->|"exact amount"| recipient["Recipient wallet"]
-    confirm -->|"overpay"| payer
-
-    subgraph custody["splash_custody — PHASE 1 ONLY, not published"]
-        direction TB
-        pool["settlement<br/>SettlementPool + per-tenant credits"]
-        treas["smart_treasury<br/>dual_treasury"]
-        deleg["delegation<br/>PayoutDelegation"]
-    end
-
-    subgraph meter["splash_meter — velocity bounds"]
-        direction TB
-        sm["spend_meter<br/>24h sliding window"]
-        gd["guardian<br/>pause only"]
-    end
-
-    custody -.->|"every value path<br/>charges a meter"| meter
-    custody -.->|"inherits AdminCap, TreasuryCap,<br/>AnchorCap, receipts"| core
-
-    classDef mainnet fill:#0C3E48,stroke:#0C3E48,color:#F6F0ED
-    classDef phase1 fill:#F6F0ED,stroke:#326273,color:#1f4350,stroke-dasharray: 5 5
-    classDef bounds fill:#E8F0F2,stroke:#326273,color:#1f4350
-    class core mainnet
-    class custody phase1
-    class meter bounds
-```
-
-**Read the diagram this way:** client value enters as a `Coin` parameter and
-leaves in the same transaction. There is no object in `splash_core` to accumulate
-into — `npm run lint` runs `scripts/check-core-no-balance.mjs`, which fails the
-build if one ever appears. The dashed box is bytecode that does not exist on
-chain in Phase 0, so its functions cannot be called, flagged, or bypassed.
-
-See [`STATUS.md`](./STATUS.md) for the phase gate and
-[`SECURITY.md`](./SECURITY.md) for the audit trail.
-
-## Toolchain
-
-**Sui CLI >= 1.61.1 is required.** Below that, `sui move test` fails in
-`move/splash_custody` with errors pointing at *DeepBook's own test files*
-(`unbound function 'destroy'`) — which looks like a broken dependency but is not.
-
-`sui move test` compiles a git dependency's test files. DeepBook's tests use
-`std::unit_test::destroy`, added in sui `d95572e1c1` (#24078) and first shipped
-in `testnet-v1.61.1`. On older CLIs the stdlib exports only `assert_eq` and
-`assert_ref_eq`, so the build aborts before this repo's modules are reached.
+## Run it
 
 ```bash
-choco upgrade sui -y
+npm ci --engine-strict=false   # the repo pins Node 24; Node 22 works for this demo
+npx next dev -p 3100
+# open http://localhost:3100/solana → "Start the demo"
 ```
 
-Windows: this needs an **elevated** shell. Without one it fails on
-`C:\ProgramData\chocolatey` permissions and still prints a success-looking
-summary — check the tail says `upgraded 1/1 packages`, not `0/0`.
-
-## Features
-
-- Landing page with Splash hero, trust rail, feature bento grid, batch payout preview, FPX simulation, and footer.
-- Business dashboard with overview, transfer, batch payout, and KYB settings routes.
-- Seven-step single-transfer wizard with quote, TOTP authorization, server status polling, and printable receipt.
-- CSV batch payout flow with PapaParse and server-side batch authorization.
-- KYB upload API that records encrypted-storage metadata, document SHA-256 hashes, and a KYB case ID.
-- Separate staff admin console for KYB approvals, support replies, and complaint management.
-- Two Move packages: `splash_core` (mainnet, holds no client value) and `splash_custody` (publishes on the Labuan e-money licence). See STATUS.md.
-
-## Environment
-
-Create `.env.local` with:
+No env is needed offline. For devnet:
 
 ```bash
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_SUPPORT_EMAIL=support@splash.finance
-
-SUI_NETWORK=testnet
-SUI_RPC_URL=
-SPLASH_CORE_PACKAGE_ID=0x...
-# Empty in Phase 0 — that is the regulatory posture, not a misconfiguration.
-SPLASH_CUSTODY_PACKAGE_ID=
-# Legacy single-package id, still honoured for pre-split deployments.
-SPLASH_PACKAGE_ID=0x...
-SPLASH_TREASURY_ID=0x...
-USDC_TYPE=0x2::sui::SUI
-ENOKI_API_KEY=
-OPERATOR_SUI_ADDRESS=0x...
-
-SUMSUB_APP_TOKEN=
-SUMSUB_SECRET_KEY=
-SUMSUB_LEVEL_NAME=splash-kyb
-SUMSUB_BASE_URL=https://api.sumsub.com
-
-ADMIN_EMAIL=staff@splash.finance
-ADMIN_PASSWORD=
-ADMIN_SESSION_SECRET=
-
-CUSTOMER_EMAIL=demo@splash.finance
-CUSTOMER_PASSWORD=
-CUSTOMER_ORGANIZATION=Splash Demo Ltd
-CUSTOMER_SESSION_SECRET=
-CUSTOMER_SELF_SIGNUP_ENABLED=false
-CUSTOMER_RECOVERY_EMAIL=support@splash.finance
+SPLASH_SOLANA_MODE=devnet SOLANA_RPC_URL=https://api.devnet.solana.com \
+KORA_RPC_URL=<your Kora> KORA_API_KEY=<key> npx next dev -p 3100
 ```
 
-Use a real coin type for `USDC_TYPE` after publishing or selecting a testnet USDC-compatible coin. The default SUI type is useful for local/test transactions only.
-In production, set `CUSTOMER_EMAIL`, `CUSTOMER_PASSWORD`, and
-`CUSTOMER_SESSION_SECRET`; leave `CUSTOMER_SELF_SIGNUP_ENABLED=false` unless
-customer signup is backed by a real provisioning and persistence flow. Set
-`CUSTOMER_RECOVERY_EMAIL` to the verified support inbox used for locked-out
-workspace operators.
+**Real devnet signatures:** `scripts/solana-devnet-e2e.ts` creates a vault, waits for faucet USDC, sends a 1 USDC payout with the memo, optionally runs the CCTP V2 burn (`SPLASH_E2E_CCTP=1`), and writes every signature to `docs/solana-build/devnet-run.json`. Usage is in the script header.
 
-## Development
+## Tests
 
 ```bash
-npm run dev
+npm run test:solana        # 106 tests: keys, Squads, payout, CCTP, Kora, engine, partner, evidence, Zeke, app flow
+node --test tests/solana-ui.e2e.mjs   # browser walkthrough at 1440 and 390 px (needs the dev server)
 ```
 
-Open `http://localhost:3000`.
+Screenshots of every step are in `docs/solana-build/screenshots/`.
 
-## Validation
+## Not verified yet (said plainly)
+- Nothing in this repo has run on devnet from the build machine (it had no Solana RPC access). The e2e script is how to prove it.
+- A CCTP V2 burn executed by Squads with an ephemeral event account is untested on-chain. The vault needs about 0.01 SOL for the event account's rent on that route, so "you don't need SOL" holds only for the direct route today.
+- Kora's RPC method names and config keys come from its source code; they haven't been called against a running Kora.
+- SAS instructions decode with sas-lib's own parsers; the deployed program hasn't accepted them yet.
 
-```bash
-npm run lint
-npx tsc --noEmit
-npm run build
-```
+## Prior work
+This repo starts from the Splash Sui build (`sky9484/phase1` @ `3f78f5a`, 26 Sep 2026), imported unchanged in the first commit so the Solana build could reuse the UI system, copy guards, money helpers and policy code. That commit is prior work. Everything after it is the Solana build, made for this hackathon. See `docs/prior-work/PRIOR_WORK.md`.
 
-Move package validation:
+## Team
+- **Sky (Mohd Firdaus Hamid)**, founder and CEO, SPLASH MY SDN BHD. Years in banking and trade, watching finance teams chase proof of payment. Community lead, Sui Community Malaysia.
+- **Sebastian**, CTO.
 
-```bash
-sui move build
-```
-
-## Move publish flow
-
-There is no `move/Move.toml` — `move/` holds three packages, each built from its
-own directory:
-
-```bash
-cd move/splash_core   && sui move build && sui move test   # 14 tests
-cd move/splash_meter  && sui move build && sui move test   # 22 tests
-cd move/splash_custody && sui move build && sui move test  # 16 tests
-```
-
-**Phase 0 publishes `splash_core` ONLY.** `splash_custody` holds every
-`Balance` in the system and publishes when the Labuan e-money licence is
-granted — leaving it unpublished is the control, not an oversight. `splash_core`
-publishes **immutable** (UpgradeCap burned); see
-[`docs/KEY-CEREMONY-RUNBOOK.md`](./docs/KEY-CEREMONY-RUNBOOK.md).
-
-When you are ready to publish to testnet, run only after explicit confirmation:
-
-```bash
-sui client publish --gas-budget 100000000
-```
-
-After publishing:
-
-1. Sign in at `/admin/login` and open **Contract config** in the sidebar.
-2. Paste the new package, treasury, admin cap, peg state, business
-   account, and transfer coin IDs into the form and save. Changes apply
-   to the next request — no server restart required.
-
-`.env.local` still works as the boot-time fallback. See
-[`docs/contract-config.md`](./docs/contract-config.md) for details and
-[`docs/openapi.yaml`](./docs/openapi.yaml) for the admin API contract.
-
-## Important routes
-
-- `/` landing page
-- `/login`
-- `/signup`
-- `/forgot-password`
-- `/dashboard`
-- `/dashboard/transfer`
-- `/dashboard/batch`
-- `/dashboard/settings`
-- `/settings/kyb`
-- `/admin/login`
-- `/admin`
-- `/admin/kyb`
-- `/admin/support`
-- `/admin/contracts`
-- `/transfer/fpx`
-- `/api/kyb/upload`
+Splash is software and is not yet a licensed money-services business. Bank payouts are made by payout partners under their own terms; none is signed yet. Splash never holds the money.
