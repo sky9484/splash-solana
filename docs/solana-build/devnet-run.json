@@ -1,0 +1,68 @@
+{
+  "startedAt": "2026-10-10T23:27:08.217Z",
+  "finishedAt": "2026-10-10T23:28:45.075Z",
+  "cluster": "devnet",
+  "rpcHost": "api.devnet.solana.com",
+  "feePayerMode": "local-keypair",
+  "feePayer": "FmSgP964DRmJkavJsBThwdWfyGNu93mg2XcvHEwNpUMT",
+  "squadsCreationFeeLamports": "0",
+  "vault": {
+    "multisigPda": "H2EoCQ1ejDFSvGMgCjZgTJwXs25dw7KDPA96u6thCoWX",
+    "vaultPda": "iFL7ceiXEip4VTqTcTsVR8eZWMTcLHFga8hwm4dkeVS",
+    "threshold": 1,
+    "members": [
+      {
+        "role": "admin_device",
+        "publicKey": "TgRAyTcrJNT1b4eKmRGyUeUeeeyjRxxPydPWThknRwD"
+      },
+      {
+        "role": "recovery_kit_a",
+        "publicKey": "FCx3qZbgSkSfaMofXCk4Mnifnb3CAjwWetCxnL1SSUPp"
+      }
+    ],
+    "configAuthority": null,
+    "vaultUsdcAccount": "7ctGAPyKvdt8CaPW2Z49VdPKbu1TsC3q28YhWVLXBxhL",
+    "explorer": "https://explorer.solana.com/address/H2EoCQ1ejDFSvGMgCjZgTJwXs25dw7KDPA96u6thCoWX?cluster=devnet"
+  },
+  "payout": {
+    "destination": "9cXMdip8rSQrQR5KDbhxfcJSgDEUAkCL7y1TSNiLjTS2",
+    "destinationUsdcAccount": "BBoCzWCh2urLAKW7iThwSQxiMW3sYuM3HvBCkQzqW4wj",
+    "amountMinor": "1000000",
+    "memo": "splash:v1:e16f037d2235ae7cf50d02d8052fcdfbbcb3fd2e4bc57b9cc47ceca1cda183b9",
+    "reference": "J7SZ4oFQ9HTGyFbfw7uuxaAR7Kn6pC9xnNJPkFKwvSFi",
+    "balanceAfterMinor": "1000000"
+  },
+  "cctp": null,
+  "steps": [
+    {
+      "name": "multisig_create_v2",
+      "signature": "2EXPgUcf2wFcKCRYuEtRbzKrc9R4SAxSK4pmc88DaMoVbd8L6m9cf9AyBsEDtc3eysPZ3YZ4UEQ46boeHUEPr9gh",
+      "explorer": "https://explorer.solana.com/tx/2EXPgUcf2wFcKCRYuEtRbzKrc9R4SAxSK4pmc88DaMoVbd8L6m9cf9AyBsEDtc3eysPZ3YZ4UEQ46boeHUEPr9gh?cluster=devnet",
+      "at": "2026-10-10T23:27:09.384Z"
+    },
+    {
+      "name": "vault_usdc_ata_create",
+      "signature": "25suZosPACHLszmW2rtSj8fQxtm59jKjLXyTkm6n8HNUsDaTKp3F1wf2t6Ud1VGXsBmUe7jtHc2MS8xpkbg4Trsu",
+      "explorer": "https://explorer.solana.com/tx/25suZosPACHLszmW2rtSj8fQxtm59jKjLXyTkm6n8HNUsDaTKp3F1wf2t6Ud1VGXsBmUe7jtHc2MS8xpkbg4Trsu?cluster=devnet",
+      "at": "2026-10-10T23:27:10.499Z"
+    },
+    {
+      "name": "payout_propose_1_of_1",
+      "signature": "5F8jAzfoHMQC5wpx4QeCyGSQAPoWQnDpP4F666qJdLX9oTCvCsamgTcmrNwrJfT9WPBJVsn8GS7v4DG4eJFHFfJg",
+      "explorer": "https://explorer.solana.com/tx/5F8jAzfoHMQC5wpx4QeCyGSQAPoWQnDpP4F666qJdLX9oTCvCsamgTcmrNwrJfT9WPBJVsn8GS7v4DG4eJFHFfJg?cluster=devnet",
+      "at": "2026-10-10T23:28:44.321Z"
+    },
+    {
+      "name": "payout_execute",
+      "signature": "4ZXV7pHNGJrFR9j6hdj2hZM8LkdTLkQ55MVoae7XQUexLnL27KaQoKdjKqEV58WNVT5Hy1wHhVGxF97HTVLygj8D",
+      "explorer": "https://explorer.solana.com/tx/4ZXV7pHNGJrFR9j6hdj2hZM8LkdTLkQ55MVoae7XQUexLnL27KaQoKdjKqEV58WNVT5Hy1wHhVGxF97HTVLygj8D?cluster=devnet",
+      "at": "2026-10-10T23:28:45.056Z"
+    }
+  ],
+  "status": "ok",
+  "error": null,
+  "notes": [
+    "Devnet only. Recovery kit words were generated in memory and discarded: this vault is throwaway.",
+    "simulated: false for every signature in this file."
+  ]
+}
