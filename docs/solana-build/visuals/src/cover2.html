@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Geist;src:url(Geist-Variable.woff2) format('woff2');font-weight:100 900}
+@font-face{font-family:GeistMono;src:url(GeistMono-Variable.woff2) format('woff2');font-weight:100 900}
+:root{--bg:#F6F0ED;--ink:#1F4452;--slate:#326273;--teal:#5C9EAD;--tealtext:#387F96;--line:#E5DCD6;--ok:#2E7D6B;--coral:#E39774;--mist:#E7EEF1}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;font-family:Geist,sans-serif}
+body.full{background:var(--bg)} body.clear{background:transparent}
+svg.scene{position:absolute;left:0;top:0}
+.pshadow{position:absolute;left:1310px;top:210px;width:380px;height:780px;border-radius:70px;background:rgba(31,68,82,.30);filter:blur(44px)}
+.phone{position:absolute;left:1290px;top:112px;width:400px;height:836px;border-radius:66px;background:#0f1a1f;box-shadow:0 10px 24px rgba(31,68,82,.18),inset 0 0 0 2px #2a3a42}
+.phone:before{content:"";position:absolute;inset:5px;border-radius:61px;border:1px solid #33444c}
+.screen{position:absolute;left:14px;top:14px;width:372px;height:808px;border-radius:53px;overflow:hidden;background:#fff}
+.status{height:50px;background:#fff;display:flex;justify-content:space-between;align-items:center;padding:0 30px 0 34px;font-weight:600;font-size:15px;color:#0f1a1f}
+.screen img{width:100%;display:block}
+.island{position:absolute;left:50%;top:12px;transform:translateX(-50%);width:104px;height:30px;border-radius:18px;background:#0f1a1f;z-index:3}
+.notif{position:absolute;left:985px;top:300px;width:500px;background:#fff;border-radius:26px;padding:24px 28px;box-shadow:0 30px 70px rgba(31,68,82,.22),0 6px 16px rgba(31,68,82,.10);border:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:14px}
+.mark{width:42px;height:42px;border-radius:12px;background:var(--ink);color:#fff;font-weight:800;font-size:25px;display:grid;place-items:center}
+.app{font-family:GeistMono;font-size:16px;letter-spacing:.08em;color:var(--slate);text-transform:uppercase}
+.title{font-weight:700;font-size:28px;color:var(--ink);margin-top:14px;letter-spacing:-.01em}
+.amt{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:23px;color:var(--ink);font-weight:500}
+.amt b{color:var(--tealtext);font-weight:800}
+.tick{width:28px;height:28px;border-radius:50%;background:var(--ok);display:grid;place-items:center}
+.anch{font-family:GeistMono;font-size:15px;letter-spacing:.08em;color:var(--slate);text-transform:uppercase;margin-top:12px;display:flex;gap:10px;align-items:center}
+.chip{position:absolute;left:1585px;top:440px;background:#fff;border-radius:16px;padding:14px 20px;border:1px solid var(--line);border-left:6px solid var(--coral);box-shadow:0 20px 44px rgba(31,68,82,.16);font-size:20px;color:var(--ink);font-weight:600;line-height:1.25}
+.chip small{display:block;font-family:GeistMono;font-weight:500;font-size:14px;letter-spacing:.08em;color:var(--slate);text-transform:uppercase;margin-bottom:4px}
+.lbl{position:absolute;font-family:GeistMono;font-size:15px;letter-spacing:.1em;color:var(--slate);text-transform:uppercase;background:rgba(246,240,237,.9);padding:4px 8px;border-radius:6px}
+.txt{position:absolute;left:120px;top:150px;width:840px;color:var(--ink)}
+.word{font-weight:800;font-size:56px;letter-spacing:-.03em}
+.h1{font-weight:800;font-size:100px;line-height:1.0;letter-spacing:-.035em;margin-top:150px}
+.sub{font-size:34px;font-weight:500;color:var(--slate);margin-top:40px;line-height:1.3;max-width:720px}
+.foot{position:absolute;left:120px;bottom:70px;font-family:GeistMono;font-size:20px;letter-spacing:.08em;color:var(--slate);text-transform:uppercase}
+body.clear .txt, body.clear .foot{display:none}
+</style></head><body class="BODYCLASS">
+<svg class="scene" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter></defs>
+  
+  <g transform="translate(1110,840)"><polygon points="-117.8,68.0 0.0,136.0 0.0,123.2 -117.8,55.2" fill="#E3D8D0" /><polygon points="117.8,68.0 0.0,136.0 0.0,123.2 117.8,55.2" fill="#CBBFB7" /><polygon points="0.0,-12.8 117.8,55.2 0.0,123.2 -117.8,55.2" fill="#F1E9E3" /><polygon points="-97.0,55.2 0.0,111.2 0.0,108.8 -97.0,52.8" fill="#D6E2E6" /><polygon points="97.0,55.2 0.0,111.2 0.0,108.8 97.0,52.8" fill="#BFD0D6" /><polygon points="0.0,-3.2 97.0,52.8 0.0,108.8 -97.0,52.8" fill="#E7EEF1" /><polygon points="-55.4,52.8 0.0,84.8 0.0,-99.2 -55.4,-131.2" fill="#EEE8E4" /><polygon points="55.4,52.8 0.0,84.8 0.0,-99.2 55.4,-131.2" fill="#D9CFC8" /><polygon points="0.0,-163.2 55.4,-131.2 0.0,-99.2 -55.4,-131.2" fill="#FFFFFF" /><polygon points="47.7,40.3 7.8,63.3 7.8,55.4 47.7,32.4" fill="#1F4452" opacity="0.85"/><polygon points="-47.7,40.3 -7.8,63.3 -7.8,55.4 -47.7,32.4" fill="#1F4452" opacity="0.6375"/><polygon points="47.7,12.0 7.8,35.0 7.8,27.1 47.7,4.1" fill="#1F4452" opacity="0.85"/><polygon points="-47.7,12.0 -7.8,35.0 -7.8,27.1 -47.7,4.1" fill="#1F4452" opacity="0.6375"/><polygon points="47.7,-16.3 7.8,6.7 7.8,-1.2 47.7,-24.2" fill="#1F4452" opacity="0.85"/><polygon points="-47.7,-16.3 -7.8,6.7 -7.8,-1.2 -47.7,-24.2" fill="#1F4452" opacity="0.6375"/><polygon points="47.7,-44.6 7.8,-21.6 7.8,-29.5 47.7,-52.6" fill="#1F4452" opacity="0.85"/><polygon points="-47.7,-44.6 -7.8,-21.6 -7.8,-29.5 -47.7,-52.6" fill="#1F4452" opacity="0.6375"/><polygon points="47.7,-72.9 7.8,-49.9 7.8,-57.8 47.7,-80.9" fill="#1F4452" opacity="0.85"/><polygon points="-47.7,-72.9 -7.8,-49.9 -7.8,-57.8 -47.7,-80.9" fill="#1F4452" opacity="0.6375"/><polygon points="47.7,-101.2 7.8,-78.2 7.8,-86.1 47.7,-109.2" fill="#1F4452" opacity="0.85"/><polygon points="-47.7,-101.2 -7.8,-78.2 -7.8,-86.1 -47.7,-109.2" fill="#1F4452" opacity="0.6375"/><polygon points="-38.1,-131.2 0.0,-109.2 0.0,-123.2 -38.1,-145.2" fill="#EEE8E4" /><polygon points="38.1,-131.2 0.0,-109.2 0.0,-123.2 38.1,-145.2" fill="#D9CFC8" /><polygon points="0.0,-167.2 38.1,-145.2 0.0,-123.2 -38.1,-145.2" fill="#FFFFFF" /><polygon points="-24.2,-145.2 0.0,-131.2 0.0,-136.0 -24.2,-150.0" fill="#7FAEBA" /><polygon points="24.2,-145.2 0.0,-131.2 0.0,-136.0 24.2,-150.0" fill="#5C9EAD" /><polygon points="0.0,-164.0 24.2,-150.0 0.0,-136.0 -24.2,-150.0" fill="#9CC3CD" /><polygon points="66.5,54.4 79.7,62.0 79.7,42.0 66.5,34.4" fill="#7FAEBA" /><polygon points="92.8,54.4 79.7,62.0 79.7,42.0 92.8,34.4" fill="#5C9EAD" /><polygon points="79.7,26.8 92.8,34.4 79.7,42.0 66.5,34.4" fill="#9CC3CD" /></g>
+  <g transform="translate(1790,890)"><polygon points="-117.8,68.0 6.9,140.0 6.9,127.2 -117.8,55.2" fill="#E3D8D0" /><polygon points="124.7,72.0 6.9,140.0 6.9,127.2 124.7,59.2" fill="#CBBFB7" /><polygon points="0.0,-12.8 124.7,59.2 6.9,127.2 -117.8,55.2" fill="#F1E9E3" /><polygon points="-117.8,68.0 6.9,140.0 6.9,131.2 -117.8,59.2" fill="#A9C3CB" /><polygon points="29.4,127.0 6.9,140.0 6.9,131.2 29.4,118.2" fill="#8FB0BA" /><polygon points="-95.3,46.2 29.4,118.2 6.9,131.2 -117.8,59.2" fill="#BFD3D9" /><polygon points="-52.0,27.2 17.3,67.2 17.3,25.2 -52.0,-14.8" fill="#E5DCD6" /><polygon points="69.3,37.2 17.3,67.2 17.3,25.2 69.3,-4.8" fill="#CFC4BC" /><polygon points="0.0,-44.8 69.3,-4.8 17.3,25.2 -52.0,-14.8" fill="#F6F1ED" /><polygon points="-52.0,-14.8 17.3,25.2 17.3,22.0 -52.0,-18.0" fill="#1F4452" /><polygon points="69.3,-4.8 17.3,25.2 17.3,22.0 69.3,-8.0" fill="#163542" /><polygon points="0.0,-48.0 69.3,-8.0 17.3,22.0 -52.0,-18.0" fill="#3A5C69" /><polygon points="58.2,51.6 91.1,70.6 91.1,53.8 58.2,34.8" fill="#326273" /><polygon points="105.7,62.2 91.1,70.6 91.1,53.8 105.7,45.4" fill="#244E5C" /><polygon points="72.7,26.4 105.7,45.4 91.1,53.8 58.2,34.8" fill="#4C8293" /><polygon points="40.9,61.6 73.8,80.6 73.8,63.8 40.9,44.8" fill="#CDC1B9" /><polygon points="88.3,72.2 73.8,80.6 73.8,63.8 88.3,55.4" fill="#B5A89F" /><polygon points="55.4,36.4 88.3,55.4 73.8,63.8 40.9,44.8" fill="#E4DAD3" /><polygon points="58.2,34.8 91.1,53.8 91.1,37.0 58.2,18.0" fill="#CDC1B9" /><polygon points="105.7,45.4 91.1,53.8 91.1,37.0 105.7,28.6" fill="#B5A89F" /><polygon points="72.7,9.6 105.7,28.6 91.1,37.0 58.2,18.0" fill="#E4DAD3" /><polygon points="-64.8,44.6 -31.9,63.6 -31.9,46.8 -64.8,27.8" fill="#326273" /><polygon points="-17.3,55.2 -31.9,63.6 -31.9,46.8 -17.3,38.4" fill="#244E5C" /><polygon points="-50.2,19.4 -17.3,38.4 -31.9,46.8 -64.8,27.8" fill="#4C8293" /><polygon points="26.3,94.0 31.2,96.8 31.2,4.8 26.3,2.0" fill="#1F4452" /><polygon points="36.0,94.0 31.2,96.8 31.2,4.8 36.0,2.0" fill="#163542" /><polygon points="31.2,-0.8 36.0,2.0 31.2,4.8 26.3,2.0" fill="#3A5C69" /><polygon points="-23.9,-27.0 36.7,8.0 36.7,3.2 -23.9,-31.8" fill="#1F4452" /><polygon points="41.6,5.2 36.7,8.0 36.7,3.2 41.6,0.4" fill="#163542" /><polygon points="-19.1,-34.6 41.6,0.4 36.7,3.2 -23.9,-31.8" fill="#3A5C69" /><polygon points="-15.2,-5.2 -13.9,-4.4 -13.9,-25.2 -15.2,-26.0" fill="#1F4452" /><polygon points="-12.5,-5.2 -13.9,-4.4 -13.9,-25.2 -12.5,-26.0" fill="#163542" /><polygon points="-13.9,-26.8 -12.5,-26.0 -13.9,-25.2 -15.2,-26.0" fill="#3A5C69" /></g>
+  <path id="route" d="M1110 690 C 1130 120, 1839 120, 1799 877" fill="none" stroke="#5C9EAD" stroke-width="10" opacity=".25" filter="url(#glow)"/>
+  <path d="M1110 690 C 1130 120, 1839 120, 1799 877" fill="none" stroke="#5C9EAD" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="1110" cy="690" r="8" fill="#1F4452"/><circle cx="1799" cy="877" r="8" fill="#1F4452"/>
+  <g fill="#5C9EAD"><circle cx="1193" cy="418" r="8"/><circle cx="1732" cy="485" r="8"/><circle cx="1790" cy="672" r="8"/></g>
+</svg>
+<div class="lbl" style="left:1040px;top:985px">Kuala Lumpur</div>
+<div class="lbl" style="left:1745px;top:1010px">Manila</div>
+<div class="pshadow"></div>
+<div class="phone"><div class="island"></div><div class="screen"><div class="status"><span>9:41</span><span>●●● ▮</span></div><img src="screen3x.png"></div></div>
+<div class="notif">
+  <div class="row"><div class="mark">S</div><div class="app">Splash · now</div></div>
+  <div class="title">Manila Freight Services</div>
+  <div class="amt">Paid <b>₱560,000</b> · Receipt verified
+    <div class="tick"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+  <div class="anch"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.2-8 11-4.6-1.8-8-6-8-11V5z" fill="#326273"/><path d="M8 12l3 3 5-6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Proof anchored on Solana</div>
+</div>
+<div class="chip"><small>Approved</small>A person signed.<br>Zeke can't pay.</div>
+<div class="txt"><div class="word">Splash</div>
+<div class="h1">Pay suppliers abroad. Prove every payment.</div>
+<div class="sub">USDC payments on Solana for Southeast Asian businesses.</div></div>
+<div class="foot">Sky · Sebastian &nbsp;·&nbsp; Colosseum 2026</div>
+</body></html>
