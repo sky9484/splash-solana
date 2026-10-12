@@ -1,6 +1,7 @@
 -- The Solana app's per-company records that are not payments: the company
 -- record (salt, verified suppliers, fundings, the refuse-service switch), its
--- invoices, its evidence, and the receipt share links it minted.
+-- invoices, its evidence, the receipt share links it minted, and its batch
+-- payouts (each with its chunks and their transaction signatures).
 --
 -- Payments already live in solana_payments with compare-and-set (0030). These
 -- are documents: each is read whole when a company's first request arrives and
@@ -18,7 +19,7 @@ CREATE TABLE "solana_documents" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "solana_documents_pk" PRIMARY KEY ("kind", "id"),
-	CONSTRAINT "solana_documents_kind_known" CHECK ("kind" IN ('org', 'invoice', 'evidence', 'share'))
+	CONSTRAINT "solana_documents_kind_known" CHECK ("kind" IN ('org', 'invoice', 'evidence', 'share', 'batch'))
 );
 --> statement-breakpoint
 CREATE INDEX "solana_documents_org_idx" ON "solana_documents" ("org_id", "kind");

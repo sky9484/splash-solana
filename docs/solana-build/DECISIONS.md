@@ -217,3 +217,18 @@ D-P3-6 left the companies, invoices and evidence in process memory, and `/api/so
 - **Receipts are no longer readable by id alone.** Earlier, anyone holding a receipt id could read it and its evidence pack, which includes the invoice fields and salt. Now a receipt needs its company's session, or a share link the company minted ("Share with auditor": `shr_` plus 128 random bits, one live link per receipt).
 - **Offline restarts.** A vault the database recorded but the restarted simulator never saw is put back at its last used transaction index, with no simulated money.
 - **Still true.** Documents are last-writer-wins. Two app instances writing the same company's daily total at the same instant can lose one increment. The payment's own compare-and-set still prevents a double send, and the duplicate-invoice check reads the reloaded commitments. A per-company row lock is the fix if the app ever runs on more than one instance.
+
+## D-P4-3 · A batch is its own record, sent in measured chunks, retried chunk by chunk (§5.5)
+
+- **Its own record, not N payments.** A chunk's transactions pay up to six suppliers at once, so one signature belongs to many rows. `solana_chain_calls` keys a signature to exactly one payment, so it cannot hold a chunk. A batch is the company's document (`solana_documents`, kind `batch`) holding its rows, its chunks and each chunk's own chain-call ledger. Each signature is written to the document before the bytes are broadcast, the same rule a single payment follows.
+- **Quotes and deposits.** Every row gets its own one-payment deposit from the payout partner and its own quote on the Solana direct route. The rules run on the whole batch: balance, per-payment limit, today's limit, one deposit per supplier.
+- **One prompt signs every chunk.** Chunks are planned again at prepare time, at the vault's next transaction index, by measured size. The sample's 12 suppliers go 6 + 6, with the largest transaction at 1,181 of 1,232 bytes.
+- **Sending, and what the screen says.** Chunks go out in order. Each chunk pays all its suppliers or none; the batch as a whole does not, and the screen says so.
+  - A chunk whose proposal fails stops the chunks after it, because Squads indices are sequential.
+  - A chunk whose execute fails or expires is retried alone. Its execute is rebuilt with a fresh blockhash; the old bytes are never resent.
+  - An outcome still unknown at the end of a request shows as "Checking", and the next read polls it. It is never resent.
+- **Offline rehearsal.** "One chunk's transfer does not land" drops a chunk's execute in the simulator, so the retry can be shown.
+- **Not in this build:**
+  - Batches need a 1-of-N vault; a second approver would need a second prompt per chunk.
+  - Batch rows get no per-supplier evidence receipt yet. The chunk transactions carry the memo `splash:pay:v1:<batchId>.c<n>` and are on Solscan.
+  - Quotes live 60 seconds (the mock partner's TTL), which is short for reviewing a long file.

@@ -22,6 +22,7 @@ export type ServiceErrorCode =
   | 'insufficient_balance'
   | 'no_route'
   | 'quote_expired'
+  | 'rejected_by_policy'
   | 'policy_denied'
   | 'not_prepared'
   | 'signature_required'

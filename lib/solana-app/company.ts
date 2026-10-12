@@ -42,6 +42,11 @@ export async function loadCompany(orgId: string): Promise<void> {
     s.shares.set(sh.token, sh);
     remember('share', sh.token, sh);
   }
+  for (const b of docs.batches) {
+    if (b.orgId !== orgId || s.batches.has(b.id)) continue;
+    s.batches.set(b.id, b);
+    remember('batch', b.id, b);
+  }
   s.docs.loaded.add(orgId);
 }
 
@@ -53,6 +58,7 @@ export async function saveCompany(orgId: string): Promise<void> {
   for (const inv of s.invoices.values()) if (inv.orgId === orgId) all.push({ kind: 'invoice', id: inv.id, orgId, body: inv });
   for (const e of s.evidence.values()) if (e.orgId === orgId) all.push({ kind: 'evidence', id: e.receiptId, orgId, body: e });
   for (const sh of s.shares.values()) if (sh.orgId === orgId) all.push({ kind: 'share', id: sh.token, orgId, body: sh });
+  for (const b of s.batches.values()) if (b.orgId === orgId) all.push({ kind: 'batch', id: b.id, orgId, body: b });
   const changed: Array<Doc & { json: string }> = [];
   for (const d of all) {
     const json = JSON.stringify(encodeRecord(d.body));

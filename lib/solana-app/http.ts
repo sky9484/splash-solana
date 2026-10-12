@@ -106,5 +106,14 @@ export const schemas = {
     })
     .strict(),
   receiptId: id('rcpt'),
+  batchId: id('bat'),
+  batchCreate: z
+    .object({ csv: z.string().max(100_000).optional(), sample: z.boolean().optional() })
+    .strict()
+    .refine((v) => v.sample === true || (typeof v.csv === 'string' && v.csv.trim().length > 0), { message: 'csv or sample required' }),
+  batchPrepare: z.object({ chunk: z.number().int().min(0).max(99).optional(), rehearsal: z.enum(['none', 'drop_chunk']).optional() }).strict(),
+  batchApprove: z
+    .object({ signatures: z.array(z.object({ id: z.string().regex(/^c\d{1,2}(p\d|x)$/), signature: base58 }).strict()).min(1).max(40) })
+    .strict(),
   shareToken: z.string().regex(/^shr_[0-9a-f]{32}$/),
 };

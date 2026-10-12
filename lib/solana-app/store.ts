@@ -20,6 +20,7 @@ import type { ReaderOutput } from '../solana-zeke/reader.ts';
 import type { RouterOutput } from '../solana-zeke/router.ts';
 import type { PossessionChallenge } from '../solana/recovery-kit.ts';
 import type { Cluster, ConfirmedInvoice, PartnerPayoutEvent, VaultInfo } from '../solana/types.ts';
+import type { BatchRecord } from './batch-service.ts';
 import type { ShareRecord } from './doc-store.ts';
 import type { PaymentState } from './payment-machine.ts';
 
@@ -200,6 +201,8 @@ export interface SolanaAppStore {
   evidence: Map<string, EvidenceRecord>;
   /** Receipt share links, by token. */
   shares: Map<string, ShareRecord>;
+  /** Batch payouts (batch-service.ts), by id. */
+  batches: Map<string, BatchRecord>;
   /** Which companies were loaded from the document store, and what was last written for each document. */
   docs: { loaded: Set<string>; written: Map<string, string> };
 }
@@ -207,10 +210,12 @@ export interface SolanaAppStore {
 const G = globalThis as typeof globalThis & { __splashSolanaAppStore?: SolanaAppStore };
 
 export function store(): SolanaAppStore {
-  if (!G.__splashSolanaAppStore) {
-    G.__splashSolanaAppStore = { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), docs: { loaded: new Set(), written: new Map() } };
-  }
-  return G.__splashSolanaAppStore;
+  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), docs: { loaded: new Set(), written: new Map() } });
+  // A store made by older code in this process (a dev reload) gains the maps added since.
+  s.shares ??= new Map();
+  s.batches ??= new Map();
+  s.docs ??= { loaded: new Set(), written: new Map() };
+  return s;
 }
 
 /** Tests only. */

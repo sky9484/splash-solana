@@ -143,7 +143,7 @@ function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
  * Where a person follows something on Solscan (first) or Solana Explorer. Null offline, and for a
  * simulated signature: it exists on no network, and a link to nothing would look like proof.
  */
-function traceLinks(kind: 'tx' | 'account', id: string, simulated: boolean): { solscanUrl: string | null; explorerUrl: string | null } {
+export function traceLinks(kind: 'tx' | 'account', id: string, simulated: boolean): { solscanUrl: string | null; explorerUrl: string | null } {
   const rt = runtime();
   if (rt.env.mode !== 'devnet' || simulated) return { solscanUrl: null, explorerUrl: null };
   return kind === 'tx'
@@ -173,7 +173,7 @@ function paymentTrace(p: PaymentRecord) {
   return { memo: buildPaymentMemo(p.id), accounts };
 }
 
-function requireVault(org: OrgRecord) {
+export function requireVault(org: OrgRecord) {
   if (!org.vault) throw new ServiceError('vault_missing', 'Create your vault first.', 409);
   return org.vault;
 }
@@ -588,7 +588,7 @@ async function cas<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function serializeIx(ix: TransactionInstruction): SerializedInstruction {
+export function serializeIx(ix: TransactionInstruction): SerializedInstruction {
   return {
     programId: ix.programId.toBase58(),
     keys: ix.keys.map((k) => ({ pubkey: k.pubkey.toBase58(), isSigner: k.isSigner, isWritable: k.isWritable })),
@@ -596,7 +596,7 @@ function serializeIx(ix: TransactionInstruction): SerializedInstruction {
   };
 }
 
-function deserializeIx(s: SerializedInstruction): TransactionInstruction {
+export function deserializeIx(s: SerializedInstruction): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(s.programId),
     keys: s.keys.map((k) => ({ pubkey: new PublicKey(k.pubkey), isSigner: k.isSigner, isWritable: k.isWritable })),
@@ -844,7 +844,7 @@ function problemFromPolicy(policy: EnginePolicyResult): { code: string; message:
 /* ------------------------------------------------------------------ approve and execute */
 
 /** The refuse-service switch (§5.6): a suspended company gets no Kora signature and no new proposal. */
-function assertServiceable(orgId: string) {
+export function assertServiceable(orgId: string) {
   const org = getOrg(orgId);
   if (org.suspended) {
     throw new ServiceError('org_suspended', 'Splash has paused service for this company, so nothing new can be sent. Your money stays in your vault, which only your approvers control. Contact support.', 403);
@@ -856,7 +856,7 @@ function approverKeys(org: OrgRecord): string[] {
   return (org.vault?.members ?? []).filter((m) => m.role === 'admin_device' || m.role === 'approver_device').map((m) => m.publicKey);
 }
 
-async function budgeted(feePayer: PublicKey, ixs: TransactionInstruction[], blockhash: string, fallbackLimit: number, simulateFirst: boolean): Promise<{ ixs: TransactionInstruction[]; unitLimit: number; microLamports: bigint }> {
+export async function budgeted(feePayer: PublicKey, ixs: TransactionInstruction[], blockhash: string, fallbackLimit: number, simulateFirst: boolean): Promise<{ ixs: TransactionInstruction[]; unitLimit: number; microLamports: bigint }> {
   const rt = runtime();
   const writable = [...new Map(ixs.flatMap((ix) => ix.keys.filter((k) => k.isWritable).map((k) => [k.pubkey.toBase58(), k.pubkey] as const))).values()];
   const estimate = await rt.chain.getPriorityFeeEstimate(writable);
@@ -1070,7 +1070,7 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
 type SendOutcome = { status: 'confirmed' | 'finalized'; signature: string } | { status: 'failed'; signature: string | null; error: string; logs: string[] } | { status: 'expired'; signature: string } | { status: 'pending'; signature: string };
 
 /** How long a request waits for `confirmed` before answering "still checking". Offline: no wait. */
-function confirmWaitMs(): number {
+export function confirmWaitMs(): number {
   return runtime().env.mode === 'offline' ? 0 : 45_000;
 }
 
@@ -1394,7 +1394,7 @@ export async function noteProblem(paymentId: string, problem: { code: string; me
  * Take one of the org's sponsored transactions for today before Kora is asked (§5.6). Refused when
  * the day's cap is reached: nothing is signed. The cap is the sponsor policy's (kora.toml).
  */
-async function takeSponsorSlot(orgId: string, now = new Date()): Promise<{ release: () => Promise<void> }> {
+export async function takeSponsorSlot(orgId: string, now = new Date()): Promise<{ release: () => Promise<void> }> {
   const rt = runtime();
   const cap = ((rt.chain as { policy?: SponsorPolicy }).policy ?? defaultSponsorPolicy(usdcMint(rt.env.cluster).toBase58())).perOrgDailyTxCap;
   const day = utcDay(now);
