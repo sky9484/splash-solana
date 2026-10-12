@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // The browser walkthrough's own dev server output (next.config.ts NEXT_DIST_DIR).
+    ".next-e2e/**",
     ".tools/**",
     ".tmp/**",
     "out/**",

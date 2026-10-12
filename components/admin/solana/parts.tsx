@@ -47,10 +47,10 @@ export function PageHeader({ kicker, title, children }: { kicker: string; title:
 
 const TONE = {
   ok: 'bg-[var(--ok-bg)] text-[var(--ok)]',
-  warn: 'bg-[var(--warn-bg)] text-[#8A4F08]',
+  warn: 'bg-[var(--warn-bg)] text-[#1f4350]',
   error: 'bg-[var(--error-bg)] text-[var(--error)]',
   info: 'bg-[var(--info-bg)] text-[var(--info)]',
-  muted: 'bg-[var(--pending-bg)] text-[#4A5A62]',
+  muted: 'bg-[var(--pending-bg)] text-[#326273]',
 } as const;
 
 export function Badge({ tone, children }: { tone: keyof typeof TONE; children: ReactNode }) {
