@@ -33,7 +33,7 @@ if (dryRun) {
 
 const { createDeviceKey, createMemoryDeviceKeyStore, signWithDeviceKey } = await import('../lib/solana/device-key.ts');
 const { deriveRecoveryKey, generateRecoveryWords, signPossessionChallenge } = await import('../lib/solana/recovery-kit.ts');
-const { explorerAddressUrl, explorerTxUrl } = await import('../lib/solana/config.ts');
+const { explorerAddressUrl, explorerTxUrl, solscanAccount, solscanTx } = await import('../lib/solana/config.ts');
 const { buildSasAnchor } = await import('../lib/solana-evidence/anchor.ts');
 const { walrusBlobIdsRoot } = await import('../lib/solana-evidence/bundle.ts');
 const { toWire } = await import('../lib/solana-app/json.ts');
@@ -43,7 +43,8 @@ const svc = await import('../lib/solana-app/service.ts');
 const rt = runtime();
 const FIELDS = ['invoiceNumber', 'supplierName', 'supplierBank', 'supplierAccountLast4', 'amountPhpMinor', 'dueDate'];
 const log = (step: string, detail: Record<string, unknown> = {}) => console.log(`• ${step}${Object.keys(detail).length ? ` ${JSON.stringify(detail)}` : ''}`);
-const link = (sig: string, simulated: boolean) => (simulated ? null : explorerTxUrl(sig, rt.env.cluster));
+// Solscan first (the link a person follows), Solana Explorer second. None for a simulated signature.
+const links = (sig: string, simulated: boolean) => (simulated ? { solscanUrl: null, explorerUrl: null } : { solscanUrl: solscanTx(sig, rt.env.cluster), explorerUrl: explorerTxUrl(sig, rt.env.cluster) });
 
 console.log(`Splash devnet proof — ${dryRun ? 'DRY RUN (offline simulator, nothing written)' : `LIVE on ${rt.env.cluster}`}\n`);
 
@@ -67,7 +68,7 @@ if (dryRun) {
   await svc.fund(org.id);
   log('vault funded (simulated faucet)');
 } else {
-  console.log(`\nFund the vault with devnet USDC (https://faucet.circle.com/, Solana devnet):\n  ${vault.vaultPda}\n  ${explorerAddressUrl(vault.vaultPda, rt.env.cluster)}\nWaiting up to 15 minutes…`);
+  console.log(`\nFund the vault with devnet USDC (https://faucet.circle.com/, Solana devnet):\n  ${vault.vaultPda}\n  ${solscanAccount(vault.vaultPda, rt.env.cluster)}\nWaiting up to 15 minutes…`);
   const deadline = Date.now() + 15 * 60_000;
   while ((await rt.chain.getUsdcBalance(vault.vaultPda)) === 0n) {
     if (Date.now() > deadline) throw new Error('The vault was not funded in time.');
@@ -115,13 +116,21 @@ const run = {
   simulated,
   paymentId: payment.id,
   statePath: transitions,
-  vault: { address: vault.vaultPda, multisig: vault.multisigPda, threshold: vault.threshold, explorerUrl: simulated ? null : explorerAddressUrl(vault.vaultPda, rt.env.cluster) },
-  chainCalls: calls.map((c) => ({ step: c.step, status: c.status, signature: c.signature, explorerUrl: link(c.signature, simulated) })),
+  memo: `splash:pay:v1:${payment.id}`,
+  vault: {
+    address: vault.vaultPda,
+    multisig: vault.multisigPda,
+    threshold: vault.threshold,
+    solscanUrl: simulated ? null : solscanAccount(vault.vaultPda, rt.env.cluster),
+    explorerUrl: simulated ? null : explorerAddressUrl(vault.vaultPda, rt.env.cluster),
+  },
+  vaultCreate: { signature: vault.signature, ...links(vault.signature, simulated) },
+  chainCalls: calls.map((c) => ({ step: c.step, status: c.status, signature: c.signature, ...links(c.signature, simulated) })),
   evidence: evidence
     ? {
         receiptId: evidence.receiptId,
         root: evidence.batch.rootHex,
-        anchor: { method: evidence.anchor.method, status: evidence.anchor.status, signature: evidence.anchor.signature },
+        anchor: { method: evidence.anchor.method, status: evidence.anchor.status, signature: evidence.anchor.signature, ...(evidence.anchor.signature ? links(evidence.anchor.signature, simulated) : { solscanUrl: null, explorerUrl: null }) },
         sasAttestationAddress: sas?.attestationPda ?? null,
         walrus: { blobId: evidence.stored.blobId, mode: evidence.stored.mode },
       }

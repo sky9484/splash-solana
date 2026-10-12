@@ -8,6 +8,7 @@ import type { MerkleProof } from '@/lib/solana-evidence/merkle';
 import { anchoredRootFromMemo, verifyBundle, type VerifyResult } from '@/lib/solana-evidence/verify';
 
 import { api, copyText, dateShort, php, shortKey, timeShort, usd } from './client';
+import { SolscanTrace } from './SolscanTrace';
 import type { ReceiptDTO } from './types';
 
 const CHECK_TEXT: Record<string, string> = {
@@ -132,6 +133,8 @@ export function ReceiptView({ id }: { id: string }) {
         </div>
       </section>
 
+      <SolscanTrace memo={receipt.trace.memo} transactions={receipt.signatures} accounts={receipt.trace.accounts} anchor={receipt.anchor.signature ? { signature: receipt.anchor.signature, simulated: receipt.anchor.simulated, solscanUrl: receipt.anchor.solscanUrl, explorerUrl: receipt.anchor.explorerUrl } : null} />
+
       <section className="sx-card sx-stack" aria-labelledby="verify-title">
         <h2 id="verify-title">Verify this receipt</h2>
         <p className="sx-muted">
@@ -148,12 +151,20 @@ export function ReceiptView({ id }: { id: string }) {
                 <span className="sx-small">
                   Memo transaction <span className="sx-mono">{shortKey(receipt.anchor.signature, 8)}</span>
                   {receipt.anchor.simulated ? ' (simulated)' : ''}
-                  {receipt.anchor.explorerUrl ? (
+                  {receipt.anchor.solscanUrl ? (
                     <>
                       {' '}
-                      <a href={receipt.anchor.explorerUrl} target="_blank" rel="noreferrer">
-                        View on Solana Explorer
+                      <a href={receipt.anchor.solscanUrl} target="_blank" rel="noreferrer">
+                        View on Solscan
                       </a>
+                      {receipt.anchor.explorerUrl ? (
+                        <>
+                          {' or '}
+                          <a href={receipt.anchor.explorerUrl} target="_blank" rel="noreferrer">
+                            Solana Explorer
+                          </a>
+                        </>
+                      ) : null}
                     </>
                   ) : null}
                 </span>

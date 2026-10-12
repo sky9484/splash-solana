@@ -27,7 +27,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 import bs58 from 'bs58';
 
-import { explorerAddressUrl, explorerTxUrl, usdcMint } from '../solana/config.ts';
+import { explorerAddressUrl, explorerTxUrl, solscanAccount, solscanTx, usdcMint } from '../solana/config.ts';
 import { buildDepositForBurnInstruction } from '../solana/cctp-v2-solana.ts';
 import { defaultSponsorPolicy, utcDay, type SponsorPolicy } from '../solana/kora.ts';
 import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
@@ -44,6 +44,7 @@ import {
   deriveProposalAddresses,
   groupProposalTransactions,
   MAX_TRANSACTION_BYTES,
+  transactionSize,
 } from '../solana/squads.ts';
 import type { ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote } from '../solana/types.ts';
 import { quoteRoutes, POLICIES } from '../route-engine/index.ts';
@@ -135,6 +136,40 @@ function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
   const inv = store().invoices.get(invoiceId);
   if (!inv || inv.orgId !== orgId) throw new ServiceError('invoice_not_found', 'That invoice is not on the server. Start the payment again.', 404);
   return inv;
+}
+
+/**
+ * Where a person follows something on Solscan (first) or Solana Explorer. Null offline, and for a
+ * simulated signature: it exists on no network, and a link to nothing would look like proof.
+ */
+function traceLinks(kind: 'tx' | 'account', id: string, simulated: boolean): { solscanUrl: string | null; explorerUrl: string | null } {
+  const rt = runtime();
+  if (rt.env.mode !== 'devnet' || simulated) return { solscanUrl: null, explorerUrl: null };
+  return kind === 'tx'
+    ? { solscanUrl: solscanTx(id, rt.env.cluster), explorerUrl: explorerTxUrl(id, rt.env.cluster) }
+    : { solscanUrl: solscanAccount(id, rt.env.cluster), explorerUrl: explorerAddressUrl(id, rt.env.cluster) };
+}
+
+/**
+ * Everything needed to trace one payment on Solscan without Splash: the memo every one of its
+ * transactions carries, and the accounts it touched. The deposit is listed only for the Solana
+ * direct route (a CCTP route's deposit is on Polygon, not on Solscan).
+ */
+function paymentTrace(p: PaymentRecord) {
+  const org = store().orgs.get(p.orgId);
+  const vault = org?.vault;
+  const rt = runtime();
+  const accounts: Array<{ label: string; address: string; solscanUrl: string | null; explorerUrl: string | null }> = [];
+  if (vault) {
+    const ata = getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(vault.vaultPda)).toBase58();
+    accounts.push({ label: 'Your vault', address: vault.vaultPda, ...traceLinks('account', vault.vaultPda, vault.simulated) });
+    accounts.push({ label: 'Your vault’s USDC account', address: ata, ...traceLinks('account', ata, vault.simulated) });
+  }
+  const q = p.selectedQuoteId ? findQuote(p, p.selectedQuoteId) : null;
+  if (q && routeKindOf(q) === 'solana_direct') {
+    accounts.push({ label: 'Payout partner deposit', address: q.target.depositAddress, ...traceLinks('account', q.target.depositAddress, vault?.simulated ?? true) });
+  }
+  return { memo: buildPaymentMemo(p.id), accounts };
 }
 
 function requireVault(org: OrgRecord) {
@@ -321,7 +356,7 @@ export async function orgSummary(orgId: string) {
       ? {
           ...org.vault,
           usdcTokenAccount: getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(org.vault.vaultPda)).toBase58(),
-          explorerUrl: rt.env.mode === 'devnet' ? explorerAddressUrl(org.vault.vaultPda, rt.env.cluster) : null,
+          ...traceLinks('account', org.vault.vaultPda, org.vault.simulated),
         }
       : null,
     /** The payable total is exactly the sum of the parts. Only the Solana lane exists in this build. */
@@ -868,6 +903,9 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
   const approvalsAfter = p.approvedBy.length + (p.state === 'checked' || p.state === 'proposed' ? 1 : 0);
   const includesExecute = approvalsAfter >= p.threshold;
   const messages: PreparedMessage[] = [];
+  // Every transaction of this payment carries its memo at the top level, so each one reads
+  // "splash:pay:v1:<paymentId>" in its Solscan program logs, not only the execute.
+  const traceMemo = () => buildMemoInstruction(buildPaymentMemo(p.id));
 
   let transactionIndex = p.transactionIndex;
   let routePlan: { kind: RouteKind; transferAmount: bigint; splashFee: bigint; vault: TransactionInstruction[]; pre: TransactionInstruction[]; post: TransactionInstruction[]; ephemeralSigners: number };
@@ -875,14 +913,22 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
     transactionIndex = await rt.chain.getNextTransactionIndex(multisigPda);
     routePlan = buildRoutePlan(p, q, vault, feePayer, keys, transactionIndex);
     const proposal = buildVaultProposal({ multisigPda, transactionIndex, member, feePayer, innerInstructions: routePlan.vault, ephemeralSigners: routePlan.ephemeralSigners });
+    const placeholder = computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n });
+    const fits = (ixs: TransactionInstruction[]) => transactionSize(buildSponsoredTransaction(feePayer, ixs, blockhash)) <= MAX_TRANSACTION_BYTES;
     let groups: TransactionInstruction[][];
     try {
-      groups = groupProposalTransactions(proposal, feePayer, blockhash, computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n }));
-    } catch (e) {
-      throw new ServiceError('transaction_too_large', `This payment does not fit in a Solana transaction: ${(e as Error).message}`, 500);
+      groups = groupProposalTransactions(proposal, feePayer, blockhash, [...placeholder, traceMemo()]);
+    } catch {
+      // A CCTP vault transaction leaves no room for a memo beside vaultTransactionCreate. Group
+      // without it, then give the memo to every transaction that still has room.
+      try {
+        groups = groupProposalTransactions(proposal, feePayer, blockhash, placeholder).map((g) => (fits([...g, traceMemo()]) ? [...g, traceMemo()] : g));
+      } catch (e) {
+        throw new ServiceError('transaction_too_large', `This payment does not fit in a Solana transaction: ${(e as Error).message}`, 500);
+      }
     }
     for (const [i, raw] of groups.entries()) {
-      const body = raw.slice(2); // the grouping included a compute budget placeholder for sizing
+      const body = raw.slice(2); // the grouping included a compute budget placeholder for sizing; the memo stays
       const budget = await budgeted(feePayer, body, blockhash, DEFAULT_UNIT_LIMITS.proposal, i === 0);
       const purposes: ProposalPurpose[] = [];
       if (body.includes(proposal.create)) purposes.push('squads_proposal_create');
@@ -901,7 +947,7 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
       ephemeralSigners: p.plan.ephemeralSigners,
     };
     if (p.state === 'proposed') {
-      const budget = await budgeted(feePayer, [buildProposalApprove(multisigPda, transactionIndex, member)], blockhash, DEFAULT_UNIT_LIMITS.proposal, true);
+      const budget = await budgeted(feePayer, [buildProposalApprove(multisigPda, transactionIndex, member), traceMemo()], blockhash, DEFAULT_UNIT_LIMITS.proposal, true);
       messages.push(preparedMessage(`m${messages.length}`, 'approve', `approve:${signerKey.slice(0, 16)}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, ['squads_proposal_approve'], budget, member));
     }
   }
@@ -1500,7 +1546,6 @@ export async function paymentView(paymentId: string) {
   const p = await getPayment(paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const rt = runtime();
-  const devnet = rt.env.mode === 'devnet';
   // At most three cards. Picks that are the same route at the same price share one card; if no pick
   // uses the CCTP lane, its best quote gets the last card so both lanes are visible.
   type Card = ReturnType<typeof cardFor>;
@@ -1541,7 +1586,6 @@ export async function paymentView(paymentId: string) {
     const cctp = POLICIES.flatMap((x) => p.engine.ranked[x]).filter((q) => q.target.network === 'polygon').sort((a, b) => (a.source.amountMinor < b.source.amountMinor ? -1 : a.source.amountMinor > b.source.amountMinor ? 1 : 0))[0];
     if (cctp) cards.push({ ...cardFor(cctp, [cctp.policy]), label: 'Via Polygon' });
   }
-  const explorer = (sig: string, simulated: boolean) => (devnet && !simulated ? explorerTxUrl(sig, rt.env.cluster) : null);
   // Zeke Checker: the deterministic results in plain words. It explains; it never decides.
   const checker = p.policy ? explainChecks({ tier: DEMO_TIER, checks: p.policy.checks, extraChecks: p.policy.extraChecks, screeningLabel: p.policy.kyt.label }) : null;
   if (checker) assertDraftOnly(checker);
@@ -1560,7 +1604,8 @@ export async function paymentView(paymentId: string) {
     rehearsal: p.rehearsal,
     timeline: p.timeline,
     finalized: p.execution.finalizedAt !== null,
-    signatures: p.signatures.map((s) => ({ ...s, explorerUrl: explorer(s.signature, s.simulated) })),
+    signatures: p.signatures.map((s) => ({ ...s, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+    trace: paymentTrace(p),
     partnerEvents: p.partnerEvents.map((e) => ({ status: e.status, at: e.at, bankReference: e.bankReference ?? null })),
     partnerLabel: rt.partner.entry.name,
     receiptId: p.receiptId,
@@ -1599,7 +1644,6 @@ export async function receiptView(receiptId: string) {
   const inv = getInvoice(p.orgId, p.invoiceId);
   const org = getOrg(p.orgId);
   const rt = runtime();
-  const devnet = rt.env.mode === 'devnet';
   return {
     receiptId: e.receiptId,
     paymentId: e.paymentId,
@@ -1620,7 +1664,9 @@ export async function receiptView(receiptId: string) {
     leafHex: e.leafHex,
     proof: e.proof,
     batch: e.batch,
-    anchor: { ...e.anchor, explorerUrl: devnet && e.anchor.signature ? explorerTxUrl(e.anchor.signature, rt.env.cluster) : null },
+    anchor: { ...e.anchor, ...(e.anchor.signature ? traceLinks('tx', e.anchor.signature, e.anchor.simulated) : { solscanUrl: null, explorerUrl: null }) },
+    signatures: p.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+    trace: paymentTrace(p),
     stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes },
   };
 }
@@ -1641,6 +1687,11 @@ export async function evidencePack(receiptId: string) {
     proof: e.proof,
     batch: e.batch,
     anchor: e.anchor,
+    trace: {
+      ...paymentTrace(p),
+      transactions: p.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+      anchor: e.anchor.signature ? { signature: e.anchor.signature, ...traceLinks('tx', e.anchor.signature, e.anchor.simulated) } : null,
+    },
     invoiceDisclosure: {
       fields: { invoiceNumber: c.invoiceNumber, supplierName: c.supplierName, supplierBank: c.supplierBank, supplierAccountLast4: c.supplierAccountLast4, amountPhpMinor: c.amountPhpMinor, dueDate: c.dueDate, einvoiceRef: c.einvoiceRef },
       saltHex: inv.saltHex,
@@ -1650,6 +1701,7 @@ export async function evidencePack(receiptId: string) {
       'leaf = sha256(utf8("splash.evidence.leaf.v1") || 0x00 || utf8(canonicalJson(bundle))); bigint values are decimal strings',
       'walk proof.siblings bottom-up: node = sha256(utf8("splash.evidence.node.v1") || 0x01 || left || right)',
       'the root must equal the root in the anchor memo "splash:root:v1:<root>:<count>"',
+      'on Solscan (devnet: ?cluster=devnet), every transaction in trace.transactions shows the program log Memo "splash:pay:v1:<paymentId>"; the execute moves USDC from the vault to the payout partner deposit and the Splash fee account, and nowhere else',
     ],
   };
 }

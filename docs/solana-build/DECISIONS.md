@@ -194,3 +194,14 @@ A resumed worker polls that signature. It never sends again.
 - the invoice reservation and the daily-limit reservation
 
 Within one process those reservations are atomic: the check and the reservation happen with no await between them. Across instances, the payment's own compare-and-set still prevents a double send of one payment. Two payments for one invoice on two instances is the gap Phase 4 closes.
+
+## D-P4-1 · Every payment can be traced on Solscan (Sky, 13 Oct)
+
+Prompt 07 §6.2 says explorer links point to Solana Explorer. Sky asked on 13 Oct that every payment can be traced on Solscan, so Solscan is now the link shown first, and Solana Explorer is the second link on the receipt.
+
+- **One place builds the URLs.** `lib/explorer.ts` has `solscanTxUrl` and `solscanAccountUrl`. Devnet carries `?cluster=devnet`; mainnet-beta carries nothing. The test that no file builds an explorer URL by hand covers `solscan.io` too.
+- **Every transaction of a payment carries its memo at the top level.** The proposal, each approval and the execute all carry `splash:pay:v1:<paymentId>`, so each one shows the payment id in its Solscan program logs. Before this change only the execute did. A proposal stores the vault transaction without running it, so the memo inside the vault transaction never ran at proposal time.
+  - **Exception: a CCTP proposal.** Its `vaultTransactionCreate` leaves no room for a memo. The memo goes on every transaction that still fits.
+  - **Batch chunks.** Each chunk's proposals carry `<batchId>.c<n>`. The execute adds no copy: running the vault transaction runs its memo, and Solscan shows that log under the Squads execute. A copy would cost one payee per chunk (5 → 4, measured).
+- **Checked on Solscan, 13 Oct.** The Part A execute `4ZXV7pHN…` opens at `solscan.io/tx/…?cluster=devnet`. It shows the vault → deposit transfer, the Squads execute, a finalized result and a sponsored fee, and its program logs read `Memo (len 74): "splash:v1:…"`.
+- **What the receipt shows.** The receipt and the evidence pack list each transaction and each account (vault, the vault's USDC account, the partner deposit) with a Solscan link. Offline there are no links: a simulated signature exists on no network, and the panel says so.

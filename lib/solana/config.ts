@@ -14,7 +14,7 @@
  */
 import { PublicKey } from '@solana/web3.js';
 
-import { solanaAddressUrl, solanaTxUrl } from '../explorer.ts';
+import { solanaAddressUrl, solanaTxUrl, solscanAccountUrl, solscanTxUrl } from '../explorer.ts';
 import type { Cluster, RunMode } from './types.ts';
 
 /** Programs that are the same address on devnet and mainnet-beta. */
@@ -108,6 +108,15 @@ export function explorerTxUrl(signature: string, cluster: Cluster): string {
 
 export function explorerAddressUrl(address: string, cluster: Cluster): string {
   return solanaAddressUrl(address, cluster);
+}
+
+/** Solscan, the trace link shown first. */
+export function solscanTx(signature: string, cluster: Cluster): string {
+  return solscanTxUrl(signature, cluster);
+}
+
+export function solscanAccount(address: string, cluster: Cluster): string {
+  return solscanAccountUrl(address, cluster);
 }
 
 export interface SolanaEnv {

@@ -323,10 +323,10 @@ function VaultSummary({ org, fresh = false, onReset }: { org: OrgDTO; fresh?: bo
             </div>
           ))}
         </dl>
-        {vault.explorerUrl ? (
+        {vault.solscanUrl ? (
           <p>
-            <a href={vault.explorerUrl} target="_blank" rel="noreferrer">
-              View the vault on Solana Explorer
+            <a href={vault.solscanUrl} target="_blank" rel="noreferrer">
+              View the vault on Solscan
             </a>
           </p>
         ) : null}

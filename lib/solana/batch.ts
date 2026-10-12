@@ -9,6 +9,12 @@
  *                                  SPL Memo "splash:pay:v1:<batchId>.c<n>"
  *   before the execute (top level) compute budget, ATA CreateIdempotent per payee + fee account
  *                                  (Kora pays the rent)
+ *   proposal transactions (top)    the same memo again: a proposal stores the vault transaction
+ *                                  without running it, so this copy is what puts
+ *                                  "splash:pay:v1:<batchId>.c<n>" in the proposal's Solscan logs
+ *
+ * The execute needs no top-level copy: running the vault transaction runs its memo, and Solscan
+ * shows that log under the Squads execute. A copy would cost a payee per chunk.
  *
  * How many payees fit is MEASURED, never hard-coded: payees are added one at a time and every
  * transaction the chunk needs (the proposal group(s) and the execute, compute budget included) is
@@ -69,7 +75,9 @@ export interface BatchChunk {
   feeMinor: bigint;
   vaultInstructions: TransactionInstruction[];
   preExecuteInstructions: TransactionInstruction[];
-  /** Serialized sizes at plan time, compute budget included. Every one is ≤ 1,232. */
+  /** Put in every proposal transaction of this chunk (measured with it), so each one shows the chunk memo on Solscan. */
+  traceInstructions: TransactionInstruction[];
+  /** Serialized sizes at plan time, compute budget and memos included. Every one is ≤ 1,232. */
   sizes: { proposal: number[]; execute: number };
 }
 
@@ -106,7 +114,8 @@ function chunkInstructions(input: BatchPlanInput, index: number, payees: BatchPa
 async function measure(input: BatchPlanInput, index: number, payees: BatchPayee[]): Promise<BatchChunk | null> {
   const transactionIndex = input.firstTransactionIndex + BigInt(index);
   const { memo, feeMinor, payoutMinor, vault, pre } = chunkInstructions(input, index, payees);
-  const budget = computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n });
+  const trace = [buildMemoInstruction(memo)];
+  const budget = [...computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n }), ...trace];
   let groups: TransactionInstruction[][];
   try {
     const proposal = buildVaultProposal({ multisigPda: input.multisigPda, transactionIndex, member: input.member, feePayer: input.feePayer, innerInstructions: vault });
@@ -125,7 +134,7 @@ async function measure(input: BatchPlanInput, index: number, payees: BatchPayee[
   }
   const proposalSizes = groups.map((g) => transactionSize(buildSponsoredTransaction(input.feePayer, g, input.sizingBlockhash)));
   if (executeSize > MAX_TRANSACTION_BYTES || proposalSizes.some((n) => n > MAX_TRANSACTION_BYTES)) return null;
-  return { index, memo, transactionIndex, payees, payoutMinor, feeMinor, vaultInstructions: vault, preExecuteInstructions: pre, sizes: { proposal: proposalSizes, execute: executeSize } };
+  return { index, memo, transactionIndex, payees, payoutMinor, feeMinor, vaultInstructions: vault, preExecuteInstructions: pre, traceInstructions: trace, sizes: { proposal: proposalSizes, execute: executeSize } };
 }
 
 /**

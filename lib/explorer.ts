@@ -5,8 +5,13 @@
  * proves nothing: the transaction does not exist there. So which explorer, and
  * which cluster, is decided once, here.
  *
- * Solana Explorer keeps the cluster in a query parameter; mainnet-beta has
- * none. The cluster is SOLANA_CLUSTER on the server and
+ * Solscan is the trace link Splash shows first (Sky, 13 Oct 2026): a payment
+ * is followed on Solscan from the vault account to each transaction, and the
+ * execute's program logs show the memo "splash:pay:v1:<paymentId>". Solana
+ * Explorer stays as the second link on the receipt's verify steps.
+ *
+ * Both keep the cluster in a query parameter (`?cluster=devnet`); mainnet-beta
+ * has none. The cluster is SOLANA_CLUSTER on the server and
  * NEXT_PUBLIC_SOLANA_CLUSTER on the client, devnet unless told otherwise.
  */
 
@@ -20,6 +25,16 @@ export function explorerCluster(env: NodeJS.ProcessEnv = process.env): ExplorerC
 
 function suffix(cluster: ExplorerCluster): string {
   return cluster === 'mainnet-beta' ? '' : `?cluster=${cluster}`;
+}
+
+/** Solscan transaction page: the first link a person follows. */
+export function solscanTxUrl(signature: string, cluster: ExplorerCluster = explorerCluster()): string {
+  return `https://solscan.io/tx/${encodeURIComponent(signature)}${suffix(cluster)}`;
+}
+
+/** Solscan account page: a vault (every transaction it took part in), a token account, a deposit address. */
+export function solscanAccountUrl(address: string, cluster: ExplorerCluster = explorerCluster()): string {
+  return `https://solscan.io/account/${encodeURIComponent(address)}${suffix(cluster)}`;
 }
 
 /** Solana Explorer transaction page. */
