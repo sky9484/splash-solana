@@ -336,3 +336,65 @@ test('a SAS anchor refuses a blob-ids root that is not 32-byte hex', async () =>
   await assert.rejects(() => buildSasAnchor({ attester, batch, walrusBlobIdsRoot: '' }), /walrus_blob_ids_root/);
   await assert.rejects(() => buildSasAnchor({ attester, batch, walrusBlobIdsRoot: 'AB'.repeat(32) }), /walrus_blob_ids_root/);
 });
+
+// ─── Prompt 07 §4.5: the whole pipeline, offline ────────────────────────────
+
+test('round trip: bundle → Seal (demo) → store → leaf → root → v2 anchor → verify, and the stored copy is the one anchored', async () => {
+  // Demo Seal persists its policies under SPLASH_DATA_DIR; keep that out of the repo.
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  process.env.SPLASH_DATA_DIR = mkdtempSync(join(tmpdir(), 'splash-evidence-'));
+  const { mockSealAdapter } = await import('../lib/evidence-sui/seal.ts');
+
+  const bundles = [payoutBundle('', 0), payoutBundle('_b', 10), payoutBundle('_c', 20)];
+  const store = new InMemoryEvidenceStore();
+  const members = [deviceKey];
+  const stored = [];
+  for (const bundle of bundles) {
+    const plaintext = canonicalJson(bundle);
+    // The store refuses the plaintext outright; only the sealed copy goes in.
+    await assert.rejects(store.put(bundle.bundleId, plaintext), /ciphertext only/);
+    const { ciphertext, policy } = await mockSealAdapter.encrypt(plaintext, members);
+    assert.equal(policy.mode, 'demo');
+    assert.ok(!ciphertext.includes(bundle.bundleId), 'nothing readable survives encryption');
+    const put = await store.put(bundle.bundleId, ciphertext);
+    stored.push({ bundle, put, policy });
+  }
+
+  const batch = buildEvidenceBatch(bundles, period);
+  const blobIds = stored.map((s) => s.put.blobId);
+  const plan = await buildSasAnchor({ attester, batch, walrusBlobIdsRoot: walrusBlobIdsRoot(blobIds) });
+  const anchor = anchoredRootFromSas(plan.dataBytes, { signature: 'SIManchor', simulated: true });
+
+  for (const { bundle, put, policy } of stored) {
+    // A verifier reads the blob back, checks it is the stored ciphertext, opens
+    // it as a member, and re-derives everything from the plaintext.
+    const ciphertext = await store.get(put.blobId);
+    assert.equal(createHash('sha256').update(ciphertext).digest('hex'), put.ciphertextSha256Hex);
+    const opened = await mockSealAdapter.decrypt(ciphertext, policy.policyId, deviceKey);
+    assert.equal(opened, canonicalJson(bundle));
+    const reread = JSON.parse(opened);
+    const leaf = batch.leaves.find((l) => l.bundleId === bundle.bundleId);
+    const result = verifyBundle({ bundle: { ...bundle, ...reread }, proof: leaf.proof, anchor, blobIds });
+    assert.equal(result.ok, true, JSON.stringify(result.checks.filter((c) => !c.passed)));
+  }
+
+  // A non-member cannot open it.
+  assert.equal(await mockSealAdapter.decrypt(await store.get(stored[0].put.blobId), stored[0].policy.policyId, 'someone-else'), null);
+
+  // One changed field in the opened bundle fails, as does a blob swapped in the set.
+  const leaf0 = batch.leaves.find((l) => l.bundleId === bundles[0].bundleId);
+  const tampered = { ...bundles[0], bank: { ...bundles[0].bank, rail: 'InstaPay' } };
+  assert.equal(verifyBundle({ bundle: tampered, proof: leaf0.proof, anchor, blobIds }).ok, false);
+  assert.equal(verifyBundle({ bundle: bundles[0], proof: leaf0.proof, anchor, blobIds: [...blobIds.slice(1), 'mem_swapped'] }).ok, false);
+});
+
+test('assertCiphertext refuses plaintext in every shape it arrives in', async () => {
+  const { assertCiphertext } = await import('../lib/solana-evidence/store.ts');
+  const bundle = payoutBundle();
+  for (const plaintext of [canonicalJson(bundle), `  ${canonicalJson(bundle)}`, JSON.stringify([bundle.bundleId]), `seal:${bundle.bank.reference}:commitmentHex`, '', '   ']) {
+    assert.throws(() => assertCiphertext(plaintext), /ciphertext only|plaintext bundle fields|empty/, JSON.stringify(plaintext).slice(0, 40));
+  }
+  assert.doesNotThrow(() => assertCiphertext('AAECAwQFBgcICQoLDA0ODw=='));
+});
