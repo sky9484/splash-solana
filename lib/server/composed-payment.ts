@@ -9,8 +9,8 @@ import {
   createTransferSettlementEvidence,
   sealAndStoreSettlementEvidence,
 } from '@/lib/evidence/settlement';
-import { shouldUseMockSeal } from '@/lib/server/seal';
-import { assertSealWritable } from '@/lib/server/seal-health';
+import { shouldUseMockSeal } from '@/lib/evidence-sui/seal';
+import { assertSealWritable } from '@/lib/evidence-sui/seal-health';
 import {
   confirmComposedPaymentOnSui,
   createPaymentIntentOnSui,

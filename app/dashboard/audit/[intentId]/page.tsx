@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 
 import LocalTime from '@/components/LocalTime';
 import type { AuditReceipt, InvoiceRecord, SweepJob, TransferIntentRecord } from '@/lib/server/operations';
-import type { SealPolicy } from '@/lib/server/seal';
+import type { SealPolicy } from '@/lib/evidence-sui/seal';
 
 type AuditView = { transfer: TransferIntentRecord; receipt: AuditReceipt; invoice: InvoiceRecord | null; sweepJob: SweepJob | null; policy: SealPolicy | null };
 

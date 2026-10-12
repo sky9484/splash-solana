@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import type { PolicyDecision } from '../policy/evaluate.ts';
 import type { SimulationResult, UnsignedProposal, UserRole } from '../agent/types.ts';
 import type { AuditReceipt } from '../server/operations.ts';
-import { readSealPolicy, sealAdapter, type SealPolicy } from '../server/seal.ts';
-import { retrieveBlob, storeEncryptedInvoice, type WalrusBlob } from '../server/walrus.ts';
+import { readSealPolicy, sealAdapter, type SealPolicy } from '../evidence-sui/seal.ts';
+import { retrieveBlob, storeEncryptedInvoice, type WalrusBlob } from '../evidence-sui/walrus.ts';
 import type { DomainTag, PaymentCommitmentPayload } from './commitment.ts';
 
 export type EvidenceConversationItem = {

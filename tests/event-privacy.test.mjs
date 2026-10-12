@@ -247,7 +247,7 @@ test('Seal round trip: the sealed bundle decrypts to the salt that recomputes th
   process.env.SPLASH_DATA_DIR = await mkdtemp(path.join(os.tmpdir(), 'splash-seal-'));
   const { newSalt, paymentCommitment, toHex, fromHex } = await lib();
   const { createTransferSettlementEvidence } = await import('../lib/evidence/settlement.ts');
-  const { mockSealAdapter } = await import('../lib/server/seal.ts');
+  const { mockSealAdapter } = await import('../lib/evidence-sui/seal.ts');
 
   const salt = newSalt();
   const commitment = paymentCommitment(PAYLOAD, salt);

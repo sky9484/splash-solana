@@ -14,8 +14,8 @@ import path from 'node:path';
 
 import { getEnv } from '@/lib/env';
 import { checkFeeAddress, checkLaneNode, checkLaunchScope, checkPasskeyDomain, checkPeg, checkScreening, checkTwilio, checkUsdyPrice } from '@/lib/server/go-live-checks';
-import { getSealHealthSnapshot } from '@/lib/server/seal-health';
-import { getSealConfig } from '@/lib/server/seal-config';
+import { getSealHealthSnapshot } from '@/lib/evidence-sui/seal-health';
+import { getSealConfig } from '@/lib/evidence-sui/seal-config';
 import { suiClient, SPLASH_PACKAGE_ID, SUI_NETWORK, SUI_RPC_URL } from '@/lib/sui';
 
 export type Check = {

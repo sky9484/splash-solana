@@ -1,7 +1,7 @@
 import { SealClient } from '@mysten/seal';
 
-import { getSealConfig } from '@/lib/server/seal-config';
-import { suiClient } from '@/lib/sui';
+import { getSealConfig } from '@/lib/evidence-sui/seal-config';
+import { evidenceSuiClient } from '@/lib/evidence-sui/client';
 
 export type SealHealthStatus = 'unconfigured' | 'healthy' | 'read-only';
 
@@ -68,7 +68,7 @@ async function runHealthCheck(): Promise<SealHealth> {
 
   const configuredWeight = config.serverConfigs.reduce((sum, server) => sum + server.weight, 0);
   const client = new SealClient({
-    suiClient,
+    suiClient: evidenceSuiClient(),
     serverConfigs: config.serverConfigs,
     verifyKeyServers: config.mode !== 'decentralized',
     timeout: config.timeoutMs,

@@ -39,6 +39,16 @@ function assertCiphertextOnly(payload: string) {
   }
 }
 
+/**
+ * How many Walrus epochs a blob is stored for (WALRUS_EPOCHS, default 53), and
+ * stored `permanent` so it cannot be deleted early. Evidence must outlive the
+ * audit window; the publisher default is far shorter.
+ */
+export function walrusEpochs(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number.parseInt(env.WALRUS_EPOCHS ?? '', 10);
+  return Number.isInteger(n) && n > 0 ? n : 53;
+}
+
 function demoMode() {
   return process.env.USE_MOCK_APIS === 'true' || !process.env.WALRUS_PUBLISHER_URL;
 }
@@ -51,7 +61,7 @@ export async function storeEncryptedInvoice(encryptedData: string): Promise<Walr
       blobId,
       encryptedData,
       sizeBytes: Buffer.byteLength(encryptedData),
-      epochs: 5,
+      epochs: walrusEpochs(),
       mode: 'demo',
       createdAt: new Date().toISOString(),
     };
@@ -60,7 +70,8 @@ export async function storeEncryptedInvoice(encryptedData: string): Promise<Walr
   }
 
   try {
-    const response = await fetch(`${process.env.WALRUS_PUBLISHER_URL}/v1/blobs`, {
+    const epochs = walrusEpochs();
+    const response = await fetch(`${process.env.WALRUS_PUBLISHER_URL}/v1/blobs?epochs=${epochs}&permanent=true`, {
       method: 'PUT',
       headers: { 'Content-Type': 'text/plain' },
       body: encryptedData,
@@ -81,7 +92,7 @@ export async function storeEncryptedInvoice(encryptedData: string): Promise<Walr
       blobId,
       encryptedData,
       sizeBytes: Buffer.byteLength(encryptedData),
-      epochs: 5,
+      epochs,
       mode: 'live',
       createdAt: new Date().toISOString(),
     };
@@ -101,11 +112,12 @@ export async function retrieveBlob(blobId: string): Promise<WalrusBlob | null> {
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`aggregator returned ${response.status}`);
     const encryptedData = await response.text();
+    // The aggregator does not report the storage period; this is what Splash requests.
     return {
       blobId,
       encryptedData,
       sizeBytes: Buffer.byteLength(encryptedData),
-      epochs: 5,
+      epochs: walrusEpochs(),
       mode: 'live',
       createdAt: new Date().toISOString(),
     };

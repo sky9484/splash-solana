@@ -11,8 +11,8 @@ import { readJsonBody } from '@/lib/server/http';
 import { readInvoice } from '@/lib/server/invoices-store';
 import { requireSessionAccount } from '@/lib/server/session-account';
 import { patchAuditReceipt } from '@/lib/server/transfers-store';
-import { sealAdapter } from '@/lib/server/seal';
-import { retrieveBlob } from '@/lib/server/walrus';
+import { BrowserDecryptOnlyError, sealAdapter } from '@/lib/evidence-sui/seal';
+import { retrieveBlob } from '@/lib/evidence-sui/walrus';
 import { LAUNCH_SCOPE_REASON, stablecoinOnly } from '@/lib/server/launch-scope';
 
 const schema = z.object({ invoiceId: z.string().min(1) });
@@ -37,7 +37,12 @@ export async function POST(request: Request) {
   if (invoice.walrusBlobId && invoice.sealPolicyId) {
     const blob = await retrieveBlob(invoice.walrusBlobId);
     if (blob) {
-      const decrypted = await sealAdapter.decrypt(blob.encryptedData, invoice.sealPolicyId, invoice.issuerOrg);
+      // Demo only: live evidence is never decrypted on the server, so Zeke
+      // reads the confirmed invoice fields above instead of the document.
+      const decrypted = await sealAdapter.decrypt(blob.encryptedData, invoice.sealPolicyId, invoice.issuerOrg).catch((error: unknown) => {
+        if (error instanceof BrowserDecryptOnlyError) return null;
+        throw error;
+      });
       if (decrypted) invoiceText = `${invoiceText}\n${Buffer.from(decrypted, 'base64').toString('utf8').slice(0, 5000)}`;
     }
   }

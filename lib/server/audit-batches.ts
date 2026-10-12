@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 
 import { listTransfersForStaff } from '@/lib/server/transfers-store';
-import { sealAdapter } from '@/lib/server/seal';
+import { sealAdapter } from '@/lib/evidence-sui/seal';
 import { anchorAuditHashOnSui } from '@/lib/server/sui-settlement';
-import { retrieveBlob, storeEncryptedInvoice } from '@/lib/server/walrus';
+import { retrieveBlob, storeEncryptedInvoice } from '@/lib/evidence-sui/walrus';
 import { suiClient } from '@/lib/sui';
 
 export type MerkleProofStep = {

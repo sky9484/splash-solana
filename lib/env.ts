@@ -193,11 +193,20 @@ export const envSchema = z.object({
 
   /* Seal. The committee, threshold, package and policy live in a committed
      file — config/seal.<NODE_ENV>.json — loaded and validated by
-     lib/server/seal-config.ts, which validateEnvAtBoot() runs so its twelve
+     lib/evidence-sui/seal-config.ts, which validateEnvAtBoot() runs so its twelve
      checks happen at boot. The seven keys below MOVED into that file: each
      is declared here only so that, if one is still set, boot fails and
      names it. Two sources for one setting is how Seal diverged. */
   SEAL_CONFIG_FILE: optional,
+
+  /* Evidence on Sui (lib/evidence-sui/): Seal encryption + Walrus storage +
+     the allowlist sponsor. The only Sui the Solana build uses. */
+  EVIDENCE_SUI_NETWORK: withDefault(z.enum(['testnet', 'mainnet']), 'testnet'),
+  EVIDENCE_SUI_RPC_URL: url,
+  /** Gas for allowlist updates only. Devnet/testnet; mainnet must use a KMS (refused here). */
+  EVIDENCE_SPONSOR_SUI_PRIVATE_KEY: privkey,
+  /** Walrus storage period in epochs for each evidence blob (stored permanent). */
+  WALRUS_EPOCHS: int(53, 1),
   SEAL_KEY_SERVER_ENDPOINTS: movedToSealFile,
   SEAL_KEY_SERVER_URLS: movedToSealFile,
   SEAL_KEY_SERVER_MODE: movedToSealFile,
@@ -209,7 +218,7 @@ export const envSchema = z.object({
   SEAL_HEALTH_TIMEOUT_MS: int(10_000, 1),
   SEAL_ALERT_WEBHOOK_URL: httpsUrl,
 
-  /* Walrus. lib/server/walrus.ts. Mocked when USE_MOCK_APIS or unset. */
+  /* Walrus. lib/evidence-sui/walrus.ts. Mocked when USE_MOCK_APIS or unset. */
   WALRUS_PUBLISHER_URL: url,
   WALRUS_AGGREGATOR_URL: url,
 
@@ -453,7 +462,7 @@ function productionIssues(env: Env): Issue[] {
 
   /* Unconditional: what the app cannot run safely without. */
   need('CUSTOMER_SESSION_SECRET', 'sessions would be signed with nothing');
-  need('ADMIN_SESSION_SECRET', 'staff sessions would be signed with nothing, and lib/server/seal.ts falls back to a hard-coded dev key');
+  need('ADMIN_SESSION_SECRET', 'staff sessions would be signed with nothing, and lib/evidence-sui/seal.ts falls back to a hard-coded dev key');
   need('CRON_SECRET', 'every /api/cron route would accept any caller');
   need('DATABASE_URL', 'authority and persistence require Postgres');
   need('SPLASH_PACKAGE_ID', 'nothing can be composed against 0x0');
@@ -597,7 +606,7 @@ export function getEnv(): Env {
  */
 export async function validateEnvAtBoot(): Promise<Env> {
   const env = getEnv();
-  const { getSealConfig } = await import('./server/seal-config.ts');
+  const { getSealConfig } = await import('./evidence-sui/seal-config.ts');
   try {
     getSealConfig();
   } catch (error) {

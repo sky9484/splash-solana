@@ -9,8 +9,8 @@ import { RATE_LIMITS, enforceRateLimit } from '@/lib/server/rate-limit';
 import { buildInvoice } from '@/lib/server/operations';
 import { listInvoicesFor, persistInvoice } from '@/lib/server/invoices-store';
 import { requireSessionAccount } from '@/lib/server/session-account';
-import { sealAdapter } from '@/lib/server/seal';
-import { storeEncryptedInvoice, WalrusAdapterError } from '@/lib/server/walrus';
+import { sealAdapter } from '@/lib/evidence-sui/seal';
+import { storeEncryptedInvoice, WalrusAdapterError } from '@/lib/evidence-sui/walrus';
 import { requireTermsAccepted } from '@/lib/server/onboarding';
 
 const createInvoiceSchema = z.object({

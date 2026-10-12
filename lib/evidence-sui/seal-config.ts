@@ -22,7 +22,7 @@ import type { KeyServerConfig } from '@mysten/seal';
  * shared configuration: SEAL_HEALTH_TIMEOUT_MS, SEAL_ALERT_WEBHOOK_URL.
  *
  * Callers are unchanged: getSealConfig() returns the same ParsedSealConfig
- * that lib/server/seal.ts and lib/server/seal-health.ts always consumed.
+ * that lib/evidence-sui/seal.ts and lib/evidence-sui/seal-health.ts always consumed.
  */
 
 export type SealKeyServerMode = 'decentralized' | 'independent';

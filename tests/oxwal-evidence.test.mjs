@@ -29,7 +29,7 @@ test('composed payment anchors the stored evidence hash and Walrus blob', async 
 });
 
 test('Seal demo crypto is unavailable in production transfer runtime', async () => {
-  const seal = await source('lib/server/seal.ts');
+  const seal = await source('lib/evidence-sui/seal.ts');
   const runtimeMode = await source('lib/server/runtime-mode.ts');
 
   assert.match(seal, /canUseDemoCrypto/);

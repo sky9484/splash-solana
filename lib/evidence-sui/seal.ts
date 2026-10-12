@@ -2,15 +2,32 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { SealClient, SessionKey } from '@mysten/seal';
-import { Transaction } from '@mysten/sui/transactions';
+import { SealClient } from '@mysten/seal';
 import { fromHex, toHex } from '@mysten/sui/utils';
 
-import { getSealConfig } from '@/lib/server/seal-config';
-import { assertSealWritable } from '@/lib/server/seal-health';
+import { evidenceSuiClient } from '@/lib/evidence-sui/client';
+import { getSealConfig } from '@/lib/evidence-sui/seal-config';
+import { assertSealWritable } from '@/lib/evidence-sui/seal-health';
 import { canUseDemoCrypto } from '@/lib/server/runtime-mode';
-import { getOperatorKeypair } from '@/lib/server/sui-settlement';
-import { suiClient } from '@/lib/sui';
+
+/**
+ * Seal encryption for evidence (prompt 07 §4).
+ *
+ * The server ENCRYPTS: encrypting needs no secret, only the key servers'
+ * public keys and the organisation's allowlist id. The server sees an
+ * evidence bundle in plaintext once, when it builds it, then keeps only the
+ * ciphertext. "Splash keeps no readable copy."
+ *
+ * The server does NOT decrypt in live mode, and holds no key that could. A
+ * Seal session key is a personal message signed by an allowlisted address;
+ * in the Solana build that address is the member's device key, which lives
+ * non-extractable in their browser (lib/evidence-sui/device-sui-signer.ts),
+ * so decryption happens there. The earlier build signed session keys with
+ * the server's operator key; that path is gone.
+ *
+ * Demo mode keeps a server-side AES stand-in so the offline demo and tests can
+ * round-trip. It is labelled `mode: 'demo'` everywhere and never runs live.
+ */
 
 export type SealPolicy = {
   policyId: string;
@@ -18,10 +35,12 @@ export type SealPolicy = {
   createdAt: string;
   mode: 'demo' | 'live';
   sealId?: string;
+  /** The Seal allowlist object the identity was prefixed with (live). */
+  allowlistObjectId?: string;
 };
 
 export interface SealAdapter {
-  encrypt(data: string, allowlist: string[]): Promise<{ ciphertext: string; policy: SealPolicy }>;
+  encrypt(data: string, allowlist: string[], options?: { allowlistObjectId?: string }): Promise<{ ciphertext: string; policy: SealPolicy }>;
   canDecrypt(policyId: string, identity: string): Promise<boolean>;
   decrypt(ciphertext: string, policyId: string, identity: string): Promise<string | null>;
 }
@@ -30,6 +49,14 @@ export class NotConfiguredError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NotConfiguredError';
+  }
+}
+
+/** Live evidence is decrypted in the member's browser, never on the server. */
+export class BrowserDecryptOnlyError extends Error {
+  constructor() {
+    super('Evidence is decrypted in your browser with your device key. The server keeps no readable copy.');
+    this.name = 'BrowserDecryptOnlyError';
   }
 }
 
@@ -76,6 +103,7 @@ function normalizedAllowlist(allowlist: string[]) {
   return [...new Set(allowlist.map((identity) => identity.trim().toLowerCase()).filter(Boolean))].sort();
 }
 
+/** Demo only: AES-GCM under a server key, so the offline demo can round-trip. Never live. */
 export const mockSealAdapter: SealAdapter = {
   async encrypt(data, allowlist) {
     const createdAt = new Date().toISOString();
@@ -112,7 +140,7 @@ function liveClient() {
     throw new NotConfiguredError('Live Seal package, policy object, or key-server committee is not configured.');
   }
   globalPolicies.splashSealClient = new SealClient({
-    suiClient,
+    suiClient: evidenceSuiClient(),
     serverConfigs: config.serverConfigs,
     verifyKeyServers: config.mode !== 'decentralized',
     timeout: config.timeoutMs,
@@ -120,16 +148,20 @@ function liveClient() {
   return globalPolicies.splashSealClient;
 }
 
-function sealIdFor(policyId: string) {
-  const policy = policies.get(policyId);
-  return policy?.sealId ?? (policyId.startsWith('SEAL:') ? policyId.slice(5) : null);
+/**
+ * The Seal identity: the allowlist object id followed by a random nonce, so
+ * `seal_approve` can check the identity belongs to that allowlist.
+ */
+export function sealIdentity(allowlistObjectId: string, nonce: Uint8Array = randomBytes(5)): string {
+  return toHex(new Uint8Array([...fromHex(allowlistObjectId), ...nonce]));
 }
 
 export const liveSealAdapter: SealAdapter = {
-  async encrypt(data, allowlist) {
+  async encrypt(data, allowlist, options = {}) {
     await assertSealWritable();
     const config = getSealConfig();
-    const sealId = toHex(new Uint8Array([...fromHex(config.policyObjectId), ...randomBytes(5)]));
+    const allowlistObjectId = options.allowlistObjectId ?? config.policyObjectId;
+    const sealId = sealIdentity(allowlistObjectId);
     const { encryptedObject } = await liveClient().encrypt({
       threshold: config.threshold,
       packageId: config.packageId,
@@ -142,52 +174,26 @@ export const liveSealAdapter: SealAdapter = {
       createdAt: new Date().toISOString(),
       mode: 'live',
       sealId,
+      allowlistObjectId,
     };
     rememberPolicy(policy);
     return { ciphertext: Buffer.from(encryptedObject).toString('base64'), policy };
   },
   async canDecrypt(policyId, identity) {
     const policy = policies.get(policyId);
-    if (!policy || !sealIdFor(policyId)) return false;
+    if (!policy?.sealId) return false;
     return policy.allowlist.includes(identity.trim().toLowerCase());
   },
-  async decrypt(ciphertext, policyId, identity) {
-    await assertSealWritable();
-    if (!(await this.canDecrypt(policyId, identity))) return null;
-    const sealId = sealIdFor(policyId);
-    if (!sealId) return null;
-    const config = getSealConfig();
-    const signer = getOperatorKeypair();
-    if (!signer) throw new NotConfiguredError('OPERATOR_SUI_PRIVATE_KEY is required for live Seal decryption.');
-
-    const sessionKey = await SessionKey.create({
-      address: signer.toSuiAddress(),
-      packageId: config.packageId,
-      ttlMin: 10,
-      signer,
-      suiClient,
-    });
-    const tx = new Transaction();
-    tx.moveCall({
-      target: config.approveTarget as `${string}::${string}::${string}`,
-      arguments: [tx.pure.vector('u8', fromHex(sealId)), tx.object(config.policyObjectId)],
-    });
-    const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
-    const plaintext = await liveClient().decrypt({
-      data: Buffer.from(ciphertext, 'base64'),
-      sessionKey,
-      txBytes,
-      checkShareConsistency: true,
-    });
-    return new TextDecoder().decode(plaintext);
+  async decrypt() {
+    throw new BrowserDecryptOnlyError();
   },
 };
 
 export const sealAdapter: SealAdapter = {
-  encrypt(data, allowlist) {
+  encrypt(data, allowlist, options) {
     return shouldUseMockSeal()
-      ? mockSealAdapter.encrypt(data, allowlist)
-      : liveSealAdapter.encrypt(data, allowlist);
+      ? mockSealAdapter.encrypt(data, allowlist, options)
+      : liveSealAdapter.encrypt(data, allowlist, options);
   },
   async canDecrypt(policyId, identity) {
     if (policyId.startsWith('DEMO_SEAL_')) {

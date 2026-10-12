@@ -274,7 +274,7 @@ test('the copy lint gives a reason for every rule, fails on a planted "licensed 
 
   // Protocol jargon is banned on marketing routes and nowhere else.
   assert.ok(copyViolations('components/landing/Landing.tsx', 'Receipts live on Walrus and are anchored on-chain.').length >= 2);
-  assert.deepEqual(copyViolations('lib/server/walrus.ts', 'Walrus blob store'), []);
+  assert.deepEqual(copyViolations('lib/evidence-sui/walrus.ts', 'Walrus blob store'), []);
   assert.deepEqual(copyViolations('app/dashboard/receipts/page.tsx', 'Walrus blob id'), [], 'the dashboard may say what it does');
   assert.ok(copyViolations('app/page.tsx', 'alt="a payment intent on the audit spine"').length >= 2, 'alt text and JSON-LD are scanned too');
 

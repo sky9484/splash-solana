@@ -9,10 +9,10 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 import { custodyPhaseEnabled, custodyPhaseResponse } from '@/lib/server/custody-phase';
-import { sealAdapter } from '@/lib/server/seal';
+import { sealAdapter } from '@/lib/evidence-sui/seal';
 import { anchorAuditHashOnSui } from '@/lib/server/sui-settlement';
 import { accrueDailyYield } from '@/lib/server/treasury';
-import { storeEncryptedInvoice } from '@/lib/server/walrus';
+import { storeEncryptedInvoice } from '@/lib/evidence-sui/walrus';
 import { refuseOutsideLaunchScope } from '@/lib/server/launch-scope';
 
 export const dynamic = 'force-dynamic';
