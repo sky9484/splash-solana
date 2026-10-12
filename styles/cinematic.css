@@ -3,7 +3,7 @@
    Scroll-pinned hero → telemetry scan → push-through → product vision,
    on the bright brand stage: paper cream, teal ink, gold. The main
    object is the enhanced isometric SEA network artwork; satellites are
-   isometric currency tokens (USD · MYR · Sui). Type and buttons reuse
+   isometric currency tokens (USD · MYR · IDR). Type and buttons reuse
    the landing's own iso-* classes. Layers (z): backdrop 0 · object 2 ·
    tokens 3 · edge glow 4 · telemetry 5 · copy 6 · flash 7 · vision 8.
    Only transform/opacity animate.
@@ -153,7 +153,6 @@
 
 .cin-token-usd { top: 12%; right: 26%; --token-size: 170px; }
 .cin-token-myr { bottom: 7%; left: 34%; --token-size: 140px; transform: rotate(-8deg); }
-.cin-token-sui { bottom: 13%; right: 4%; --token-size: 200px; transform: rotate(7deg); }
 
 .cin-token-button {
   display: block;
@@ -253,7 +252,6 @@
 
   .cin-token-usd { --token-size: 130px; }
   .cin-token-myr { --token-size: 110px; }
-  .cin-token-sui { --token-size: 150px; }
 }
 
 /* ── Act II · telemetry callouts + scan frame ─────────────────────── */
@@ -712,7 +710,7 @@
 .cin-footer-brand p {
   max-width: 300px;
   margin-top: 16px;
-  color: rgba(12, 62, 72, .72);
+  color: rgba(12, 62, 72, .86); /* 4.5:1 on the footer paper (Lighthouse) */
   font-size: 12px;
   font-weight: 560;
   line-height: 1.65;
@@ -773,8 +771,8 @@
 
 .cin-footer-compliance small {
   max-width: 340px;
-  color: rgba(12, 62, 72, .68);
-  font-size: 10.5px;
+  color: rgba(12, 62, 72, .86); /* 4.5:1, and no smaller than 12px */
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -1000,7 +998,6 @@
 
   .cin-token-usd { top: 11%; right: 4%; --token-size: 110px; }
   .cin-token-myr { bottom: 6%; left: 3%; --token-size: 96px; }
-  .cin-token-sui { bottom: 9%; right: 3%; --token-size: 130px; }
 
   .cin-callout {
     max-width: 190px;
@@ -1735,11 +1732,13 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   color: var(--surface);
-  background: var(--teal);
+  /* White numbers need the deep teal (6.9:1); the light --teal gave 3.0:1. */
+  background: var(--iso-teal);
   box-shadow: 3px 3px 0 var(--ink);
 }
 .iso-loops-card-3 .iso-loops-meta span {
-  background: var(--coral);
+  /* A burnt coral that holds white at 4.9:1 (the light --coral gave 2.3:1). */
+  background: #b4532d;
   box-shadow: 3px 3px 0 color-mix(in srgb, var(--coral) 55%, var(--ink));
 }
 .iso-loops-meta p { flex: 1; }
@@ -2052,7 +2051,7 @@
 }
 
 /* ── The control plane, revealed as a credit roll ──────────────────────
-   Collapsed behind the toggle under the MemWal badge. On open: a gold line
+   Collapsed behind the toggle under the Zeke badge. On open: a gold line
    draws left to right, then the heading, the claim, and the five stages
    enter one after another at 0.2s intervals — transform and opacity only,
    and none of it under prefers-reduced-motion. */

@@ -1,7 +1,7 @@
 /**
  * The launch scope, with no I/O.
  *
- * Splash can open for USDC on Sui alone (LAUNCH_SCOPE=stablecoin): the
+ * Splash can open for the USDC wallet lane alone (LAUNCH_SCOPE=stablecoin): the
  * wallet-to-wallet lane and x402, which the business's own wallet signs.
  * Everything that moves or records fiat, runs Splash's own settlement or
  * touches the treasury is refused in that scope, because those paths are
@@ -20,7 +20,7 @@ export const LAUNCH_SCOPE_CODE = 'not_in_launch_scope';
 
 /** What is open and what is not, with no claim about what just happened. */
 export const LAUNCH_SCOPE_WHY =
-  'Splash is open for USDC on Sui only for now. USD collection, local-currency payouts, payout runs and the treasury ' +
+  'Splash is open for USDC transfers only for now. USD collection, local-currency payouts, payout runs and the treasury ' +
   'are not open yet.';
 
 /** Shown when a request is refused before anything happened. */

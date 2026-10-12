@@ -32,34 +32,39 @@ export default function PrivacyPolicyPage() {
       <h2>2. Which service this covers</h2>
       <p>
         This policy covers <strong>v2.splashz.xyz</strong>, which is a demonstration environment. It
-        runs against the Sui test network, and the tokens it moves are test tokens with no monetary
+        runs against Solana devnet, a test network, and the tokens it moves are test tokens with no monetary
         value. Do not use it to send real money and do not upload data you would not want in a test
         system.
       </p>
 
       <h2>3. What we collect</h2>
 
-      <h3>Sign-in with Google (zkLogin)</h3>
+      <h3>Sign-in with Google</h3>
       <p>
-        When you sign in, Google returns an identity token to your browser and your browser sends it
-        to us. From that token we read and store your email address, the issuer, the subject
-        identifier Google assigns you, and the audience (our client identifier). We derive a Sui
-        blockchain address from those values plus a secret salt, and store it so an approval can
-        later be attributed to a named person.
+        If you choose &ldquo;Continue with Google&rdquo;, Google sends our server an identity token
+        after you agree on Google&rsquo;s screen. We check that the token is genuine, is meant for
+        Splash, and that Google has verified your email address. From it we store your email
+        address and your name. We do not store the identifier Google assigns you, and nothing about
+        your Google account is used to make any key.
       </p>
       <p>
         <strong>We never receive your Google password</strong>, and we never ask for one.
       </p>
       <p>
-        Please read this next part carefully, because zkLogin is easy to overestimate. The
-        zero-knowledge proof keeps your Google account private <em>from the blockchain</em> — an
-        observer of the chain sees an address, not an email. It does <em>not</em> keep it private
-        from us: our server verifies the token, so we see and store your email address. Anyone
-        telling you zkLogin makes you anonymous to the operator is describing a different system.
+        Signing in with Google proves who you are. It does not let anyone move money: approving a
+        payment needs the device key described below. Where a log entry needs to tell one sign-in
+        from another it records a truncated hash, never the raw identifier.
+      </p>
+
+      <h3>Your device key and recovery kit</h3>
+      <p>
+        When you set up your account, your browser makes a signing key on your device. Its private
+        half cannot be exported, even by your browser, and never reaches us. We store only the
+        public half, to know which device approved which payment.
       </p>
       <p>
-        We do not write your raw subject identifier to our logs. Where a log entry needs to
-        distinguish one account from another it records a truncated hash instead.
+        Your browser also makes a recovery kit of 24 words. They are shown once, on your screen, and
+        are never sent to us. We cannot show them again and cannot recover them for you.
       </p>
 
       <h3>Passkeys</h3>
@@ -88,7 +93,7 @@ export default function PrivacyPolicyPage() {
 
       <h2>4. What is permanent, and why that matters</h2>
       <p>
-        Some records are anchored to a public blockchain to make them tamper-evident. Anchored
+        Some records are anchored to a public blockchain (Solana) to make them tamper-evident. Anchored
         records are <strong>permanent and publicly readable, and we cannot delete or alter
         them</strong> — that is the property that makes an audit trail worth having, and it is also
         an irreversible disclosure. So what goes on chain is deliberately narrow.

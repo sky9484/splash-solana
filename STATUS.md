@@ -100,7 +100,9 @@ Do not publish `splash_core` until every line is checked.
       it to lock format 4 with that CLI's own framework rev (1.75.1 →
       `b9149cbf`, 1.77.2 → `06734f6f`); those rewrites have been reverted, so
       the pin on record is not the framework these tests ran against.
-- [x] No value-bearing field in `splash_core` — `scripts/check-core-no-balance.mjs`,
+- [x] *(Sui build; superseded 2026-10-12 — `splash_core` and this checker were
+      deleted, and `core-invariant.yml` now runs the Solana I-1/I-2 tests.)*
+      No value-bearing field in `splash_core` — `scripts/check-core-no-balance.mjs`,
       run by `.github/workflows/core-invariant.yml` on every push and PR, and by
       `npm run lint` locally. The checker parses struct BODIES out of
       comment-stripped source, so it catches nested containers

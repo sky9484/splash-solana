@@ -88,6 +88,8 @@ export interface Exclusion {
     | 'fast_transfer_fee_unknown'
     | 'insufficient_balance';
   detail?: string;
+  /** insufficient_balance: what this route needs from the vault, in USDC minor units. */
+  neededMinor?: bigint;
 }
 
 /** A route before the Splash fee, which depends on policy. */

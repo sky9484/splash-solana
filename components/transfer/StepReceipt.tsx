@@ -1,6 +1,6 @@
 'use client';
 
-import { suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { useEffect, useRef, useState } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { FileText, Link2, Loader2 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import Receipt from '@/components/Receipt';
 import SettlementProofDrawer from '@/components/SettlementProofDrawer';
 import { receiptNetworkLine } from '@/lib/network-label';
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 
 export default function StepReceipt({ state, reset }: { state: TransferState; reset: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -46,7 +46,7 @@ export default function StepReceipt({ state, reset }: { state: TransferState; re
   });
 
   const digest = state.txDigest ?? null;
-  const explorerUrl = digest ? suiVisionTxUrl(digest) : null;
+  const explorerUrl = digest ? solanaTxUrl(digest) : null;
 
   async function shareWithSupplier() {
     if (!state.transferIntentId) {
@@ -116,7 +116,7 @@ export default function StepReceipt({ state, reset }: { state: TransferState; re
       />
       {state.composedActions?.length ? (
         <section className="rounded-2xl border border-[#5C9EAD]/30 bg-[#5C9EAD]/10 p-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.15em] text-[#326273]/90">Composed actions in this digest</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.15em] text-[#326273]/90">Composed actions in this payment</div>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             {state.composedActions.map((action) => (
               <div key={`${action.kind}-${action.eventType}`} className="rounded-xl bg-white p-3">

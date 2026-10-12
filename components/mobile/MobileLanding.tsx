@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 import WaitlistCta from '@/components/landing/WaitlistCta';
-import { claims, lockedCopy } from '@/content/claims';
+import { claims } from '@/content/claims';
 import { BRAND } from '@/content/brand';
 
 /**
@@ -21,45 +21,46 @@ import { BRAND } from '@/content/brand';
  */
 
 const proofChips = [
-  '~400ms settlement',
-  'Free USDC transfers',
-  'Human-approved AI',
+  "You don't need SOL",
+  'USDC on Solana',
+  'A person approves',
 ];
 
 const marqueeItems = [
-  ['1 live testnet', 'MY to PH corridor'],
-  ['~400ms', 'Sui settlement finality'],
-  ['Free', 'USDC transfers'],
+  ['1 sandbox corridor', 'MY to PH'],
+  ['USDC', 'settled on Solana'],
+  ["You don't need SOL", 'network fees covered'],
   ['0.70%', 'to local currency'],
-  ['Human approved', 'AI recommendations'],
+  ['A person approves', 'Zeke drafts'],
   ['Stored proof', 'A record that lasts'],
 ];
 
+// The four steps, as approved for the Solana build.
 const steps = [
-  { number: '01', title: 'Collect or upload', copy: 'Create a pay link, upload an invoice, or fund USD into the operating account.' },
-  { number: '02', title: 'Review quotes', copy: 'KYB, route, fee, and evidence labels appear before anything is signed.' },
-  { number: '03', title: 'Settle in one signature', copy: 'The payment completes as approved or stops safely before funds move.' },
-  { number: '04', title: 'Deliver locally', copy: 'Pay a verified supplier or sweep value into the recipient ladder.' },
-  { number: '05', title: 'Anchor the proof', copy: 'Receipts and audit evidence stay encrypted, permanent, and reviewable.' },
+  { number: '01', title: 'Your vault', copy: "Money sits in your business's own Squads vault. No Splash key can move it." },
+  { number: '02', title: 'Best route', copy: 'Routes are ranked by the pesos the supplier receives, with the fee shown before anything is signed.' },
+  { number: '03', title: 'A person approves', copy: "Zeke drafts. A person approves with their device key. A payout partner pays the supplier's bank." },
+  { number: '04', title: 'Proof saved', copy: 'Receipts and evidence are encrypted, stored, and anchored on Solana for the auditor.' },
 ];
 
 const compareRows = [
-  { label: 'Settlement speed', bank: '2–5 days', splash: '~400ms finality' },
+  { label: 'Network fees', bank: 'Wire charges', splash: "You don't need SOL" },
   { label: 'Fee to local currency', bank: '3–5%', splash: '0.70%' },
   { label: 'Audit trail', bank: 'Siloed records', splash: 'One record, both sides' },
 ];
 
 const trustPoints = [
-  { icon: Gauge, title: 'Fast by default', copy: 'Sui settlement finality is measured in milliseconds, not banking days.' },
-  { icon: ShieldCheck, title: 'You stay in control', copy: lockedCopy.agent + ' Every payout needs a human signature.' },
+  { icon: Gauge, title: 'Your vault, your keys', copy: "Money stays in your business's own vault. Splash never holds it, and no Splash key can move it." },
+  { icon: ShieldCheck, title: 'You stay in control', copy: 'Zeke drafts. It cannot sign or send. Every payout needs a person to approve it.' },
   { icon: FileCheck2, title: 'Proof that lasts', copy: 'Encrypted receipts, written where they cannot be quietly changed.' },
 ];
 
+// No logo stands in for the settlement network: there is no approved Solana
+// mark in public/ yet.
 const partners = [
   { src: '/stripe-logo.svg', name: 'Stripe' },
   { src: '/partners/pyth.png', name: 'Pyth' },
   { src: '/sumsub-logo.png', name: 'Sumsub' },
-  { src: '/sui-logo-blue.svg', name: 'Sui' },
 ];
 
 export default function MobileLanding() {
@@ -80,15 +81,15 @@ export default function MobileLanding() {
       <section className="mob-hero" aria-labelledby="mob-hero-title">
         <p className="mob-kicker">
           <span className="mob-kicker-dot" aria-hidden="true" />
-          MY → PH corridor · testnet live
+          MY → PH corridor · sandbox
         </p>
         <h1 id="mob-hero-title" className="mob-display">
-          Collect USD.
-          <span>Pay SEA.</span>
+          Pay suppliers abroad.
+          <span>Prove every payment.</span>
         </h1>
         <p className="mob-hero-copy">
-          The working-capital network for Southeast Asian finance teams — programmable
-          settlement, approval-led AI, and audit proof that outlives the payment.
+          Malaysian businesses pay suppliers in the Philippines in USDC on Solana.
+          Delivered to their bank. Proof for the auditor. We never hold the money.
         </p>
         <div className="mob-hero-actions">
           <Link href="/signup" className="mob-btn mob-btn-primary">
@@ -132,7 +133,7 @@ export default function MobileLanding() {
       <section className="mob-section" aria-labelledby="mob-how-title">
         <p className="mob-eyebrow">How it works</p>
         <h2 id="mob-how-title" className="mob-title">
-          Five steps.
+          Four steps.
           <span>No limbo.</span>
         </h2>
         <ol className="mob-steps">
@@ -213,7 +214,7 @@ export default function MobileLanding() {
           <span>finally programmable.</span>
         </h2>
         <p className="mob-final-copy">
-          Start with USD. Prove the MY-to-PH path. Expand when controls are ready.
+          Start with USDC. Prove the MY-to-PH path. Expand when controls are ready.
         </p>
         <Link href="/signup" className="mob-btn mob-btn-gold">
           Open the payment desk

@@ -24,7 +24,7 @@ import test from 'node:test';
 // Zeke's in-process fixtures and stores; a verified org (the KYB gate off).
 process.env.FEATURE_KYB_GATE = 'false';
 delete process.env.DATABASE_URL;
-delete process.env.SPLASH_CUSTODY_PACKAGE_ID;
+delete process.env.SPLASH_CUSTODY_PHASE;
 
 const agent = () => import('../lib/agent/oxwal.ts');
 const card = () => import('../lib/agent/action-card.ts');

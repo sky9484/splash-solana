@@ -44,7 +44,7 @@ export type MoneyPathStep = {
  *  a firm, and a list of rails reads as a roster whatever the flag says.
  *  Flip `active` and every mount updates. */
 export const PH_PAYOUT_RAILS = [
-  { name: 'PDAX · via GCash', active: true },
+  { name: 'Payout partner', active: true },
 ] as const;
 
 const activePhRail = PH_PAYOUT_RAILS.find((rail) => rail.active) ?? PH_PAYOUT_RAILS[0];

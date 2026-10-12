@@ -6,12 +6,10 @@ import PasskeyEnrolment from '@/components/auth/PasskeyEnrolment';
 import { getCustomerSession } from '@/lib/server/customer-auth';
 
 /**
- * Security settings — today, the approval signer.
+ * Security settings: the sign-in passkey (a second factor at login).
  *
- * Enrolment only. There is deliberately no approval action here: the Move
- * entry point an approval would call does not exist yet, and a button that
- * signs something nothing can verify on chain would be theatre. The signer is
- * the prerequisite, and it is what this page sets up.
+ * Not a payment signer. Approvals are Ed25519 signatures from the member's
+ * device key on the company's Squads vault, set up at /dashboard/setup.
  */
 export const dynamic = 'force-dynamic';
 
@@ -28,11 +26,11 @@ export default async function SecuritySettingsPage() {
 
       <header className="iso-settings-head">
         <p className="iso-kicker">Security</p>
-        <h1>Your approval signer</h1>
+        <h1>Sign-in passkey</h1>
         <p>
-          A payment leaves Splash when a named person releases it. This is the device that proves it was you: the key
-          lives in your phone or laptop, never leaves it, and cannot be exported — so an approval is something only
-          your device could have produced, rather than a record saying your name was on it.
+          A passkey adds a second check when you sign in. It does not approve payments: those are signed with the
+          device key you set up for your company&rsquo;s vault, which never leaves the device it was made on.{' '}
+          <Link href="/dashboard/setup">See this device and your vault</Link>.
         </p>
       </header>
 

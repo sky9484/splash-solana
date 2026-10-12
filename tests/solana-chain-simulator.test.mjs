@@ -252,14 +252,58 @@ test('I-7: receipts are simulated: true with deterministic 64-byte signatures', 
   const sim = new SolanaSimulator('devnet');
   const fp = await sim.getFeePayer();
   const memo = new TransactionInstruction({ programId: PROGRAM_IDS.memo, keys: [], data: Buffer.from(`splash:v1:${commit('a')}`) });
-  const tx = buildSponsoredTransaction(fp, [memo], PublicKey.default.toBase58());
+  const tx = buildSponsoredTransaction(fp, [memo], await sim.getLatestBlockhash());
   const r1 = await sim.sendSponsored(tx);
   const r2 = await sim.sendSponsored(tx);
   assert.equal(r1.simulated, true);
   assert.equal(r1.cluster, 'devnet');
-  assert.equal(r1.signature, r2.signature, 'deterministic');
+  assert.equal(r1.signature, r2.signature, 'deterministic; the same bytes land once');
   assert.equal(r1.signature, simulatedSignature(tx.serialize()));
   assert.equal(bs58.decode(r1.signature).length, 64);
+  assert.equal(sim.events.filter((e) => e.kind === 'memo').length, 1, 'a resend of the same bytes does not apply twice');
+});
+
+test('§5.1: a blockhash the chain never issued, or one past its last valid height, is refused', async () => {
+  const sim = new SolanaSimulator('devnet');
+  const fp = await sim.getFeePayer();
+  const memo = () => new TransactionInstruction({ programId: PROGRAM_IDS.memo, keys: [], data: Buffer.from('splash:pay:v1:pay_0123456789abcdef') });
+  await assert.rejects(sim.sendSponsored(buildSponsoredTransaction(fp, [memo()], PublicKey.default.toBase58())), /blockhash not found or expired/);
+  const { blockhash, lastValidBlockHeight } = await sim.getBlockhashWithExpiry();
+  assert.equal(lastValidBlockHeight, (await sim.getBlockHeight()) + 150);
+  sim.advanceBlocks(151);
+  await assert.rejects(sim.sendSponsored(buildSponsoredTransaction(fp, [memo()], blockhash)), /Rebuild the transaction with a fresh blockhash/);
+});
+
+test('§5.1: signatures are known before broadcast; a dropped send never lands; finality follows depth', async () => {
+  const sim = new SolanaSimulator('devnet');
+  const fp = await sim.getFeePayer();
+  const memo = new TransactionInstruction({ programId: PROGRAM_IDS.memo, keys: [], data: Buffer.from('splash:pay:v1:pay_0123456789abcdef') });
+  const seen = [];
+  sim.dropNext(1);
+  const dropped = await sim.sendSponsored(buildSponsoredTransaction(fp, [memo], await sim.getLatestBlockhash()), { onSigned: (s) => seen.push(s) });
+  assert.deepEqual(seen, [dropped.signature], 'onSigned ran before the (dropped) broadcast');
+  assert.deepEqual(await sim.getSignatureStatus(dropped.signature), { confirmationStatus: null, err: null });
+
+  sim.finalityDepth = 32;
+  const landed = await sim.sendSponsored(buildSponsoredTransaction(fp, [memo], await sim.getLatestBlockhash()));
+  assert.equal((await sim.getSignatureStatus(landed.signature)).confirmationStatus, 'confirmed');
+  sim.advanceBlocks(32);
+  assert.equal((await sim.getSignatureStatus(landed.signature)).confirmationStatus, 'finalized');
+});
+
+test('§5.4: simulate dry-runs without signatures, changes nothing, and reports the failure it would hit', async () => {
+  const sim = new SolanaSimulator('devnet');
+  const fp = await sim.getFeePayer();
+  const ok = buildSponsoredTransaction(fp, [new TransactionInstruction({ programId: PROGRAM_IDS.memo, keys: [], data: Buffer.from('splash:pay:v1:pay_0123456789abcdef') })], await sim.getLatestBlockhash());
+  const good = await sim.simulate(ok);
+  assert.equal(good.ok, true);
+  assert.ok(good.unitsConsumed > 0);
+  assert.ok(good.logs.some((l) => /memo/.test(l)));
+  assert.equal(sim.events.length, 0, 'a simulation applies nothing');
+  const bad = buildSponsoredTransaction(fp, [new TransactionInstruction({ programId: PROGRAM_IDS.memo, keys: [], data: Buffer.from('INV-0412 Manila') })], await sim.getLatestBlockhash());
+  const refused = await sim.simulate(bad);
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /not a Splash memo/);
 });
 
 test('chain() factory: offline -> shared simulator; devnet -> DevnetChain (no network at construction)', async () => {

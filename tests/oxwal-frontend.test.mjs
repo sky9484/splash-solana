@@ -70,8 +70,9 @@ test('ActionCard model exposes full proposal anatomy and trust treatment', () =>
   assert.equal(model.primaryActionLabel, 'Sign & approve');
 });
 
-test('default dashboard is the streaming Zeke surface and avoids browser money storage', async () => {
-  const page = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+test('the Zeke desk is the streaming surface and avoids browser money storage', async () => {
+  // /dashboard is the overview now (prompt 07 §6.2); the desk lives at /dashboard/zeke.
+  const page = await readFile(new URL('../app/dashboard/zeke/ZekeDesk.tsx', import.meta.url), 'utf8');
   const layout = await readFile(new URL('../app/dashboard/layout.tsx', import.meta.url), 'utf8');
   const queue = await readFile(new URL('../app/queue/page.tsx', import.meta.url), 'utf8');
   const kybSettings = await readFile(new URL('../app/settings/kyb/page.tsx', import.meta.url), 'utf8');
@@ -101,8 +102,8 @@ test('default dashboard is the streaming Zeke surface and avoids browser money s
   // prop (e.g. the KYB gate state) does not fail a test about the desk surface.
   assert.match(layout, /<DashboardShell[^>]*session=\{session\}/);
   assert.match(layout, /\{children\}<\/DashboardShell>/);
-  assert.match(shell, /label: 'Zeke',\s+href: '\/dashboard'/);
-  assert.match(shell, /href: '\/dashboard\/overview'/);
+  assert.match(shell, /label: 'Zeke',\s+href: '\/dashboard\/zeke'/);
+  assert.match(shell, /label: 'Overview',\s+href: '\/dashboard'/);
   assert.match(queue, /export const dynamic = 'force-dynamic'/);
   assert.match(queue, /getCustomerSession/);
   assert.match(queue, /redirect\('\/login'\)/);
@@ -156,14 +157,14 @@ test('landing is the v1 cinematic: hero district, five steps with manual entry, 
   // The invoice loop lives inside the Invoices page now (Inspection loop tab).
   const invoiceLoop = await readFile(new URL('../components/invoices/InvoiceLoop.tsx', import.meta.url), 'utf8');
 
-  assert.match(claims, /headline: 'Collect USD\. Pay Southeast Asia\. Keep cash working\.'/);
+  assert.match(claims, /headline: 'Pay suppliers abroad\. Prove every payment\.'/);
   // The hero art is still the versioned district raster, owned by the
-  // cinematic; the landing keeps the loops and copilot sections and offers
-  // both ways into a payment — an invoice, or a hand-filled transfer.
+  // cinematic; the landing keeps the loops and copilot sections and shows the
+  // four steps prompt 07 §6.1 names.
   assert.match(cinematic, /hero-district-v\d+\.png/);
   assert.match(landing, /id="loops"/);
-  assert.match(landing, /Five steps/);
-  assert.match(landing, /Invoice in, or type it in/);
+  assert.match(landing, /Four steps\./);
+  assert.match(landing, /title: 'Best route by pesos received'/);
   assert.doesNotMatch(landing, /Early Pay|id="supply"/);
   assert.match(page, /<IsometricLanding/);
   assert.match(page, /LANDING_FAQ/, 'the FAQ JSON-LD is generated from the page copy, not duplicated');

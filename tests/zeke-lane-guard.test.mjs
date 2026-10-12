@@ -20,7 +20,7 @@ import { persistRecipient, recordRecipientScreening } from '../lib/server/recipi
 import { findSavedRecipient, listSavedRecipients } from '../lib/agent/recipient-tools.ts';
 
 /**
- * Zeke and an unverified business: it may send USDC on Sui to saved wallet
+ * Zeke and an unverified business: it may send USDC on Solana to saved wallet
  * recipients; it may not pay out in a local currency, convert USD into one,
  * bring USD in, or use Treasury — and Zeke says so, from the message AND from
  * the invoice it reads.
@@ -85,9 +85,8 @@ test('the refusal says what is locked, what is open, and how to unlock it', () =
   const t = laneRefusalText('FIAT_OUT_LOCAL', 'REGISTERED', 'PHP');
   assert.match(t, /isn't verified/);
   assert.match(t, /PHP/);
-  assert.match(t, /USDC on Sui/);
+  assert.match(t, /USDC on Solana/);
   assert.match(t, /5,000 USDC in any 30 days/);
-  assert.match(t, /x402 payments counting toward the same limit/);
   assert.match(t, /Finish verification/);
 
   assert.equal(laneRefusalText('FIAT_OUT_LOCAL', 'ACTIVE', 'PHP'), '', 'a verified business is not refused');
@@ -188,8 +187,8 @@ test('Zeke sees saved wallet recipients as payable by wallet, and bank recipient
       name: 'Maria Santos Trading',
       country: 'PH',
       payoutMethod: 'WALLET',
-      walletAddress: `0x${'ab'.repeat(32)}`,
-      walletProvider: 'SLUSH',
+      walletAddress: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+      walletProvider: 'PHANTOM',
     }));
     await recordRecipientScreening(orgId, wallet.id, { verdict: 'CLEAR', reference: 'test', screenedAt: new Date() });
     await persistRecipient(buildRecipient({ orgId, name: 'Mabuhay Bank Payee', country: 'PH', account: '1234567890' }));
@@ -200,8 +199,9 @@ test('Zeke sees saved wallet recipients as payable by wallet, and bank recipient
 
     assert.equal(w.payoutMethod, 'WALLET');
     assert.equal(w.payable, true);
-    assert.match(w.wallet, /^0xababab…ababab$/, 'shortened: enough to confirm, not to copy');
-    assert.match(w.howToPay, /signs it in its own wallet/);
+    assert.match(w.wallet, /^9WzDXwBb…YtAWWM$/, 'shortened: enough to confirm, not to copy');
+    assert.match(w.howToPay, /approves it with their device key/);
+    assert.match(w.howToPay, /Zeke cannot send it/);
 
     assert.equal(bank.payoutMethod, 'BANK');
     assert.equal(bank.payable, false);

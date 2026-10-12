@@ -600,17 +600,15 @@ export async function releaseStepUp(
  *  key for this deployment's relying party — never a key the request brings. */
 export function enrolledPasskeyVerifier(d: Db): PasskeyVerifier {
   return async ({ userId, message, signature }) => {
-    const { findCredential, relyingPartyId, assertCompressedP256, markCredentialUsed } = await import('@/lib/auth/passkey');
+    const { findCredential, relyingPartyId, markCredentialUsed } = await import('@/lib/auth/passkey');
+    const { challengeFor, parseAssertion, verifyAssertion } = await import('@/lib/auth/webauthn');
     const credential = await findCredential(d, { userId, rpId: relyingPartyId() });
     if (!credential) return { ok: false, reason: 'you have no passkey on this site. Create one in Settings → Security first.' };
-    try {
-      const { PasskeyPublicKey } = await import('@mysten/sui/keypairs/passkey');
-      const publicKey = new PasskeyPublicKey(assertCompressedP256(credential.publicKey));
-      const ok = await publicKey.verifyPersonalMessage(message, signature);
-      if (!ok) return { ok: false, reason: 'the signature does not match your enrolled passkey' };
-    } catch (error) {
-      return { ok: false, reason: error instanceof Error ? error.message : 'signature could not be checked' };
-    }
+    // Plain WebAuthn: the browser signed sha256(message) (lib/auth/webauthn-client.ts).
+    const assertion = parseAssertion(signature);
+    if (!assertion) return { ok: false, reason: 'the passkey response is not in the expected form' };
+    const checked = verifyAssertion({ assertion, enrolled: credential, challenge: challengeFor(message) });
+    if (!checked.ok) return { ok: false, reason: checked.reason };
     await markCredentialUsed(d, credential.id);
     return { ok: true, credentialId: credential.id };
   };

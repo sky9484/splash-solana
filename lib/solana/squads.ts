@@ -115,6 +115,15 @@ export function deriveVaultAddresses(createKey: PublicKey, vaultIndex = 0, progr
   return { multisigPda, vaultPda };
 }
 
+/** Vault index 0 pays suppliers; index 1 is the company's treasury (operating cash). Same members, same threshold. */
+export const PAYMENTS_VAULT_INDEX = 0;
+export const TREASURY_VAULT_INDEX = 1;
+
+/** Any vault of an existing multisig. Every index is a PDA of the multisig: no account to create, no key to hold. */
+export function vaultPdaAt(multisigPda: PublicKey, vaultIndex: number, programId = SQUADS_PROGRAM_ID): PublicKey {
+  return multisig.getVaultPda({ multisigPda, index: vaultIndex, programId })[0];
+}
+
 export interface CreateVaultParams {
   mode: VaultMode;
   members: MemberSpec[];
@@ -382,7 +391,14 @@ export function assertAutonomous(
   data: Uint8Array,
   opts: { splashKeys?: Iterable<string>; expectedMembers?: string[]; expectedThreshold?: number } = {},
 ): MultisigSummary {
-  const s = decodeMultisigAccount(data);
+  return assertAutonomousSummary(decodeMultisigAccount(data), opts);
+}
+
+/** The same checks on an already-decoded account (the chain client returns summaries). */
+export function assertAutonomousSummary(
+  s: MultisigSummary,
+  opts: { splashKeys?: Iterable<string>; expectedMembers?: string[]; expectedThreshold?: number } = {},
+): MultisigSummary {
   if (s.configAuthority !== null) throw new Error(`Multisig is not autonomous: configAuthority is ${s.configAuthority}`);
   if (s.timeLock !== 0) throw new Error(`Unexpected timeLock ${s.timeLock}`);
   const voters = s.members.filter((m) => (m.mask & multisig.types.Permission.Vote) !== 0).length;

@@ -26,7 +26,7 @@ function proposal(overrides = {}) {
     unsignedTxBytes: 'dW5zaWduZWQ=',
     simulation: {
       ok: true,
-      balanceChanges: [{ owner: '0xpayer', coinType: '0x2::sui::SUI', amount: '-1000' }],
+      balanceChanges: [{ owner: '0xpayer', coinType: 'USDC', amount: '-1000' }],
       gasSponsored: true,
       simulatedAt: nowIso,
     },

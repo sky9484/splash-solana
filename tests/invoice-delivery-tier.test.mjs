@@ -21,8 +21,8 @@ delete process.env.SWEEP_ACCOUNT_ENABLED;
 
 const gate = () => import('../lib/server/custody-phase.ts');
 
-const CUSTODY_OFF = { custodyPackageId: '' };
-const CUSTODY_ON = { custodyPackageId: '0x' + 'cd'.repeat(32) };
+const CUSTODY_OFF = { custodyEnabled: false };
+const CUSTODY_ON = { custodyEnabled: true };
 
 async function source(relative) {
   const raw = await readFile(new URL(`../${relative}`, import.meta.url), 'utf8');
@@ -50,7 +50,7 @@ test('every recommendation is a tier the authorize step accepts, in either phase
   for (const config of [CUSTODY_OFF, CUSTODY_ON]) {
     for (const currency of ['PHP', 'USD', 'USDC', 'IDR', undefined]) {
       const tier = invoiceDeliveryTier(currency, config);
-      assert.equal(deliveryTierAllowed(tier, config), true, `${currency} → ${tier} with custody ${config.custodyPackageId ? 'on' : 'off'}`);
+      assert.equal(deliveryTierAllowed(tier, config), true, `${currency} → ${tier} with custody ${config.custodyEnabled ? 'on' : 'off'}`);
     }
   }
 });
@@ -82,10 +82,12 @@ test('the unverified-business refusal still stops the loop before any tier is re
   assert.match(route, /return NextResponse\.json\(\{ extraction, suggestion: refused \}\);/);
 });
 
-test('the transfer page prefills the server-gated tier from ?invoiceId=, not its own PHP mapping', async () => {
+test('the transfer page names no fund-holding tier of its own; the invoice read answers the tier', async () => {
+  // /dashboard/transfer is the Solana pay flow: the payout partner's deposit is the only destination,
+  // and it carries no delivery tier at all.
   const page = await source('app/dashboard/transfer/page.tsx');
-  assert.doesNotMatch(page, /'SWEEP_ACCOUNT'/, 'the page names no fund-holding tier of its own');
-  assert.match(page, /deliveryTier: invoice\.recommendedDeliveryTier \?\? 'PAYOUT_ONLY'/);
+  const flow = await source('components/solana/PayFlow.tsx');
+  assert.doesNotMatch(page + flow, /'SWEEP_ACCOUNT'/, 'the page names no fund-holding tier of its own');
 
   // The page is a client component and cannot read the custody phase, so the
   // invoice read answers it — through the same function extract-invoice uses.

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Banknote, CheckCircle2, Globe2, Loader2, Network, XCircle } from 'lucide-react';
 
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 import LocalTime from '@/components/LocalTime';
 
 /** Destination country names for the "Sent to …" stage (human language). */
@@ -152,7 +152,7 @@ export default function StepStatus({ state, set, next }: { state: TransferState;
             </div>
             <h2 className="mt-3 text-2xl font-semibold">{status === 'success' ? 'Recipient payment confirmed' : status === 'failed' ? 'Settlement failed' : 'Moving money now'}</h2>
             <p className="mt-1 text-sm text-white">
-              {status === 'success' ? 'Payment is confirmed. Redirecting to receipt...' : status === 'failed' ? 'No funds were released. Please retry this transfer.' : 'The selected source is being finalized through Splash on Sui.'}
+              {status === 'success' ? 'Payment is confirmed. Redirecting to receipt...' : status === 'failed' ? 'No funds were released. Please retry this transfer.' : 'The selected source is being finalized through Splash on Solana.'}
             </p>
           </div>
           <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm">
@@ -208,8 +208,8 @@ export default function StepStatus({ state, set, next }: { state: TransferState;
 
       {state.composedActions?.length ? (
         <section className="rounded-3xl border-2 border-[#5C9EAD]/35 bg-[#5C9EAD]/10 p-5">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#326273]/90">One composed Sui transaction</div>
-          <h3 className="mt-1 text-lg font-semibold text-[#0c3e48]">Pay, allocate, and prove</h3>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#326273]/90">Recorded with this payment</div>
+          <h3 className="mt-1 text-lg font-semibold text-[#0c3e48]">Pay and prove</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {state.composedActions.map((action, index) => (
               <div key={`${action.kind}-${action.eventType}`} className="rounded-2xl border border-[#326273]/10 bg-white p-4">

@@ -9,6 +9,7 @@ import {
   recordFailedLogin,
 } from '@/lib/auth/login-rate-limit';
 import { setCustomerSessionCookie, sessionForAccount } from '@/lib/server/customer-auth';
+import { refreshSetupCookie } from '@/lib/server/setup-gate';
 import { readJsonBody } from '@/lib/server/http';
 
 /**
@@ -74,5 +75,7 @@ export async function POST(request: Request) {
 
   const session = sessionForAccount(account);
   const refreshedSession = await setCustomerSessionCookie(session, { remember: parsed.data.remember });
+  // The device check's cookie, from the database once at sign-in (lib/server/setup-gate.ts).
+  await refreshSetupCookie(refreshedSession);
   return NextResponse.json({ session: refreshedSession });
 }

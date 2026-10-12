@@ -15,7 +15,7 @@ import { listRecipientsFor, persistRecipient, recordRecipientScreening } from '@
 import { requireSessionAccount } from '@/lib/server/session-account';
 import { requireTermsAccepted } from '@/lib/server/onboarding';
 import { resolveAuthorityForSession } from '@/lib/auth/authority';
-import { normaliseSuiAddress, StablecoinLaneError, WALLET_PROVIDERS } from '@/lib/payments/stablecoin-lane';
+import { normaliseSolanaAddress, StablecoinLaneError, WALLET_PROVIDERS } from '@/lib/payments/stablecoin-lane';
 import { attestation, screenWalletAddress } from '@/lib/server/wallet-screening';
 
 export async function GET(request: Request) {
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     if (outOfScope) return outOfScope;
   }
 
-  // ── Wallet recipients: USDC on Sui, the lane an unverified business may use.
+  // ── Wallet recipients: USDC on Solana, the lane an unverified business may use.
   if (body.payoutMethod === 'WALLET') {
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     if (tier !== 'PAYOUT_ONLY') {
@@ -79,14 +79,14 @@ export async function POST(request: Request) {
     }
     let walletAddress: string;
     try {
-      walletAddress = normaliseSuiAddress(String(body.walletAddress ?? ''));
+      walletAddress = normaliseSolanaAddress(String(body.walletAddress ?? ''));
     } catch (error) {
       if (error instanceof StablecoinLaneError) return NextResponse.json({ error: error.message }, { status: 400 });
       throw error;
     }
     const walletProvider = String(body.walletProvider ?? '');
     if (!(WALLET_PROVIDERS as readonly string[]).includes(walletProvider)) {
-      return NextResponse.json({ error: 'Wallet must be Slush, or MetaMask with the Sui Snap' }, { status: 400 });
+      return NextResponse.json({ error: 'Wallet must be Phantom, Solflare, Backpack or another Solana wallet' }, { status: 400 });
     }
 
     // Screen BEFORE saving: a listed address never enters the recipient list,

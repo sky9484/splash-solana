@@ -1,6 +1,7 @@
 /**
- * Zeke personalized suggestions, drawn from the caller's open invoices and
- * MemWal behavioral memory. Powers the suggestion cards on the copilot page.
+ * Zeke personalized suggestions, drawn from the caller's open invoices (no
+ * behaviour memory runs on this build). Powers the suggestion cards on the
+ * copilot page.
  * Suggest-only: each card becomes a question for Zeke there, and anything
  * that moves money still goes through a proposal the user approves.
  */

@@ -1,6 +1,7 @@
 /**
- * Browser side of the Solana demo: API calls, the remembered org id, the device key (WebCrypto
- * Ed25519 in IndexedDB, non-extractable) and display formatting.
+ * Browser side of the Solana screens: API calls (the company comes from the session cookie, never
+ * from here), this member's device key (WebCrypto Ed25519 in IndexedDB, non-extractable) and
+ * display formatting.
  *
  * What leaves this browser: public keys, signatures, invoice text and the confirmed fields. The 24
  * recovery words and the device private key never do.
@@ -44,31 +45,15 @@ export async function api<T>(path: string, init: { method?: 'GET' | 'POST'; body
   return data as T;
 }
 
-/* ---------------------------------------------------------------- remembered company */
+/* ---------------------------------------------------------------- receipts */
 
-const ORG_KEY = 'splash.solana.orgId';
-
-export function rememberedOrgId(): string | null {
-  try {
-    return window.localStorage.getItem(ORG_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function rememberOrgId(orgId: string | null) {
-  try {
-    if (orgId) window.localStorage.setItem(ORG_KEY, orgId);
-    else window.localStorage.removeItem(ORG_KEY);
-  } catch {
-    /* private mode: the demo still works for this page view */
-  }
-  notifyOrgChanged();
-}
-
-/** Every useOrg() on the page reloads (identity bar, balance, forms). */
-export function notifyOrgChanged() {
-  window.dispatchEvent(new Event('splash-org-changed'));
+/**
+ * "Share with auditor": a link that opens this one receipt without signing in (its verify steps, the
+ * Solscan trace and the evidence pack). Minting again returns the same live link.
+ */
+export async function shareReceiptLink(receiptId: string): Promise<string> {
+  const res = await api<{ path: string }>(`/receipts/${receiptId}/share`, { body: {} });
+  return `${window.location.origin}${res.path}`;
 }
 
 /* ---------------------------------------------------------------- device key */
@@ -79,23 +64,23 @@ export async function deviceKeySupported(): Promise<boolean> {
   return isDeviceKeySupported();
 }
 
-export async function makeDeviceKey(orgId: string): Promise<DeviceKeyInfo> {
+export async function makeDeviceKey(keyId: string): Promise<DeviceKeyInfo> {
   const store = deviceStore();
-  const existing = await loadDeviceKey(store, orgId);
+  const existing = await loadDeviceKey(store, keyId);
   if (existing) return existing;
-  return createDeviceKey(store, orgId);
+  return createDeviceKey(store, keyId);
 }
 
-export async function existingDeviceKey(orgId: string): Promise<DeviceKeyInfo | null> {
+export async function existingDeviceKey(keyId: string): Promise<DeviceKeyInfo | null> {
   try {
-    return await loadDeviceKey(deviceStore(), orgId);
+    return await loadDeviceKey(deviceStore(), keyId);
   } catch {
     return null;
   }
 }
 
-export async function signBytesWithDevice(orgId: string, bytes: Uint8Array): Promise<Uint8Array> {
-  return signWithDeviceKey(deviceStore(), orgId, bytes);
+export async function signBytesWithDevice(keyId: string, bytes: Uint8Array): Promise<Uint8Array> {
+  return signWithDeviceKey(deviceStore(), keyId, bytes);
 }
 
 export function base64ToBytes(b64: string): Uint8Array {
@@ -106,10 +91,10 @@ export function base64ToBytes(b64: string): Uint8Array {
 }
 
 /** Sign each prepared transaction message with the device key. Returns base58 signatures. */
-export async function signPrepared(orgId: string, messages: Array<{ id: string; messageBase64: string }>) {
+export async function signPrepared(keyId: string, messages: Array<{ id: string; messageBase64: string }>) {
   const out: Array<{ id: string; signature: string }> = [];
   for (const m of messages) {
-    const sig = await signBytesWithDevice(orgId, base64ToBytes(m.messageBase64));
+    const sig = await signBytesWithDevice(keyId, base64ToBytes(m.messageBase64));
     out.push({ id: m.id, signature: bs58.encode(sig) });
   }
   return out;
@@ -123,6 +108,19 @@ export function usdcPlain(minor: string | bigint): string {
 
 export function usd(minor: string | bigint): string {
   return formatUsd(BigInt(minor));
+}
+
+/** Where a payment opens again: an invoice under Invoices, a transfer under Transfer. */
+export function payHref(p: { id: string; kind: 'invoice' | 'transfer' }): string {
+  return `/dashboard/${p.kind === 'transfer' ? 'transfer' : 'invoices'}?payment=${p.id}`;
+}
+
+/** "5,416.082957 USDC": every unit, for where cent-rounded figures would not add up. */
+export function usdcExact(minor: string | bigint): string {
+  const v = BigInt(minor);
+  const abs = v < 0n ? -v : v;
+  const whole = (abs / 1_000_000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${v < 0n ? '−' : ''}${whole}.${(abs % 1_000_000n).toString().padStart(6, '0')} USDC`;
 }
 
 export function php(minor: string | bigint): string {

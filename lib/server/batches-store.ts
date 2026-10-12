@@ -7,7 +7,7 @@
  *
  * Every read takes an `orgId`. Cross-tenant reach is spelled `*ForStaff`.
  */
-import { suiScanTxUrl, suiVisionTxUrl } from '../explorer.ts';
+import { solanaTxUrl } from '../explorer.ts';
 import { operations, type BatchRecord } from './operations.ts';
 import * as repo from './repository/batches.ts';
 
@@ -34,8 +34,8 @@ async function db() {
 function explorerFor(digest: string | null, demo?: boolean) {
   // A simulated run's SIM_ digest has no on-chain transaction, so linking to an
   // explorer would send an operator to a 404 that looks like a lost payment.
-  if (!digest || demo) return { suiVisionTxUrl: null, suiScanTxUrl: null };
-  return { suiVisionTxUrl: suiVisionTxUrl(digest), suiScanTxUrl: suiScanTxUrl(digest) };
+  if (!digest || demo) return { txUrl: null };
+  return { txUrl: solanaTxUrl(digest) };
 }
 
 function toRecord(row: repo.BatchRunRow): BatchRecord {
@@ -48,7 +48,6 @@ function toRecord(row: repo.BatchRunRow): BatchRecord {
     blockedRows: row.blockedRows,
     totalAmount: row.totalAmount,
     digest: row.digest,
-    packageId: row.packageId,
     explorer: explorerFor(row.digest, row.demo),
     accountId: row.accountId,
     idempotencyKey: row.idempotencyKey,
@@ -146,7 +145,6 @@ export async function patchBatch(batchId: string, patch: Partial<BatchRecord>): 
   await repo.patchBatchRun(await db(), batchId, {
     state: patch.state,
     digest: patch.digest,
-    packageId: patch.packageId,
     proposalId: patch.proposalId,
     demo: patch.demo,
   });

@@ -25,23 +25,23 @@ import { FileLock2, Landmark, ShieldCheck, Vault } from 'lucide-react';
 const ROLE_ROWS = [
   {
     role: "Payout of record",
-    body: "A local disbursement partner of record holds the licence and the client relationship in the destination market. Splash instructs; the partner pays out.",
+    body: "A local payout partner holds the licence and the client relationship in the destination market, and pays the supplier's bank. Splash routes; the partner pays out.",
     status: "Not yet signed",
   },
   {
-    role: "Collection of record",
-    body: "A provider of record holds incoming USD. This is the one role with a named provider anywhere on this page, because it is the one that is live.",
-    status: "Airwallex · live on the testnet corridor",
+    role: "Where the money sits",
+    body: "USDC sits in the business's own Squads vault on Solana. Splash never holds it, and no Splash key can move it. A person at the business approves each payment with their device key.",
+    status: "The customer's own vault",
   },
   {
     role: "FX and liquidity",
-    body: "A regulated venue prices and fills the USD leg, sourced per corridor as volume justifies a dedicated agreement.",
+    body: "A regulated venue prices and fills the local-currency leg, sourced per corridor as volume justifies a dedicated agreement.",
     status: "Not yet signed",
   },
   {
-    role: "Client-asset custody",
-    body: "Client funds sit with a custodian of record, never with Splash. splash_core structurally cannot hold a value-bearing field, and CI enforces that on every push.",
-    status: "Not yet signed",
+    role: "Network fees",
+    body: "Splash's fee payer covers the Solana network fees, so the business doesn't need SOL to send a payment.",
+    status: "Covered by Splash",
   },
 ];
 
@@ -53,9 +53,9 @@ const LICENSE_PATH = [
 // Folded in from the landing's former "readiness" strip: the controls that
 // gate value movement, kept here as a compact security summary.
 const CONTROLS = [
-  { label: 'Human approval', body: 'Every payment is prepared by Zeke and released only by a human on the Action Queue — maker-checker, with dual approval above your threshold.' },
+  { label: 'Human approval', body: 'Zeke drafts every payment; it cannot sign or send. A person approves each one with their device key on the Action Queue, with dual approval above your threshold.' },
   { label: 'Corridor gating', body: 'Corridors arm and pause under explicit controls; settlement halts on a peg deviation or compliance flag before any value moves.' },
-  { label: "Partner custody", body: "Partners of record hold client funds. Splash-side control is maker-checker — Zeke prepares, a named human releases — and splash_core holds no client value, which is a property CI enforces rather than a key policy asserted in prose." },
+  { label: 'Compliance powers', body: "Splash can refuse service. Splash cannot freeze or move a customer's funds: they stay in the customer's own vault, and no Splash key can move them." },
 ];
 
 export default function TrustCompliance() {
@@ -114,11 +114,11 @@ export default function TrustCompliance() {
       <section className="trust-block">
         <h2><FileLock2 aria-hidden="true" /> Audit trail by construction</h2>
         <p>
-          Every settlement produces a tamper-proof, encrypted audit record stored permanently and
-          anchored on Sui, retained for seven years. Records are private by default; regulators and
+          Every settlement on Solana produces an encrypted audit record. The record is encrypted and
+          kept on a separate storage network that runs on Sui, and its fingerprint is anchored on
+          Solana, so it cannot be quietly changed. Records are private by default; regulators and
           auditors can be granted visibility on authorization — decryption is a permissioned act, not
-          a data request. This aligns with Sui&apos;s regulator-visible confidential-transfer
-          direction: confidential to the public, verifiable to the people who are supposed to verify.
+          a data request.
         </p>
       </section>
 

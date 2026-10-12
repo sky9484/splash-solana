@@ -4,28 +4,27 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { BalanceHeader } from './BalanceHeader';
-import { api, copyText, notifyOrgChanged, shortKey, timeShort, usd } from './client';
-import { useOrg } from './useOrg';
+import { api, copyText, shortKey, timeShort, usd } from './client';
+import { notifyCompanyChanged, useCompany } from './useCompany';
 
 export function FundPanel() {
-  const { state, reload } = useOrg();
+  const { state, reload } = useCompany();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  if (state.status === 'loading') return <p className="sx-muted">Loading…</p>;
-  if (state.status !== 'ready' || !state.org.vault) {
+  if (state.status === 'loading') return <p className="sx-muted">Loading your vault…</p>;
+  if (state.status !== 'ready' || !state.company.vault) {
     return (
       <div className="sx-narrow sx-stack">
-        <h1>Balance</h1>
-        <p className="sx-lede">{state.status === 'reset' ? state.message : 'Set up your vault first. It takes about a minute.'}</p>
-        <Link className="sx-btn" href="/solana/onboarding">
-          Set up a vault
+        <p className="sx-lede">{state.status === 'ready' ? 'Set up this device and your vault first. It takes about a minute.' : state.message}</p>
+        <Link className="sx-btn" href={state.status === 'signin' ? '/login' : '/dashboard/setup'}>
+          {state.status === 'signin' ? 'Sign in' : 'Set up this device'}
         </Link>
       </div>
     );
   }
-  const org = state.org;
+  const org = state.company;
   const vault = org.vault!;
   const offline = org.mode === 'offline';
 
@@ -33,8 +32,8 @@ export function FundPanel() {
     setBusy(true);
     setError(null);
     try {
-      await api('/fund', { body: { orgId: org.org.id } });
-      notifyOrgChanged();
+      await api('/fund', { body: {} });
+      notifyCompanyChanged();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -44,11 +43,23 @@ export function FundPanel() {
 
   return (
     <div className="sx-stack-lg">
-      <div>
-        <h1>Balance</h1>
-        <p className="sx-lede">USDC in your own Squads vault on Solana. Splash never holds the money.</p>
-      </div>
       <BalanceHeader balance={org.balance} simulated={org.simulated} />
+
+      {org.treasury ? (
+        <section className="sx-card-quiet sx-row" aria-labelledby="from-treasury-title" style={{ justifyContent: 'space-between' }}>
+          <div>
+            <h2 id="from-treasury-title" style={{ fontSize: 16 }}>
+              From your treasury
+            </h2>
+            <p className="sx-small">
+              Your operating cash holds <strong className="sx-num">{usd(org.treasury.balanceMinor)}</strong>. Move it here with one approval on this device; no Splash fee.
+            </p>
+          </div>
+          <Link className="sx-btn sx-btn-sm" href="/dashboard/treasury">
+            Move from treasury
+          </Link>
+        </section>
+      ) : null}
 
       <section className="sx-card sx-stack" aria-labelledby="add-title">
         <h2 id="add-title">Add USDC</h2>
@@ -59,6 +70,14 @@ export function FundPanel() {
             <button type="button" className="sx-btn-link sx-small" onClick={async () => setCopied(await copyText(vault.vaultPda))}>
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {vault.solscanUrl ? (
+              <>
+                {' '}
+                <a className="sx-small" href={vault.solscanUrl} target="_blank" rel="noreferrer">
+                  View on Solscan<span className="sx-visually-hidden"> (opens in a new tab)</span>
+                </a>
+              </>
+            ) : null}
           </dd>
           <dt>USDC account</dt>
           <dd>
@@ -78,8 +97,8 @@ export function FundPanel() {
                 {busy ? 'Adding…' : 'Add 25,000 test USDC (simulated)'}
               </button>
               {BigInt(org.balance.totalMinor) > 0n ? (
-                <Link className="sx-btn sx-btn-ghost" href="/solana/pay">
-                  Pay a supplier
+                <Link className="sx-btn sx-btn-ghost" href="/dashboard/invoices">
+                  Pay an invoice
                 </Link>
               ) : null}
             </div>

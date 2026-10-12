@@ -30,7 +30,7 @@
  *
  * The submit route refuses a proposal with no simulation, and rightly — an
  * approver must see the effect they are signing for. For an agent proposal that
- * simulation is a dry-run PTB. For one of these, the route reached this point
+ * simulation is a dry run of the transaction. For one of these, the route reached this point
  * having ALREADY run every check that precedes payment: the amount floor, the
  * per-transfer and daily ceilings, the funding source, the balance, the KYB
  * gate, the compliance pause, TOTP. The simulation records that those passed
