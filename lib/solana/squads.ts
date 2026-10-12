@@ -115,6 +115,15 @@ export function deriveVaultAddresses(createKey: PublicKey, vaultIndex = 0, progr
   return { multisigPda, vaultPda };
 }
 
+/** Vault index 0 pays suppliers; index 1 is the company's treasury (operating cash). Same members, same threshold. */
+export const PAYMENTS_VAULT_INDEX = 0;
+export const TREASURY_VAULT_INDEX = 1;
+
+/** Any vault of an existing multisig. Every index is a PDA of the multisig: no account to create, no key to hold. */
+export function vaultPdaAt(multisigPda: PublicKey, vaultIndex: number, programId = SQUADS_PROGRAM_ID): PublicKey {
+  return multisig.getVaultPda({ multisigPda, index: vaultIndex, programId })[0];
+}
+
 export interface CreateVaultParams {
   mode: VaultMode;
   members: MemberSpec[];

@@ -280,3 +280,87 @@
 @media (prefers-reduced-motion: reduce) {
   .sx-progress-fill, .sx-stop::after { transition: none !important; }
 }
+
+/* ---------------------------------------------------------------- invoices: the loop and the inbox */
+/* Five stations every invoice goes round. Lit nodes are ink (white numerals hold 10:1); the track
+   fill is teal and decorative. On a phone the loop reads top to bottom. */
+.sx-loop { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 20px 18px; }
+.sx-loop h2 { font-size: 17px; }
+.sx-loop-track { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; position: relative; }
+.sx-loop-track::before, .sx-loop-track::after { content: ''; position: absolute; top: 13px; left: 10%; right: 10%; height: 2px; border-radius: 2px; }
+.sx-loop-track::before { background: var(--line); }
+.sx-loop-track::after { background: var(--teal); transform-origin: left center; transform: scaleX(var(--p, 0)); transition: transform 900ms var(--ease-decel); }
+.sx-loop-track li { position: relative; z-index: 1; display: grid; justify-items: center; text-align: center; gap: 2px; }
+.sx-loop-node { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-size: 13px; font-weight: 650; background: var(--surface); color: var(--slate); border: 1.5px solid var(--line-strong); margin-bottom: 6px; }
+.sx-loop-track li[data-on='true'] .sx-loop-node { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.sx-loop-count { font-size: 26px; line-height: 1.1; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); }
+.sx-loop-label { font-size: 14px; font-weight: 600; color: var(--ink); }
+.sx-loop-hint { font-size: 12.5px; line-height: 1.45; color: var(--slate); max-width: 22ch; }
+
+.sx-inbox-search { flex: 0 1 280px; }
+.sx-inbox { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); }
+.sx-inbox li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 16px; padding: 14px 18px; }
+.sx-inbox li + li { border-top: 1px solid var(--line); }
+.sx-inbox-who { display: grid; gap: 2px; min-width: 0; }
+.sx-inbox-who strong { font-weight: 600; overflow-wrap: anywhere; }
+.sx-inbox-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sx-inbox-open { font-weight: 550; }
+.sx-mini-loop { display: inline-flex; align-items: center; gap: 3px; }
+.sx-mini-loop i { width: 9px; height: 9px; border-radius: 999px; border: 1.5px solid var(--line-strong); background: var(--surface); }
+.sx-mini-loop i[data-on='true'] { background: var(--ink); border-color: var(--ink); }
+
+/* ---------------------------------------------------------------- transfer */
+.sx-transfer-funds { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 20px; }
+.sx-transfer-balance { font-size: 28px; line-height: 1.15; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.sx-transfer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 18px; align-items: start; }
+.sx-transfer-grid .sx-field + .sx-field { margin-top: 0; }
+.sx-group-title { font-size: 15px; font-weight: 600; }
+/* A count inside the pressed chip takes the chip's own (white) ink, not the muted slate. */
+.sx-segmented button[aria-pressed='true'] .sx-muted { color: inherit; opacity: .85; }
+
+/* ---------------------------------------------------------------- treasury: two vaults, one channel */
+.sx-vaults { display: grid; grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr); align-items: stretch; }
+.sx-vault-card { border-radius: var(--r-card); padding: 22px 22px 18px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 4px; align-content: start; }
+.sx-vault-card h2 { font-size: 17px; }
+.sx-vault-kicker { font-family: var(--font-mono), ui-monospace, monospace; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--slate); }
+.sx-vault-amount { font-size: 36px; line-height: 1.1; font-weight: 650; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; margin: 6px 0 4px; }
+/* The treasury is the deep vessel: ink, with white type (10:1) and light links. */
+.sx-vault-card[data-role='treasury'] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.sx-vault-card[data-role='treasury'] .sx-vault-kicker,
+.sx-vault-card[data-role='treasury'] .sx-muted { color: rgba(255, 255, 255, .82); }
+.sx-vault-card[data-role='treasury'] a,
+.sx-vault-card[data-role='treasury'] .sx-btn-link { color: var(--surface); }
+.sx-vault-channel { position: relative; display: grid; place-items: center; }
+.sx-vault-channel span { position: relative; width: 100%; height: 3px; background-image: repeating-linear-gradient(90deg, var(--teal) 0 8px, transparent 8px 14px); background-size: 14px 3px; animation: sx-flow-right 900ms linear infinite; }
+.sx-vault-channel span::after { content: ''; position: absolute; top: 50%; right: -2px; width: 0; height: 0; transform: translateY(-50%); border-left: 9px solid var(--teal); border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
+.sx-vault-channel[data-dir='left'] span { animation-name: sx-flow-left; }
+.sx-vault-channel[data-dir='left'] span::after { right: auto; left: -2px; border-left: 0; border-right: 9px solid var(--teal); }
+@keyframes sx-flow-right { to { background-position: 14px 0; } }
+@keyframes sx-flow-left { to { background-position: -14px 0; } }
+
+@container (max-width: 680px) {
+  .sx-loop-track { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .sx-loop-track::before, .sx-loop-track::after { display: none; }
+  .sx-loop-track li { grid-template-columns: 28px auto minmax(0, 1fr); grid-template-rows: auto auto; justify-items: start; text-align: left; column-gap: 12px; align-items: baseline; }
+  .sx-loop-node { grid-row: span 2; margin: 0; align-self: start; }
+  .sx-loop-count { font-size: 22px; }
+  .sx-loop-hint { grid-column: 2 / -1; max-width: none; }
+  .sx-inbox li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'who amount' 'loop state' 'open open'; row-gap: 8px; }
+  .sx-inbox-who { grid-area: who; }
+  .sx-inbox-amount { grid-area: amount; }
+  .sx-mini-loop { grid-area: loop; }
+  .sx-inbox-state { grid-area: state; justify-self: end; }
+  .sx-inbox-open { grid-area: open; }
+  .sx-vaults { grid-template-columns: minmax(0, 1fr); }
+  .sx-vault-channel { height: 44px; }
+  .sx-vault-channel span { width: 3px; height: 100%; background-image: repeating-linear-gradient(180deg, var(--teal) 0 8px, transparent 8px 14px); background-size: 3px 14px; animation-name: sx-flow-down; }
+  .sx-vault-channel span::after { top: auto; bottom: -2px; right: 50%; transform: translateX(50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid var(--teal); border-bottom: 0; }
+  .sx-vault-channel[data-dir='left'] span { animation-name: sx-flow-up; }
+  .sx-vault-channel[data-dir='left'] span::after { bottom: auto; top: -2px; left: auto; right: 50%; border-top: 0; border-bottom: 9px solid var(--teal); border-left: 6px solid transparent; border-right: 6px solid transparent; }
+}
+@keyframes sx-flow-down { to { background-position: 0 14px; } }
+@keyframes sx-flow-up { to { background-position: 0 -14px; } }
+@media (prefers-reduced-motion: reduce) {
+  .sx-loop-track::after { transition: none !important; }
+  .sx-vault-channel span { animation: none !important; }
+}

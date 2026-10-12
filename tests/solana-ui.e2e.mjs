@@ -90,16 +90,25 @@ async function run(page, email) {
   assert.match((await page.text('.sx-kv')).join('\n'), /Config authority: none/);
   await shot('vault-ready');
 
-  // Fund.
+  // Treasury: operating cash in vault #1, then a move that funds the payments vault (#0).
+  await page.goto(`${BASE}/dashboard/treasury`);
+  await page.click('button', 'Add 100,000 test USDC (simulated)');
+  await page.find('text', /US\$100,000\.00/);
+  await shot('treasury-funded');
+  await page.fill('Amount (USDC)', '30,000');
+  await page.click('button', 'Move with this device', { exact: true });
+  await page.find('text', 'Moved US$30,000.00 to your payments vault.', { timeoutMs: 60_000 });
+  await page.waitFor(() => document.querySelectorAll('section[aria-labelledby="moves-title"] li').length >= 1, [], { what: 'the move in the list' });
+  await shot('treasury-moved');
   await page.goto(`${BASE}/dashboard/fund`);
-  await page.click('button', 'Add 25,000 test USDC (simulated)');
-  await page.find('text', /US\$25,000\.00/);
+  await page.find('text', /US\$30,000\.00/);
   await shot('balance-funded');
 
-  // Pay: start → check → route → approve → progress → done.
-  await page.goto(`${BASE}/dashboard/transfer`);
+  // An invoice round the loop: start → check → route → approve → progress → done.
+  await page.goto(`${BASE}/dashboard/invoices`);
+  await page.find('heading', 'The invoice loop');
   await page.find('button', 'Use the sample invoice');
-  await shot('pay-start');
+  await shot('invoices-start');
   await page.click('button', 'Use the sample invoice');
   await page.find('heading', 'Zeke’s draft');
   await shot('check-invoice');
@@ -156,6 +165,31 @@ async function run(page, email) {
   await page.find('heading', /^Verified\. This record matches/);
   await shot('receipt-shared-auditor');
 
+  // The invoice now sits on the loop with its proof.
+  await page.goto(`${BASE}/dashboard/invoices`);
+  await page.waitFor(() => document.querySelectorAll('.sx-inbox li').length >= 1, [], { what: 'the invoice in the inbox' });
+  assert.match((await page.text('.sx-inbox li')).join('\n'), /INV-0412/);
+  await shot('invoices-loop');
+
+  // A transfer with no invoice, to the supplier saved (and verified) by the first payment.
+  await page.goto(`${BASE}/dashboard/transfer`);
+  await page.find('heading', 'Who receives it, and how much');
+  await page.fill('Amount (PHP)', '50,000');
+  await page.fill('Reference (optional)', 'PO-1182');
+  await shot('transfer-start');
+  await page.click('button', 'Compare routes');
+  await page.waitFor(() => document.querySelectorAll('.sx-route').length >= 2, [], { what: 'transfer route cards' });
+  await page.click('button', /^Review /);
+  await page.waitFor(() => !!document.querySelector('.sx-approve'), [], { what: 'the transfer approval card' });
+  const transferCard = (await page.text('.sx-approve')).join('\n');
+  assert.match(transferCard, /Typed in by/);
+  assert.match(transferCard, /PO-1182/);
+  assert.match(transferCard, /no invoice/);
+  await shot('transfer-approve');
+  await page.click('button', 'Approve with this device');
+  await page.find('heading', /^Paid\. Manila Freight Services Inc\. received ₱50,000\.00/, { timeoutMs: 60_000 });
+  await shot('transfer-done');
+
   // Batch: twelve suppliers, quoted in chunks, one approval, paid chunk by chunk.
   await page.goto(`${BASE}/dashboard/batch`);
   await page.find('button', 'Quote the sample batch');
@@ -183,7 +217,7 @@ async function run(page, email) {
 
   // A second invoice, clicked through on a phone from start to paid.
   await page.setViewport(...PHONE);
-  await page.goto(`${BASE}/dashboard/transfer`);
+  await page.goto(`${BASE}/dashboard/invoices`);
   await page.fill(
     'Invoice text',
     'MANILA FREIGHT SERVICES INC.\nInvoice No: INV-0413\nDue Date: 2026-10-30\nAmount Due: PHP 120,000.00\nBeneficiary: Manila Freight Services Inc.\nBank: BDO Unibank, Inc.\nAccount Number: 0021-8830-4471\n',
@@ -200,6 +234,28 @@ async function run(page, email) {
   assert.ok(overflow <= 0, `no sideways scroll at 390 px (${overflow}px over)`);
   await page.setViewport(...DESKTOP);
 
+  // Fund it first: a transfer the payments vault cannot cover says by how much, offers the treasury
+  // move prefilled, and comes back to the same transfer, quoted, after it.
+  await page.goto(`${BASE}/dashboard/transfer`);
+  await page.find('heading', 'Who receives it, and how much');
+  await page.fill('Amount (PHP)', '1,000,000');
+  await page.fill('Reference (optional)', 'PO-1190');
+  await page.click('button', 'Compare routes');
+  await page.find('heading', /^Your payments vault is US\$[\d,]+\.\d{2} short$/);
+  await shot('transfer-short');
+  await page.click('link', /^Move US\$[\d,]+\.\d{2} from treasury$/);
+  await page.find('heading', 'Move USDC between your vaults');
+  const prefilled = await page.evaluate(() => document.getElementById('move-amount').value);
+  assert.match(prefilled, /^\d+\.\d{2}$/, `the shortfall is prefilled (${prefilled})`);
+  await shot('treasury-prefilled');
+  await page.click('button', 'Move with this device', { exact: true });
+  await page.click('link', 'Back to your transfer', { timeoutMs: 60_000 });
+  await page.waitFor(() => document.querySelectorAll('.sx-route').length >= 2, [], { what: 'the same transfer, quoted' });
+  await page.click('button', /^Review /);
+  await page.click('button', 'Approve with this device');
+  await page.find('heading', /^Paid\. Manila Freight Services Inc\. received ₱1,000,000\.00/, { timeoutMs: 60_000 });
+  await shot('transfer-funded-paid');
+
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.
   // 2. In every Solana API request body, no free-text value contains any single recovery word. Enum
@@ -207,8 +263,9 @@ async function run(page, email) {
   //    since some are BIP39 words by coincidence; invoice text is ordinary English and gets check 1.
   const phrase = words.map((w) => w.toLowerCase());
   const word = new RegExp(`\\b(${phrase.join('|')})\\b`, 'i');
-  const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample']);
-  const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv']);
+  const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample', 'from', 'step']);
+  // What a person typed about a supplier or recipient (invoice text, transfer details) is ordinary English: check 1 only.
+  const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv', 'recipient', 'reference', 'verification']);
   const strings = (v, key, out) => {
     if (typeof v === 'string') {
       if (!ENUM_KEYS.has(key) && !INVOICE_TEXT_KEYS.has(key)) out.push(v);

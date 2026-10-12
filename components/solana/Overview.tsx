@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { BalanceHeader } from './BalanceHeader';
-import { copyText, dateShort, php, shortKey, usd } from './client';
+import { copyText, dateShort, payHref, php, shortKey, usd } from './client';
 import { StatusPill } from './StatusPill';
 import { useCompany } from './useCompany';
 
@@ -51,18 +51,28 @@ export function Overview() {
       <div className="sx-overview-top">
         <div className="sx-stack">
           <BalanceHeader balance={c.balance} simulated={c.simulated} />
+          {c.treasury ? (
+            <p className="sx-small">
+              Treasury (operating cash): <strong className="sx-num">{usd(c.treasury.balanceMinor)}</strong>{' '}
+              <Link href="/dashboard/treasury">{empty && BigInt(c.treasury.balanceMinor) > 0n ? 'Move to your payments vault' : 'Open treasury'}</Link>
+            </p>
+          ) : null}
           <div className="sx-row">
-            <Link className="sx-btn" href="/dashboard/transfer">
-              Pay a supplier
+            <Link className="sx-btn" href="/dashboard/invoices">
+              Pay an invoice
             </Link>
-            <Link className="sx-btn sx-btn-ghost" href="/dashboard/fund">
-              {empty ? 'Add test USDC' : 'Balance and deposits'}
+            <Link className="sx-btn sx-btn-ghost" href="/dashboard/transfer">
+              Transfer
+            </Link>
+            <Link className="sx-btn sx-btn-ghost" href={empty ? '/dashboard/treasury' : '/dashboard/fund'}>
+              {empty ? 'Fund your payments vault' : 'Balance and deposits'}
             </Link>
           </div>
         </div>
 
         <section className="sx-card sx-stack" aria-labelledby="vault-title">
           <h2 id="vault-title">Your vault</h2>
+          <p className="sx-small sx-muted">One Squads multisig, two vaults: payments (#0) and treasury (#1).</p>
           <dl className="sx-kv">
             <dt>Address</dt>
             <dd>
@@ -119,7 +129,7 @@ export function Overview() {
                     {p.invoiceNumber ? ` · ${p.invoiceNumber}` : ''}
                   </span>
                 </span>
-                <Link className="sx-btn" href={`/dashboard/transfer?payment=${p.id}`}>
+                <Link className="sx-btn" href={payHref(p)}>
                   Review and approve<span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                 </Link>
               </li>
@@ -135,7 +145,7 @@ export function Overview() {
         </div>
         {recent.length === 0 ? (
           <p className="sx-muted">
-            No payments yet. <Link href="/dashboard/transfer">Pay your first supplier invoice</Link>.
+            No payments yet. <Link href="/dashboard/invoices">Pay your first supplier invoice</Link>, or <Link href="/dashboard/transfer">make a transfer</Link>.
           </p>
         ) : (
           <ul className="sx-verify">
@@ -155,7 +165,7 @@ export function Overview() {
                       Receipt<span className="sx-visually-hidden"> for {p.supplierName}</span>
                     </Link>
                   ) : (
-                    <Link href={`/dashboard/transfer?payment=${p.id}`}>
+                    <Link href={payHref(p)}>
                       Open<span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                     </Link>
                   )}

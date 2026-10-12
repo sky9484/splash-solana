@@ -110,6 +110,11 @@ export function usd(minor: string | bigint): string {
   return formatUsd(BigInt(minor));
 }
 
+/** Where a payment opens again: an invoice under Invoices, a transfer under Transfer. */
+export function payHref(p: { id: string; kind: 'invoice' | 'transfer' }): string {
+  return `/dashboard/${p.kind === 'transfer' ? 'transfer' : 'invoices'}?payment=${p.id}`;
+}
+
 /** "5,416.082957 USDC": every unit, for where cent-rounded figures would not add up. */
 export function usdcExact(minor: string | bigint): string {
   const v = BigInt(minor);

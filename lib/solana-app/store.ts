@@ -49,15 +49,57 @@ export interface OrgRecord {
   /** Invoice commitments already paid or in flight (duplicate check). */
   seenCommitments: string[];
   fundings: Array<{ signature: string; amountMinor: bigint; at: string; simulated: boolean; note: string }>;
+  /** USDC added to the treasury vault (vault #1). Absent on companies saved before treasury existed. */
+  treasuryFundings?: Array<{ signature: string; amountMinor: bigint; at: string; simulated: boolean; note: string }>;
+  /** Moves between the company's own two vaults. Absent on companies saved before treasury existed. */
+  moves?: MoveRecord[];
   /** Splash refuses service: no Kora signature, no new proposal. Splash cannot freeze the vault itself. */
   suspended: { at: string; by: string; reason: string } | null;
+}
+
+/** Which of the company's two vaults: #0 pays suppliers, #1 holds operating cash (treasury). */
+export type VaultKind = 'payments' | 'treasury';
+
+export interface MoveCall {
+  step: 'proposal' | 'execute';
+  part: number;
+  signature: string;
+  lastValidBlockHeight: number;
+  status: 'signed' | 'confirmed' | 'finalized' | 'failed' | 'expired' | 'pending';
+  at: string;
+}
+
+/**
+ * USDC moved between the company's own vaults (lib/solana-app/treasury-service.ts). Both vaults are
+ * PDAs of the company's Squads multisig: Splash holds no key to either, takes no fee on a move, and
+ * a person approves every move on a device.
+ */
+export interface MoveRecord {
+  id: string;
+  orgId: string;
+  from: VaultKind;
+  to: VaultKind;
+  amountMinor: bigint;
+  memo: string;
+  transactionIndex: bigint;
+  state: 'prepared' | 'sending' | 'checking' | 'confirmed' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  approvedBy: { who: string; keyPublic: string; at: string } | null;
+  vault: SerializedInstruction[];
+  preExecute: SerializedInstruction[];
+  prepared: { signer: string; messages: Array<{ id: string; step: 'proposal' | 'execute'; part: number; txBase64: string; messageBase64: string; lastValidBlockHeight: number }> } | null;
+  calls: MoveCall[];
+  problem: { code: string; message: string } | null;
 }
 
 export interface InvoiceRecord {
   id: string;
   orgId: string;
   createdAt: string;
-  source: 'sample' | 'paste' | 'upload';
+  /** Where the fields came from: Zeke read a document (sample, paste, upload), or a person typed a transfer. */
+  source: 'sample' | 'paste' | 'upload' | 'transfer';
   draft: ReaderOutput;
   /** Whether the draft's supplier bank details are already in the verified directory. */
   bankStatus: 'known' | 'new' | 'changed';
@@ -131,8 +173,10 @@ export interface ApprovalCard {
   signerPublicKey: string;
   /** The partner's one-payment deposit address the vault pays (shown so the approver sees the payee). */
   depositAddress: string;
-  /** Who prepared the payment: Zeke drafts, a person approves (§5.4). */
-  draftedBy: 'Zeke';
+  /** Who prepared the payment: Zeke drafts an invoice payment, a person types a transfer; a person approves either (§5.4). */
+  draftedBy: string;
+  /** An invoice Zeke read, or a transfer a person typed in. */
+  kind: 'invoice' | 'transfer';
   simulated: boolean;
 }
 

@@ -116,4 +116,22 @@ export const schemas = {
     .object({ signatures: z.array(z.object({ id: z.string().regex(/^c\d{1,2}(p\d|x)$/), signature: base58 }).strict()).min(1).max(40) })
     .strict(),
   shareToken: z.string().regex(/^shr_[0-9a-f]{32}$/),
+  /** A transfer with no invoice: who, how much (centavos), an optional reference, and the call-back for a new recipient. */
+  transfer: z
+    .object({
+      recipient: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().max(4) }).strict(),
+      amountPhpMinor: z.string().regex(/^\d{1,15}$/),
+      reference: z.string().max(64).nullable().optional(),
+      verification: z.object({ by: z.string().min(1).max(80), method: z.enum(['call-back', 'supplier-account']) }).strict().nullable().optional(),
+    })
+    .strict(),
+  moveId: id('mov'),
+  /** A move between the company's own vaults; amountMinor in USDC minor units. A retry names the failed move instead. */
+  movePrepare: z.union([
+    z.object({ from: z.enum(['treasury', 'payments']), amountMinor: z.string().regex(/^\d{1,15}$/) }).strict(),
+    z.object({ retryMoveId: id('mov') }).strict(),
+  ]),
+  moveApprove: z
+    .object({ signatures: z.array(z.object({ id: z.string().regex(/^(p\d|x)$/), signature: base58 }).strict()).min(1).max(4) })
+    .strict(),
 };

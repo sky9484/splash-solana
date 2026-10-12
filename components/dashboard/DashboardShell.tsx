@@ -21,6 +21,7 @@ import {
   Phone,
   Send,
   Settings,
+  Vault,
   UserCircle,
   Wallet,
   X,
@@ -43,18 +44,19 @@ const navGroups: NavGroup[] = [
   {
     title: 'Payments',
     items: [
-      { label: 'Overview',       href: '/dashboard',          icon: LayoutDashboard },
-      { label: 'Pay a supplier', href: '/dashboard/transfer', icon: Send },
-      { label: 'Batch payout',   href: '/dashboard/batch',    icon: Layers },
-      { label: 'Zeke',           href: '/dashboard/zeke',     icon: Bot, badge: 'AI' },
+      { label: 'Overview',     href: '/dashboard',          icon: LayoutDashboard },
+      { label: 'Invoices',     href: '/dashboard/invoices', icon: FileText },
+      { label: 'Transfer',     href: '/dashboard/transfer', icon: Send },
+      { label: 'Batch payout', href: '/dashboard/batch',    icon: Layers },
+      { label: 'Zeke',         href: '/dashboard/zeke',     icon: Bot, badge: 'AI' },
     ],
   },
   {
     title: 'Money',
     items: [
+      { label: 'Treasury', href: '/dashboard/treasury', icon: Vault },
       { label: 'Balance',  href: '/dashboard/fund',     icon: Wallet },
       { label: 'History',  href: '/dashboard/history',  icon: History },
-      { label: 'Invoices', href: '/dashboard/invoices', icon: FileText },
     ],
   },
   {
@@ -90,9 +92,10 @@ type DashboardShellProps = {
   solana?: { mode: 'offline' | 'devnet'; cluster: 'devnet' | 'mainnet-beta'; vault: { address: string; solscanUrl: string | null } | null };
 };
 
-/** The pages a USDC-only launch does not open: paying a supplier is a payout to a bank in local
- *  currency (the payout partner's leg), which that scope leaves closed. Their routes answer 403. */
-const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/transfer', '/dashboard/batch'];
+/** The pages a USDC-only launch does not open: paying an invoice, a transfer or a batch is a payout to
+ *  a bank in local currency (the payout partner's leg), which that scope leaves closed, and a move
+ *  between vaults goes through the same gates. Their routes answer 403. */
+const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/invoices', '/dashboard/transfer', '/dashboard/batch', '/dashboard/treasury'];
 const SCOPE_REASON = 'Payouts to a supplier’s bank are not open on this launch yet. Your vault and its balance are.';
 
 /** Why a page is closed, and where to go instead. The launch scope answers
@@ -112,9 +115,9 @@ function pageLock(
 /**
  * The Stablecorp-pattern lock table. Zeke and Overview stay open at every
  * state: Zeke cannot move money regardless (three independent gates prove
- * it) and Overview is a read. Everything that spends follows the KYB gate;
- * Invoices and Recipients only need the terms; Treasury also needs the
- * custody phase.
+ * it) and Overview is a read. Everything that spends follows the KYB gate:
+ * paying an invoice, a transfer, a batch, and a move between the company's
+ * own vaults (Treasury). Recipients only need the terms.
  */
 function lockReasonFor(
   href: string,
@@ -123,15 +126,10 @@ function lockReasonFor(
   // Parity with the routes, or the padlock lies: the spend routes require
   // BOTH the KYB gate and the terms (requireTermsAccepted), so a nav item
   // that only checked KYB would read as open and then answer 412 on submit.
-  const spend = ['/dashboard/transfer', '/dashboard/batch'];
-  const termsOnly = ['/dashboard/invoices', '/dashboard/recipients'];
+  const spend = ['/dashboard/invoices', '/dashboard/transfer', '/dashboard/batch', '/dashboard/treasury'];
+  const termsOnly = ['/dashboard/recipients'];
   const termsReason = 'Accept the terms in Account setup to start here.';
-  if (href === '/dashboard/treasury') {
-    if (locks.moneyBlocked) return locks.reason;
-    if (!locks.termsDone) return termsReason;
-    if (!locks.custodyOn) return 'Treasury is not available on this build.';
-    return null;
-  }
+  // Treasury is the company's own second vault, not a custody product: it follows the same gates as a payment.
   if (spend.includes(href)) {
     if (locks.moneyBlocked) return locks.reason;
     return locks.termsDone ? null : termsReason;
@@ -171,7 +169,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          className={`mb-8 flex items-center rounded-xl transition-colors hover:bg-white/10 ${
+          className={`mb-6 flex items-center rounded-xl transition-colors hover:bg-white/10 ${
             collapsed ? 'mx-auto justify-center p-2' : 'gap-3 px-2 py-2'
           }`}
           aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
@@ -197,7 +195,8 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         </button>
 
         {/* Nav groups */}
-        <nav className="flex-1 space-y-5 overflow-y-auto">
+        {/* min-h-0: the nav scrolls inside the sidebar instead of running under the Solana card on a short screen. */}
+        <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           {navGroups.map((group) => (
             <div key={group.title}>
               {!collapsed && (
@@ -216,7 +215,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
                       href={lock ? lock.href : href}
                       aria-disabled={lockReason ? true : undefined}
                       title={lockReason ?? (collapsed ? label : undefined)}
-                      className={`relative flex items-center rounded-lg px-2 py-2 text-sm transition-colors ${
+                      className={`relative flex items-center rounded-lg px-2 py-[7px] text-sm transition-colors ${
                         collapsed ? 'justify-center' : 'gap-3'
                       } ${
                         active

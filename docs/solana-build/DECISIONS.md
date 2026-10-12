@@ -232,3 +232,25 @@ D-P3-6 left the companies, invoices and evidence in process memory, and `/api/so
   - Batches need a 1-of-N vault; a second approver would need a second prompt per chunk.
   - Batch rows get no per-supplier evidence receipt yet. The chunk transactions carry the memo `splash:pay:v1:<batchId>.c<n>` and are on Solscan.
   - Quotes live 60 seconds (the mock partner's TTL), which is short for reviewing a long file.
+
+## D-P4-4 · Invoices, Transfer and Treasury (Sky, 13 Oct)
+
+Sky asked for three changes to the Payments and Money sections. Prompt 07 §4.2 said "don't port treasury", because the Sui build's treasury was a yield product gated behind counsel (Amendment 01). This treasury is not that product; **Sebastian to confirm** (see the last point).
+
+- **Invoices replaces "Pay a supplier".** The earlier Invoices page had an "Inspection loop" (intake, Walrus proof, Seal access, Zeke draft, payment intent) on the legacy `/api/invoices` store. "Pay a supplier" ran the same idea for real on Solana. There is now one page, `/dashboard/invoices`:
+  - the loop as five stations, counted from the company's own records: read by Zeke, checked by a person, approved on a device, paid to the bank, proof anchored;
+  - the three ways to add an invoice;
+  - an inbox where each invoice shows how far round the loop it is.
+  
+  The legacy receivables "invoice vault" (pay links, USD collection) is not on the Solana build's nav; its API is untouched.
+- **Transfer comes back** at `/dashboard/transfer`, for a payment with no invoice. A person types the recipient, the amount in pesos and an optional reference. The record is `source: 'transfer'`, with `extractor: 'none'` because nothing was read; the person confirms it by sending it. From there it is the invoice path unchanged: quote, the same rules (in a transfer's words), one approval on the device, the payout partner, the proof.
+  - A new recipient still needs a call-back verification.
+  - The approval card says "Typed in by <person>", and shows the reference marked "no invoice".
+- **Fund first.** Payments leave only from the payments vault. When it cannot cover a payment, the quote now answers `insufficient_balance` with the shortfall, the balance and the treasury balance. The screen offers a move from the treasury prefilled with the shortfall (rounded up to the cent). After the move, it returns to the same transfer or invoice and quotes it again.
+- **Treasury is vault #1 of the company's own multisig.** Vault #0 pays suppliers. Both are PDAs of the same Squads multisig, with the same members and threshold, and with no new account or key: Splash holds no key to either.
+  - **A move** is one vault transaction from the source vault: a `transferChecked` to the other vault's USDC account, with its own memo `splash:move:v1:mov_<16 hex>`, so on Solscan it never reads as a payment. Its proposal and execute go to the device in one prompt.
+  - **Sending** follows the batch rule: each signature is written to the company record before broadcast, a pending send is checked and never resent, and a failed execute is retried alone at the same proposal index.
+  - **No Splash fee** on a move; Kora pays the network fee.
+  - **Gates.** A move needs the same gates as a payment (a device in the vault, KYB, terms). Moves need a 1-of-N vault in this build.
+  - **The memo rule (I-5)** now allows exactly three memos: `splash:pay:v1:`, `splash:move:v1:` and the earlier `splash:v1:` commitment.
+- **What this treasury is not.** It holds USDC in the company's own vault and nothing else: no yield, no rate, no lending, no Splash ledger. Every balance on the page is read from the vault's token account. The old `/api/treasury` ledger route stays deleted. **Sebastian to confirm** that a second vault of the company's own multisig is acceptable under Amendment 01. If it is not, the nav entry comes out, and moves stay available only through the API.

@@ -6,12 +6,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApprovalCard, clock, secondsLeft } from './ApprovalCard';
 import { BalanceHeader } from './BalanceHeader';
 import { api, ApiError, copyText, existingDeviceKey, pct, php, shareReceiptLink, signPrepared, usd } from './client';
+import { InvoiceInbox, LoopStrip } from './InvoiceDesk';
 import { ProgressLine } from './ProgressLine';
-import { StatusPill } from './StatusPill';
+import { EmptyVaultNotice, ShortfallNotice } from './Shortfall';
+import { TransferStart, type TransferBody } from './TransferStart';
 import type { CompanyDTO, InvoiceDTO, PaymentDTO } from './types';
 import { notifyCompanyChanged, useCompany } from './useCompany';
 
 type Screen = 'start' | 'check' | 'route' | 'approve' | 'progress' | 'done';
+/** An invoice Zeke reads (Invoices), or a transfer a person types in (Transfer). The same path after the start. */
+export type PayMode = 'invoice' | 'transfer';
+type Problem = { code: string; message: string; detail?: Record<string, unknown> };
 
 const FIELD_LABEL: Record<string, string> = {
   invoiceNumber: 'Invoice number',
@@ -50,14 +55,24 @@ function useNow(active: boolean) {
   return now;
 }
 
-const SCREENS: Array<{ key: Screen; label: string }> = [
-  { key: 'start', label: 'Start' },
-  { key: 'check', label: 'Check the invoice' },
-  { key: 'route', label: 'Choose a route' },
-  { key: 'approve', label: 'Approve' },
-  { key: 'progress', label: 'Progress' },
-  { key: 'done', label: 'Done' },
-];
+const SCREENS_BY_MODE: Record<PayMode, Array<{ key: Screen; label: string; title?: string }>> = {
+  invoice: [
+    { key: 'start', label: 'Add an invoice', title: 'Add an invoice' },
+    { key: 'check', label: 'Check the invoice' },
+    { key: 'route', label: 'Choose a route' },
+    { key: 'approve', label: 'Approve' },
+    { key: 'progress', label: 'Progress' },
+    { key: 'done', label: 'Done' },
+  ],
+  // Nothing to read, so nothing to check: the person types the details and confirms them by sending.
+  transfer: [
+    { key: 'start', label: 'Recipient and amount', title: 'Who receives it, and how much' },
+    { key: 'route', label: 'Choose a route' },
+    { key: 'approve', label: 'Approve' },
+    { key: 'progress', label: 'Progress' },
+    { key: 'done', label: 'Done' },
+  ],
+};
 
 /** Where a payment picks up when its page is opened again (?payment=…), from its state alone. */
 function screenFor(state: string): Screen {
@@ -68,13 +83,14 @@ function screenFor(state: string): Screen {
   return 'progress';
 }
 
-export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null } = {}) {
+export function PayFlow({ resumePaymentId, quoteInvoiceId, mode = 'invoice' }: { resumePaymentId?: string | null; quoteInvoiceId?: string | null; mode?: PayMode } = {}) {
+  const SCREENS = SCREENS_BY_MODE[mode];
   const { state } = useCompany();
   const [screen, setScreen] = useState<Screen>('start');
   const [invoice, setInvoice] = useState<InvoiceDTO | null>(null);
   const [docText, setDocText] = useState('');
   const [payment, setPayment] = useState<PaymentDTO | null>(null);
-  const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  const [error, setError] = useState<Problem | null>(null);
   const [busy, setBusy] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const now = useNow(screen === 'route' || screen === 'approve');
@@ -97,6 +113,22 @@ export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null }
       stop = true;
     };
   }, [resumePaymentId, org?.org.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Back from funding the payments vault (?quote=inv_…): quote the same confirmed record again.
+  useEffect(() => {
+    if (!quoteInvoiceId || resumePaymentId || !org) return;
+    let stop = false;
+    api<{ payment: PaymentDTO }>('/payments', { body: { invoiceId: quoteInvoiceId } })
+      .then((res) => {
+        if (stop) return;
+        setPayment(res.payment);
+        setScreen('route');
+      })
+      .catch((e) => !stop && setError({ code: e instanceof ApiError ? e.code : 'error', message: (e as Error).message, detail: e instanceof ApiError ? e.detail : undefined }));
+    return () => {
+      stop = true;
+    };
+  }, [quoteInvoiceId, org?.org.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = useCallback((s: Screen) => {
     setScreen(s);
@@ -147,9 +179,28 @@ export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null }
   }
 
   const fail = (e: unknown) => {
-    if (e instanceof ApiError) setError({ code: e.code, message: e.message });
+    if (e instanceof ApiError) setError({ code: e.code, message: e.message, detail: e.detail });
     else setError({ code: 'error', message: e instanceof Error ? e.message : String(e) });
   };
+  // The record a failed quote was for, so "quote again" needs nothing retyped.
+  const pendingInvoiceId = invoice?.id ?? (typeof error?.detail?.invoiceId === 'string' ? error.detail.invoiceId : null) ?? quoteInvoiceId ?? null;
+
+  async function startTransfer(body: TransferBody) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ invoice: InvoiceDTO }>('/transfers', { body });
+      setInvoice(res.invoice);
+      setPayment(null);
+      const q = await api<{ payment: PaymentDTO }>('/payments', { body: { invoiceId: res.invoice.id } });
+      setPayment(q.payment);
+      go('route');
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function readDraft(body: { sample?: boolean; text?: string; source?: 'paste' | 'upload' }) {
     setBusy(true);
@@ -245,7 +296,7 @@ export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null }
     <div className="sx-stack-lg">
       <div>
         <h2 ref={headingRef} tabIndex={-1} className="sx-flow-title">
-          {SCREENS[at]!.label === 'Start' ? 'Start with an invoice' : SCREENS[at]!.label}
+          {SCREENS[at]!.title ?? SCREENS[at]!.label}
         </h2>
         <ol className="sx-steps" aria-label="Payment steps" style={{ marginTop: 14 }}>
           {SCREENS.map((s, i) => (
@@ -256,7 +307,10 @@ export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null }
         </ol>
       </div>
 
-      {screen === 'start' && <StartScreen org={org} busy={busy} error={error} onRead={readDraft} />}
+      {screen === 'start' && mode === 'invoice' && <StartScreen org={org} busy={busy} error={error} onRead={readDraft} retryInvoiceId={pendingInvoiceId} onRetry={() => pendingInvoiceId && void getQuote(pendingInvoiceId)} />}
+      {screen === 'start' && mode === 'transfer' && (
+        <TransferStart org={org} busy={busy} error={error} retryInvoiceId={pendingInvoiceId} onStart={startTransfer} onRetry={() => pendingInvoiceId && void getQuote(pendingInvoiceId)} />
+      )}
       {screen === 'check' && invoice && (
         <CheckScreen
           personName={org.me.personName}
@@ -274,7 +328,19 @@ export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null }
           setError={setError}
         />
       )}
-      {screen === 'route' && payment && <RouteScreen payment={payment} now={now} busy={busy} error={error} offline={org.mode === 'offline'} onChoose={choose} onRefresh={requote} onBack={() => go('check')} />}
+      {screen === 'route' && payment && (
+        <RouteScreen
+          payment={payment}
+          now={now}
+          busy={busy}
+          error={error}
+          offline={org.mode === 'offline'}
+          backLabel={mode === 'transfer' ? 'Back to the details' : 'Back to the invoice'}
+          onChoose={choose}
+          onRefresh={requote}
+          onBack={() => go(mode === 'invoice' && invoice ? 'check' : 'start')}
+        />
+      )}
       {screen === 'approve' && payment?.approval && (
         <div className="sx-stack">
           {payment.problem && (payment.state === 'rejected_by_policy' || payment.state === 'quote_expired') ? <ProblemCard problem={payment.problem} onRefresh={requote} onBack={() => go('route')} onStart={() => go('start')} /> : null}
@@ -307,9 +373,9 @@ export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null }
           )}
         </section>
       )}
-      {screen === 'done' && payment && <DoneScreen payment={payment} onAnother={() => { setInvoice(null); setPayment(null); go('start'); }} />}
+      {screen === 'done' && payment && <DoneScreen payment={payment} mode={mode} onAnother={() => { setInvoice(null); setPayment(null); go('start'); }} />}
 
-      {screen === 'start' ? <BalanceHeader balance={org.balance} simulated={org.simulated} /> : null}
+      {screen === 'start' && mode === 'invoice' ? <BalanceHeader balance={org.balance} simulated={org.simulated} /> : null}
     </div>
   );
 }
@@ -321,25 +387,23 @@ function StartScreen({
   busy,
   error,
   onRead,
+  retryInvoiceId,
+  onRetry,
 }: {
   org: CompanyDTO;
   busy: boolean;
-  error: { code: string; message: string } | null;
+  error: Problem | null;
   onRead: (b: { sample?: boolean; text?: string; source?: 'paste' | 'upload' }) => void;
+  retryInvoiceId: string | null;
+  onRetry: () => void;
 }) {
   const [text, setText] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
   const noFunds = BigInt(org.balance.totalMinor) === 0n;
   return (
     <div className="sx-stack-lg">
-      {noFunds ? (
-        <div className="sx-notice sx-notice-warn">
-          <h3>Your vault is empty</h3>
-          <p>
-            Add test USDC before you pay. <Link href="/dashboard/fund">Go to Balance</Link>
-          </p>
-        </div>
-      ) : null}
+      <LoopStrip org={org} />
+      {noFunds ? <EmptyVaultNotice treasuryMinor={org.treasury ? org.treasury.balanceMinor : '0'} /> : null}
       <div className="sx-routes" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
         <section className="sx-card sx-stack">
           <h2>Upload invoice</h2>
@@ -383,36 +447,14 @@ function StartScreen({
           </button>
         </section>
       </div>
-      {error ? (
+      {error && error.code === 'insufficient_balance' ? (
+        <ShortfallNotice detail={error.detail} back={`/dashboard/invoices?quote=${retryInvoiceId ?? ''}`} onRetry={retryInvoiceId ? onRetry : undefined} busy={busy} />
+      ) : error ? (
         <div className="sx-notice sx-notice-error" role="alert">
           <p>{error.message}</p>
         </div>
       ) : null}
-      <section aria-labelledby="bills-title">
-        <div className="sx-row" style={{ justifyContent: 'space-between' }}>
-          <h2 id="bills-title">Recent payments</h2>
-          {org.payments.length > 5 ? <Link href="/dashboard/history">All payments</Link> : null}
-        </div>
-        {org.payments.length === 0 ? (
-          <p className="sx-muted" style={{ marginTop: 8 }}>
-            No bills yet. Upload your first supplier invoice.
-          </p>
-        ) : (
-          <ul className="sx-verify" style={{ marginTop: 8 }}>
-            {org.payments.slice(0, 5).map((p) => (
-              <li key={p.id} style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
-                <span>
-                  {p.supplierName || 'Supplier'} <span className="sx-num">{php(p.amountPhpMinor)}</span>
-                </span>
-                <span>
-                  <StatusPill state={p.state} label={p.stateLabel} />{' '}
-                  {p.receiptId ? <Link href={`/dashboard/receipts/${p.receiptId}`}>Receipt</Link> : <Link href={`/dashboard/transfer?payment=${p.id}`}>Open</Link>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <InvoiceInbox org={org} />
     </div>
   );
 }
@@ -435,12 +477,12 @@ function CheckScreen({
   invoice: InvoiceDTO;
   docText: string;
   busy: boolean;
-  error: { code: string; message: string } | null;
+  error: Problem | null;
   onInvoice: (i: InvoiceDTO) => void;
   onConfirmed: (i: InvoiceDTO) => void;
   onBack: () => void;
   setBusy: (b: boolean) => void;
-  setError: (e: { code: string; message: string } | null) => void;
+  setError: (e: Problem | null) => void;
 }) {
   const initial = Object.fromEntries(
     FIELD_ORDER.map((k) => {
@@ -600,7 +642,11 @@ function CheckScreen({
           </div>
         )}
 
-        {error ? (
+        {error && error.code === 'insufficient_balance' ? (
+          <div style={{ marginTop: 16 }}>
+            <ShortfallNotice detail={error.detail} back={`/dashboard/invoices?quote=${invoice.id}`} />
+          </div>
+        ) : error ? (
           <div className="sx-notice sx-notice-error" role="alert" style={{ marginTop: 16 }}>
             <p>{error.message}</p>
           </div>
@@ -627,6 +673,7 @@ function RouteScreen({
   busy,
   error,
   offline,
+  backLabel,
   onChoose,
   onRefresh,
   onBack,
@@ -634,8 +681,9 @@ function RouteScreen({
   payment: PaymentDTO;
   now: number;
   busy: boolean;
-  error: { code: string; message: string } | null;
+  error: Problem | null;
   offline: boolean;
+  backLabel: string;
   onChoose: (quoteId: string, rehearsal: string) => void;
   onRefresh: () => void;
   onBack: () => void;
@@ -672,7 +720,7 @@ function RouteScreen({
                 <span>{c.label}</span>
                 <span className="sx-radio" aria-hidden="true" />
               </span>
-              <span className="sx-route-line">Supplier receives</span>
+              <span className="sx-route-line">{payment.approval?.kind === 'transfer' || payment.invoice.source === 'transfer' ? 'Recipient receives' : 'Supplier receives'}</span>
               <span className="sx-route-amount">{php(c.receivePhpMinor)}</span>
               <span className="sx-route-line">
                 {c.arrives} · all-in {pct(c.allInBps)}
@@ -720,7 +768,7 @@ function RouteScreen({
         )}
         {card ? <span className="sx-small sx-muted sx-num">Quote expires in {clock(left)}</span> : null}
         <button type="button" className="sx-btn-link" onClick={onBack}>
-          Back to the invoice
+          {backLabel}
         </button>
       </div>
     </div>
@@ -729,7 +777,7 @@ function RouteScreen({
 
 /* ------------------------------------------------------------------ 6. Done */
 
-function DoneScreen({ payment, onAnother }: { payment: PaymentDTO; onAnother: () => void }) {
+function DoneScreen({ payment, mode, onAnother }: { payment: PaymentDTO; mode: PayMode; onAnother: () => void }) {
   const [copied, setCopied] = useState(false);
   const c = payment.invoice.confirmed;
   const link = payment.receiptId ? `/dashboard/receipts/${payment.receiptId}` : null;
@@ -747,7 +795,10 @@ function DoneScreen({ payment, onAnother }: { payment: PaymentDTO; onAnother: ()
             <h2 id="ev-title">Evidence</h2>
             {payment.simulated ? <span className="sx-pill sx-pill-sim">Simulated · devnet-ready</span> : null}
           </div>
-          <p>One record for this payment: the confirmed invoice (as a salted commitment), your approval, the transfer, the partner&rsquo;s signed reports and the rate.</p>
+          <p>
+            One record for this payment: the confirmed {payment.invoice.source === 'transfer' ? 'transfer details' : 'invoice'} (as a salted commitment), your approval, the transfer, the
+            partner&rsquo;s signed reports and the rate.
+          </p>
           <EvidenceStatus receiptId={payment.receiptId} />
         </div>
         <div className="sx-evidence-actions">
@@ -777,7 +828,7 @@ function DoneScreen({ payment, onAnother }: { payment: PaymentDTO; onAnother: ()
         </div>
       </section>
       <button type="button" className="sx-btn-link" onClick={onAnother}>
-        Pay another invoice
+        {mode === 'transfer' ? 'Make another transfer' : 'Pay another invoice'}
       </button>
     </div>
   );

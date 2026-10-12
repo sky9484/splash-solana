@@ -54,7 +54,8 @@ export interface FieldSource {
 
 export interface ReaderOutput {
   draft: true;
-  extractor: 'offline' | 'claude';
+  /** 'none': nothing was read. A person typed the fields in for a transfer (lib/solana-app/service.ts startTransfer). */
+  extractor: 'offline' | 'claude' | 'none';
   model?: string;
   fields: InvoiceFields;
   sources: Partial<Record<InvoiceFieldName, FieldSource>>;

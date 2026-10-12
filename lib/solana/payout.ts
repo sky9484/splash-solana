@@ -42,6 +42,10 @@ const MEMO_RE = /^splash:v1:[0-9a-f]{64}$/;
 /** A payment id (`pay_` + 16 hex) or a batch chunk (`bat_` + 16 hex + `.c<n>`). Random, so it says nothing. */
 const PAYMENT_ID_RE = /^(pay|bat)_[0-9a-f]{16}(\.c\d{1,3})?$/;
 const PAYMENT_MEMO_RE = /^splash:pay:v1:(pay|bat)_[0-9a-f]{16}(\.c\d{1,3})?$/;
+export const MOVE_MEMO_PREFIX = 'splash:move:v1:';
+/** A move between the company's own two vaults (treasury ⇄ payments): `mov_` + 16 hex, nothing else. */
+const MOVE_ID_RE = /^mov_[0-9a-f]{16}$/;
+const MOVE_MEMO_RE = /^splash:move:v1:mov_[0-9a-f]{16}$/;
 const U64_MAX = (1n << 64n) - 1n;
 
 /** I-5: the only memo Splash ever writes. commitmentHex = sha256(salt || canonical invoice), lowercase hex. */
@@ -64,13 +68,26 @@ export function isPaymentMemo(memo: string): boolean {
   return PAYMENT_MEMO_RE.test(memo);
 }
 
-/** Either Splash memo: the payment id (current) or the salted commitment (earlier runs). */
+/**
+ * The memo on a move between the company's own vaults. Its own prefix, so on Solscan a move never
+ * reads as a payment: no supplier was paid, and no Splash fee was taken.
+ */
+export function buildMoveMemo(moveId: string): string {
+  if (typeof moveId !== 'string' || !MOVE_ID_RE.test(moveId)) throw new Error('Memo refused: a move memo carries only a Splash move id (mov_ + 16 hex)');
+  return `${MOVE_MEMO_PREFIX}${moveId}`;
+}
+
+export function isMoveMemo(memo: string): boolean {
+  return MOVE_MEMO_RE.test(memo);
+}
+
+/** Any Splash memo: a payment id (current), a move between the company's own vaults, or the salted commitment (earlier runs). */
 export function isSplashMemo(memo: string): boolean {
-  return MEMO_RE.test(memo) || PAYMENT_MEMO_RE.test(memo);
+  return MEMO_RE.test(memo) || PAYMENT_MEMO_RE.test(memo) || MOVE_MEMO_RE.test(memo);
 }
 
 export function assertSplashMemo(memo: string): void {
-  if (!isSplashMemo(memo)) throw new Error('Memo refused: only "splash:pay:v1:<payment id>" or "splash:v1:<sha256 hex>" is allowed');
+  if (!isSplashMemo(memo)) throw new Error('Memo refused: only "splash:pay:v1:<payment id>", "splash:move:v1:<move id>" or "splash:v1:<sha256 hex>" is allowed');
 }
 
 /** SPL Memo with no signer accounts. Rejects anything but a Splash memo. */

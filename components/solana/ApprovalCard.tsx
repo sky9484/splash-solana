@@ -48,10 +48,12 @@ export function ApprovalCard({
         ? `Blocked by your rules: ${failed[0]!.label.toLowerCase()}`
         : null;
   const receive = php(card.receivePhpMinor);
+  const transfer = card.kind === 'transfer';
+  const who = transfer ? 'Recipient' : 'Supplier';
   return (
-    <section className="sx-approve" aria-label={`Approve payment. Supplier receives ${receive}.`}>
-      <p className="sx-visually-hidden">Supplier receives {receive}.</p>
-      <p className="sx-small sx-muted">{card.draftedBy} drafted this · a person approves</p>
+    <section className="sx-approve" aria-label={`Approve payment. ${who} receives ${receive}.`}>
+      <p className="sx-visually-hidden">{who} receives {receive}.</p>
+      <p className="sx-small sx-muted">{transfer ? `Typed in by ${card.draftedBy}` : `${card.draftedBy} drafted this`} · a person approves</p>
       <p className="sx-approve-supplier">{card.supplierName}</p>
       <p className="sx-muted">
         {card.bank} <span className="sx-mono">•••• {card.accountLast4}</span>
@@ -66,7 +68,7 @@ export function ApprovalCard({
       </p>
       <div className="sx-approve-amount" aria-hidden="true">
         <p className="sx-big">{receive}</p>
-        <p className="sx-muted">Supplier receives</p>
+        <p className="sx-muted">{who} receives</p>
       </div>
       <dl>
         <dt>You pay</dt>
@@ -90,11 +92,17 @@ export function ApprovalCard({
         <dd>
           Payout partner deposit <span className="sx-mono">{card.depositAddress.slice(0, 4)}…{card.depositAddress.slice(-4)}</span>
         </dd>
-        <dt>Invoice</dt>
+        <dt>{transfer ? 'Reference' : 'Invoice'}</dt>
         <dd>
           <span className="sx-mono">{card.invoiceNumber}</span>
           {card.einvoiceRef ? <> · MyInvois <span className="sx-mono">{card.einvoiceRef.slice(0, 4)}…</span></> : null}{' '}
-          {card.invoiceMatched ? <span className="sx-pill sx-pill-ok">matched</span> : <span className="sx-pill sx-pill-warn">amount differs</span>}
+          {transfer ? (
+            <span className="sx-pill sx-pill-sim">no invoice</span>
+          ) : card.invoiceMatched ? (
+            <span className="sx-pill sx-pill-ok">matched</span>
+          ) : (
+            <span className="sx-pill sx-pill-warn">amount differs</span>
+          )}
         </dd>
         <dt>Quote expires</dt>
         <dd className="sx-num" aria-live={left <= 10 ? 'polite' : 'off'}>

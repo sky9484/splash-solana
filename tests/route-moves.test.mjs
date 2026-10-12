@@ -11,7 +11,8 @@ test('every old address has its new home', () => {
     '/solana': '/dashboard',
     '/solana/onboarding': '/dashboard/setup',
     '/solana/fund': '/dashboard/fund',
-    '/solana/pay': '/dashboard/transfer',
+    // Paying an invoice lives under Invoices now (Sky, 13 Oct); /dashboard/transfer is a transfer with no invoice.
+    '/solana/pay': '/dashboard/invoices',
     '/solana/policy': '/dashboard/settings/policy',
     '/solana/zeke': '/dashboard/zeke',
     '/solana/receipts/rcpt_0123456789abcdef': '/dashboard/receipts/rcpt_0123456789abcdef',
@@ -22,7 +23,7 @@ test('every old address has its new home', () => {
     '/dashboard/0xwal': '/dashboard/zeke',
   };
   for (const [from, to] of Object.entries(map)) assert.equal(movedRoute(from), to, from);
-  assert.equal(movedRoute('/solana/pay/'), '/dashboard/transfer', 'a trailing slash is the same page');
+  assert.equal(movedRoute('/solana/pay/'), '/dashboard/invoices', 'a trailing slash is the same page');
   assert.equal(movedRoute('/solana/anything-else'), '/dashboard', 'the rest of the demo lands on the dashboard');
 });
 

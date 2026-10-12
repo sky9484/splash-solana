@@ -45,6 +45,22 @@ export function FundPanel() {
     <div className="sx-stack-lg">
       <BalanceHeader balance={org.balance} simulated={org.simulated} />
 
+      {org.treasury ? (
+        <section className="sx-card-quiet sx-row" aria-labelledby="from-treasury-title" style={{ justifyContent: 'space-between' }}>
+          <div>
+            <h2 id="from-treasury-title" style={{ fontSize: 16 }}>
+              From your treasury
+            </h2>
+            <p className="sx-small">
+              Your operating cash holds <strong className="sx-num">{usd(org.treasury.balanceMinor)}</strong>. Move it here with one approval on this device; no Splash fee.
+            </p>
+          </div>
+          <Link className="sx-btn sx-btn-sm" href="/dashboard/treasury">
+            Move from treasury
+          </Link>
+        </section>
+      ) : null}
+
       <section className="sx-card sx-stack" aria-labelledby="add-title">
         <h2 id="add-title">Add USDC</h2>
         <dl className="sx-kv">
@@ -81,8 +97,8 @@ export function FundPanel() {
                 {busy ? 'Adding…' : 'Add 25,000 test USDC (simulated)'}
               </button>
               {BigInt(org.balance.totalMinor) > 0n ? (
-                <Link className="sx-btn sx-btn-ghost" href="/dashboard/transfer">
-                  Pay a supplier
+                <Link className="sx-btn sx-btn-ghost" href="/dashboard/invoices">
+                  Pay an invoice
                 </Link>
               ) : null}
             </div>

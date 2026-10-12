@@ -45,7 +45,9 @@ test('an empty vault and an empty list say so, and say what to do', async () => 
   const code = await overview();
   assert.match(code, /Nothing is waiting\./);
   assert.match(code, /No payments yet\./);
-  assert.match(code, /Add test USDC/);
+  // Empty: fund the payments vault (from the treasury, or by adding USDC), or pay the first invoice.
+  assert.match(code, /Fund your payments vault/);
+  assert.match(code, /Pay your first supplier invoice/);
 });
 
 test('what is simulated is labelled simulated: the balance carries its own label', async () => {

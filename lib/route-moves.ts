@@ -9,7 +9,7 @@ const EXACT: Record<string, string> = {
   '/solana': '/dashboard',
   '/solana/onboarding': '/dashboard/setup',
   '/solana/fund': '/dashboard/fund',
-  '/solana/pay': '/dashboard/transfer',
+  '/solana/pay': '/dashboard/invoices',
   '/solana/policy': '/dashboard/settings/policy',
   '/solana/zeke': '/dashboard/zeke',
   '/dashboard/overview': '/dashboard',

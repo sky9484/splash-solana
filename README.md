@@ -18,13 +18,15 @@ Built for Colosseum (submission 12 Oct 2026). First corridor: Malaysia to the Ph
 
 ## The flow (one payment, end to end)
 1. **Onboard.** Company name → a recovery kit of 24 words made in the browser (BIP39, SLIP-0010 `m/44'/501'/0'/0'`) → a non-extractable WebCrypto Ed25519 device key → a **Squads V4 vault with no config authority** (members: device key + kit, threshold 1, `configAuthority` null). The server only ever sees public keys and proof-of-possession signatures.
-2. **Fund.** USDC to the vault (devnet: Circle's faucet).
+2. **Fund.** USDC to the payments vault: moved in from the company's **treasury** (vault #1 of the same multisig, one device approval, memo `splash:move:v1:<id>`, no Splash fee), or sent from any Solana wallet (devnet: Circle's faucet).
 3. **Invoice.** Zeke's Reader extracts the fields in quarantine (no tools; document text is data, injected instructions are flagged). A person confirms every field. A new bank detail can't be paid until it is verified out of band.
 4. **Quote.** The engine compares **Solana direct** to the partner's one-payment deposit address with a **CCTP V2 burn on Solana minting at the partner's Polygon address**, and ranks them by **pesos the supplier receives**: Cheapest, Fastest, Safest. Zeke explains; it can't change a route.
 5. **Policy.** Deterministic checks: tier limits, per-payment cap, screening (stub), duplicate invoice, quote expiry, bank details verified.
 6. **Approve.** The approval card is built only from confirmed fields and the quote, never from model text. The device key signs the Squads proposal and approval; the vault executes. **Kora** pays the network fee, so the business doesn't need SOL on the direct route.
 7. **Deliver.** The mock partner sends HMAC-signed webhooks: received, then paid with a bank reference.
 8. **Prove.** A kind-3 evidence bundle (invoice commitment, approval chain, quoted vs executed route, signatures, FX rate, bank reference) is hashed into a Merkle root and anchored with an SPL Memo, or a Solana Attestation Service attestation. The receipt page re-verifies it, and fails when any field is tampered with.
+
+The same path pays a **transfer** with no invoice (Dashboard → Transfer): a person types the recipient, the amount and a reference, and from the quote on it is steps 4 to 8 unchanged. A new recipient still needs a call-back. Invoices show where each one is on the loop (read by Zeke, checked by a person, approved on a device, paid to the bank, proof anchored).
 
 ## Architecture
 

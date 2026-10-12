@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { dateShort, php, shortKey, timeShort, usd } from './client';
+import { dateShort, payHref, php, shortKey, timeShort, usd } from './client';
 import { StatusPill } from './StatusPill';
 import type { CompanyDTO } from './types';
 import { useCompany } from './useCompany';
@@ -21,12 +21,12 @@ const FILTERS: Array<{ key: Filter; label: string; test: (p: Row) => boolean }> 
 
 /** CSV with integers as written (no rounding, no floats): what an accountant pastes into a ledger. */
 function toCsv(rows: Row[]): string {
-  const head = ['payment_id', 'created_at', 'supplier', 'invoice', 'amount_php_minor', 'you_pay_usdc_minor', 'state', 'execute_signature', 'receipt_id'];
+  const head = ['payment_id', 'kind', 'created_at', 'supplier', 'invoice_or_reference', 'amount_php_minor', 'you_pay_usdc_minor', 'state', 'execute_signature', 'receipt_id'];
   const cell = (v: string | null) => {
     const s = v ?? '';
     return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
   };
-  return [head.join(','), ...rows.map((p) => [p.id, p.createdAt, p.supplierName, p.invoiceNumber, p.amountPhpMinor, p.youPayUsdcMinor, p.state, p.execute?.signature ?? null, p.receiptId].map(cell).join(','))].join('\n');
+  return [head.join(','), ...rows.map((p) => [p.id, p.kind, p.createdAt, p.supplierName, p.invoiceNumber, p.amountPhpMinor, p.youPayUsdcMinor, p.state, p.execute?.signature ?? null, p.receiptId].map(cell).join(','))].join('\n');
 }
 
 /**
@@ -81,8 +81,11 @@ export function History() {
           <p className="sx-muted">{rows.length === 0 ? 'No payments yet.' : 'No payments match this filter.'}</p>
           {rows.length === 0 ? (
             <div>
-              <Link className="sx-btn" href="/dashboard/transfer">
-                Pay a supplier
+              <Link className="sx-btn" href="/dashboard/invoices">
+                Pay an invoice
+              </Link>{' '}
+              <Link className="sx-btn sx-btn-ghost" href="/dashboard/transfer">
+                Transfer
               </Link>
             </div>
           ) : null}
@@ -111,7 +114,8 @@ export function History() {
               {shown.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <strong>{p.supplierName || 'Supplier'}</strong>
+                    <strong>{p.supplierName || 'Supplier'}</strong>{' '}
+                    <span className="sx-chip">{p.kind === 'transfer' ? 'Transfer' : 'Invoice'}</span>
                     <span className="sx-small sx-muted" style={{ display: 'block' }}>
                       {p.invoiceNumber ?? 'Invoice not confirmed'} · {dateShort(p.createdAt)} {timeShort(p.createdAt)}
                     </span>
@@ -148,7 +152,7 @@ export function History() {
                         Receipt<span className="sx-visually-hidden"> for {p.supplierName}</span>
                       </Link>
                     ) : (
-                      <Link href={`/dashboard/transfer?payment=${p.id}`}>
+                      <Link href={payHref(p)}>
                         {p.awaitingApproval ? 'Approve' : 'Open'}
                         <span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                       </Link>

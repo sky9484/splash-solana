@@ -44,7 +44,9 @@ import {
   deriveProposalAddresses,
   groupProposalTransactions,
   MAX_TRANSACTION_BYTES,
+  TREASURY_VAULT_INDEX,
   transactionSize,
+  vaultPdaAt,
 } from '../solana/squads.ts';
 import type { Cluster, ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote, VaultInfo } from '../solana/types.ts';
 import type { ShareRecord } from './doc-store.ts';
@@ -73,6 +75,7 @@ import {
   type BankVerification,
   type EvidenceRecord,
   type InvoiceRecord,
+  type MoveRecord,
   type OrgRecord,
   type PaymentRecord,
   type PreparedApproval,
@@ -102,6 +105,13 @@ export const CHECK_LABELS: Record<string, string> = {
   quote_expiry: 'Quote still valid',
   bank_details_verified: 'Bank details verified',
   amount_covers_invoice: 'Supplier receives the full invoice amount',
+};
+
+/** The same rules, in a transfer's words: there is no invoice, only a reference. */
+const TRANSFER_CHECK_LABELS: Record<string, string> = {
+  duplicate_invoice: 'Not sent before (same recipient, amount and reference)',
+  bank_details_verified: 'Recipient bank details verified',
+  amount_covers_invoice: 'Recipient receives the full amount',
 };
 
 /* ------------------------------------------------------------------ helpers */
@@ -171,6 +181,31 @@ function paymentTrace(p: PaymentRecord) {
     accounts.push({ label: 'Payout partner deposit', address: q.target.depositAddress, ...traceLinks('account', q.target.depositAddress, vault?.simulated ?? true) });
   }
   return { memo: buildPaymentMemo(p.id), accounts };
+}
+
+/** A move between the company's own vaults, as the screens show it. */
+export function moveSummary(m: MoveRecord) {
+  const last = [...m.calls].reverse().find((c) => c.step === 'execute') ?? m.calls[m.calls.length - 1] ?? null;
+  const simulated = runtime().env.mode === 'offline';
+  return {
+    id: m.id,
+    from: m.from,
+    to: m.to,
+    amountMinor: m.amountMinor,
+    memo: m.memo,
+    state: m.state,
+    createdAt: m.createdAt,
+    updatedAt: m.updatedAt,
+    createdBy: m.createdBy,
+    approvedBy: m.approvedBy,
+    problem: m.problem,
+    signature: last ? { signature: last.signature, step: last.step, simulated, ...traceLinks('tx', last.signature, simulated) } : null,
+  };
+}
+
+/** The company's treasury: vault #1 of its own multisig (vault #0 pays suppliers). */
+export function treasuryVaultPda(multisigPda: string): string {
+  return vaultPdaAt(new PublicKey(multisigPda), TREASURY_VAULT_INDEX).toBase58();
 }
 
 export function requireVault(org: OrgRecord) {
@@ -418,10 +453,13 @@ export async function orgSummary(orgId: string) {
       const execute = p.signatures.find((s) => s.purpose === 'squads_vault_execute') ?? null;
       return {
         id: p.id,
+        /** An invoice Zeke read, or a transfer a person typed in (its "invoice number" is the reference). */
+        kind: inv?.source === 'transfer' ? ('transfer' as const) : ('invoice' as const),
         state: p.state,
         stateLabel: STATE_LABEL[p.state],
         supplierName: inv?.confirmed?.supplierName ?? '',
         invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
+        dueDate: inv?.confirmed?.dueDate ?? null,
         amountPhpMinor: p.payout.amountPhpMinor,
         youPayUsdcMinor: p.approval?.youPayUsdcMinor ?? null,
         receiptId: p.receiptId,
@@ -435,6 +473,10 @@ export async function orgSummary(orgId: string) {
       };
     });
   const inFlight = payments.filter((p) => ['proposed', 'approved', 'executed', 'confirmed'].includes(p.state));
+  // Invoices Zeke has read for this company, paid or not: the first stages of the invoice loop.
+  const read = [...store().invoices.values()].filter((i) => i.orgId === org.id && i.source !== 'transfer');
+  const treasuryPda = org.vault ? treasuryVaultPda(org.vault.multisigPda) : null;
+  const treasuryMinor = treasuryPda ? await rt.chain.getUsdcBalance(treasuryPda) : 0n;
   return {
     org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt, suspended: org.suspended },
     mode: rt.env.mode,
@@ -451,6 +493,20 @@ export async function orgSummary(orgId: string) {
     /** The payable total is exactly the sum of the parts. Only the Solana lane exists in this build. */
     balance: { totalMinor: balanceMinor, parts: [{ lane: 'Solana', amountMinor: balanceMinor }], inFlightCount: inFlight.length },
     fundings: org.fundings,
+    /** Vault #1 of the same multisig: the company's operating cash. Moves to and from it are approved on a device. */
+    treasury:
+      org.vault && treasuryPda
+        ? {
+            vaultPda: treasuryPda,
+            vaultIndex: TREASURY_VAULT_INDEX,
+            usdcTokenAccount: getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(treasuryPda)).toBase58(),
+            balanceMinor: treasuryMinor,
+            ...traceLinks('account', treasuryPda, org.vault.simulated),
+            fundings: org.treasuryFundings ?? [],
+            moves: (org.moves ?? []).slice().reverse().map(moveSummary),
+          }
+        : null,
+    invoices: { read: read.length, confirmed: read.filter((i) => i.confirmed).length },
     suppliers: org.suppliers.map((x) => ({ name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified.at, method: x.verified.method })),
     limits: { perPaymentUsdcMinor: DEMO_LIMITS.perPaymentUsdcMinor, dailyUsdcMinor: DEMO_LIMITS.dailyUsdcMinor, usedTodayUsdcMinor: org.dailyDebits[utcDay(new Date())] ?? 0n },
     payments,
@@ -556,6 +612,84 @@ export function confirmInvoice(
   inv.saltHex = bytesToHex(salt);
   inv.bankStatus = status;
   return confirmed;
+}
+
+/* ------------------------------------------------------------------ transfer (no invoice) */
+
+const TRANSFER_FIELDS: InvoiceFieldName[] = ['supplierName', 'invoiceNumber', 'amountPhpMinor', 'dueDate', 'supplierBank', 'supplierAccountLast4'];
+
+/**
+ * A transfer with no invoice: the person types who and how much, and it runs the same path as an
+ * invoice from here (quote, rules, one approval on the device, proof). Nothing is read, so Zeke drafts
+ * nothing ("extractor: none"); the person who typed it confirms every field by sending it. A new
+ * recipient still needs its bank details verified by call-back, the same rule as a new supplier.
+ */
+export function startTransfer(
+  orgId: string,
+  input: {
+    recipient: { name: string; bank: string; accountLast4: string };
+    amountPhpMinor: string;
+    reference?: string | null;
+    verification?: { by: string; method: 'call-back' | 'supplier-account' } | null;
+    by?: string;
+  },
+  now = new Date(),
+): InvoiceRecord {
+  const org = getOrg(orgId);
+  requireVault(org);
+  const day = utcDay(now);
+  const reference = (input.reference ?? '').trim() || `TRF-${day.replaceAll('-', '')}-${randomHex(2).toUpperCase()}`;
+  let amount: bigint;
+  try {
+    amount = BigInt(input.amountPhpMinor);
+  } catch {
+    throw new ServiceError('bad_request', 'The amount is not a valid number of centavos.');
+  }
+  const candidate = {
+    invoiceNumber: reference,
+    supplierName: input.recipient.name.trim(),
+    supplierBank: input.recipient.bank.trim(),
+    supplierAccountLast4: input.recipient.accountLast4.trim(),
+    amountPhpMinor: amount,
+    dueDate: day,
+  };
+  const parsed = InvoiceFieldsSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const bad = parsed.error.issues.map((i) => ({ invoiceNumber: 'reference (letters, digits, - / .)', supplierName: 'recipient name', supplierBank: 'bank', supplierAccountLast4: 'last four account digits', amountPhpMinor: 'amount' })[String(i.path[0])] ?? String(i.path[0]));
+    throw new ServiceError('bad_request', `Check the ${[...new Set(bad)].join(', ')}.`, 422);
+  }
+  const fields = parsed.data as InvoiceFields;
+  const { status } = bankStatusFor(org, fields);
+  const inv: InvoiceRecord = {
+    id: `inv_${randomHex(8)}`,
+    orgId: org.id,
+    createdAt: nowIso(now),
+    source: 'transfer',
+    draft: {
+      draft: true,
+      extractor: 'none',
+      fields,
+      sources: {},
+      suspicious: false,
+      suspiciousReasons: [],
+      needsConfirmation: TRANSFER_FIELDS,
+      notes: [`Typed in by ${input.by?.trim() || org.personName} for a transfer. No invoice document; nothing was read.`],
+    },
+    bankStatus: status,
+    bankVerification: null,
+    confirmed: null,
+    saltHex: null,
+  };
+  store().invoices.set(inv.id, inv);
+  if (status !== 'known' && input.verification) {
+    verifyBank(orgId, inv.id, { by: input.verification.by, method: input.verification.method, bank: fields.supplierBank, accountLast4: fields.supplierAccountLast4 });
+  }
+  confirmInvoice(orgId, inv.id, {
+    fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, String(v)])),
+    confirmed: TRANSFER_FIELDS,
+    confirmedBy: input.by,
+  });
+  return inv;
 }
 
 /* ------------------------------------------------------------------ payments: state and helpers */
@@ -678,8 +812,20 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
     homeChain: 'solana',
   });
   if (!POLICIES.some((p) => engine.picks[p])) {
-    const short = engine.excluded.some((e) => e.reason === 'insufficient_balance');
-    if (short) throw new ServiceError('insufficient_balance', 'Your Solana balance is too low for this invoice. Add USDC to your vault, then get a new quote.', 409);
+    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
+    if (needs.length) {
+      // The cheapest route's need, so the shortfall is the least that unblocks this payment.
+      const neededMinor = needs.reduce((a, b) => (b < a ? b : a));
+      const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+      const what = inv.source === 'transfer' ? 'this transfer' : 'this invoice';
+      throw new ServiceError('insufficient_balance', `Your payments vault is short for ${what}. Move USDC in from your treasury or add USDC, then get a new quote.`, 409, {
+        invoiceId: inv.id,
+        balanceUsdcMinor: balance.toString(),
+        neededUsdcMinor: neededMinor.toString(),
+        shortUsdcMinor: (neededMinor - balance).toString(),
+        treasuryUsdcMinor: treasuryMinor.toString(),
+      });
+    }
     throw new ServiceError('no_route', 'No route can pay this invoice right now. Try again in a minute.', 409);
   }
   const allQuotes = POLICIES.flatMap((p) => engine.ranked[p]);
@@ -769,7 +915,9 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
   const lane = laneOf(kind);
   const arrival = arrivalOf(q);
   const covers = policy.extraChecks.find((x) => x.name === 'amount_covers_invoice');
-  const checks = [...policy.checks, ...policy.extraChecks].map((x) => ({ name: x.name, label: CHECK_LABELS[x.name] ?? x.name, passed: x.passed, detail: x.detail }));
+  const transfer = inv.source === 'transfer';
+  const label = (name: string) => (transfer && TRANSFER_CHECK_LABELS[name]) || CHECK_LABELS[name] || name;
+  const checks = [...policy.checks, ...policy.extraChecks].map((x) => ({ name: x.name, label: label(x.name), passed: x.passed, detail: x.detail }));
   return {
     paymentId: p.id,
     quoteId: q.id,
@@ -800,7 +948,8 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     policy: { allowed: policy.allowed, checks, kytLabel: policy.kyt.label },
     signerPublicKey: org.keys.device!.publicKey,
     depositAddress: q.target.depositAddress,
-    draftedBy: 'Zeke',
+    draftedBy: transfer ? c.confirmedBy : 'Zeke',
+    kind: transfer ? 'transfer' : 'invoice',
     simulated: runtime().env.mode === 'offline',
   };
 }
@@ -1686,7 +1835,7 @@ export async function paymentView(paymentId: string) {
     stateLabel: STATE_LABEL[p.state],
     createdAt: p.createdAt,
     simulated: rt.env.mode === 'offline',
-    invoice: { id: inv.id, confirmed: inv.confirmed },
+    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed },
     cards,
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,
