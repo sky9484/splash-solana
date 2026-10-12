@@ -8,7 +8,7 @@ import {
   READ_TOOL_NAMES,
   oxwalTools,
 } from '../lib/agent/oxwal.ts';
-import { isUsableName, sanitiseName, DEFAULT_ASSISTANT_NAME } from '../lib/agent/assistant-name.ts';
+import { isUsableName, sanitiseName } from '../lib/agent/assistant-name.ts';
 
 /**
  * What Zeke can now actually do.
@@ -24,8 +24,7 @@ import { isUsableName, sanitiseName, DEFAULT_ASSISTANT_NAME } from '../lib/agent
  *   decision on the strength of an OCR pass.
  *
  *   Answer to a chosen name — cosmetic, and deliberately the only thing Zeke
- *   stores in MemWal, which is free-text search (scoped per org, see
- *   tests/memwal-tenant-scope.test.mjs, but still a search).
+ *   stores, kept per org in process memory (lib/agent/assistant-name.ts).
  */
 
 test('the three capabilities are registered and dispatchable', () => {
@@ -126,21 +125,6 @@ test('a chosen name cannot smuggle instructions into the persona', () => {
   assert.equal(sanitiseName('a'), null);
   assert.equal(sanitiseName(''), null);
   assert.equal(isUsableName('x'.repeat(25)), false);
-});
-
-test('the assistant name is the only thing put in MemWal', async () => {
-  const source = await readFile(
-    new URL('../lib/agent/assistant-name.ts', import.meta.url),
-    'utf8',
-  );
-  // MemWal is free-text search, so what is safe to store there is cosmetic,
-  // non-authoritative and harmless to get wrong. It used to be one namespace
-  // for every org, with the org id in the sentence as the only fence; both
-  // calls now go through the org-scoped adapter.
-  assert.match(source, /rememberForOrg\(orgId, `\$\{MARKER\} is "\$\{clean\}"\.`\)/, 'written for the org');
-  assert.match(source, /recallForOrg\(orgId, MARKER, 5\)/, 'and read back for the same org');
-  assert.doesNotMatch(source, /rememberFact|recallMemories/, 'no unscoped path is left');
-  assert.equal(DEFAULT_ASSISTANT_NAME, 'Zeke');
 });
 
 test('the system prompt teaches the rules, not just the tools', async () => {

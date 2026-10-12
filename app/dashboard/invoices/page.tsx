@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import InvoiceLoop from '@/components/invoices/InvoiceLoop';
 import { useLaunchScope } from '@/components/dashboard/CustodyPhaseContext';
 import StatusBadge from '@/components/StatusBadge';
-import { suiScanTxUrlOn } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { ACTIVE_USD_CORRIDORS } from '@/lib/fx/corridors';
 import type { InvoiceRecord, InvoiceStatusV2 } from '@/lib/server/operations';
 
@@ -65,8 +65,8 @@ export default function InvoicesPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  // Every open invoice against one read of the main admin's Splash wallet on
-  // Sui (lib/server/usdc-invoice-payments.ts): records USDC payments a payer
+  // Every open invoice against one read of the business's own vault on
+  // Solana (lib/server/usdc-invoice-payments.ts): records USDC payments a payer
   // never pressed "check" for. Reads and records; moves nothing.
   const usdcSync = useMutation({
     mutationFn: async () => {
@@ -79,9 +79,9 @@ export default function InvoicesPage() {
     },
     onSuccess: (body) => {
       if (body.status === 'NO_WALLET') {
-        toast.info('USDC payments go to your main admin’s Splash wallet — they need a passkey first (Settings → Security).');
+        toast.info('USDC payments go to your business’s own vault on Solana. Finish setting up the vault first.');
       } else if (body.status === 'UNAVAILABLE') {
-        toast.error(`Couldn't read Sui just now: ${body.reason ?? 'try again shortly'}`);
+        toast.error(`Couldn't check USDC payments just now: ${body.reason ?? 'try again shortly'}`);
       } else {
         const paid = body.paid?.length ?? 0;
         toast.success(paid > 0 ? `${paid} invoice${paid === 1 ? '' : 's'} paid in USDC — recorded.` : `No new USDC payments across ${body.checked ?? 0} open invoice${body.checked === 1 ? '' : 's'}.`);
@@ -203,7 +203,7 @@ export default function InvoicesPage() {
                     <td className="px-4 py-4">
                       {invoice.walrusBlobId ? <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold text-foreground"><ShieldCheck className="h-3 w-3" /> Seal + Walrus</span> : <span className="text-[13px] text-foreground/90">No document</span>}
                     </td>
-                    <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-[13px] font-bold capitalize ${statusStyle[invoice.status]}`}>{invoice.status}</span>{invoice.demo && <span className="ml-2"><StatusBadge status="demo" /></span>}{invoice.usdcTxDigest && <a href={suiScanTxUrlOn('mainnet', invoice.usdcTxDigest)} target="_blank" rel="noreferrer" className="mt-1 block text-[12px] font-semibold text-foreground hover:underline">Paid in USDC · verified on Sui</a>}</td>
+                    <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-[13px] font-bold capitalize ${statusStyle[invoice.status]}`}>{invoice.status}</span>{invoice.demo && <span className="ml-2"><StatusBadge status="demo" /></span>}{invoice.usdcTxDigest && <a href={solanaTxUrl(invoice.usdcTxDigest)} target="_blank" rel="noreferrer" className="mt-1 block text-[12px] font-semibold text-foreground hover:underline">Paid in USDC · view on Solana Explorer</a>}</td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
                         <button onClick={() => copyPayLink(invoice)} className="inline-flex items-center gap-1 rounded-lg border border-foreground/10 bg-card px-3 py-2 text-[13px] font-bold"><Copy className="h-3.5 w-3.5" /> Pay link</button>

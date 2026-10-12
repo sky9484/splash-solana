@@ -3,7 +3,10 @@ import { randomBytes } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { isAdminHostname } from '@/lib/admin-routing';
+import { CUSTOMER_SESSION_COOKIE } from '@/lib/auth/customer-session';
 import { buildContentSecurityPolicy } from '@/lib/security/csp';
+import { SETUP_COOKIE } from '@/lib/server/setup-cookie';
+import { proxySetupRedirect } from '@/lib/server/setup-gate';
 
 /**
  * Two jobs. The admin-host rewrite it always did, and the Content-Security-
@@ -18,7 +21,7 @@ import { buildContentSecurityPolicy } from '@/lib/security/csp';
  * next.config.ts cover them. The admin rewrite carries it too: it serves
  * the approval screens, which are the pages that must never be framed.
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get('host')?.split(':')[0] ?? '';
 
@@ -30,6 +33,10 @@ export function proxy(request: NextRequest) {
     : null;
 
   const requestHeaders = new Headers(request.headers);
+  // The path, for server layouts that cannot otherwise see it (the dashboard's
+  // device check, lib/server/setup-gate.ts). Always overwritten: a client-sent
+  // value must never decide which page skips the check.
+  requestHeaders.set('x-splash-pathname', pathname);
   if (nonce && policy) {
     requestHeaders.set('x-nonce', nonce);
     requestHeaders.set('Content-Security-Policy', policy);
@@ -40,6 +47,13 @@ export function proxy(request: NextRequest) {
   };
 
   if (!isAdminHostname(hostname)) {
+    // The device check runs here as well as in the dashboard layout, because a
+    // layout does not re-render on client-side navigation (lib/server/setup-gate.ts).
+    const setupRedirect = await proxySetupRedirect(pathname, {
+      session: request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value,
+      setup: request.cookies.get(SETUP_COOKIE)?.value,
+    });
+    if (setupRedirect) return withPolicy(NextResponse.redirect(new URL(setupRedirect, request.url)));
     return withPolicy(NextResponse.next({ request: { headers: requestHeaders } }));
   }
 

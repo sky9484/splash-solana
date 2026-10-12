@@ -12,7 +12,7 @@ export type Corridor = {
    * Customer-facing fee in basis points (1 bps = 0.01%).
    * Source of truth — flows from this map into:
    *   - lib/server/quote.ts (off-chain quote engine)
-   *   - lib/server/sui-settlement.ts (passes to contract)
+   *   - the settlement path (records it with the payment)
    *   - dashboard pages (display)
    * Bounded on-chain by MAX_FEE_BPS = 200 in settlement.move.
    */

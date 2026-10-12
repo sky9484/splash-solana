@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
@@ -7,6 +8,7 @@ import { getCustomerSession } from '@/lib/server/customer-auth';
 import { readKybGateState } from '@/lib/server/kyb-gate';
 import { readOnboardingState } from '@/lib/server/onboarding';
 import { launchScope } from '@/lib/server/launch-scope';
+import { PATHNAME_HEADER, isSetupExempt, readSetupStatusForSession, setupRedirectFor } from '@/lib/server/setup-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +18,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (!session) {
     redirect('/login');
   }
+
+  // The device check (prompt 07 §3.2): no registered device, or no vault with
+  // that device in it, means setup first. Fails closed when unreadable.
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? '/dashboard';
+  const setupRedirect = setupRedirectFor(pathname, isSetupExempt(pathname) ? null : await readSetupStatusForSession(session));
+  if (setupRedirect) redirect(setupRedirect);
 
   // Wallet spec §3.2 — resolve the KYB state ONCE, here. Every page under
   // /dashboard is a client component and cannot read the session or the DB, so

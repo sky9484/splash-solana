@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { explorerCluster } from '@/lib/explorer';
+
 /**
- * Pay an invoice in USDC on Sui, straight to the issuer's own wallet.
+ * Pay an invoice in USDC on Solana, straight to the issuer's own vault.
  *
- * Splash never holds the money: the address is the issuer's Splash wallet
- * (their passkey's address). The amount carries a few extra millionths that
+ * Splash never holds the money: the address is the issuer's own Squads vault
+ * on Solana, which no Splash key can move. The amount carries a few extra millionths that
  * identify this invoice, so the payer is asked to send it exactly; "check"
  * reads the issuer's wallet from chain and records the transfer that matches
  * (lib/server/usdc-invoice-payments.ts).
@@ -30,6 +32,7 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
   const [check, setCheck] = useState<Check>(usdc?.paid ? { kind: 'paid', explorerUrl: usdc.paid.explorerUrl } : { kind: 'idle' });
 
   if (!usdc || (!usdc.paid && !usdc.terms)) return null;
+  const network = explorerCluster() === 'mainnet-beta' ? 'Solana' : 'Solana devnet';
 
   async function copy(value: string, what: string) {
     await navigator.clipboard.writeText(value);
@@ -46,7 +49,7 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
         return setCheck({
           kind: 'message',
           tone: 'wait',
-          text: `Not seen yet. Transfers on Sui land within seconds — if you have just sent it, check again in a moment. If you sent a different amount, tell ${issuer} so they can match it by hand.`,
+          text: `Not seen yet. If you have just sent it, check again in a moment. If you sent a different amount, tell ${issuer} so they can match it by hand.`,
         });
       }
       if (body.status === 'ALREADY_USED') {
@@ -56,7 +59,7 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
         return setCheck({ kind: 'message', tone: 'problem', text: `${issuer} can't receive USDC here right now. Pay by bank transfer instead.` });
       }
       const reason = body.reason ?? body.error ?? `the check failed (${res.status})`;
-      setCheck({ kind: 'message', tone: 'problem', text: `Couldn't check Sui just now: ${reason} Try again shortly.` });
+      setCheck({ kind: 'message', tone: 'problem', text: `Couldn't check Solana just now: ${reason} Try again shortly.` });
     } catch {
       setCheck({ kind: 'message', tone: 'problem', text: 'Couldn’t reach Splash. Check your connection and try again.' });
     }
@@ -64,18 +67,18 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
 
   return (
     <section aria-labelledby="pay-usdc-title" className="mt-7 border-t border-foreground/10 pt-6">
-      <h2 id="pay-usdc-title" className="text-xl font-black">Or pay in USDC on Sui</h2>
+      <h2 id="pay-usdc-title" className="text-xl font-black">Or pay in USDC on Solana</h2>
       <p className="mt-1 text-sm text-foreground/60">
-        Straight to {issuer}&rsquo;s own wallet — Splash never holds it.
+        Straight to {issuer}&rsquo;s own vault. Splash never holds it.
       </p>
 
       {check.kind === 'paid' ? (
         <div role="status" className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--ok)]/30 bg-[var(--ok-bg)] p-4">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ok)]" aria-hidden="true" />
           <div>
-            <strong className="block text-[var(--ink)]">Paid in USDC — verified on Sui</strong>
+            <strong className="block text-[var(--ink)]">Paid in USDC, verified on Solana</strong>
             <a href={check.explorerUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-sm font-bold text-[var(--ok)] hover:underline">
-              View the transfer on Suiscan <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              View the transfer on Solana Explorer <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
           </div>
         </div>
@@ -97,7 +100,7 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
             </button>
             <button type="button" onClick={() => void copy(usdc.terms!.address, 'Address')} className="flex w-full items-center justify-between gap-3 rounded-xl bg-muted/50 p-3 text-left">
               <span className="min-w-0">
-                <small className="block uppercase tracking-wide text-foreground/45">To {issuer}&rsquo;s Sui wallet</small>
+                <small className="block uppercase tracking-wide text-foreground/45">To {issuer}&rsquo;s Solana vault</small>
                 <strong className="block break-all font-mono text-[13px]">{usdc.terms.address}</strong>
               </span>
               <Copy className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -106,7 +109,7 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
           </div>
           <p className="mt-3 flex items-start gap-2 text-[13px] leading-relaxed text-foreground/65">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--warn)]" aria-hidden="true" />
-            Native USDC on Sui mainnet only. USDC on another network, or any other token, will not arrive.
+            Native USDC on {network} only. Copy the address exactly; capital letters matter. USDC on another network, or any other token, will not arrive.
           </p>
           <button
             type="button"
@@ -115,7 +118,7 @@ export default function PayWithUsdc({ slug, issuer, usdc }: { slug: string; issu
             className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-3 font-black text-card disabled:opacity-60"
           >
             {check.kind === 'checking' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-            {check.kind === 'checking' ? 'Checking Sui…' : 'I’ve sent it — check'}
+            {check.kind === 'checking' ? 'Checking Solana…' : 'I’ve sent it — check'}
           </button>
           <div aria-live="polite">
             {check.kind === 'message' ? (

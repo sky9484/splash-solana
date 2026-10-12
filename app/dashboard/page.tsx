@@ -13,7 +13,6 @@ import {
 
 import OxWalComposer, { type OxWalComposerChip } from '@/components/oxwal/OxWalComposer';
 import ThreadRow, { BotAvatar, StreamingRow, ThinkingRow } from '@/components/oxwal/ThreadView';
-import MemWalBehaviorCard from '@/components/MemWalBehaviorCard';
 import { stashBatchDraft } from '@/lib/batch-parse';
 import { useOxwalThread } from '@/lib/oxwal/use-oxwal-thread';
 
@@ -161,7 +160,6 @@ export default function OxwalDeskPage() {
       </main>
 
       <aside className="space-y-4 dash-reveal-stagger">
-        <MemWalBehaviorCard compact />
         <div className="dash-block p-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[var(--info)]" />

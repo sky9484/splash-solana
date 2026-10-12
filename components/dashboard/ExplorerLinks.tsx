@@ -1,13 +1,12 @@
-import { suiScanTxUrl, suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { ExternalLink } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-/** Paired SuiScan / SuiVision links for a transaction digest. */
+/** The Solana Explorer link for a transaction signature. */
 export default function ExplorerLinks({ digest, className }: { digest: string; className?: string }) {
   const links = [
-    { label: 'SuiScan', href: suiScanTxUrl(digest) },
-    { label: 'SuiVision', href: suiVisionTxUrl(digest) },
+    { label: 'Solana Explorer', href: solanaTxUrl(digest) },
   ];
 
   return (

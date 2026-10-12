@@ -100,8 +100,9 @@ export const organizations = pgTable('organizations', {
    *  tailors which setup steps are emphasised and NOTHING else — the KYB
    *  lifecycle above stays the single authority on what may move money. */
   intent: text('intent'),
-  /** Wallet spec §2.3 — the org's on-chain BusinessAccount object id. Null
-   *  until the AdminCap-gated business_account::verify_business has run. */
+  /** The org's ledger key from the earlier build (its on-chain business
+   *  account). Kept so existing balances keep their key; new orgs are keyed
+   *  by their vault (lib/compliance/org-kyb.ts resolveBusinessAccountId). */
   suiBusinessAccountId: text('sui_business_account_id'),
   ...timestamps,
 });
@@ -126,7 +127,7 @@ export const users = pgTable('users', {
   /**
    * scrypt, formatted by lib/auth/password.ts. Nullable because an identity
    * can exist without one — an invited user before they set a password, or a
-   * zkLogin identity that never has one at all.
+   * Google sign-in identity that never has one at all.
    */
   passwordHash: text('password_hash'),
   /** Null until the address is proven. Not a boolean: when it happened is the
@@ -242,12 +243,9 @@ export const loginAttempts = pgTable('login_attempts', {
  * WebAuthn returns a credential's public key exactly once, in the attestation
  * at creation. A later assertion — an actual signature — returns the signature
  * and the credential id, and no key. So a server that did not store the key at
- * enrolment cannot identify which Sui address just signed. The SDK's own
- * workaround for that situation is `PasskeyKeypair.signAndRecover` plus
- * `findCommonPublicKey`: sign two different messages, recover the candidate
- * keys from each, and intersect them. That is two extra user gestures and a
- * guess, on the approval path, to recover something we were handed for free
- * once and threw away.
+ * enrolment cannot check a later signature at all. Recovering the key from
+ * signatures afterwards takes extra user gestures and a guess, to rebuild
+ * something we were handed for free once and threw away.
  *
  * So: persist it at enrolment, and never need recovery.
  *
@@ -271,9 +269,9 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
   /** 33-byte compressed secp256r1 point, base64. Captured at creation because
    *  the authenticator will never send it again. */
   publicKey: text('public_key').notNull(),
-  /** Derived from the public key at enrolment, with the SIP-9 0x06 flag. The
-   *  address an approval's sender must equal. */
-  suiAddress: text('sui_address').notNull(),
+  /** RETIRED (drizzle/0028): the earlier build derived a chain address from
+   *  the passkey. Nullable and unread; dropped with the other address columns. */
+  suiAddress: text('sui_address'),
   /**
    * The WebAuthn relying-party id this credential is bound to.
    *
@@ -303,12 +301,11 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
 ]);
 
 /**
- * Wallet spec §2.3 — per-human zkLogin signer ↔ record mapping.
- *
- * One org has ONE on-chain BusinessAccount but MANY individual signers: a
- * zkLogin address is derived from (iss, sub, aud, salt), so `ceo@acme.com` and
- * `controller@acme.com` get different Sui addresses. That is what gives
- * maker-checker per-human signer attribution.
+ * RETIRED. Held the per-person signer address of the earlier build,
+ * derived at sign-in. Nothing reads or writes it any more: on Solana a
+ * person's signer is their device key, registered per member, and sign-in
+ * (password or Google) derives no key. Kept only until the migration that
+ * drops it together with the other earlier-build address columns.
  *
  * `oauth_sub` is a provider user id — treat it as PII: never log it raw.
  */
@@ -331,6 +328,117 @@ export const walletIdentities = pgTable('wallet_identities', {
   uniqueIndex('wallet_identities_oauth_subject_unique').on(table.oauthIss, table.oauthSub, table.oauthAud),
   index('wallet_identities_user_idx').on(table.userId),
   index('wallet_identities_org_idx').on(table.orgId),
+]);
+
+/**
+ * The device that signs for a member (drizzle/0027). PUBLIC key only: the
+ * private half is a non-extractable WebCrypto key in the member's browser and
+ * never reaches the server. Written only after a proof of possession.
+ * One active device per member per organisation; a second device is added
+ * to the vault by an approved config transaction, not by this table alone.
+ */
+export const memberDevices = pgTable('member_devices', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  orgId: text('org_id').notNull().references(() => organizations.id),
+  /** base58 Ed25519 public key: the member's Solana signer address. */
+  publicKey: text('public_key').notNull(),
+  label: text('label').notNull().default('This device'),
+  provenAt: timestamp('proven_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('member_devices_public_key_unique').on(table.publicKey),
+  uniqueIndex('member_devices_one_active_per_member')
+    .on(table.userId, table.orgId)
+    .where(sql`${table.revokedAt} is null`),
+  index('member_devices_org_idx').on(table.orgId),
+]);
+
+export type OrgVaultMember = { role: 'admin_device' | 'approver_device' | 'recovery_kit_a' | 'recovery_kit_b'; publicKey: string };
+
+/**
+ * The organisation's autonomous Squads vault (drizzle/0027). The database
+ * refuses a row whose config authority is not null (I-1): nobody, Splash
+ * included, may hold a key that changes the vault's members or threshold.
+ */
+export const orgVaults = pgTable('org_vaults', {
+  orgId: text('org_id').primaryKey().references(() => organizations.id),
+  cluster: text('cluster').$type<'devnet' | 'mainnet-beta'>().notNull(),
+  /** true when created by the offline simulator, never by a network (I-7). */
+  simulated: boolean('simulated').notNull(),
+  multisigPda: text('multisig_pda').notNull(),
+  vaultPda: text('vault_pda').notNull(),
+  threshold: integer('threshold').notNull(),
+  members: jsonb('members').$type<OrgVaultMember[]>().notNull(),
+  configAuthorityNull: boolean('config_authority_null').notNull(),
+  createSignature: text('create_signature').notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('org_vaults_multisig_unique').on(table.multisigPda),
+  uniqueIndex('org_vaults_vault_unique').on(table.vaultPda),
+]);
+
+/**
+ * The Solana payment state machine (prompt 07 §5.1, lib/solana-app/payment-machine.ts). One row per
+ * payment; `record` holds the full payment (bigint as {"$bigint": "…"}). Every change is a
+ * compare-and-set on (state, version) — lib/solana-app/payment-repo.ts — and writes a transition row.
+ * No FK on org_id: the offline demo's companies are not organizations rows (Phase 4 moves the flow
+ * onto signed-in organizations, whose ids then match).
+ */
+export const solanaPayments = pgTable('solana_payments', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id').notNull(),
+  state: text('state').notNull(),
+  version: integer('version').notNull(),
+  record: jsonb('record').notNull(),
+  ...timestamps,
+}, (table) => [
+  index('solana_payments_org_idx').on(table.orgId, table.createdAt),
+  index('solana_payments_state_idx').on(table.state),
+]);
+
+/** Append-only: one row per version of a payment. */
+export const solanaPaymentTransitions = pgTable('solana_payment_transitions', {
+  seq: bigint('seq', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  paymentId: text('payment_id').notNull().references(() => solanaPayments.id),
+  fromState: text('from_state'),
+  toState: text('to_state').notNull(),
+  version: integer('version').notNull(),
+  reason: text('reason'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('solana_payment_transitions_version_unique').on(table.paymentId, table.version),
+]);
+
+/**
+ * Every chain call, under its idempotency key `paymentId:step`, recorded with its signature BEFORE
+ * the bytes are broadcast. A resumed worker polls the signature; it never sends a second time.
+ */
+export const solanaChainCalls = pgTable('solana_chain_calls', {
+  key: text('key').primaryKey(),
+  paymentId: text('payment_id').notNull().references(() => solanaPayments.id),
+  step: text('step').notNull(),
+  status: text('status').notNull(),
+  signature: text('signature').notNull(),
+  lastValidBlockHeight: bigint('last_valid_block_height', { mode: 'bigint' }),
+  logs: jsonb('logs'),
+  error: text('error'),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('solana_chain_calls_signature_unique').on(table.signature),
+  index('solana_chain_calls_payment_idx').on(table.paymentId),
+]);
+
+/** Sponsored transactions per org per UTC day (prompt 07 §5.6), checked before Kora is asked. */
+export const solanaSponsorUsage = pgTable('solana_sponsor_usage', {
+  orgId: text('org_id').notNull(),
+  day: text('day').notNull(),
+  count: integer('count').notNull().default(0),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('solana_sponsor_usage_org_day').on(table.orgId, table.day),
 ]);
 
 /** Suppliers — the relationship-first noun (today's "recipients"). */
@@ -421,13 +529,15 @@ export const suppliers = pgTable('suppliers', {
   recipientMetadata: jsonb('recipient_metadata'),
 
   /** How this recipient is paid. BANK: local currency through a partner rail
-   *  (locked until the paying business is verified). WALLET: USDC on Sui to
+   *  (locked until the paying business is verified). WALLET: USDC on Solana to
    *  `walletAddress` — the only lane an unverified business may use. */
   payoutMethod: text('payout_method').notNull().default('BANK'),
-  /** Sui address, lower-cased, validated by normaliseSuiAddress — never an
-   *  Ethereum address padded to fit. Null for BANK recipients. */
+  /** Solana address (base58, case-sensitive), validated by
+   *  normaliseSolanaAddress — never an address from another chain. Rows saved
+   *  by the earlier build may hold an older address and cannot be paid
+   *  (migration 0029). Null for BANK recipients. */
   walletAddress: text('wallet_address'),
-  /** 'SLUSH' | 'METAMASK_SUI_SNAP' — the wallet the recipient said they use. */
+  /** 'PHANTOM' | 'SOLFLARE' | 'BACKPACK' | 'OTHER' — the wallet the recipient said they use. */
   walletProvider: text('wallet_provider'),
 
   ...timestamps,
@@ -463,7 +573,7 @@ export const invoices = pgTable('invoices', {
    *  `payment_intents.invoice_id`; without this one, "was this paid" is a scan. */
   transferIntentId: text('transfer_intent_id'),
   demo: boolean('demo').notNull().default(false),
-  /** Paid in USDC on Sui to the issuer's own wallet (migration 0024): the
+  /** Paid in USDC to the issuer's own vault (migration 0024): the
    *  transaction that proved it. One transaction pays one invoice. */
   usdcTxDigest: text('usdc_tx_digest'),
   usdcPaidAt: timestamp('usdc_paid_at', { withTimezone: true }),
@@ -892,7 +1002,8 @@ export const batchRuns = pgTable('batch_runs', {
   targetCurrency: text('target_currency'),
   idempotencyKey: text('idempotency_key').notNull(),
   digest: text('digest'),
-  packageId: text('package_id'),
+  /** Set by the earlier build only (its settling contract). */
+  legacyContract: text('package_id'),
   /** Which proposal authorized this run, when it needed a second approver. */
   proposalId: text('proposal_id'),
   demo: boolean('demo').notNull().default(false),

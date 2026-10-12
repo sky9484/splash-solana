@@ -13,7 +13,7 @@ import LocalTime from "@/components/LocalTime";
  * lives exclusively inside the collapsed "Verify independently" section,
  * renamed to business terms: "Settlement record" and "Tamper-evident
  * archive". The network line comes from the runtime profile so it flips to
- * "Sui mainnet" at launch without a code change.
+ * "Solana" (mainnet) at launch without a code change.
  */
 
 export type ReceiptProps = {
@@ -239,7 +239,7 @@ const SettlementReceipt = forwardRef<HTMLDivElement, ReceiptProps>(function Sett
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-[12px] font-medium uppercase tracking-[0.12em]" style={{ color: MUTE }}>Network</div>
-                <div className="mt-0.5 text-[13px] font-medium" style={{ color: INK }}>{networkLine ?? 'Sui · sandbox, no customer funds'}</div>
+                <div className="mt-0.5 text-[13px] font-medium" style={{ color: INK }}>{networkLine ?? 'Solana devnet · sandbox, no customer funds'}</div>
               </div>
               <a href="/trust" className="text-[13px] font-medium underline-offset-2 hover:underline" style={{ color: TEAL_TEXT }}>
                 Where your money sits

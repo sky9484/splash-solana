@@ -21,8 +21,8 @@ delete process.env.SWEEP_ACCOUNT_ENABLED;
 
 const gate = () => import('../lib/server/custody-phase.ts');
 
-const CUSTODY_OFF = { custodyPackageId: '' };
-const CUSTODY_ON = { custodyPackageId: '0x' + 'cd'.repeat(32) };
+const CUSTODY_OFF = { custodyEnabled: false };
+const CUSTODY_ON = { custodyEnabled: true };
 
 async function source(relative) {
   const raw = await readFile(new URL(`../${relative}`, import.meta.url), 'utf8');
@@ -50,7 +50,7 @@ test('every recommendation is a tier the authorize step accepts, in either phase
   for (const config of [CUSTODY_OFF, CUSTODY_ON]) {
     for (const currency of ['PHP', 'USD', 'USDC', 'IDR', undefined]) {
       const tier = invoiceDeliveryTier(currency, config);
-      assert.equal(deliveryTierAllowed(tier, config), true, `${currency} → ${tier} with custody ${config.custodyPackageId ? 'on' : 'off'}`);
+      assert.equal(deliveryTierAllowed(tier, config), true, `${currency} → ${tier} with custody ${config.custodyEnabled ? 'on' : 'off'}`);
     }
   }
 });

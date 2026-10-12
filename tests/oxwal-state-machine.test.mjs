@@ -14,7 +14,7 @@ const later = new Date('2026-07-01T01:00:00.000Z').toISOString();
 function simulation(overrides = {}) {
   return {
     ok: true,
-    balanceChanges: [{ owner: '0xpayer', coinType: '0x2::sui::SUI', amount: '-1000' }],
+    balanceChanges: [{ owner: '0xpayer', coinType: 'USDC', amount: '-1000' }],
     gasSponsored: true,
     simulatedAt: now,
     ...overrides,

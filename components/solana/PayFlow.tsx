@@ -87,12 +87,12 @@ export function PayFlow() {
         const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}?orgId=${orgId}`);
         if (stop) return;
         setPayment(res.payment);
-        if (res.payment.status === 'PAID' && res.payment.receiptId) {
+        if ((res.payment.state === 'evidenced' || res.payment.state === 'anchored') && res.payment.receiptId) {
           setTimeout(() => !stop && setScreen('done'), 900);
           notifyOrgChanged();
           return;
         }
-        if (res.payment.status === 'REFUNDED' || res.payment.status === 'FAILED') {
+        if (res.payment.state === 'partner_failed' || res.payment.state === 'proposal_failed' || res.payment.state === 'execute_failed') {
           notifyOrgChanged();
           return;
         }
@@ -250,7 +250,7 @@ export function PayFlow() {
       {screen === 'route' && payment && <RouteScreen payment={payment} now={now} busy={busy} error={error} offline={org.mode === 'offline'} onChoose={choose} onRefresh={requote} onBack={() => go('check')} />}
       {screen === 'approve' && payment?.approval && (
         <div className="sx-stack">
-          {payment.problem && payment.status === 'POLICY_DENIED' ? <ProblemCard problem={payment.problem} onRefresh={requote} onBack={() => go('route')} onStart={() => go('start')} /> : null}
+          {payment.problem && (payment.state === 'rejected_by_policy' || payment.state === 'quote_expired') ? <ProblemCard problem={payment.problem} onRefresh={requote} onBack={() => go('route')} onStart={() => go('start')} /> : null}
           <ApprovalCard card={payment.approval} now={now} busy={busy} onApprove={approve} onCancel={() => go('route')} onRefresh={requote} />
           {error ? <ProblemCard problem={error} onRefresh={requote} onBack={() => go('route')} onStart={() => go('start')} /> : null}
         </div>
@@ -258,9 +258,9 @@ export function PayFlow() {
       {screen === 'progress' && payment && (
         <section className="sx-card sx-stack" aria-live="polite">
           <h2>
-            {payment.status === 'PAID'
+            {payment.state === 'partner_paid' || payment.state === 'evidenced' || payment.state === 'anchored'
               ? 'Paid'
-              : payment.status === 'REFUNDED'
+              : payment.state === 'partner_failed'
                 ? 'Returned by the partner'
                 : 'On its way'}
           </h2>
@@ -375,7 +375,7 @@ function StartScreen({
                   {p.supplierName || 'Supplier'} <span className="sx-num">{php(p.amountPhpMinor)}</span>
                 </span>
                 <span>
-                  <StatusPill status={p.status} />{' '}
+                  <StatusPill state={p.state} label={p.stateLabel} />{' '}
                   {p.receiptId ? <Link href={`/solana/receipts/${p.receiptId}`}>Receipt</Link> : null}
                 </span>
               </li>
@@ -387,19 +387,11 @@ function StartScreen({
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const map: Record<string, [string, string]> = {
-    PAID: ['Paid', 'sx-pill-ok'],
-    REFUNDED: ['Returned', 'sx-pill-warn'],
-    FAILED: ['Not sent', 'sx-pill-warn'],
-    POLICY_DENIED: ['Blocked', 'sx-pill-warn'],
-    SENT: ['Sent', 'sx-pill-pending'],
-    PARTNER_RECEIVED: ['Partner received', 'sx-pill-pending'],
-    APPROVED: ['Approved', 'sx-pill-pending'],
-    AWAITING_APPROVAL: ['Waiting for approval', 'sx-pill-pending'],
-    QUOTED: ['Quoted', 'sx-pill-pending'],
-  };
-  const [label, cls] = map[status] ?? [status, 'sx-pill-pending'];
+/** The state's own words (payment-machine.ts STATE_LABEL); the colour only repeats them. */
+function StatusPill({ state, label }: { state: string; label: string }) {
+  const ok = ['partner_paid', 'evidenced', 'anchored'];
+  const warn = ['partner_failed', 'proposal_failed', 'execute_failed', 'rejected_by_policy', 'quote_expired', 'evidence_failed'];
+  const cls = ok.includes(state) ? 'sx-pill-ok' : warn.includes(state) ? 'sx-pill-warn' : 'sx-pill-pending';
   return <span className={`sx-pill ${cls}`}>{label}</span>;
 }
 

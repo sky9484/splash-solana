@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, Globe, Layers, Lock, Sparkles, TrendingUp, X } from 'lucide-react';
+import { ChevronRight, Globe, Layers, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
-import MemWalBehaviorCard from '@/components/MemWalBehaviorCard';
 import OxWalComposer, { type OxWalComposerChip } from '@/components/oxwal/OxWalComposer';
 import ThreadRow, { BotAvatar, StreamingRow, ThinkingRow } from '@/components/oxwal/ThreadView';
 import { confidencePercent } from '@/lib/confidence';
@@ -17,7 +16,7 @@ import { useOxwalThread } from '@/lib/oxwal/use-oxwal-thread';
  *
  * A chat seeded with three invented turns, backed by a keyword matcher that
  * answered "what is the PHP rate" with `56.42` from a string literal, beside a
- * "MemWal Memory" panel asserting this operator runs a Friday 09:00 batch of
+ * "Memory" panel asserting this operator runs a Friday 09:00 batch of
  * $11,800 across five corridors — none of it read from anything.
  *
  * The rates were the serious part. They rendered in the same bubble, weight and
@@ -25,8 +24,8 @@ import { useOxwalThread } from '@/lib/oxwal/use-oxwal-thread';
  * decide when to move money. There was no marking, so nothing on screen let an
  * operator tell an invented figure from a fetched one.
  *
- * Every one of those is gone. The chat is the tool-using agent, the behaviour
- * panel is the live MemWal card that labels demo memories as demo, and the
+ * Every one of those is gone. The chat is the tool-using agent, no behaviour
+ * memory is kept (the earlier build's behaviour store is gone), and the
  * suggestions come from /api/copilot/suggest or the rail says there are none.
  *
  * ─── Why suggestions became prompts ─────────────────────────────────────────
@@ -134,7 +133,7 @@ export default function CopilotPage() {
       <main className="min-w-0 space-y-4">
         <header className="dash-block dash-block-accent dash-reveal p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="dash-kicker">Copilot · MemWal</span>
+            <span className="dash-kicker">Copilot</span>
             {/* The AI label is not attached to the name, so renaming the
                 assistant cannot remove it. Someone reading a payment
                 recommendation is entitled to know what wrote it. */}
@@ -209,7 +208,7 @@ export default function CopilotPage() {
             <h2 className="text-sm font-bold text-[#1F4452]">Suggestions</h2>
           </div>
           <p className="mt-1 text-[13px] font-medium leading-5 text-[#326273]/90">
-            Drawn from your open invoices and MemWal memory. Tap one to ask about it.
+            Drawn from your open invoices. Tap one to ask about it.
           </p>
 
           <div className="mt-3 space-y-2">
@@ -267,59 +266,10 @@ export default function CopilotPage() {
           </div>
         </div>
 
-        <MemWalBehaviorCard />
-
-        <div className="dash-block p-4">
-          <div className="flex items-center gap-2">
-            <Lock className="h-3.5 w-3.5 text-[var(--info)]" />
-            <h2 className="text-sm font-bold text-[#1F4452]">What MemWal stores</h2>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div>
-              <div className="mb-1.5 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-                Stored — behavioural only
-              </div>
-              {[
-                'Corridor frequency and timing',
-                'Batch size patterns',
-                'Rate sensitivity bands',
-                'What you call this assistant',
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-1.5 py-0.5 text-[13px] font-medium text-[#326273]/90"
-                >
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-600" aria-hidden="true" />
-                  {item}
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-[#326273]/10 pt-2">
-              <div className="mb-1.5 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-[#9A4A2D]">
-                Never stored
-              </div>
-              {[
-                'Invoice PDFs or their contents',
-                'Recipient bank details',
-                'Account numbers',
-                'KYB documents',
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-1.5 py-0.5 text-[13px] font-medium text-[#326273]/90"
-                >
-                  <X className="h-2.5 w-2.5 shrink-0 text-[#9A4A2D]" />
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
         <div className="space-y-2">
           {[
             { label: 'Batch payout', href: '/dashboard/batch', icon: Layers },
-            { label: 'Treasury yield', href: '/dashboard/treasury', icon: TrendingUp },
+            { label: 'Treasury', href: '/dashboard/treasury', icon: TrendingUp },
             { label: 'Command desk', href: '/dashboard', icon: Globe },
           ].map(({ label, href, icon: Icon }) => (
             <Link

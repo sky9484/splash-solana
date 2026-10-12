@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Fingerprint, Hourglass, KeyRound, Loader2, MessageCircle, MousePointerClick, RefreshCw } from 'lucide-react';
 
-import { describeSignError, signApprovalWithPasskey } from '@/lib/wallet/sui-signers';
+import { describePasskeyError, myPasskey, signWithPasskey } from '@/lib/auth/webauthn-client';
 
 /**
  * Approval, in the workspace's chosen style (Settings → WhatsApp approvals).
@@ -104,7 +104,7 @@ export default function ApprovalFlow({
     try {
       await fn();
     } catch (err) {
-      setError(describeSignError(err));
+      setError(describePasskeyError(err));
     } finally {
       setBusy(null);
     }
@@ -135,10 +135,9 @@ export default function ApprovalFlow({
 
   const confirmPasskey = () => run('passkey', async () => {
     if (!approvalId || !passkeyMessage) throw new Error('Enter the WhatsApp code first.');
-    const res = await fetch('/api/stablecoin/wallet', { cache: 'no-store' });
-    const wallet = (await res.json()) as { passkey?: { publicKey: string; rpId: string } | null; reason?: string };
-    if (!wallet.passkey) throw new Error(wallet.reason ?? 'Create a passkey in Settings → Security first.');
-    const signature = await signApprovalWithPasskey(wallet.passkey, passkeyMessage);
+    const mine = await myPasskey();
+    if (!mine.passkey) throw new Error(mine.reason ?? 'Add a passkey in Settings → Security first.');
+    const signature = await signWithPasskey(mine.passkey, passkeyMessage);
     const r = await post('/api/step-up/passkey', { approvalId, signature });
     if (!r.ok) throw new Error(r.error ?? 'The passkey confirmation did not verify.');
     await refresh();

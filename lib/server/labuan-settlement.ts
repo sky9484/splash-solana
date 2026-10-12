@@ -88,10 +88,10 @@ export async function getLabuanQuote(usdAmount: number): Promise<LabuanQuote> {
  * 1. USD deposit is confirmed by Stripe or Airwallex
  * 2. USD transferred to Splash Labuan treasury
  * 3. Splash Labuan converts USD→USDC via Circle OTC or licensed exchange
- * 4. USDC credited to operator treasury on Sui
+ * 4. USDC credited to the receiving vault on Solana
  *
  * In Phase 0 (before Labuan license): falls back to bank wire mode (no USDC,
- * settlement recorded on Sui as Receipt only, actual disbursement via bank wire).
+ * settlement recorded on Solana as a receipt only, actual disbursement via bank wire).
  */
 export async function convertUsdToUsdc(usdAmount: number): Promise<LabuanConversionResult> {
   if (!LABUAN_API_KEY) return mockConversion(usdAmount);

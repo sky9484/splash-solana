@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { requireCustomerRequest } from '@/lib/server/customer-auth';
 import { readJsonBody } from '@/lib/server/http';
 import { RATE_LIMITS, clientIp, enforceRateLimit } from '@/lib/server/rate-limit';
-import { sealAdapter } from '@/lib/server/seal';
+import { sealAdapter } from '@/lib/evidence-sui/seal';
 
 const schema = z.object({ policyId: z.string().min(1), identity: z.string().min(1) });
 

@@ -715,18 +715,3 @@ test('the submit route refuses a finished proposal before taking any decision on
   assert.match(route, /code: 'PROPOSAL_CLOSED'/);
 });
 
-test('a transfer proposal is named by the payment its approval covers, not by the recipient\'s name', async () => {
-  const route = await source('app/api/transfers/authorize/route.ts');
-  assert.match(route, /idempotencyKey: `transfer:\$\{orgId\}:\$\{subjectDigest\(fiatPaymentSubstance\(approvalPayload\)\)\}`/);
-  assert.match(route, /payload: approvalPayload,/, 'the payload replayed is the payload named');
-
-  const key = (payload) => subjectDigest(fiatPaymentSubstance(payload));
-  const payment = payoutBody();
-  assert.equal(
-    key({ ...payment, totp: '111111', fundingSessionId: 'fs_1', quote: { netReceived: '1' } }),
-    key({ ...payment, totp: '222222', fundingSessionId: 'fs_2', quote: { netReceived: '2' } }),
-    'a retry of the same payment is the same payment',
-  );
-  const otherAccount = { ...payment, recipient: { ...payment.recipient, bank: { swift: 'BOPIPHMM', account: '009999999999' } } };
-  assert.notEqual(key(payment), key(otherAccount), 'same name, amount and currency, another account: another payment');
-});

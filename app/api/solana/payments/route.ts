@@ -6,6 +6,6 @@ export async function POST(request: Request) {
   return handle(async () => {
     const body = await readBody(request, schemas.quote);
     const p = await quote(body.orgId, body.invoiceId);
-    return { payment: paymentView(p.id) };
+    return { payment: await paymentView(p.id) };
   }, 201);
 }

@@ -3,15 +3,15 @@
  *
  * ─── What this replaces ─────────────────────────────────────────────────────
  *
- * Every zkLogin sign-in wrote its user and wallet identity with
+ * The earlier build's Google sign-in wrote every user with
  * `orgId: DEFAULT_ORG_ID` — the literal `'demo-business'`. So every person who
  * signed in with Google was filed under the same organisation.
  *
- * The damage was bounded by an accident rather than a decision: zkLogin grants
+ * The damage was bounded by an accident rather than a decision: sign-in grants
  * no membership, and `resolveAuthorityForSession` reads authority from the
  * membership row, so a new signer could authorise nothing. But their identity
- * and their Sui address sat in the demo org's namespace, and the moment anyone
- * granted that user a role they would have landed inside it.
+ * sat in the demo org's namespace, and the moment anyone granted that user a
+ * role they would have landed inside it.
  *
  * A new signer gets their own org now, in REGISTERED — which is the state that
  * can do nothing until KYB completes.

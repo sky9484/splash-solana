@@ -7,8 +7,8 @@ import { readSweepJob } from '@/lib/server/operations';
 import { readInvoiceForStaff } from '@/lib/server/invoices-store';
 import { requireSessionAccount } from '@/lib/server/session-account';
 import { readAuditReceipt, readTransfer } from '@/lib/server/transfers-store';
-import { readSealPolicy, sealAdapter } from '@/lib/server/seal';
-import { retrieveBlob } from '@/lib/server/walrus';
+import { BrowserDecryptOnlyError, readSealPolicy, sealAdapter } from '@/lib/evidence-sui/seal';
+import { retrieveBlob } from '@/lib/evidence-sui/walrus';
 
 /** Scoped to the caller's org: an audit trail is as sensitive as the payment. */
 async function auditView(orgId: string, intentId: string) {
@@ -84,7 +84,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
   }
   const blob = await retrieveBlob(view.invoice.walrusBlobId);
   if (!blob) return NextResponse.json({ error: 'Walrus blob not found' }, { status: 404 });
-  const plaintext = await sealAdapter.decrypt(blob.encryptedData, view.invoice.sealPolicyId, view.invoice.issuerOrg);
+  let plaintext: string | null;
+  try {
+    plaintext = await sealAdapter.decrypt(blob.encryptedData, view.invoice.sealPolicyId, view.invoice.issuerOrg);
+  } catch (error) {
+    // Live evidence opens only in the member's browser (lib/evidence-sui/seal.ts).
+    // Hand back what the browser needs to decrypt and check the hash itself.
+    if (error instanceof BrowserDecryptOnlyError) {
+      return NextResponse.json({
+        verified: null,
+        decryptIn: 'browser',
+        walrusBlobId: view.invoice.walrusBlobId,
+        sealPolicyId: view.invoice.sealPolicyId,
+        expectedSha256: view.invoice.documentSha256,
+        settlement,
+      });
+    }
+    throw error;
+  }
   if (!plaintext) return NextResponse.json({ error: 'Seal access denied' }, { status: 403 });
   const hash = createHash('sha256').update(plaintext).digest('hex');
   return NextResponse.json({ verified: hash === view.invoice.documentSha256, hash, settlement });

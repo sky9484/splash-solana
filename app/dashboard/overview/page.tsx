@@ -9,8 +9,8 @@ import {
   Globe,
   Layers,
   Send,
+  Landmark,
   ShieldCheck,
-  TrendingUp,
   Upload,
   Zap,
 } from 'lucide-react';
@@ -25,7 +25,6 @@ import SettlementEngineFlow from '@/components/dashboard/SettlementEngineFlow';
 import StatusBadge, { type Status } from '@/components/StatusBadge';
 import { cn } from '@/lib/utils';
 import { getCorridorFeeBps } from '@/lib/fx/corridors';
-import { LAUNCH_SCOPE_CODE } from '@/lib/launch-scope-rules';
 
 /** Convert bps to display percentage (e.g. 80 -> "0.80%"). */
 function bpsToPct(bps: number) {
@@ -34,8 +33,7 @@ function bpsToPct(bps: number) {
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
-// Treasury projection lives in the right column (single source on this page);
-// deeper treasury detail is the Treasury page's job.
+// The right column carries a Treasury card that says it is not on this build.
 // Coral accent = Zeke identity only (W9.0 coral rule); every other stat
 // uses semantic/info tones from styles/tokens.css.
 const TOP_STATS = [
@@ -44,7 +42,8 @@ const TOP_STATS = [
   // volume is the most quotable number on the page and it was a string literal.
   { label: 'Volume (30d)', value: null, icon: ArrowUpRight, accent: 'text-[var(--info)]', bg: 'bg-[var(--info-bg)]', id: 'volume' },
   { label: 'Corridor Coverage', value: '1 live-model', delta: '8 implemented in code', icon: Globe, accent: 'text-[var(--info)]', bg: 'bg-[#5C9EAD]/10', id: 'corridors' },
-  { label: 'Settlement SLA', value: '400ms', delta: 'On target', icon: Zap, accent: 'text-[var(--ok)]', bg: 'bg-[var(--ok-bg)]', id: 'sla' },
+  // Splash's fee payer covers Solana network fees; no speed figure is quoted.
+  { label: 'Network fees', value: 'Covered', delta: "You don't need SOL", icon: Zap, accent: 'text-[var(--ok)]', bg: 'bg-[var(--ok-bg)]', id: 'fees' },
 ] as const;
 
 // Corridor display rows — fee comes from lib/fx/corridors.ts (single source of
@@ -148,14 +147,9 @@ function TxPill({ status }: { status: TxStatus }) {
 
 export default function DashboardOverview() {
   const [corridors] = useState(INITIAL_CORRIDORS);
-  // No number is shown until the ledger answers; the card used to render
-  // $24,500 and $98.72 from constants, and "+$3.22" a day from nowhere.
-  const [treasuryPhase, setTreasuryPhase] = useState<'loading' | 'gated' | 'scoped' | 'live'>('loading');
-  const [yieldEarned, setYield]   = useState(0);
-  const [treasuryPrincipal, setTreasuryPrincipal] = useState(0);
-  const [treasuryApy, setTreasuryApy] = useState(0);
+  // Treasury is not part of this build: the card below states that and shows
+  // no balance, rate or projection.
   const [walSummary, setWalSummary] = useState({ detected: 0, batchable: 0, needsApproval: 0 });
-  const [treasuryRateLabel, setTreasuryRateLabel] = useState('USDY · variable');
   const [transfers, setTransfers] = useState<TransferItem[] | null>(null);
   const [kyb, setKyb] = useState<{ state: string; blocked: boolean } | null>(null);
   const [limits, setLimits] = useState<{ dailyLimitUsd: number; perTransferLimitUsd: number } | null>(null);
@@ -254,31 +248,6 @@ export default function DashboardOverview() {
         .slice(0, 6),
     [rows],
   );
-
-  // Real two-bucket balances from the treasury ledger.
-  useEffect(() => {
-    let active = true;
-    fetch('/api/treasury')
-      .then(async (r) => {
-        if (!active) return;
-        if (!r.ok) {
-          // Phase 0: the treasury is not a feature yet. Say when it arrives.
-          const body = await r.json().catch(() => ({}));
-          if (r.status === 403 && body?.code === 'custody_not_licensed') setTreasuryPhase('gated');
-          // A USDC-only launch: the treasury is not part of it at all.
-          else if (r.status === 403 && body?.code === LAUNCH_SCOPE_CODE) setTreasuryPhase('scoped');
-          return;
-        }
-        const d = await r.json();
-        if (typeof d.treasuryPrincipal === 'number') setTreasuryPrincipal(d.treasuryPrincipal);
-        if (typeof d.treasuryYield === 'number') setYield(d.treasuryYield);
-        if (d.rate?.label) setTreasuryRateLabel(d.rate.label);
-        if (typeof d.rate?.apy === 'number') setTreasuryApy(d.rate.apy);
-        setTreasuryPhase('live');
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     void fetch('/api/copilot/summary')
@@ -577,83 +546,28 @@ export default function DashboardOverview() {
         {/* ── RIGHT COLUMN ── */}
         <aside className="space-y-4">
 
-          {/* Approval-gated treasury projection */}
+          {/* Treasury: not part of this build. No balance, rate or projection. */}
           <div className="dash-block dash-block-accent dash-block-interactive p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="rounded-lg bg-[var(--ok-bg)] p-2">
-                  <TrendingUp size={16} className="text-[var(--ok)]" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-[#1F4452]">Treasury Projection</h2>
-                  <p className="text-[13px] text-[#326273]/90">Ondo USDY · simulation only</p>
-                </div>
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-lg bg-[var(--ok-bg)] p-2">
+                <Landmark size={16} className="text-[var(--ok)]" />
               </div>
-              {treasuryPhase === 'live' ? (
-                <span className="rounded-full bg-[#D9A441]/10 px-2 py-0.5 text-[13px] font-semibold text-[#8b6418]">
-                  {treasuryRateLabel}
-                </span>
-              ) : null}
+              <h2 className="text-sm font-semibold text-[#1F4452]">Treasury</h2>
             </div>
-
-            {treasuryPhase === 'live' ? (
-              <>
-                <div className="mt-3">
-                  <p className="text-[12px] uppercase tracking-wide text-[#326273]/90">Modeled allocation</p>
-                  <p className="money mt-0.5 text-2xl font-medium text-[#1F4452]">${fmt(treasuryPrincipal)}</p>
-                  <p className="money mt-1 flex items-center gap-1 text-[13px] font-medium text-[var(--ok)]">
-                    <TrendingUp size={11} />
-                    +${yieldEarned.toFixed(2)} modeled this month
-                  </p>
-                </div>
-
-                <div className="mt-3 space-y-1 rounded-lg bg-white/70 p-3 text-[13px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#326273]/90">Modeled daily yield</span>
-                    <span className="money font-medium text-[var(--ok)]">
-                      +${((treasuryPrincipal * treasuryApy) / 100 / 365).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#326273]/90">Status</span>
-                    <span className="flex items-center gap-1 font-medium text-[var(--ok)]">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ok)]" />
-                      Approval gated
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#326273]/90">Protocol</span>
-                    <span className="font-medium text-[#326273]">Ondo USDY · T-bill</span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="mt-3 rounded-lg bg-white/70 p-3 text-[13px] leading-relaxed text-[#326273]/90">
-                <p className="font-semibold text-[#1F4452]">{treasuryPhase === 'scoped' ? 'Treasury is not open yet' : 'Treasury arrives with our licence'}</p>
-                <p className="mt-1">
-                  {treasuryPhase === 'gated'
-                    ? 'Holding funds is a Phase 2 capability that needs a money-broking licence Splash does not hold yet. Today Splash pays out only.'
-                    : treasuryPhase === 'scoped'
-                      ? 'Splash is open for USDC on Sui only for now. Send USDC from Send USDC.'
-                      : 'Checking the ledger…'}
-                </p>
-              </div>
-            )}
-
-            {treasuryPhase === 'scoped' ? null : <div className="mt-3 flex gap-2">
-              <Link
-                href="/dashboard/treasury"
-                className="flex-1 rounded-lg bg-[var(--ok)] py-1.5 text-center text-[13px] font-semibold text-white transition-colors hover:opacity-90"
-              >
-                {treasuryPhase === 'live' ? 'View projection' : 'When it arrives'}
-              </Link>
+            <div className="mt-3 rounded-lg bg-white/70 p-3 text-[13px] leading-relaxed text-[#326273]/90">
+              <p className="font-semibold text-[#1F4452]">Not available on this build</p>
+              <p className="mt-1">
+                Your USDC stays in your business&rsquo;s own vault on Solana. Send it from Transfer or Send USDC.
+              </p>
+            </div>
+            <div className="mt-3 flex gap-2">
               <Link
                 href="/dashboard/treasury"
                 className="flex-1 rounded-lg border border-[var(--ok)] py-1.5 text-center text-[13px] font-semibold text-[var(--ok)] transition-colors hover:bg-[var(--ok-bg)]"
               >
-                Review controls
+                Learn more
               </Link>
-            </div>}
+            </div>
           </div>
 
           {/* Compliance posture */}

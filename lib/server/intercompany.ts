@@ -9,7 +9,7 @@ export type IntercompanyState =
   | 'USD_SENT'       // USD transferred to Maybank Labuan
   | 'USD_RECEIVED'   // Splash Labuan confirms USD receipt
   | 'USDC_ACQUIRED'  // Splash Labuan has acquired USDC
-  | 'SETTLED'        // USDC settled on Sui
+  | 'SETTLED'        // USDC settled on Solana
   | 'FAILED';
 
 export interface IntercompanyRecord {

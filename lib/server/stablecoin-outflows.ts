@@ -7,7 +7,7 @@ import type { KybLifecycleState } from '@/lib/compliance/kyb-state';
 import {
   checkStablecoinAllowance,
   laneAccess,
-  STABLECOIN_NETWORK,
+  stablecoinCluster,
   STABLECOIN_WINDOW_MS,
   type AllowanceCheck,
 } from '@/lib/payments/stablecoin-lane';
@@ -54,7 +54,7 @@ export interface ReserveInput {
 }
 
 export type ReserveResult =
-  | { ok: true; id: string; network: typeof STABLECOIN_NETWORK; reservedUntil: Date; allowance: AllowanceCheck }
+  | { ok: true; id: string; network: ReturnType<typeof stablecoinCluster>; reservedUntil: Date; allowance: AllowanceCheck }
   | { ok: false; reason: string; allowance: AllowanceCheck | null };
 
 /** Rows that count against the window at `nowMs`. */
@@ -73,7 +73,7 @@ function countingRows(orgId: string, nowMs: number) {
 
 export async function readAllowance(d: Db, orgId: string, nowMs = Date.now()): Promise<{
   state: KybLifecycleState;
-  network: typeof STABLECOIN_NETWORK;
+  network: ReturnType<typeof stablecoinCluster>;
   allowance: AllowanceCheck;
 }> {
   const [org] = await d
@@ -94,7 +94,7 @@ export async function readAllowance(d: Db, orgId: string, nowMs = Date.now()): P
     prior: rows.map((r: { principal: bigint; createdAt: Date }) => ({ principalMinor: BigInt(r.principal), atMs: new Date(r.createdAt).getTime() })),
     nowMs,
   });
-  return { state, network: STABLECOIN_NETWORK, allowance };
+  return { state, network: stablecoinCluster(), allowance };
 }
 
 export async function reserveOutflow(d: Db, input: ReserveInput): Promise<ReserveResult> {
@@ -124,7 +124,7 @@ export async function reserveOutflow(d: Db, input: ReserveInput): Promise<Reserv
     });
     if (!allowance.ok) return { ok: false as const, reason: allowance.reason, allowance };
 
-    const network = STABLECOIN_NETWORK;
+    const network = stablecoinCluster();
     const id = `sco_${randomUUID()}`;
     const reservedUntil = new Date(nowMs + RESERVATION_MS);
     await tx.insert(stablecoinOutflows).values({

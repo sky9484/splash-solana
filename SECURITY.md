@@ -482,6 +482,12 @@ property of the type system: **no struct in `splash_core` holds a `Balance<T>`**
 enforced by `scripts/check-core-no-balance.mjs` in CI
 (`.github/workflows/core-invariant.yml`) and in `npm run lint`.
 
+> **Superseded 2026-10-12 (Solana build).** `splash_core`, the checker and its
+> tests were deleted with the Sui settlement layer (`docs/solana-build/SUI-REMOVAL.md`).
+> `.github/workflows/core-invariant.yml` now runs the Solana form of the same
+> promise: I-1 (no Splash key on a vault, no config authority) and I-2 (USDC
+> leaves the vault only to the quoted partner deposit and the fee account).
+
 **The checker was itself defeated once and rebuilt.** An adversarial review
 compiled a complete client omnibus into `splash_core` — per-client balances in a
 `Table`, a `vector<Coin>`, an `Option<Balance>`, an aliased `Balance as Ledger`,

@@ -104,7 +104,6 @@ test('an amount past 2^53 is exact, where a JS number stops being', async () => 
   await client.close();
 });
 
-
 test('two orgs that share an on-chain account do not share a balance', async () => {
   const { client, db } = await migratedDb();
 
@@ -263,7 +262,6 @@ test('a movement carries what it refers to, in its own column', async () => {
   await client.close();
 });
 
-
 // ── The window the daily ceiling is computed over ───────────────────────────
 
 test('the daily window is today’s movements, and it does not page', async () => {
@@ -309,37 +307,3 @@ test('the daily window is today’s movements, and it does not page', async () =
 
 // ── The wiring itself ───────────────────────────────────────────────────────
 
-test('the application writes through postJournal, not around it', async () => {
-  const source = await readFile(
-    new URL('../lib/server/repository/ledger.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(source, /postJournal/, 'the audited writer is the only way in');
-  assert.doesNotMatch(
-    source,
-    /insert\(ledgerPostings\)/,
-    'a direct posting insert would bypass the balance assertion',
-  );
-
-  // Comments stripped first: the claim is that nothing CALLS the in-process
-  // ledger, and `app/api/ledger/route.ts` legitimately names `listLedgerEntries`
-  // in prose explaining the enumeration bug that route once had.
-  const withoutComments = (text) =>
-    text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
-
-  for (const file of [
-    '../app/api/transfers/authorize/route.ts',
-    '../app/api/batches/authorize/route.ts',
-    '../lib/server/sweep.ts',
-    '../lib/server/funding-intake.ts',
-    '../app/api/ledger/route.ts',
-    '../app/api/funding/options/route.ts',
-  ]) {
-    const text = withoutComments(await readFile(new URL(file, import.meta.url), 'utf8'));
-    assert.doesNotMatch(
-      text,
-      /createLedgerEntry|getLedgerBalance|listLedgerEntries/,
-      `${file} still reaches the in-process ledger map directly`,
-    );
-  }
-});

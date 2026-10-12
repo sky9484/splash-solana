@@ -16,29 +16,18 @@
  */
 import type { Check } from './health-checks.ts';
 import { relyingPartyId } from '../auth/passkey.ts';
-import { readUsdyOracle } from './ondo-oracle.ts';
-import { getPegStatus } from './peg.ts';
-import { laneClient } from './stablecoin-chain.ts';
-import { anchorFeeEnabled } from '../payments/stablecoin-lane.ts';
-import { navPriceUsd } from './usdy.ts';
 import { screenWalletAddress } from './wallet-screening.ts';
 import { parseLaunchScope } from '../launch-scope-rules.ts';
 
 type Fetcher = typeof fetch;
 
 const TIMEOUT_MS = 6_000;
-const SUI_ADDRESS = /^0x[0-9a-fA-F]{64}$/;
-const GUIDE = 'docs/STABLECOIN-LANE.md';
 
 const ok = (detail: string, latencyMs?: number): Check => ({ ok: true, status: 'ok', detail, ...(latencyMs === undefined ? {} : { latencyMs }) });
 const skipped = (detail: string): Check => ({ ok: true, status: 'skipped', detail });
 const failed = (detail: string, latencyMs?: number): Check => ({ ok: false, status: 'fail', detail, ...(latencyMs === undefined ? {} : { latencyMs }) });
 
-const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 const reason = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const hostOf = (url: string | undefined, fallback: string) => {
-  try { return url ? new URL(url).host : fallback; } catch { return url ?? fallback; }
-};
 
 async function withTimeout<T>(label: string, run: () => Promise<T>): Promise<{ value: T; ms: number }> {
   const started = Date.now();
@@ -54,92 +43,9 @@ async function withTimeout<T>(label: string, run: () => Promise<T>): Promise<{ v
   }
 }
 
-/* ── The USDC lane's own node (mainnet, gRPC) ─────────────────────────── */
-
-export async function checkLaneNode(env: NodeJS.ProcessEnv = process.env): Promise<Check> {
-  const host = hostOf(env.SUI_MAINNET_RPC_URL, 'fullnode.mainnet.sui.io');
-  try {
-    const { value, ms } = await withTimeout('Sui mainnet', () => laneClient().core.getReferenceGasPrice());
-    return ok(`mainnet via ${host}: reference gas price ${value.referenceGasPrice}`, ms);
-  } catch (e) {
-    return failed(`mainnet via ${host}: ${reason(e)}. USDC transfers cannot be built or sent; set SUI_MAINNET_RPC_URL to a gRPC-web node you trust.`);
-  }
-}
-
-/* ── Prices ────────────────────────────────────────────────────────────── */
-
-export async function checkPeg(env: NodeJS.ProcessEnv = process.env): Promise<Check> {
-  try {
-    const { value: peg, ms } = await withTimeout('DeepBook', () => getPegStatus(env));
-    if (!peg.deepbook) {
-      return failed(`DeepBook gave no usable stablecoin book: payouts pause (peg_unverified) until it does. See ${GUIDE}, Prices.`, ms);
-    }
-    const reading = `${peg.deepbook.pair} mid ${peg.deepbook.midPrice.toFixed(4)}, ${peg.deepbook.deviationBps} bps from 1`;
-    return peg.pegged
-      ? ok(reading, ms)
-      : failed(`${reading}: past the tolerance (DEEPBOOK_PEG_TOLERANCE_BPS), so payouts are paused.`, ms);
-  } catch (e) {
-    return failed(`DeepBook: ${reason(e)}. Payouts pause until the peg can be read.`);
-  }
-}
-
-export async function checkUsdyPrice(env: NodeJS.ProcessEnv = process.env, fetcher: Fetcher = fetch): Promise<Check> {
-  if ((env.USDY_ORACLE ?? '').trim().toLowerCase() === 'off') {
-    return skipped('USDY_ORACLE=off: the treasury preview uses USDY_REDEMPTION_USD instead');
-  }
-  const node = hostOf(env.ETHEREUM_RPC_URL, 'ethereum-rpc.publicnode.com');
-  const started = Date.now();
-  const reading = await readUsdyOracle(env, fetcher);
-  const ms = Date.now() - started;
-  if (!reading) {
-    return failed(`Ondo's USDY oracle could not be read through ${node}: the treasury preview falls back to USDY_REDEMPTION_USD, or shows no price. Set ETHEREUM_RPC_URL to a working Ethereum node.`, ms);
-  }
-  return ok(`$${navPriceUsd(reading.priceMicros)} from Ondo's oracle via ${node}, as of ${reading.observedAt.toISOString()}`, ms);
-}
-
-/* ── The fee wallet ────────────────────────────────────────────────────── */
-
-/** Whether an id names an existing object on mainnet. */
-type ObjectProbe = (id: string) => Promise<boolean>;
-
-const objectExistsOnMainnet: ObjectProbe = async (id) => {
-  try {
-    const result = await laneClient().core.getObject({ objectId: id });
-    return Boolean(result?.object);
-  } catch (error) {
-    if (/not ?found|does not exist|deleted/i.test(reason(error))) return false;
-    throw error;
-  }
-};
-
-/**
- * A Sui address and an object id look the same. A coin id copied from an
- * explorer passes the format check, and USDC "sent" to it becomes owned by
- * that object, out of every wallet's reach. So the address is also checked
- * on mainnet: an existing object there is not a wallet.
- */
-export async function checkFeeAddress(env: NodeJS.ProcessEnv = process.env, isObject: ObjectProbe = objectExistsOnMainnet): Promise<Check> {
-  const address = (env.SPLASH_FEE_ADDRESS_MAINNET ?? '').trim();
-  const anchorFeeOn = anchorFeeEnabled(env);
-  if (!address) {
-    // Stablecoin transfers are free; only the audit-anchor fee needs a wallet.
-    return anchorFeeOn
-      ? failed(`STABLECOIN_ANCHOR_FEE is on but SPLASH_FEE_ADDRESS_MAINNET is not set: USDC transfers out of Splash are closed until the fee wallet is set (${GUIDE}, Configuration).`)
-      : skipped('SPLASH_FEE_ADDRESS_MAINNET not set: not needed while stablecoin transfers are free; the audit-anchor fee (off) will need it');
-  }
-  if (!SUI_ADDRESS.test(address)) {
-    return failed('SPLASH_FEE_ADDRESS_MAINNET is not a Sui address (0x followed by 64 hex characters); an Ethereum address will not do.');
-  }
-  try {
-    const { value: object, ms } = await withTimeout('Sui mainnet', () => isObject(address));
-    if (object) {
-      return failed(`SPLASH_FEE_ADDRESS_MAINNET (${short(address)}) is an object on mainnet, not a wallet: fees sent there would be owned by that object and unreachable. Copy the address from the wallet itself (Slush: Receive).`, ms);
-    }
-    return ok(`fee wallet ${short(address)} is a wallet address on mainnet; the audit-anchor fee is ${anchorFeeOn ? 'on and goes there' : 'off, so stablecoin transfers are free'}`, ms);
-  } catch (e) {
-    return failed(`could not check ${short(address)} on mainnet: ${reason(e)}`);
-  }
-}
+/* The earlier build checked its settlement node, a peg, a treasury price
+   oracle and a fee wallet here. None exists on the Solana build; the
+   Solana RPC and the Kora fee payer are checked in lib/server/health-checks.ts. */
 
 /* ── WhatsApp codes (Twilio) ──────────────────────────────────────────── */
 
@@ -185,9 +91,9 @@ export async function checkTwilio(env: NodeJS.ProcessEnv = process.env, fetcher:
 /* ── The passkey domain ───────────────────────────────────────────────── */
 
 /**
- * A passkey only works on the domain it was made for, and its Sui address —
- * the Splash wallet — is tied to it. A mismatch means the browser refuses the
- * passkey; changing the domain later means new passkeys and new addresses.
+ * A passkey only works on the domain it was made for. A mismatch means the
+ * browser refuses the passkey at sign-in; changing the domain later means
+ * everyone creates a new passkey.
  */
 export function checkPasskeyDomain(env: NodeJS.ProcessEnv = process.env): Check {
   const rpId = relyingPartyId(env);
@@ -237,6 +143,6 @@ export async function checkScreening(env: NodeJS.ProcessEnv = process.env, fetch
  */
 export function checkLaunchScope(env: NodeJS.ProcessEnv = process.env): Check {
   return parseLaunchScope(env.LAUNCH_SCOPE) === 'stablecoin'
-    ? ok('USDC on Sui only: wallet transfers and x402 are open; fiat, payout runs, treasury and the settling cron jobs answer 403 not_in_launch_scope')
+    ? ok('USDC transfers only: wallet transfers and x402 are open; fiat, payout runs, treasury and the settling cron jobs answer 403 not_in_launch_scope')
     : ok('full: every lane the rest of this report allows');
 }
