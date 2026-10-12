@@ -54,17 +54,6 @@ test('MemWal being unavailable costs a nickname and nothing else', async () => {
   assert.equal(await recallAssistantName('org-that-does-not-exist'), DEFAULT_ASSISTANT_NAME);
 });
 
-test('a name that was not saved is not reported as saved', async () => {
-  // The adapter answers `false` rather than throwing when nothing was stored
-  // (unconfigured, no org, relayer refused), and this used to reply "Noted"
-  // regardless. No MEMWAL credentials are set in test.
-  const { rememberAssistantName } = await import('../lib/agent/assistant-name.ts');
-  const result = await rememberAssistantName({ orgId: 'org-a', name: 'Ada' });
-  assert.equal(result.ok, false);
-  assert.match(result.message, /could not save that/);
-  assert.equal((await rememberAssistantName({ orgId: '', name: 'Ada' })).ok, false);
-});
-
 test('the chosen name reaches the model, and says it buys nothing', async () => {
   const agent = await readFile(new URL('../lib/agent/oxwal.ts', import.meta.url), 'utf8');
 

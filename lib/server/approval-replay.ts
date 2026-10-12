@@ -111,17 +111,27 @@ export async function replayThroughRoute(
   return { ok: true, ref };
 }
 
+/**
+ * The earlier build executed an approved transfer, batch or treasury action by
+ * replaying it through its Sui money route. Those routes are gone: on the
+ * Solana build a payment is a Squads vault proposal that a person approves
+ * with their device key (app/api/solana/payments/*), so there is nothing to
+ * replay. An approval of the old kind is refused, and nothing is paid.
+ */
+const EARLIER_RAIL =
+  'This approval was for the earlier payment rail, which this build no longer runs. Nothing was paid. Create the payment again; it will be approved on your vault with your device key.';
+
 export async function authorizeTransferForApproval(input: ReplayInput): Promise<ReplayResult> {
-  const { POST } = await import('@/app/api/transfers/authorize/route');
-  return replayThroughRoute(POST, '/api/transfers/authorize', input);
+  void input;
+  return { ok: false, error: EARLIER_RAIL };
 }
 
 export async function authorizeBatchForApproval(input: ReplayInput): Promise<ReplayResult> {
-  const { POST } = await import('@/app/api/batches/authorize/route');
-  return replayThroughRoute(POST, '/api/batches/authorize', input);
+  void input;
+  return { ok: false, error: EARLIER_RAIL };
 }
 
 export async function authorizeTreasuryForApproval(input: ReplayInput): Promise<ReplayResult> {
-  const { POST } = await import('@/app/api/treasury/route');
-  return replayThroughRoute(POST, '/api/treasury', input);
+  void input;
+  return { ok: false, error: EARLIER_RAIL };
 }

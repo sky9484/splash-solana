@@ -1,12 +1,10 @@
-import { faucetUrl, suiVisionAccountUrl } from '@/lib/explorer';
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Headphones, ShieldCheck, Wallet } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Headphones, ShieldCheck } from 'lucide-react';
 
 import { adminConsolePath } from '@/lib/admin-routing';
 import { listKybCasesForStaff } from '@/lib/server/kyb';
 import { listSupportTickets } from '@/lib/server/support';
-import { getOperatorWalletInfo } from '@/lib/server/sui-settlement';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +13,6 @@ export default async function AdminOverviewPage() {
   const hostname = headerStore.get('host');
   const kybCases = await listKybCasesForStaff();
   const tickets = listSupportTickets();
-  const wallet = await getOperatorWalletInfo().catch(() => null);
   const pendingKyb = kybCases.filter((item) => item.state === 'SUBMITTED' || item.state === 'IN_REVIEW' || item.state === 'NEEDS_INFORMATION');
   const openTickets = tickets.filter((ticket) => ticket.status === 'OPEN' || ticket.status === 'IN_REVIEW');
   const complaints = tickets.filter((ticket) => ticket.type === 'complaint' && ticket.status !== 'CLOSED');
@@ -79,47 +76,6 @@ export default async function AdminOverviewPage() {
           </div>
         </Link>
       </section>
-
-      {wallet && (
-        <section className="dash-surface p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#5C9EAD]/10 text-[#237284]">
-              <Wallet className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-black text-[#1f4350]">Operator wallet</h2>
-              <p className="text-xs text-[#326273]/90">This is the address the server&apos;s Sui CLI uses to pay for gas and fund settlements.</p>
-            </div>
-            <span className={`ml-auto rounded-full px-3 py-1 text-xs font-bold ${BigInt(wallet.totalMist) < 100_000_000n ? 'bg-red-100 text-red-700' : BigInt(wallet.totalMist) < 1_000_000_000n ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-800'}`}>
-              {wallet.totalSui} SUI
-            </span>
-          </div>
-          <div className="rounded-2xl bg-[#F6F0ED] p-4 font-mono text-xs text-[#326273] break-all">
-            {wallet.address}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-xs">
-            <a
-              href={suiVisionAccountUrl(wallet.address)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg border border-[#5C9EAD]/40 px-3 py-1.5 font-semibold text-[#326273] hover:border-[#5C9EAD]"
-            >
-              View on Sui Explorer
-            </a>
-            {faucetUrl(wallet.address) && (
-              <a
-                href={faucetUrl(wallet.address) as string}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg bg-[#237284] px-3 py-1.5 font-semibold text-white hover:bg-[#145d6a]"
-              >
-                Get testnet SUI (faucet)
-              </a>
-            )}
-            <span className="ml-auto text-[#326273]/90">{wallet.coinCount} coin{wallet.coinCount !== 1 ? 's' : ''} · {wallet.totalMist.toLocaleString()} MIST</span>
-          </div>
-        </section>
-      )}
 
       <section className="grid gap-5 md:grid-cols-3">
         <Control icon={ShieldCheck} title="Separated admin domain" detail="Use `/admin/*` locally and map the same routes to `admin.splash.xyz/*` at deploy/proxy level." />

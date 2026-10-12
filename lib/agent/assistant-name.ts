@@ -24,11 +24,6 @@ import { DEFAULT_ASSISTANT_NAME } from '@/lib/agent/assistant-name-shared';
 
 export { DEFAULT_ASSISTANT_NAME };
 
-/** The phrase a stored name is wrapped in, so recall can find and parse it. */
-const MARKER = 'Preferred assistant name';
-/** A stored name, and nothing else: the whole memory is the marker sentence. */
-const STORED_NAME = /^Preferred assistant name is "([^"]+)"\.?$/;
-
 /**
  * Names people may actually choose.
  *
@@ -67,22 +62,20 @@ export async function rememberAssistantName(input: unknown): Promise<{
     };
   }
 
-  // Cosmetic. A memory that did not save is not worth failing a conversation
-  // over, and saying so is better than pretending it stuck. The adapter
-  // reports that with `false` rather than a throw, so both are read: this
-  // said "Noted" whenever MemWal was unconfigured or refused the write.
-  const notSaved = {
-    ok: false,
-    message: `I could not save that just now, so I will still answer to ${DEFAULT_ASSISTANT_NAME}.`,
-  };
-  try {
-    const { rememberForOrg } = await import('@/lib/server/memwal');
-    const saved = await rememberForOrg(orgId, `${MARKER} is "${clean}".`);
-    if (!saved) return notSaved;
-    return { ok: true, name: clean, message: `Noted — I will answer to ${clean} from now on.` };
-  } catch {
-    return notSaved;
+  // Cosmetic, and kept per organisation in this server process only: the
+  // earlier build's behaviour-memory store is gone, and a nickname is not
+  // worth a table. A restart brings back the default name.
+  if (!orgId.trim()) {
+    return { ok: false, message: `I could not save that just now, so I will still answer to ${DEFAULT_ASSISTANT_NAME}.` };
   }
+  names().set(orgId, clean);
+  return { ok: true, name: clean, message: `Noted — I will answer to ${clean} from now on.` };
+}
+
+const globalNames = globalThis as typeof globalThis & { splashAssistantNames?: Map<string, string> };
+function names(): Map<string, string> {
+  globalNames.splashAssistantNames ??= new Map();
+  return globalNames.splashAssistantNames;
 }
 
 /**
@@ -98,16 +91,6 @@ export async function recallAssistantName(orgId: string): Promise<string> {
   // refuses a blank org too; this answers before importing it.
   if (!orgId.trim()) return DEFAULT_ASSISTANT_NAME;
 
-  try {
-    const { recallForOrg } = await import('@/lib/server/memwal');
-    const memories = await recallForOrg(orgId, MARKER, 5);
-    for (const memory of memories) {
-      const match = STORED_NAME.exec(memory.text);
-      const candidate = match?.[1] ? sanitiseName(match[1]) : null;
-      if (candidate) return candidate;
-    }
-  } catch {
-    // Fall through to the default.
-  }
-  return DEFAULT_ASSISTANT_NAME;
+  const stored = names().get(orgId);
+  return (stored && sanitiseName(stored)) || DEFAULT_ASSISTANT_NAME;
 }

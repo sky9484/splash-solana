@@ -101,6 +101,8 @@ export const envSchema = z.object({
   SPLASH_PACKAGE_ID: objectId,
   SPLASH_CORE_PACKAGE_ID: objectId,
   SPLASH_CUSTODY_PACKAGE_ID: objectId,
+  /** The non-custody gate (lib/server/custody-phase.ts). '2' only when a licence allows holding funds; anything else is Phase 0. */
+  SPLASH_CUSTODY_PHASE: withDefault(z.enum(['0', '2']), '0'),
   SPLASH_PAYOUT_DELEGATION_ID: objectId,
   SPLASH_TREASURY_ID: objectId,
   SPLASH_ADMIN_CAP_ID: objectId,

@@ -12,8 +12,8 @@ import { copilotModel } from '../ai/model.ts';
 
 import { getCorridorFeeBps } from '@/lib/fx/corridors';
 import { custodyPhaseEnabled } from '@/lib/server/custody-phase';
-import { recallForOrg, rememberForOrg, type RecalledMemory } from '@/lib/server/memwal';
-import { getTreasuryRate } from '@/lib/server/usdy';
+/** A remembered behaviour, as the earlier build's memory store returned it. */
+type RecalledMemory = { blob_id: string; text: string; distance: number };
 
 export interface CopilotSuggestion {
   suggestionId: string;
@@ -73,7 +73,8 @@ function normaliseAmount(raw: string): { amount: string; amountMinor: bigint } {
 function rememberInvoiceVendor(orgId: string, recipient: string, currency: string): void {
   const vendor = recipient.replace(/\s+/g, ' ').trim().slice(0, 80);
   if (!vendor || !currency) return;
-  void rememberForOrg(orgId, `Invoice vendor ${vendor} settles in ${currency}`);
+  // No behaviour memory on this build (the earlier MemWal store is gone).
+  void orgId;
 }
 
 export async function parseInvoice(
@@ -255,16 +256,10 @@ export function suggestionsFromMemories(memories: RecalledMemory[]): CopilotSugg
  * shown at an invented 60%.
  */
 export function idleCashSuggestion(custodyOn: boolean, executionOn: boolean): CopilotSuggestion | null {
-  if (!custodyOn || !executionOn) return null;
-  const rate = getTreasuryRate();
-  return {
-    suggestionId: `cop_${Date.now()}`,
-    type: 'treasury',
-    title: 'Put idle USDC to work',
-    description: `Idle Available cash earns 0%. Smart Treasury (Ondo USDY, T-bill) is ${rate.label}. Move some over?`,
-    confidence: null,
-    requiresAuth: true,
-  };
+  // Treasury is not on the Solana build (prompt 07 §4.2), so there is no card.
+  void custodyOn;
+  void executionOn;
+  return null;
 }
 
 /** What the cards ask memory for. The copilot page never sent its own. */
@@ -278,15 +273,13 @@ const SUGGESTION_RECALL_QUERY = 'patterns';
 export async function getCopilotSuggestions(
   orgId: string,
   custodyOn: boolean = custodyPhaseEnabled(),
-  // The same reading as app/api/treasury/route.ts.
+  // Kept for callers; treasury is not on this build, so it changes nothing.
   treasuryExecutionOn: boolean = process.env.TREASURY_EXECUTION_ENABLED === 'true',
 ): Promise<CopilotSuggestion[]> {
-  let out: CopilotSuggestion[] = [];
-  try {
-    out = suggestionsFromMemories(await recallForOrg(orgId, SUGGESTION_RECALL_QUERY, 6));
-  } catch {
-    // memory unavailable — fall back below
-  }
+  const out: CopilotSuggestion[] = [];
+  // No behaviour memory on this build, so suggestions come from nothing remembered.
+  void orgId;
+  void SUGGESTION_RECALL_QUERY;
   if (out.length === 0) {
     const fallback = idleCashSuggestion(custodyOn, treasuryExecutionOn);
     if (fallback) out.push(fallback);

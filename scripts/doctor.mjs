@@ -134,9 +134,8 @@ const { runHealthChecks } = await import('@/lib/server/health-checks.ts');
 const report = await runHealthChecks();
 
 const NAMES = {
-  rpc: 'Sui RPC', package: 'Package ID', db: 'Postgres', seal: 'Seal',
+  rpc: 'Solana RPC', kora: 'Fee payer (Kora)', db: 'Postgres', seal: 'Seal (evidence)',
   // Go-live: the setup steps a person does by hand.
-  laneNode: 'Sui mainnet (USDC)', peg: 'Peg (DeepBook)', usdyPrice: 'USDY price (Ondo)', feeAddress: 'Fee wallet',
   twilio: 'WhatsApp (Twilio)', passkeyDomain: 'Passkey domain', screening: 'Wallet screening',
   launchScope: 'Launch scope',
 };

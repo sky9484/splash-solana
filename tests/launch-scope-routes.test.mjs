@@ -70,11 +70,9 @@ async function refused(res, label) {
   assert.equal(body.code, 'not_in_launch_scope', label);
 }
 
-test('customer routes: transfers, batches, treasury, funding and rate holds refuse, and nothing is deferred', async () => {
+test('customer routes: funding and rate holds refuse, and nothing is deferred', async () => {
+  // The earlier build's transfer, batch and treasury routes are gone (prompt 07 §4.2).
   const cases = [
-    ['@/app/api/transfers/authorize/route', '/api/transfers/authorize', { recipientName: 'Maria', amountUsd: 500, targetCurrency: 'PHP' }],
-    ['@/app/api/batches/authorize/route', '/api/batches/authorize', { batchId: 'b1' }],
-    ['@/app/api/treasury/route', '/api/treasury', { action: 'allocate', amountUsd: 100 }],
     ['@/app/api/funding/sessions/route', '/api/funding/sessions', { amountUsd: 100 }],
     ['@/app/api/rate-holds/route', '/api/rate-holds', { targetCurrency: 'PHP', amountUsd: 100 }],
   ];
@@ -85,19 +83,13 @@ test('customer routes: transfers, batches, treasury, funding and rate holds refu
   assert.equal(scope.deferred.length, 0, 'no settlement was handed to after()');
 });
 
-test('webhooks and cron jobs refuse once their secret checks out, and still answer 401 without it', async () => {
+test('funding webhooks refuse once their secret checks out', async () => {
   const deposits = await import('@/app/api/funding/deposits/route');
   await refused(await deposits.POST(post('/api/funding/deposits', { sessionId: 's' }, { 'x-funding-webhook-secret': process.env.FUNDING_WEBHOOK_SECRET })), 'funding/deposits');
   const usd = await import('@/app/api/funding/usd-deposits/route');
   await refused(await usd.POST(post('/api/funding/usd-deposits', { sessionId: 's' }, { 'x-funding-webhook-secret': process.env.FUNDING_WEBHOOK_SECRET })), 'funding/usd-deposits');
-
-  const auth = { authorization: `Bearer ${process.env.CRON_SECRET}` };
-  for (const job of ['audit-batch', 'update-peg', 'accrue-yield', 'settle-withdrawals']) {
-    const route = await import(`@/app/api/cron/${job}/route`);
-    await refused(await route.POST(post(`/api/cron/${job}`, {}, auth)), job);
-    const anonymous = await route.POST(post(`/api/cron/${job}`));
-    assert.equal(anonymous.status, 401, `${job} without the secret is still 401`);
-  }
+  // The four cron jobs this checked (audit-batch, update-peg, accrue-yield,
+  // settle-withdrawals) were Sui settlement and treasury, removed on this build.
 });
 
 test('an approval of an out-of-scope payment is recorded, not carried out', async () => {

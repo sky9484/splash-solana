@@ -5,7 +5,22 @@ import type { SimulationResult, UnsignedProposal, UserRole } from '../agent/type
 import type { AuditReceipt } from '../server/operations.ts';
 import { readSealPolicy, sealAdapter, type SealPolicy } from '../evidence-sui/seal.ts';
 import { retrieveBlob, storeEncryptedInvoice, type WalrusBlob } from '../evidence-sui/walrus.ts';
-import type { DomainTag, PaymentCommitmentPayload } from './commitment.ts';
+/**
+ * The commitment record of a payment settled by the EARLIER build, kept so its
+ * evidence bundles still read. The Solana build commits evidence with
+ * lib/solana-evidence (canonical JSON + sha256 Merkle leaves, anchored with SAS).
+ */
+type DomainTag = 'splash:payment:v1' | 'splash:receipt:v1';
+type PaymentCommitmentPayload = {
+  sender: string;
+  recipient: string;
+  beneficiaryRef: string;
+  amount: bigint | number | string;
+  currency: string;
+  corridor: string;
+  targetCurrency: string;
+  fxRateUsdLocal: bigint | number | string;
+};
 
 export type EvidenceConversationItem = {
   role: 'USER' | 'ASSISTANT' | 'TOOL' | 'SYSTEM';

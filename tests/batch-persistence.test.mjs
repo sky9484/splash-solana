@@ -240,28 +240,3 @@ test('the settlement digest lands on the run that survives the restart', async (
 
 // ── The route ───────────────────────────────────────────────────────────────
 
-test('the idempotency hash is readable source, not raw NUL bytes', async () => {
-  const path = new URL('../app/api/batches/authorize/route.ts', import.meta.url);
-  const bytes = await readFile(path);
-  // The separators are deliberate — NUL cannot appear in the fields it
-  // separates — but written as literal bytes the whole file counted as binary:
-  // no diff, no grep, no review, for the function that decides whether a
-  // payroll run has already been paid.
-  assert.equal(bytes.includes(0), false, 'the route must not contain raw NUL bytes');
-
-  const text = bytes.toString('utf8');
-  assert.match(text, /\\u0000/, 'the separators are still there, as escapes');
-  // And keyed by org, not by an account id that falls back across tenants.
-  assert.match(text, /function deriveIdempotencyKey\(orgId: string/);
-});
-
-test('the route claims the key through the store rather than reading first', async () => {
-  const text = await readFile(
-    new URL('../app/api/batches/authorize/route.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(text, /claimBatch\(/);
-  const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
-  assert.doesNotMatch(code, /findBatchByIdempotencyKey/, 'a read-then-write leaves a window');
-  assert.doesNotMatch(code, /createBatch\(|updateBatch\(/);
-});

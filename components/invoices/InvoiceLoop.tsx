@@ -25,7 +25,6 @@ import {
 import { toast } from 'sonner';
 
 import LocalTime from '@/components/LocalTime';
-import MemWalBehaviorCard from '@/components/MemWalBehaviorCard';
 import OxWalComposer, { type OxWalComposerChip } from '@/components/oxwal/OxWalComposer';
 import StatusBadge from '@/components/StatusBadge';
 import { stashBatchDraft } from '@/lib/batch-parse';
@@ -365,7 +364,6 @@ export default function InvoiceLoop() {
 
         <aside className="space-y-4">
           <ReleaseRail stages={releaseStages} />
-          <MemWalBehaviorCard compact />
           <IntentPanel selected={selected} suggestion={suggestion} href={transferHref} />
         </aside>
       </section>

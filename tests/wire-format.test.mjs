@@ -50,16 +50,6 @@ test('a Date becomes an ISO string rather than an empty object', () => {
   assert.equal(jsonSafe({ at: d }).at, '2026-09-05T12:00:00.000Z');
 });
 
-test('the peg-status route uses the money responder', () => {
-  const source = readFileSync('app/api/quotes/peg-status/route.ts', 'utf8');
-  assert.match(source, /moneyJson\(/);
-  assert.doesNotMatch(
-    source.replace(/\/\*[\s\S]*?\*\//g, ' '),
-    /NextResponse\.json\(/,
-    'this payload carries Rate values; NextResponse.json throws on their bigints',
-  );
-});
-
 /**
  * The other half of the same afternoon: six routes called
  * `resolveSessionAccount` directly, so an account with no membership — the

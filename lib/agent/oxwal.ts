@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { composeAndSimulateProposal } from '../chain/compose.ts';
+import { simulateDraft } from './simulate-draft.ts';
 import { copilotModel } from '../ai/model.ts';
 import { findSavedRecipient, listSavedRecipients } from './recipient-tools.ts';
 import { prepareBeneficiaryFromInvoice } from './invoice-intake.ts';
@@ -25,7 +25,6 @@ import {
   rememberAssistantName,
 } from './assistant-name.ts';
 import { estimateNettingSavedUsd, getCorridorFeeBps, getUsdCorridorByCurrency } from '../fx/corridors.ts';
-import { getUsdyNetApyPct } from '../server/usdy.ts';
 import { checkMinimumSettlement } from '../policy/limits.ts';
 import { InMemoryProposalStore } from '../queue/proposal-state.ts';
 import {
@@ -769,9 +768,9 @@ function requireCorridorFx(currency: string): ReturnType<typeof resolveCorridorF
   return fx;
 }
 
-/** Net Smart Treasury yield (floating Ondo USDY), in bps — one source of truth. */
+/** Treasury is not on the Solana build (prompt 07 §4.2): no yield is quoted. */
 function treasuryYieldBps(): number {
-  return Math.round(getUsdyNetApyPct() * 100);
+  return 0;
 }
 
 function assertNoRawDestination(input: Record<string, unknown>) {
@@ -903,7 +902,7 @@ async function createDraftProposal(input: {
   // one (rejected, lapsed, carried out) no longer holds the key, so drafting the
   // same thing again is a new proposal rather than the old one handed back.
   const stored = store.create(proposal);
-  const composed = await composeAndSimulateProposal(stored);
+  const composed = await simulateDraft(stored);
   // Persist the simulation outcome so the approval surfaces (in-chat approve,
   // control-room queue) act on the same state the operator saw in the chat —
   // without this the store copy stays DRAFTED and submission 409s.

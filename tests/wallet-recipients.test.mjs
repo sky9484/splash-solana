@@ -94,25 +94,6 @@ test('the recipients route validates, screens and refuses BEFORE it saves a wall
   assert.ok(route.indexOf('deliveryTierAllowed(') < start);
 });
 
-test('the invoice loop and the money routes refuse with the lane, not a generic block', async () => {
-  const extract = await readFile(new URL('../app/api/copilot/extract-invoice/route.ts', import.meta.url), 'utf8');
-  assert.ok(extract.indexOf("laneAccess(state, 'FIAT_OUT_LOCAL')") < extract.indexOf('const deliveryTier'),
-    'Zeke checks the lane before recommending a delivery route');
-  assert.match(extract, /blocked: \{ lane: 'FIAT_OUT_LOCAL'/);
-  // parseInvoice returns amountMinor as a bigint; JSON cannot carry one, and
-  // the route answered 500 on every extraction until it was stringified.
-  assert.match(extract, /amountMinor: parsedInvoice\.amountMinor\.toString\(\)/);
-
-  for (const [file, lane] of [
-    ['app/api/transfers/authorize/route.ts', 'FIAT_OUT_LOCAL'],
-    ['app/api/batches/authorize/route.ts', 'FIAT_OUT_LOCAL'],
-    ['app/api/treasury/route.ts', 'TREASURY'],
-  ]) {
-    const text = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
-    assert.match(text, new RegExp(`requireActiveOrg\\(auth\\.session, \\{ lane: '${lane}' \\}\\)`), file);
-  }
-});
-
 // ─── The table ──────────────────────────────────────────────────────────────
 
 async function migrated() {

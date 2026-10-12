@@ -226,26 +226,9 @@ test('every route that reaches fiat money or settlement refuses outside the laun
   assert.match(readFileSync(path.join(ROOT, 'lib/server/approval-execution.ts'), 'utf8'), /kindInScope\(proposal\.kind, launchScope\(\)\)/);
 });
 
-test('the named fiat routes carry the guard', () => {
-  for (const route of [
-    'transfers/authorize', 'batches/authorize', 'treasury', 'funding/sessions', 'funding/sessions/[id]',
-    'funding/deposits', 'funding/usd-deposits', 'rate-holds', 'pay/[slug]',
-    'cron/accrue-yield', 'cron/settle-withdrawals', 'cron/update-peg', 'cron/audit-batch', 'recipients',
-    'stablecoin/treasury-quote', 'funding/options',
-  ]) {
-    const source = readFileSync(path.join(ROOT, 'app/api', route, 'route.ts'), 'utf8');
-    assert.ok(source.includes('refuseOutsideLaunchScope('), route);
-  }
-  // The USDC lane itself never is.
-  for (const route of ['stablecoin/quote', 'stablecoin/submit', 'x402/pay', 'pay/[slug]/usdc']) {
-    const source = readFileSync(path.join(ROOT, 'app/api', route, 'route.ts'), 'utf8');
-    assert.ok(!source.includes('refuseOutsideLaunchScope('), `${route} stays open`);
-  }
-});
-
 test("pay links never show Splash's collection account in the stablecoin scope, custody or not", async () => {
   const { payLinkBankInstructions } = await import('../lib/server/pay-link.ts');
-  const custody = { custodyPackageId: '0x' + '1'.repeat(64) };
+  const custody = { custodyEnabled: true };
   await withScope(undefined, () => assert.ok(payLinkBankInstructions(custody), 'full scope with custody shows it'));
   await withScope('stablecoin', () => assert.equal(payLinkBankInstructions(custody), null));
 });

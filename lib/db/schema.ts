@@ -271,9 +271,9 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
   /** 33-byte compressed secp256r1 point, base64. Captured at creation because
    *  the authenticator will never send it again. */
   publicKey: text('public_key').notNull(),
-  /** Derived from the public key at enrolment, with the SIP-9 0x06 flag. The
-   *  address an approval's sender must equal. */
-  suiAddress: text('sui_address').notNull(),
+  /** RETIRED (drizzle/0028): the earlier build derived a chain address from
+   *  the passkey. Nullable and unread; dropped with the other address columns. */
+  suiAddress: text('sui_address'),
   /**
    * The WebAuthn relying-party id this credential is bound to.
    *

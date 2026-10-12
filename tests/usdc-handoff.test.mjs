@@ -180,13 +180,13 @@ test('Zeke answers it after the lane refusal and before the model', async () => 
   assert.match(oxwal, /yield \{ type: 'handoff', handoff: handoff\.handoff \}/);
 });
 
-test('the card links only into Send USDC, and Send USDC fills in without quoting', async () => {
+test('the card links only into Send USDC, which carries its query into Transfer', async () => {
   const thread = code(await readFile(new URL('../components/oxwal/ThreadView.tsx', import.meta.url), 'utf8'));
   assert.match(thread, /item\.handoff\.href\.startsWith\('\/dashboard\/send-usdc\?'\)/);
-  const desk = code(await readFile(new URL('../components/stablecoin/SendUsdcDesk.tsx', import.meta.url), 'utf8'));
-  const prefill = desk.slice(desk.indexOf("const to = params.get('to')"), desk.indexOf("setPrefilled(params.get('from') === 'zeke')"));
-  assert.match(prefill, /wallets\.some\(\(r\) => r\.id === to\)/, 'only a recipient this workspace saved');
-  assert.doesNotMatch(prefill, /getQuote\(|fetch\(/, 'filling in is not quoting');
+  // Send USDC is part of Transfer on the Solana build; the hand-off's query survives the redirect.
+  const page = code(await readFile(new URL('../app/dashboard/send-usdc/page.tsx', import.meta.url), 'utf8'));
+  assert.match(page, /redirect\(suffix \? `\/dashboard\/transfer\?\$\{suffix\}` : '\/dashboard\/transfer'\)/);
+  assert.doesNotMatch(page, /fetch\(|quote/i, 'redirecting is not quoting');
 });
 
 // ─── Phase 12: more ways to ask, and the model's own way in ─────────────────
