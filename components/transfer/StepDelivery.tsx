@@ -77,7 +77,7 @@ export default function StepDelivery({ state, set, prev, next }: { state: Transf
                       ? 'Locked until Phase 2'
                       : lock === 'sweep_switch'
                         ? 'Switched off right now. Choose a direct payout instead.'
-                        : 'Available when in-country custody partner is live — pilot via PDAX.'}
+                        : 'Available when an in-country custody partner is live.'}
                   </small>
                 )}
               </span>

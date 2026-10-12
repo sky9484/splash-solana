@@ -110,18 +110,13 @@ test('with no collection account the payer is told to pay the issuer, and why, i
 
 /* ── The landing ───────────────────────────────────────────────────────── */
 
-test('the landing ladder puts both fund-holding rungs in Phase 2, in the licence words', async () => {
+test('the landing offers no fund-holding rung: the Solana build never holds the money', async () => {
+  // The ladder once sold a sweep account and a stored balance (both hold funds, and need a licence
+  // Splash does not have). On the Solana build the money stays in the business's own vault and the
+  // payout partner pays the bank, so the landing names neither (prompt 07 §12: treasury out of scope).
   const landing = await source('components/IsometricLanding.tsx');
-  const start = landing.indexOf('const recipientLadder');
-  assert.ok(start > 0, 'the ladder exists');
-  const ladder = landing.slice(start, landing.indexOf('];', start));
-  // It sold the sweep account as a "Phase 1 launch" into "a Splash account",
-  // and stored balance as merely "Corridor gated".
-  assert.doesNotMatch(ladder, /Phase 1 launch|Corridor gated|sweep value into a Splash account/);
-  for (const title of ['Sweep account', 'Stored balance']) {
-    assert.match(ladder, new RegExp(`title: '${title}',\\s*status: 'Phase 2'`), `${title} is Phase 2`);
-  }
-  assert.match(ladder, /\$\{CUSTODY_LICENCE\}/, 'the sweep rung names the licence it waits for');
+  assert.doesNotMatch(landing, /const recipientLadder|Sweep account|Stored balance|Phase 1 launch|sweep value into a Splash account/);
+  assert.match(landing, /We never hold the money|no Splash key can move/i);
 });
 
 /* ── Settings ──────────────────────────────────────────────────────────── */

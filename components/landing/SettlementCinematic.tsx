@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import {
   motion,
   useMotionValue,
@@ -13,7 +13,6 @@ import {
   type MotionValue,
 } from 'framer-motion';
 
-import WaitlistCta from '@/components/landing/WaitlistCta';
 import { lockedCopy } from '@/content/claims';
 
 const HERO_IMG = '/cinematic/hero-district-v5.png';
@@ -30,42 +29,46 @@ const rise = {
   shown: { opacity: 1, y: 0, transition: { duration: 0.8, ease: EASE_OUT_EXPO } },
 };
 
+/* The money path, station by station, in the order money moves (prompt 07 §6.1): your vault, a
+   person approves, the payout partner pays the bank, the receipt anchored on Solana and traceable on
+   Solscan. They appear one after another as the reader scrolls, clockwise from the top left. No Solana logo is drawn here: there
+   is no approved Solana mark in public/ yet, so the network is named in words. */
 const telemetry = [
   {
-    id: 'corridor',
+    id: 'vault',
     className: 'cin-callout-a',
     enter: 0.27,
-    tag: 'Corridor · Sandbox',
+    tag: '1 · Your vault',
+    value: 'Squads, on Solana',
+    meta: 'No Splash key can move it',
+  },
+  {
+    id: 'approve',
+    className: 'cin-callout-b',
+    enter: 0.31,
+    tag: '2 · A person approves',
+    value: 'Signed on your device',
+    meta: lockedCopy.agent,
+    badge: '/cinematic/agent-bot.png',
+    badgeAlt: 'Zeke assistant robot',
+  },
+  {
+    id: 'partner',
+    className: 'cin-callout-d',
+    enter: 0.35,
+    tag: '3 · Payout partner',
     value: 'USDC → PHP',
-    meta: "Paid to the supplier's bank by a payout partner",
+    meta: "Pays the supplier's bank. Mock partner · devnet",
     badge: '/cinematic/token-php.png',
     badgeAlt: 'Philippine peso token',
   },
   {
-    id: 'fee',
-    className: 'cin-callout-b',
-    enter: 0.31,
-    tag: 'Edge fee · Modeled',
-    value: lockedCopy.fee,
-    meta: lockedCopy.feeFootnote,
-  },
-  {
-    id: 'treasury',
+    id: 'receipt',
     className: 'cin-callout-c',
-    enter: 0.35,
-    tag: 'Vault · Your business',
-    value: 'Squads vault',
-    meta: 'No Splash key can move it',
-  },
-  {
-    id: 'agent',
-    className: 'cin-callout-d',
     enter: 0.39,
-    tag: 'Agent · Human-final',
-    value: 'Zeke desk',
-    meta: lockedCopy.agent,
-    badge: '/cinematic/agent-bot.png',
-    badgeAlt: 'Zeke assistant robot',
+    tag: '4 · Receipt',
+    value: 'Trace it on Solscan',
+    meta: 'One record per payment, checked in your browser',
   },
 ];
 
@@ -146,7 +149,7 @@ function SpinButton({
       onAnimationEnd={(event) => {
         if (event.animationName === 'cin-spin') setSpinning(false);
       }}
-      aria-label={`${alt} — spin`}
+      aria-label={`Spin the ${alt}`}
     >
       <span className={`cin-token-inner ${float}`}>
         <Image src={src} alt="" width={1024} height={1024} sizes={sizes} loading="eager" />
@@ -191,7 +194,7 @@ function Token({
   );
 }
 
-function HeroCopy({ animated, onEnterEngine }: { animated: boolean; onEnterEngine?: () => void }) {
+function HeroCopy({ animated }: { animated: boolean }) {
   return (
     <motion.div
       variants={animated ? riseParent : undefined}
@@ -201,37 +204,23 @@ function HeroCopy({ animated, onEnterEngine }: { animated: boolean; onEnterEngin
       <motion.p variants={animated ? rise : undefined} className="iso-kicker">
         Splash · Settlement on Solana
       </motion.p>
-      {/* Display headline (visual) — the real <h1> below carries the SEO wedge. */}
-      <motion.p variants={animated ? rise : undefined} className="iso-display" role="presentation">
+      <motion.h1 variants={animated ? rise : undefined} className="iso-display">
         Pay suppliers abroad.
         <span>Prove every payment.</span>
-      </motion.p>
-      <motion.h1 variants={animated ? rise : undefined} className="cin-hero-h1">
-        Supplier payments from Malaysia to the Philippines and Indonesia
       </motion.h1>
       <motion.p variants={animated ? rise : undefined} className="iso-hero-description">
         Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana.
         Delivered to their bank. Proof for the auditor. We never hold the money.
       </motion.p>
       <motion.div variants={animated ? rise : undefined} className="iso-hero-actions">
+        {/* One primary, one secondary. The waitlist lives in the closing section. */}
         <Link href="/signup" className="iso-button">
           Open payment desk
           <ArrowRight aria-hidden="true" />
         </Link>
-        {onEnterEngine ? (
-          <button type="button" className="iso-button iso-button-ghost" onClick={onEnterEngine}>
-            See the network
-          </button>
-        ) : null}
-        {/* Pre-launch path: corridors roll out one at a time, so give the
-            not-ready-yet visitor a "notify me" next to the primary CTA.
-            Subordinate ghost styling keeps "Open payment desk" the one primary. */}
-        <WaitlistCta />
-      </motion.div>
-      <motion.div variants={animated ? rise : undefined} className="iso-proof-line">
-        <span><Check aria-hidden="true" /> Compliance-gated</span>
-        <span><Check aria-hidden="true" /> You don&apos;t need SOL</span>
-        <span><Check aria-hidden="true" /> A person approves</span>
+        <a href="#how-it-works" className="iso-button iso-button-ghost">
+          See how it works
+        </a>
       </motion.div>
     </motion.div>
   );
@@ -254,14 +243,15 @@ function VisionCopy() {
         <span>Proof is the product.</span>
       </h2>
       <p className="cin-vision-lede">
-        The money stays in your own vault. Splash finds the route, a person approves, a payout
-        partner pays the supplier&apos;s bank, and the proof is kept for the auditor.
+        The money stays in your own vault. A person approves, a payout partner pays the
+        supplier&apos;s bank, and the receipt is anchored on Solana, where anyone you share it with
+        can trace it on Solscan.
       </p>
       <div className="cin-vision-pillars" aria-hidden="true">
         <span>Vault</span>
-        <span>Route</span>
-        <span>Approval</span>
-        <span>Proof</span>
+        <span>Approve</span>
+        <span>Partner</span>
+        <span>Receipt</span>
       </div>
       <div className="cin-vision-actions">
         <Link href="/signup" className="iso-button iso-button-gold">
@@ -309,7 +299,7 @@ function StaticCinematic() {
           />
         </div>
       </div>
-      <div className="iso-shell cin-static-telemetry" aria-label="Network telemetry, simulated view">
+      <div className="iso-shell cin-static-telemetry" aria-label="The money path, step by step">
         {telemetry.map((item) => (
           <div className="cin-callout cin-callout-static" key={item.id}>
             <CalloutBody tag={item.tag} value={item.value} meta={item.meta} badge={item.badge} badgeAlt={item.badgeAlt} />
@@ -391,7 +381,6 @@ export default function SettlementCinematic({ isPhone = false }: { isPhone?: boo
   const heroOpacity = useTransform(scrollYProgress, [0, 0.1, 0.21], [1, 1, 0]);
   const heroY = useTransform(scrollYProgress, [0.08, 0.21], [0, -72]);
   const heroPointerEvents = useTransform(scrollYProgress, (value) => (value > 0.18 ? 'none' : 'auto'));
-  const hintOpacity = useTransform(scrollYProgress, [0, 0.06], [1, 0]);
 
   /* The network artwork: drifts to centre, swells, then the camera pushes
      into the map. */
@@ -418,12 +407,6 @@ export default function SettlementCinematic({ isPhone = false }: { isPhone?: boo
 
   if (reducedMotion || phoneLayout) {
     return <StaticCinematic />;
-  }
-
-  function enterEngine() {
-    const node = containerRef.current;
-    if (!node) return;
-    window.scrollTo({ top: node.offsetTop + node.offsetHeight * 0.66, behavior: 'smooth' });
   }
 
   function trackPointer(event: React.PointerEvent<HTMLDivElement>) {
@@ -504,7 +487,7 @@ export default function SettlementCinematic({ isPhone = false }: { isPhone?: boo
         ))}
 
         <motion.p className="cin-status" style={{ opacity: statusOpacity }}>
-          Network telemetry · Sandbox environment · No real money moves
+          Solana devnet · Sandbox · No real money moves
         </motion.p>
 
         {/* Act I — hero copy. */}
@@ -513,7 +496,7 @@ export default function SettlementCinematic({ isPhone = false }: { isPhone?: boo
           style={{ opacity: heroOpacity, y: heroY, pointerEvents: heroPointerEvents }}
         >
           <div className="iso-shell cin-copy">
-            <HeroCopy animated onEnterEngine={enterEngine} />
+            <HeroCopy animated />
           </div>
         </motion.div>
 
@@ -526,10 +509,6 @@ export default function SettlementCinematic({ isPhone = false }: { isPhone?: boo
           <VisionCopy />
         </motion.div>
 
-        <motion.div className="cin-hint" style={{ opacity: hintOpacity }} aria-hidden="true">
-          <span className="cin-hint-wheel" />
-          Scroll to settle
-        </motion.div>
       </div>
     </section>
   );

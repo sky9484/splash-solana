@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     type: 'invoice',
     title: `${deliveryTier} recommended`,
     description: deliveryTier === 'SWEEP_ACCOUNT'
-      ? 'SWEEP_ACCOUNT via PDAX - recipient has no stored-balance enablement.'
+      ? 'SWEEP_ACCOUNT via the payout partner - recipient has no stored-balance enablement.'
       : custodyPhaseEnabled()
       ? directPayout
       : `${directPayout} Phase 0 pays out only: sweep and stored-balance delivery need a money-broking licence Splash does not hold yet.`,

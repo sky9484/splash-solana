@@ -157,14 +157,14 @@ test('landing is the v1 cinematic: hero district, five steps with manual entry, 
   // The invoice loop lives inside the Invoices page now (Inspection loop tab).
   const invoiceLoop = await readFile(new URL('../components/invoices/InvoiceLoop.tsx', import.meta.url), 'utf8');
 
-  assert.match(claims, /headline: 'Collect USD\. Pay Southeast Asia\. Keep cash working\.'/);
+  assert.match(claims, /headline: 'Pay suppliers abroad\. Prove every payment\.'/);
   // The hero art is still the versioned district raster, owned by the
-  // cinematic; the landing keeps the loops and copilot sections and offers
-  // both ways into a payment — an invoice, or a hand-filled transfer.
+  // cinematic; the landing keeps the loops and copilot sections and shows the
+  // four steps prompt 07 §6.1 names.
   assert.match(cinematic, /hero-district-v\d+\.png/);
   assert.match(landing, /id="loops"/);
-  assert.match(landing, /Five steps/);
-  assert.match(landing, /Invoice in, or type it in/);
+  assert.match(landing, /Four steps\./);
+  assert.match(landing, /title: 'Best route by pesos received'/);
   assert.doesNotMatch(landing, /Early Pay|id="supply"/);
   assert.match(page, /<IsometricLanding/);
   assert.match(page, /LANDING_FAQ/, 'the FAQ JSON-LD is generated from the page copy, not duplicated');
