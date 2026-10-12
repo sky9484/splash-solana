@@ -11,7 +11,7 @@
  * verdict alone never opens the money path.
  *
  * Pure module, zero I/O: persistence lives in the repo layer, on-chain
- * reflection in lib/server/sui-settlement.ts. That keeps the rules unit
+ * reflection in the settlement code. That keeps the rules unit
  * testable without a database.
  */
 

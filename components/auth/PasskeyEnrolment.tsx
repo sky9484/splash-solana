@@ -9,13 +9,12 @@ import { createPasskey, describePasskeyError, passkeysSupported } from '@/lib/au
  *
  * It is NOT a vault signer. Payments are approved with the member's device
  * key (lib/solana/device-key.ts, set up at /dashboard/setup); nothing a
- * passkey signs can move money. The WebAuthn plumbing below still comes from
- * the earlier build and is replaced by plain WebAuthn verification when the
- * Sui SDK is confined to the evidence module (prompt 07 Phase 2).
+ * passkey signs can move money. Verification is plain WebAuthn: no chain SDK
+ * is involved (prompt 07 Phase 2).
  *
  * `authenticatorAttachment: 'platform'` — the key lives in the secure enclave
  * of the person's own phone or laptop. The public key is sent to the server
- * the instant it exists: WebAuthn hands it over once, in the attestation, and
+ * the moment it exists: WebAuthn hands it over once, in the attestation, and
  * never again.
  */
 

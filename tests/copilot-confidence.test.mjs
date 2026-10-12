@@ -32,10 +32,8 @@ import test from 'node:test';
  * not exported, and the sources carry the floors and constants above.
  */
 
-// Phase 0, and MemWal unconfigured: recall returns [], nothing is fetched.
+// Phase 0, and no behaviour-memory store on this build: nothing is recalled.
 delete process.env.SPLASH_CUSTODY_PHASE;
-delete process.env.MEMWAL_PRIVATE_KEY;
-delete process.env.MEMWAL_ACCOUNT_ID;
 
 const format = () => import('../lib/confidence.ts');
 const copilot = () => import('../lib/server/copilot.ts');
@@ -84,7 +82,7 @@ test('memory relevance is 1 - distance, clamped to 0..1, with no floor', async (
 
 test('each memory card carries its own measured relevance, and filler makes no card', async () => {
   const { suggestionsFromMemories, MIN_MEMORY_RELEVANCE } = await copilot();
-  assert.equal(MIN_MEMORY_RELEVANCE, 0.3, "the MemWal SDK's default minRelevance");
+  assert.equal(MIN_MEMORY_RELEVANCE, 0.3, "the earlier memory store's default minRelevance");
 
   const [batch] = suggestionsFromMemories([{ text: 'Monthly payroll batch to the Manila team', distance: 0.4 }]);
   assert.equal(batch.type, 'batch');

@@ -336,7 +336,7 @@ export default function InvoiceLoop() {
               // local currency, which is where this loop leads.
               <section className="dash-surface p-5 text-sm leading-6 text-[#326273]">
                 <strong className="block text-[#1F4452]">Invoice uploads are not open yet</strong>
-                {LAUNCH_SCOPE_WHY} Create an invoice without a document to get a pay link payers can settle in USDC on Sui.
+                {LAUNCH_SCOPE_WHY} Create an invoice without a document to get a pay link payers can settle in USDC on Solana.
               </section>
             )}
             <InvoicePanel invoices={invoices} selected={selected} onSelect={chooseInvoice} />

@@ -43,8 +43,8 @@ async function withTimeout<T>(label: string, run: () => Promise<T>): Promise<{ v
   }
 }
 
-/* The earlier build checked a Sui mainnet node, the DeepBook peg, the USDY
-   oracle and a Sui fee wallet here. None exists on the Solana build; the
+/* The earlier build checked its settlement node, a peg, a treasury price
+   oracle and a fee wallet here. None exists on the Solana build; the
    Solana RPC and the Kora fee payer are checked in lib/server/health-checks.ts. */
 
 /* ── WhatsApp codes (Twilio) ──────────────────────────────────────────── */
@@ -91,9 +91,9 @@ export async function checkTwilio(env: NodeJS.ProcessEnv = process.env, fetcher:
 /* ── The passkey domain ───────────────────────────────────────────────── */
 
 /**
- * A passkey only works on the domain it was made for, and its Sui address —
- * the Splash wallet — is tied to it. A mismatch means the browser refuses the
- * passkey; changing the domain later means new passkeys and new addresses.
+ * A passkey only works on the domain it was made for. A mismatch means the
+ * browser refuses the passkey at sign-in; changing the domain later means
+ * everyone creates a new passkey.
  */
 export function checkPasskeyDomain(env: NodeJS.ProcessEnv = process.env): Check {
   const rpId = relyingPartyId(env);
@@ -143,6 +143,6 @@ export async function checkScreening(env: NodeJS.ProcessEnv = process.env, fetch
  */
 export function checkLaunchScope(env: NodeJS.ProcessEnv = process.env): Check {
   return parseLaunchScope(env.LAUNCH_SCOPE) === 'stablecoin'
-    ? ok('USDC on Sui only: wallet transfers and x402 are open; fiat, payout runs, treasury and the settling cron jobs answer 403 not_in_launch_scope')
+    ? ok('USDC transfers only: wallet transfers and x402 are open; fiat, payout runs, treasury and the settling cron jobs answer 403 not_in_launch_scope')
     : ok('full: every lane the rest of this report allows');
 }

@@ -47,7 +47,7 @@ const INFORMATION = [
   {
     icon: WalletCards,
     label: 'Custody',
-    text: 'partners of record hold customer funds · reconciled daily',
+    text: 'your USDC stays in your business’s own Squads vault on Solana · no Splash key can move it',
   },
   {
     icon: Landmark,
@@ -58,12 +58,12 @@ const INFORMATION = [
     icon: Building2,
     label: 'Treasury',
     text: (custodyOn: boolean) =>
-      custodyOn ? 'Smart Treasury models projected Ondo USDY yield; execution gated; projected, not promised' : TREASURY_PHASE0,
+      custodyOn ? 'Treasury is not available on this build' : TREASURY_PHASE0,
   },
   {
     icon: Database,
     label: 'Records & privacy',
-    text: 'Seal + Walrus + daily Merkle batches + MemWal behavioral-only',
+    text: 'evidence encrypted with Seal, stored on Walrus, anchored on Solana · daily Merkle batches',
   },
   {
     icon: Users,

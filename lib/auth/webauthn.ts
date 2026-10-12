@@ -3,7 +3,7 @@ import { ECDH, createHash, createPublicKey, verify as cryptoVerify } from 'node:
 /**
  * Plain WebAuthn assertion verification, server side, with node:crypto only
  * (prompt 07 §3.2: the passkey is a sign-in / step-up factor, not a vault
- * signer; §4.1: no Sui SDK outside lib/evidence-sui).
+ * signer; §4.1: no chain SDK here at all).
  *
  * The browser signs `challenge = sha256(message)`, so an assertion is bound to
  * exactly the message the server built (the approval it describes). Checks, in

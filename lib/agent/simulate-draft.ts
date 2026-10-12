@@ -4,8 +4,8 @@ import type { SimulationResult, UnsignedProposal } from './types.ts';
  * Check a desk draft before anyone is asked to approve it: the draft's own
  * balance effect, compared with the financial impact it states.
  *
- * Chain-free. The earlier build composed each draft as a Sui transaction and
- * dry-ran it; that is gone. On the Solana build a real payment is a Squads
+ * Chain-free. The earlier build composed each draft as a transaction on its
+ * previous settlement chain and dry-ran it; that is gone. On the Solana build a real payment is a Squads
  * vault proposal that the payment flow simulates before the device prompt
  * (prompt 07 §5.4). Until desk drafts are wired to that flow, drafts are
  * checked offline only: `mode: 'mock'`, labelled as such. Asking for live

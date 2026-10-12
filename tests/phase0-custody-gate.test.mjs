@@ -76,7 +76,7 @@ test('a recipient cannot be created with a fund-holding tier in Phase 0 either',
 
 /* ── The treasury ──────────────────────────────────────────────────────── */
 
-test('the treasury page shows no demo balance or transaction as confirmed, and says when treasury arrives', async () => {
+test('the treasury page shows no demo balance or transaction as confirmed, and says treasury is not on this build', async () => {
   const page = await source('app/dashboard/treasury/page.tsx');
 
   assert.doesNotMatch(page, /SEED_HISTORY/, 'the six hardcoded transactions are gone');
@@ -87,8 +87,13 @@ test('the treasury page shows no demo balance or transaction as confirmed, and s
   assert.doesNotMatch(page, /'Audited/, 'nothing is described as audited without a source');
   assert.doesNotMatch(page, /earns a floating T-bill rate/, 'no yield promise in the header');
 
-  assert.match(page, /Treasury arrives with our licence/, 'the Phase-0 state is plain about why');
-  assert.match(page, /custody_not_licensed/, 'the page recognises the gate response');
+  // Treasury is not on the Solana build: the page says so plainly, reads no
+  // ledger, and shows no balance, rate or projection.
+  assert.match(page, /Not available on this build/, 'the page is plain that treasury is not here');
+  assert.doesNotMatch(page, /\/api\/treasury/, 'nothing reads a treasury ledger');
+  assert.doesNotMatch(page, /useState/, 'no balance state of any kind');
+  assert.doesNotMatch(page, /\byield\b|\bAPY\b|USDY/i, 'no yield or rate wording');
+  assert.match(page, /href="\/dashboard"/, 'it links back to the dashboard');
   assert.match(page, /<MoneyPathPanel \/>/, 'the money-path panel still mounts (pinned by tests/money-path.test.mjs)');
 });
 
@@ -97,8 +102,9 @@ test('the overview card and the copilot stop presenting treasury numbers in Phas
   assert.doesNotMatch(overview, /useState\(24500\)/);
   assert.doesNotMatch(overview, /useState\(98\.72\)/);
   assert.doesNotMatch(overview, /\+\$3\.22/, 'no invented daily yield');
-  assert.match(overview, /Treasury arrives with our licence/);
-  assert.match(overview, /custody_not_licensed/);
+  assert.match(overview, /Not available on this build/);
+  assert.doesNotMatch(overview, /\/api\/treasury/, 'the overview card reads no treasury ledger');
+  assert.doesNotMatch(overview, /\byield\b|\bAPY\b|USDY/i, 'no yield or rate wording on the card');
 
   // The treasury route that served the numbers is gone on the Solana build
   // (prompt 07 §4.2), so nothing can serve them in any phase.

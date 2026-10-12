@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 
 import { Keypair } from '@solana/web3.js';
@@ -23,6 +24,7 @@ import {
   bundleLeafHex,
   computeInvoiceCommitment,
   randomSalt,
+  walrusBlobIdsRoot,
 } from '../lib/solana-evidence/bundle.ts';
 import {
   buildSasAnchor,
@@ -144,10 +146,13 @@ test('bundle builder enforces I-2, I-4 and I-7', () => {
   assert.throws(() => buildCorridorPayoutBundle({ ...input, fx: { ...ok.fx, rate: '58.00' } }), /fx/);
 });
 
+/** Walrus blob ids for the three bundles below, in upload order (not sorted). */
+const BLOB_IDS = ['xQ3vB-blob_c', 'aZ9kL-blob_a', 'mN2pR-blob_b'];
+
 async function anchoredBatch() {
   const bundles = [payoutBundle('', 0), payoutBundle('_b', 10), payoutBundle('_c', 20)];
   const batch = buildEvidenceBatch(bundles, period);
-  const plan = await buildSasAnchor({ attester, batch, setup: { createCredential: true, createSchema: true } });
+  const plan = await buildSasAnchor({ attester, batch, walrusBlobIdsRoot: walrusBlobIdsRoot(BLOB_IDS), setup: { createCredential: true, createSchema: true } });
   return { bundles, batch, plan };
 }
 
@@ -214,9 +219,9 @@ test('SAS anchor: instructions round-trip through sas-lib, PDAs match, data pass
   assert.equal(cred.data.name, 'splash-evidence');
   assert.deepEqual(cred.data.signers, [attester]);
   const schema = parseCreateSchemaInstruction(schemaIx);
-  assert.equal(schema.data.name, 'splash.evidence.root.v1');
+  assert.equal(schema.data.name, 'splash.evidence.root.v2');
   assert.deepEqual([...schema.data.layout], [13, 2, 8, 8, 12]);
-  assert.deepEqual(schema.data.fieldNames, ['root', 'count', 'period_start', 'period_end', 'sui_digest']);
+  assert.deepEqual(schema.data.fieldNames, ['root', 'count', 'period_start', 'period_end', 'walrus_blob_ids_root']);
   const att = parseCreateAttestationInstruction(attIx);
   assert.equal(att.data.expiry, 0n);
   assert.equal(att.accounts.attestation.address, plan.attestationPda);
@@ -224,7 +229,7 @@ test('SAS anchor: instructions round-trip through sas-lib, PDAs match, data pass
   assert.equal(att.accounts.payer.address, attester);
 
   const [credPda] = await deriveCredentialPda({ authority: attester, name: 'splash-evidence' });
-  const [schemaPda] = await deriveSchemaPda({ credential: credPda, name: 'splash.evidence.root.v1', version: 1 });
+  const [schemaPda] = await deriveSchemaPda({ credential: credPda, name: 'splash.evidence.root.v2', version: 1 });
   const [attPda] = await deriveAttestationPda({ credential: credPda, schema: schemaPda, nonce: plan.nonce });
   assert.deepEqual([plan.credentialPda, plan.schemaPda, plan.attestationPda], [credPda, schemaPda, attPda]);
 
@@ -233,15 +238,17 @@ test('SAS anchor: instructions round-trip through sas-lib, PDAs match, data pass
   const viaSas = deserializeAttestationData(rootSchemaAccount(credPda), bytes);
   assert.equal(Buffer.from(viaSas.root).toString('hex'), batch.rootHex);
   assert.equal(viaSas.count, 3);
-  assert.deepEqual(decodeRootAttestationData(bytes), { rootHex: batch.rootHex, count: 3, periodStart: batch.periodStart, periodEnd: batch.periodEnd, suiDigest: '' });
+  const blobsRoot = walrusBlobIdsRoot(BLOB_IDS);
+  assert.deepEqual(decodeRootAttestationData(bytes), { rootHex: batch.rootHex, count: 3, periodStart: batch.periodStart, periodEnd: batch.periodEnd, walrusBlobIdsRoot: blobsRoot });
   // hand-encoded borsh equals sas-lib's
-  const manual = Buffer.alloc(4 + 32 + 4 + 8 + 8 + 4);
+  const manual = Buffer.alloc(4 + 32 + 4 + 8 + 8 + 4 + 64);
   manual.writeUInt32LE(32, 0);
   Buffer.from(batch.rootHex, 'hex').copy(manual, 4);
   manual.writeUInt32LE(3, 36);
   manual.writeBigInt64LE(batch.periodStart, 40);
   manual.writeBigInt64LE(batch.periodEnd, 48);
-  manual.writeUInt32LE(0, 56);
+  manual.writeUInt32LE(64, 56);
+  Buffer.from(blobsRoot, 'utf8').copy(manual, 60);
   assert.deepEqual(Buffer.from(bytes), manual);
   // a truncated root would be rejected by the program check
   assert.equal(validateSasDataLayout(ROOT_SCHEMA_LAYOUT, bytes.slice(0, -1)), false);
@@ -254,7 +261,7 @@ test('SAS anchor: instructions round-trip through sas-lib, PDAs match, data pass
   assert.equal(attIx.accounts.find((a) => a.address === attester).role, AccountRole.WRITABLE_SIGNER);
 
   // without setup flags only the attestation instruction is built
-  const only = await buildSasAnchor({ attester, batch });
+  const only = await buildSasAnchor({ attester, batch, walrusBlobIdsRoot: blobsRoot });
   assert.equal(only.instructions.length, 1);
   assert.equal(only.attestationPda, plan.attestationPda, 'nonce is deterministic per root');
 });
@@ -291,4 +298,41 @@ test('evidence store takes ciphertext only; Walrus adapter loads lazily', async 
   assert.equal(put.mode, 'memory');
   assert.equal(await store.get(put.blobId), 'seal:v1:Zm9vYmFy');
   assert.equal(typeof createWalrusEvidenceStore().put, 'function'); // constructing it imports nothing
+});
+
+test('walrus_blob_ids_root: order-independent, exact, and refuses duplicates or junk', () => {
+  const root = walrusBlobIdsRoot(BLOB_IDS);
+  assert.match(root, /^[0-9a-f]{64}$/);
+  assert.equal(walrusBlobIdsRoot([...BLOB_IDS].reverse()), root, 'upload order does not matter');
+  const expected = createHash('sha256').update([...BLOB_IDS].sort().join('\n')).digest('hex');
+  assert.equal(root, expected, 'sha256 over the sorted ids joined by newline');
+  assert.notEqual(walrusBlobIdsRoot(BLOB_IDS.slice(0, 2)), root, 'a missing blob changes it');
+  assert.throws(() => walrusBlobIdsRoot([]), /at least one/);
+  assert.throws(() => walrusBlobIdsRoot([BLOB_IDS[0], BLOB_IDS[0]]), /duplicate/);
+  assert.throws(() => walrusBlobIdsRoot(['has space']), /not a blob id/);
+  assert.throws(() => walrusBlobIdsRoot(['a\nb']), /not a blob id/);
+});
+
+test('a v2 anchor binds the batch to its Walrus blobs: a swapped blob id fails verification', async () => {
+  const { bundles, batch, plan } = await anchoredBatch();
+  const anchor = anchoredRootFromSas(plan.dataBytes, { signature: 'SIManchor', simulated: true });
+  const leaf = batch.leaves.find((l) => l.bundleId === bundles[0].bundleId);
+  const good = verifyBundle({ bundle: bundles[0], proof: leaf.proof, anchor, blobIds: BLOB_IDS });
+  assert.equal(good.ok, true);
+  assert.equal(good.checks.find((c) => c.name === 'blob_ids').passed, true);
+
+  const swapped = verifyBundle({ bundle: bundles[0], proof: leaf.proof, anchor, blobIds: [BLOB_IDS[0], BLOB_IDS[1], 'evil-blob'] });
+  assert.equal(swapped.ok, false);
+  assert.equal(swapped.checks.find((c) => c.name === 'blob_ids').passed, false);
+
+  // Without the blob ids the check is not claimed either way.
+  const without = verifyBundle({ bundle: bundles[0], proof: leaf.proof, anchor });
+  assert.equal(without.checks.some((c) => c.name === 'blob_ids'), false);
+});
+
+test('a SAS anchor refuses a blob-ids root that is not 32-byte hex', async () => {
+  const bundles = [payoutBundle('', 0)];
+  const batch = buildEvidenceBatch(bundles, period);
+  await assert.rejects(() => buildSasAnchor({ attester, batch, walrusBlobIdsRoot: '' }), /walrus_blob_ids_root/);
+  await assert.rejects(() => buildSasAnchor({ attester, batch, walrusBlobIdsRoot: 'AB'.repeat(32) }), /walrus_blob_ids_root/);
 });

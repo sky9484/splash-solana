@@ -3,7 +3,7 @@
  *
  * On the Solana build a customer's money sits in their organisation's Squads
  * vault, so "a Splash wallet" is a vault recorded in org_vaults (drizzle/0027).
- * The earlier build answered this from passkey-derived Sui addresses; passkeys
+ * The earlier build answered this from passkey-derived addresses; passkeys
  * no longer derive any address.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

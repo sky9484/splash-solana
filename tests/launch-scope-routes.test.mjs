@@ -98,5 +98,5 @@ test('an approval of an out-of-scope payment is recorded, not carried out', asyn
   const outcome = await executeApprovedProposal(proposal, { amountUsd: 500 }, { cookie: '', origin: ORIGIN });
   assert.equal(outcome.state, 'SKIPPED');
   assert.match(outcome.detail, /not executed/);
-  assert.match(outcome.detail, /USDC on Sui only/);
+  assert.match(outcome.detail, /USDC transfers only/);
 });

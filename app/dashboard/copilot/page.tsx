@@ -16,7 +16,7 @@ import { useOxwalThread } from '@/lib/oxwal/use-oxwal-thread';
  *
  * A chat seeded with three invented turns, backed by a keyword matcher that
  * answered "what is the PHP rate" with `56.42` from a string literal, beside a
- * "MemWal Memory" panel asserting this operator runs a Friday 09:00 batch of
+ * "Memory" panel asserting this operator runs a Friday 09:00 batch of
  * $11,800 across five corridors — none of it read from anything.
  *
  * The rates were the serious part. They rendered in the same bubble, weight and
@@ -25,7 +25,7 @@ import { useOxwalThread } from '@/lib/oxwal/use-oxwal-thread';
  * operator tell an invented figure from a fetched one.
  *
  * Every one of those is gone. The chat is the tool-using agent, no behaviour
- * memory is kept (the earlier build's MemWal store is gone), and the
+ * memory is kept (the earlier build's behaviour store is gone), and the
  * suggestions come from /api/copilot/suggest or the rail says there are none.
  *
  * ─── Why suggestions became prompts ─────────────────────────────────────────
@@ -269,7 +269,7 @@ export default function CopilotPage() {
         <div className="space-y-2">
           {[
             { label: 'Batch payout', href: '/dashboard/batch', icon: Layers },
-            { label: 'Treasury yield', href: '/dashboard/treasury', icon: TrendingUp },
+            { label: 'Treasury', href: '/dashboard/treasury', icon: TrendingUp },
             { label: 'Command desk', href: '/dashboard', icon: Globe },
           ].map(({ label, href, icon: Icon }) => (
             <Link

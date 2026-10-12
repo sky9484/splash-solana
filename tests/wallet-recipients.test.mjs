@@ -11,7 +11,8 @@ import { attestation, screenWalletAddress, walletSendable } from '../lib/server/
  * listed, and impossible to store malformed — at the route and in the table.
  */
 
-const ADDRESS = `0x${'ab'.repeat(32)}`;
+/** A real devnet address (the proof run's vault): base58, case-sensitive. */
+const ADDRESS = '9fZ34EK7nfX5f3aR8yfXq9oQb8Dqv2Km2h1T4mQ7bKGx';
 const NOW = new Date('2026-09-24T12:00:00Z');
 
 function fakeFetch(respond) {
@@ -83,7 +84,7 @@ test('the recipients route validates, screens and refuses BEFORE it saves a wall
   assert.ok(start > 0, 'a wallet branch exists');
   const branch = route.slice(start, route.indexOf("const account = String(body.account"));
   const persistAt = branch.indexOf('persistRecipient(');
-  for (const step of ['normaliseSuiAddress(', 'WALLET_PROVIDERS', 'screenWalletAddress(', "verdict === 'BLOCK'"]) {
+  for (const step of ['normaliseSolanaAddress(', 'WALLET_PROVIDERS', 'screenWalletAddress(', "verdict === 'BLOCK'"]) {
     const at = branch.indexOf(step);
     assert.ok(at > 0 && at < persistAt, `${step} runs before the wallet is saved`);
   }
@@ -118,14 +119,14 @@ test('the table refuses a wallet recipient with no address, a bad one, or an una
     [id, method, address, provider],
   );
 
-  await insert('ok_wallet', 'WALLET', ADDRESS, 'SLUSH');
-  await insert('ok_snap', 'WALLET', `0x${'cd'.repeat(32)}`, 'METAMASK_SUI_SNAP');
+  await insert('ok_wallet', 'WALLET', ADDRESS, 'PHANTOM');
+  await insert('ok_other', 'WALLET', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'OTHER');
   await insert('ok_bank', 'BANK', null, null);
 
-  await assert.rejects(() => insert('no_addr', 'WALLET', null, 'SLUSH'), /check/i);
-  await assert.rejects(() => insert('evm', 'WALLET', '0x209693bc6afc0c5328ba36faf03c514ef312287c', 'SLUSH'), /check/i);
-  await assert.rejects(() => insert('upper', 'WALLET', `0x${'AB'.repeat(32)}`, 'SLUSH'), /check/i, 'stored lower-case only');
-  await assert.rejects(() => insert('phantom', 'WALLET', ADDRESS, 'PHANTOM'), /check/i, 'Phantom ended Sui support');
+  await assert.rejects(() => insert('no_addr', 'WALLET', null, 'PHANTOM'), /check/i);
+  await assert.rejects(() => insert('evm', 'WALLET', '0x209693bc6afc0c5328ba36faf03c514ef312287c', 'PHANTOM'), /check/i);
+  await assert.rejects(() => insert('hex32', 'WALLET', `0x${'ab'.repeat(32)}`, 'PHANTOM'), /check/i, 'a 32-byte hex address is another network');
+  await assert.rejects(() => insert('slush', 'WALLET', ADDRESS, 'SLUSH'), /check/i, 'a wallet from the earlier build is not accepted');
   await assert.rejects(() => insert('odd', 'CARD', null, null), /check/i);
   await client.close();
 });

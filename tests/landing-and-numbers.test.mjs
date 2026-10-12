@@ -216,6 +216,16 @@ test('the landing is the v1 cinematic: sections in order, supply on its own page
     assert.doesNotMatch(landing, banned, `${banned} must not be on the landing`);
   }
 
+  // Settlement moved to Solana: the landing and its hero name no Sui
+  // settlement, quote no speed figure, and keep no MemWal or DeepBook.
+  const cinematic = await source('components/landing/SettlementCinematic.tsx');
+  for (const surface of [landing, cinematic]) {
+    for (const banned of [/\bSui\b/i, /MemWal/i, /DeepBook/i, /lockedCopy\.(?:speed|yield)/, /\d+\s?ms\b/, /\bAPY\b/]) {
+      assert.doesNotMatch(surface, banned, `${banned} must not be on the landing`);
+    }
+  }
+  assert.match(cinematic, /Pay suppliers abroad\./, 'the approved hero');
+
   const page = await source('app/page.tsx');
   assert.match(page, /<IsometricLanding/);
   for (const banned of [/Licensed partners/, /Labuan FSA/, /\bBNM\b/, /\bBSP\b/, /legalName/, /Splash Financial/]) {

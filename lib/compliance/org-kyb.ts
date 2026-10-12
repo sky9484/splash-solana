@@ -134,9 +134,11 @@ export async function approveOrgKyb(input: {
 }
 
 /**
- * The org's on-chain BusinessAccount. Per-org first so verifying one tenant can
- * never flip another's account; the env value is a single-tenant fallback for
- * the demo workspace only.
+ * The key the org's ledger rows and funding sessions are filed under. An org
+ * that already has rows keeps its earlier key (organizations.sui_business_account_id,
+ * written by the earlier build), so balances are not orphaned; otherwise the
+ * key is the org's Squads vault address. Per-org, from the database only: no
+ * environment fallback can make two tenants share one key.
  */
 export async function resolveBusinessAccountId(orgId: string): Promise<string> {
   const db = await resolveDb();
@@ -148,24 +150,9 @@ export async function resolveBusinessAccountId(orgId: string): Promise<string> {
       .limit(1);
     const stored = rows[0]?.id?.trim();
     if (stored) return stored;
+    const { findOrgVault } = await import('../auth/devices.ts');
+    const vault = await findOrgVault(db as never, orgId);
+    if (vault?.vaultPda) return vault.vaultPda;
   }
-
-  const fallback = (process.env.SPLASH_BUSINESS_ACCOUNT_ID ?? '').trim();
-  if (!fallback) {
-    throw new Error(
-      `No on-chain BusinessAccount for org ${orgId}. Set organizations.sui_business_account_id, ` +
-      'or SPLASH_BUSINESS_ACCOUNT_ID for the single-tenant demo workspace.',
-    );
-  }
-  return fallback;
-}
-
-/** Record the org's on-chain BusinessAccount object id (wallet spec §2.3). */
-export async function setOrgBusinessAccountId(orgId: string, objectId: string): Promise<void> {
-  const db = await resolveDb();
-  if (!db) return;
-  await db
-    .update(organizations)
-    .set({ suiBusinessAccountId: objectId, updatedAt: new Date() })
-    .where(eq(organizations.id, orgId));
+  throw new Error(`No ledger account for org ${orgId}: it has no vault yet.`);
 }

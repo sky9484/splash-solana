@@ -27,7 +27,7 @@ const organizationJsonLd = {
   url: BRAND.siteUrl,
   logo: `${BRAND.siteUrl}/splash-main-icon.png`,
   description:
-    "Payments from US dollars to Philippine pesos for businesses, with a record for both sides. A person approves every payment.",
+    "Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana, delivered to their bank, with proof for the auditor. A person approves every payment.",
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "customer support",

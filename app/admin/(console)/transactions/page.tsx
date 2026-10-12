@@ -1,4 +1,4 @@
-import { suiScanTxUrl, suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { listTransactions } from '@/lib/server/operations';
 import { listBatchesForStaff } from '@/lib/server/batches-store';
 import { listTransfersForStaff } from '@/lib/server/transfers-store';
@@ -103,7 +103,7 @@ export default async function AdminTransactionsPage() {
                   <th>Source</th>
                   <th>Fee tier</th>
                   <th className="text-right">Amount</th>
-                  <th>Digest</th>
+                  <th>Signature</th>
                   <th>Explorer</th>
                   <th>Time</th>
                 </tr>
@@ -129,13 +129,9 @@ export default async function AdminTransactionsPage() {
                     <td>
                       {transfer.verificationReference && (
                         <div className="flex gap-1">
-                          <a href={suiVisionTxUrl(transfer.verificationReference)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
+                          <a href={solanaTxUrl(transfer.verificationReference)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
                             <ExternalLink size={10} />
-                            SuiVision
-                          </a>
-                          <a href={suiScanTxUrl(transfer.verificationReference)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
-                            <ExternalLink size={10} />
-                            SuiScan
+                            Solana Explorer
                           </a>
                         </div>
                       )}
@@ -164,8 +160,7 @@ export default async function AdminTransactionsPage() {
                   <th>State</th>
                   <th className="text-right">Rows</th>
                   <th className="text-right">Amount</th>
-                  <th>Digest</th>
-                  <th>Package</th>
+                  <th>Signature</th>
                   <th>Explorer</th>
                   <th>Time</th>
                 </tr>
@@ -186,19 +181,12 @@ export default async function AdminTransactionsPage() {
                     <td className="text-right text-[#326273]">{batch.acceptedRows}</td>
                     <td className="text-right font-mono text-[#326273]">$ {batch.totalAmount}</td>
                     <td className="font-mono text-xs text-[#326273]/90">{batch.digest || '—'}</td>
-                    <td className="font-mono text-xs text-[#326273]/90">{batch.packageId || '—'}</td>
                     <td>
                       <div className="flex gap-1">
-                        {batch.explorer.suiVisionTxUrl && (
-                          <a href={batch.explorer.suiVisionTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
+                        {batch.explorer.txUrl && (
+                          <a href={batch.explorer.txUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
                             <ExternalLink size={10} />
-                            SuiVision
-                          </a>
-                        )}
-                        {batch.explorer.suiScanTxUrl && (
-                          <a href={batch.explorer.suiScanTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
-                            <ExternalLink size={10} />
-                            SuiScan
+                            Solana Explorer
                           </a>
                         )}
                       </div>
@@ -228,7 +216,7 @@ export default async function AdminTransactionsPage() {
                   <th>State</th>
                   <th>Module::function</th>
                   <th className="text-right">Amount</th>
-                  <th>Digest</th>
+                  <th>Signature</th>
                   <th>Package</th>
                   <th>Explorer</th>
                   <th>Time</th>
@@ -253,19 +241,12 @@ export default async function AdminTransactionsPage() {
                     </td>
                     <td className="text-right font-mono text-[#326273]">{tx.amount}</td>
                     <td className="font-mono text-xs text-[#326273]/90">{tx.digest || '—'}</td>
-                    <td className="font-mono text-xs text-[#326273]/90">{tx.packageId || '—'}</td>
                     <td>
                       <div className="flex gap-1">
-                        {tx.explorer.suiVisionTxUrl && (
-                          <a href={tx.explorer.suiVisionTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
+                        {tx.explorer.txUrl && (
+                          <a href={tx.explorer.txUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
                             <ExternalLink size={10} />
-                            SuiVision
-                          </a>
-                        )}
-                        {tx.explorer.suiScanTxUrl && (
-                          <a href={tx.explorer.suiScanTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
-                            <ExternalLink size={10} />
-                            SuiScan
+                            Solana Explorer
                           </a>
                         )}
                       </div>

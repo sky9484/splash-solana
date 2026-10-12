@@ -35,9 +35,9 @@ const telemetry = [
     id: 'corridor',
     className: 'cin-callout-a',
     enter: 0.27,
-    tag: 'Corridor · Testnet',
-    value: 'USD → PHP',
-    meta: lockedCopy.speed,
+    tag: 'Corridor · Sandbox',
+    value: 'USDC → PHP',
+    meta: "Paid to the supplier's bank by a payout partner",
     badge: '/cinematic/token-php.png',
     badgeAlt: 'Philippine peso token',
   },
@@ -53,9 +53,9 @@ const telemetry = [
     id: 'treasury',
     className: 'cin-callout-c',
     enter: 0.35,
-    tag: 'Treasury · Approval-gated',
-    value: 'USDY posture',
-    meta: lockedCopy.yield,
+    tag: 'Vault · Your business',
+    value: 'Squads vault',
+    meta: 'No Splash key can move it',
   },
   {
     id: 'agent',
@@ -74,7 +74,7 @@ const telemetry = [
 const tokens = [
   { className: 'cin-token-usd', src: '/cinematic/token-usd.png', alt: 'US dollar token', float: 'cin-float-slow', depth: -26, rate: -170 },
   { className: 'cin-token-myr', src: '/cinematic/token-myr.png', alt: 'Malaysian ringgit token', float: 'cin-float', depth: 30, rate: -120 },
-  { className: 'cin-token-sui', src: '/cinematic/token-sui.png', alt: 'Sui token', float: 'cin-float-drift', depth: 44, rate: -240 },
+  { className: 'cin-token-idr', src: '/cinematic/token-idr-v1.png', alt: 'Indonesian rupiah token', float: 'cin-float-drift', depth: 44, rate: -240 },
 ];
 
 function Callout({
@@ -199,19 +199,19 @@ function HeroCopy({ animated, onEnterEngine }: { animated: boolean; onEnterEngin
       animate={animated ? 'shown' : undefined}
     >
       <motion.p variants={animated ? rise : undefined} className="iso-kicker">
-        Splash · Settlement network on Sui
+        Splash · Settlement on Solana
       </motion.p>
       {/* Display headline (visual) — the real <h1> below carries the SEO wedge. */}
       <motion.p variants={animated ? rise : undefined} className="iso-display" role="presentation">
-        Move money.
-        <span>Settle everything.</span>
+        Pay suppliers abroad.
+        <span>Prove every payment.</span>
       </motion.p>
       <motion.h1 variants={animated ? rise : undefined} className="cin-hero-h1">
-        Send USD across Southeast Asia in minutes — starting with the Philippines
+        Supplier payments from Malaysia to the Philippines and Indonesia
       </motion.h1>
       <motion.p variants={animated ? rise : undefined} className="iso-hero-description">
-        A compliance-gated B2B account network for cross-border money. Between the invoice and the
-        settlement, Splash nets, yields, discounts, and escrows — with human approval on every action.
+        Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana.
+        Delivered to their bank. Proof for the auditor. We never hold the money.
       </motion.p>
       <motion.div variants={animated ? rise : undefined} className="iso-hero-actions">
         <Link href="/signup" className="iso-button">
@@ -230,8 +230,8 @@ function HeroCopy({ animated, onEnterEngine }: { animated: boolean; onEnterEngin
       </motion.div>
       <motion.div variants={animated ? rise : undefined} className="iso-proof-line">
         <span><Check aria-hidden="true" /> Compliance-gated</span>
-        <span><Check aria-hidden="true" /> {lockedCopy.speed}</span>
-        <span><Check aria-hidden="true" /> Human-approved AI</span>
+        <span><Check aria-hidden="true" /> You don&apos;t need SOL</span>
+        <span><Check aria-hidden="true" /> A person approves</span>
       </motion.div>
     </motion.div>
   );
@@ -251,17 +251,17 @@ function VisionCopy() {
       <span className="cin-vision-chip">The product</span>
       <h2 className="cin-vision-title">
         Payments are the feature.
-        <span>Treasury is the product.</span>
+        <span>Proof is the product.</span>
       </h2>
       <p className="cin-vision-lede">
-        Stripe and Airwallex move money. Splash runs everything between the invoice and the
-        settlement — netting it, yielding it, discounting it, escrowing it.
+        The money stays in your own vault. Splash finds the route, a person approves, a payout
+        partner pays the supplier&apos;s bank, and the proof is kept for the auditor.
       </p>
       <div className="cin-vision-pillars" aria-hidden="true">
-        <span>Netting</span>
-        <span>Yield</span>
-        <span>Discounting</span>
-        <span>Escrow</span>
+        <span>Vault</span>
+        <span>Route</span>
+        <span>Approval</span>
+        <span>Proof</span>
       </div>
       <div className="cin-vision-actions">
         <Link href="/signup" className="iso-button iso-button-gold">

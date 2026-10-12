@@ -113,7 +113,7 @@ export async function replayThroughRoute(
 
 /**
  * The earlier build executed an approved transfer, batch or treasury action by
- * replaying it through its Sui money route. Those routes are gone: on the
+ * replaying it through its earlier money route. Those routes are gone: on the
  * Solana build a payment is a Squads vault proposal that a person approves
  * with their device key (app/api/solana/payments/*), so there is nothing to
  * replay. An approval of the old kind is refused, and nothing is paid.

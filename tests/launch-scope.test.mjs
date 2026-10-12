@@ -9,7 +9,7 @@ import { kindInScope, laneInScope, LAUNCH_SCOPE_CODE, LAUNCH_SCOPE_REASON, parse
 import { launchScope, refuseOutsideLaunchScope } from '../lib/server/launch-scope.ts';
 import { checkLaunchScope } from '../lib/server/go-live-checks.ts';
 
-// LAUNCH_SCOPE=stablecoin: USDC on Sui only (lib/launch-scope-rules.ts).
+// LAUNCH_SCOPE=stablecoin: USDC transfers only (lib/launch-scope-rules.ts).
 
 const withScope = async (value, fn) => {
   const previous = process.env.LAUNCH_SCOPE;
@@ -62,34 +62,28 @@ test('the guard answers 403 not_in_launch_scope in the stablecoin scope, and not
 });
 
 test('the refusal says what is open and what to do', () => {
-  assert.match(LAUNCH_SCOPE_REASON, /USDC on Sui/);
+  assert.match(LAUNCH_SCOPE_REASON, /USDC transfers only/);
   assert.match(LAUNCH_SCOPE_REASON, /Nothing was sent or recorded/);
   assert.match(LAUNCH_SCOPE_REASON, /Send USDC/);
 });
 
 // ─── Boot ───────────────────────────────────────────────────────────────────
 
-const OBJ = '0x' + 'ab'.repeat(32);
-const KEY = 'suiprivkey1' + 'q'.repeat(58);
 const LIVE = {
   NODE_ENV: 'production',
   CUSTOMER_SESSION_SECRET: 's'.repeat(32),
   ADMIN_SESSION_SECRET: 'a'.repeat(32),
   CRON_SECRET: 'c'.repeat(32),
   DATABASE_URL: 'postgresql://user:pw@db.example/splash?sslmode=verify-full',
-  SPLASH_PACKAGE_ID: OBJ,
   NEXT_PUBLIC_APP_URL: 'https://v1.splashz.xyz',
-  USDC_TYPE: `${OBJ}::usdc::USDC`,
   ADMIN_PASSWORD: 'not-the-demo-value-either',
   EMAIL_TRANSPORT: 'resend',
   EMAIL_API_KEY: 're_test_key',
   EMAIL_FROM: 'no-reply@splash.example',
-  // Real money posture: mocks off, demo off, settlement 'auto'.
+  // Real money posture: mocks off, demo off.
   USE_MOCK_APIS: 'false',
   NEXT_PUBLIC_DEMO_MODE: 'false',
 };
-// The settlement signer: the stablecoin scope still needs it to verify businesses.
-const SIGNER = { OPERATOR_SUI_PRIVATE_KEY: KEY, OPERATOR_SUI_ADDRESS: OBJ };
 
 const keysOf = (raw) => {
   try {
@@ -101,33 +95,32 @@ const keysOf = (raw) => {
   }
 };
 
-test('boot: the full scope with mocks off still demands every vendor and the settlement signer', () => {
+test('boot: the full scope with mocks off still demands every vendor', () => {
   const keys = keysOf(LIVE);
-  for (const k of ['PDAX_API_KEY', 'WALRUS_PUBLISHER_URL', 'WALRUS_AGGREGATOR_URL', 'STRIPE_SECRET_KEY', 'AIRWALLEX_API_KEY', 'OPERATOR_SUI_PRIVATE_KEY', 'SPLASH_TREASURY_ID']) {
+  for (const k of ['PDAX_API_KEY', 'WALRUS_PUBLISHER_URL', 'WALRUS_AGGREGATOR_URL', 'STRIPE_SECRET_KEY', 'AIRWALLEX_API_KEY']) {
     assert.ok(keys.includes(k), `${k} is named in the full scope`);
   }
 });
 
-test('boot: the stablecoin scope starts with mocks off and none of the keys only fiat and settlement use', () => {
-  assert.deepEqual(keysOf({ ...LIVE, ...SIGNER, LAUNCH_SCOPE: 'stablecoin' }), []);
-  // The signer stays required: approving a business's verification records it on Sui.
-  assert.deepEqual(keysOf({ ...LIVE, LAUNCH_SCOPE: 'stablecoin' }).sort(), ['OPERATOR_SUI_ADDRESS', 'OPERATOR_SUI_PRIVATE_KEY']);
-  const env = parseEnv({ ...LIVE, ...SIGNER, LAUNCH_SCOPE: 'stablecoin' });
+test('boot: the stablecoin scope starts with mocks off and none of the keys only fiat uses', () => {
+  // No settlement signer exists on the Solana build: the vault moves money,
+  // approved on a member's device, and verifying a business writes nothing on chain.
+  assert.deepEqual(keysOf({ ...LIVE, LAUNCH_SCOPE: 'stablecoin' }), []);
+  const env = parseEnv({ ...LIVE, LAUNCH_SCOPE: 'stablecoin' });
   assert.equal(env.LAUNCH_SCOPE, 'stablecoin');
 });
 
 test('boot: the stablecoin scope refuses anything that would fake or open what it leaves out', () => {
-  const scoped = { ...LIVE, ...SIGNER, LAUNCH_SCOPE: 'stablecoin' };
+  const scoped = { ...LIVE, LAUNCH_SCOPE: 'stablecoin' };
   assert.ok(keysOf({ ...scoped, USE_MOCK_APIS: 'true' }).includes('USE_MOCK_APIS'));
   assert.ok(keysOf({ ...scoped, NEXT_PUBLIC_DEMO_MODE: 'true' }).includes('NEXT_PUBLIC_DEMO_MODE'));
   assert.ok(keysOf({ ...scoped, CARD_FUNDING_ENABLED: 'true' }).includes('CARD_FUNDING_ENABLED'));
   assert.ok(keysOf({ ...scoped, TREASURY_EXECUTION_ENABLED: 'true' }).includes('TREASURY_EXECUTION_ENABLED'));
-  assert.ok(keysOf({ ...scoped, SUI_SETTLEMENT_MODE: 'live' }).includes('SUI_SETTLEMENT_MODE'));
   // The KYB gate works in the scope, with its Sumsub keys.
   assert.deepEqual(keysOf({ ...scoped, FEATURE_KYB_GATE: 'true', SUMSUB_APP_TOKEN: 't', SUMSUB_SECRET_KEY: 'k' }), []);
   // The rules every deployment needs still hold.
   assert.ok(keysOf({ ...scoped, EMAIL_TRANSPORT: 'console' }).includes('EMAIL_TRANSPORT'));
-  assert.ok(keysOf({ ...scoped, USDC_TYPE: '0x2::sui::SUI' }).includes('USDC_TYPE'));
+  assert.ok(keysOf({ ...scoped, SPLASH_SOLANA_MODE: 'devnet' }).includes('KORA_RPC_URL'));
 });
 
 test('boot: an unknown scope is refused by name', () => {
@@ -139,7 +132,7 @@ test('boot: an unknown scope is refused by name', () => {
 test('the health report names the scope and never fails on it', () => {
   const scoped = checkLaunchScope({ LAUNCH_SCOPE: 'stablecoin' });
   assert.equal(scoped.status, 'ok');
-  assert.match(scoped.detail, /USDC on Sui only/);
+  assert.match(scoped.detail, /USDC transfers only/);
   assert.match(scoped.detail, /not_in_launch_scope/);
   const full = checkLaunchScope({});
   assert.equal(full.status, 'ok');
@@ -183,7 +176,7 @@ test('Zeke: a request for fiat or a payout run is refused before the model, in t
   await withScope('stablecoin', async () => {
     for (const message of ['pay Maria 50,000 PHP', 'run the payroll batch for October', 'allocate idle cash to treasury']) {
       const said = await ask(message);
-      assert.match(said, /open for USDC on Sui only/, message);
+      assert.match(said, /open for USDC transfers only/, message);
     }
   });
 });

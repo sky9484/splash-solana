@@ -24,8 +24,7 @@ import { isUsableName, sanitiseName } from '../lib/agent/assistant-name.ts';
  *   decision on the strength of an OCR pass.
  *
  *   Answer to a chosen name — cosmetic, and deliberately the only thing Zeke
- *   stores in MemWal, which is free-text search (scoped per org, see
- *   tests/memwal-tenant-scope.test.mjs, but still a search).
+ *   stores, kept per org in process memory (lib/agent/assistant-name.ts).
  */
 
 test('the three capabilities are registered and dispatchable', () => {

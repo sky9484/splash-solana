@@ -12,7 +12,7 @@ import {
 /**
  * Renaming the assistant, and the two ways it was only half-built.
  *
- * `setAssistantName` wrote a preference to MemWal and NOTHING read it back. The
+ * `setAssistantName` wrote a preference to a memory store and NOTHING read it back. The
  * tool reported success, the memory was stored, and the assistant carried on
  * introducing itself as Zeke in the prompt and in every header. A rename that
  * appears to work and changes nothing is worse than one that refuses, because
@@ -41,16 +41,16 @@ test('a name has to be a name, not an instruction', () => {
 test('an empty org never inherits another workspace\'s name', async () => {
   // The stored sentence used to be filtered by `org ${orgId}`, and an empty id
   // made that the substring "org ", which matched every org's memory — one
-  // workspace's chosen name answering in another's chat. Recall is scoped per
-  // org now (tests/memwal-tenant-scope.test.mjs) and a blank org scopes to
-  // nothing; the early return stays, and this is the test that keeps it.
+  // workspace's chosen name answering in another's chat. The name is keyed by
+  // org now and a blank org reads nothing; the early return stays, and this is
+  // the test that keeps it.
   assert.equal(await recallAssistantName(''), DEFAULT_ASSISTANT_NAME);
   assert.equal(await recallAssistantName('   '), DEFAULT_ASSISTANT_NAME);
 });
 
-test('MemWal being unavailable costs a nickname and nothing else', async () => {
-  // No MEMWAL credentials are set in test, so recall throws internally and is
-  // swallowed. A memory store that is down must not fail a conversation.
+test('a name that was never stored costs a nickname and nothing else', async () => {
+  // Nothing is stored for this org (or the process restarted): the default
+  // answers. A missing name must not fail a conversation.
   assert.equal(await recallAssistantName('org-that-does-not-exist'), DEFAULT_ASSISTANT_NAME);
 });
 

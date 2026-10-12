@@ -17,9 +17,8 @@ export const lockedCopy = {
   headline: 'Collect USD. Pay Southeast Asia. Keep cash working.',
   fee: '0.70% to local currency',
   feeFootnote: 'Flat on every corridor, no fixed fee. USDC transfers are free.',
-  speed: '~400ms Sui settlement finality',
-  speedFootnote: 'Local delivery varies by rail.',
-  yield: 'Variable APY - T-bill-backed',
+  /** No speed figure (claims rules): the payout partner's rail decides delivery. */
+  delivery: 'Varies by bank rail',
   agent: 'Zeke prepares. You approve.',
 } as const;
 
@@ -49,19 +48,9 @@ export const claims = {
     evidence: 'Key policy and v3 custody perimeter docs.',
     status: 'modeled',
   },
-  finality: {
-    claim: lockedCopy.speed,
-    evidence: 'Sui settlement finality benchmark used as the settlement proof label.',
-    status: 'testnet-verified',
-  },
   fee: {
     claim: lockedCopy.fee,
     evidence: 'Corridor fee table in lib/fx/corridors.ts: 70 bps on every corridor and no fixed fee (pricing decision of 2026-09-26).',
-    status: 'modeled',
-  },
-  treasuryYield: {
-    claim: lockedCopy.yield,
-    evidence: 'Treasury screen uses floating USDY source and labels projected/modelled values.',
     status: 'modeled',
   },
   receivable: {
@@ -70,13 +59,13 @@ export const claims = {
     status: 'modeled',
   },
   auditTrail: {
-    claim: 'Settlement proofs are stored permanently and anchored on Sui when evidence is available.',
-    evidence: 'Existing settlement evidence and audit batch routes.',
+    claim: 'Settlement proofs are encrypted, stored, and anchored on Solana when evidence is available.',
+    evidence: 'The proof code in lib/solana-evidence, with encryption and storage in the evidence layer.',
     status: 'testnet-verified',
   },
   footerLegal: {
-    claim: 'Licence application in preparation with Labuan FSA. Not yet authorised to hold customer funds. USDC transfers are real, on Sui mainnet, signed by the sending business in its own wallet. USD in and local-currency payouts are not live yet.',
-    evidence: 'Custody gate (lib/custody-phase-rules.ts); the stablecoin lane is mainnet-only and the business wallet signs every transfer (lib/payments/stablecoin-lane.ts); fiat partners are not connected (docs/GO-LIVE-HANDOVER.md).',
+    claim: 'Licence application in preparation with Labuan FSA. Not yet authorised to hold customer funds. USDC moves on Solana from the business’s own vault, approved by a person on their device. This build runs on Solana devnet; USD in and local-currency payouts are not live yet.',
+    evidence: 'Custody gate (lib/custody-phase-rules.ts); vaults have no config authority and a member approves each transaction (lib/solana-app/account-setup.ts); SOLANA_CLUSTER defaults to devnet (lib/solana/config.ts); fiat partners are not connected.',
     status: 'modeled',
   },
 } satisfies Record<string, Claim>;

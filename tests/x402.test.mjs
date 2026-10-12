@@ -90,7 +90,8 @@ test('settlement is a refusal with its reasons, not a stub that might succeed', 
   assert.equal(availability.available, false);
   assert.match(availability.reason, /approved by a named human/);
   assert.match(availability.reason, /session mandate/);
-  assert.match(availability.reason, /Sui/);
+  assert.match(availability.reason, /Solana/);
+  assert.match(availability.reason, /never pays it/);
 });
 
 /* ── The Zeke tool: registered on the READ side, quoting, never paying ── */

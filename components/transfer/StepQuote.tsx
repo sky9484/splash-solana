@@ -436,7 +436,7 @@ export default function StepQuote({
             <div className="grid grid-cols-[1.2fr_1fr_1fr] items-center px-4 py-2.5 bg-[var(--ok-bg)]/50">
               <span className="font-semibold text-[#1F4452]">Splash</span>
               <span className="money text-right font-semibold text-[#1F4452]">{feeValue}</span>
-              <span className="text-right text-[13px] font-medium text-[#326273]/90">{lockedCopy.speed}</span>
+              <span className="text-right text-[13px] font-medium text-[#326273]/90">{lockedCopy.delivery}</span>
             </div>
             <div className="grid grid-cols-[1.2fr_1fr_1fr] items-center px-4 py-2.5">
               <span className="font-medium text-[#326273]/90">Fintech transfer</span>
@@ -465,10 +465,10 @@ export default function StepQuote({
         <div className="flex gap-3">
           <ShieldCheck />
           <span>{selection.type === 'held'
-            ? 'Splash balance is ready to settle, so no additional funding sub-flow is required.'
+            ? 'Your vault balance is ready, so no additional funding step is required.'
             : selection.type === 'fiat'
-              ? 'USD bank funding uses Stripe or Airwallex. Cards remain disabled, and funds settle on the Splash network.'
-              : 'USDC deposits use a deposit address and QR. KYT clears before credit, and only native Sui USDC reaches settlement.'}</span>
+              ? 'USD bank funding goes through a collection partner. Cards remain disabled.'
+              : 'USDC deposits go to your business’s own vault on Solana, with an address and QR. KYT clears before credit, and only native USDC on Solana is accepted.'}</span>
         </div>
       </div>
 

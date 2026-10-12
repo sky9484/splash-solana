@@ -9,7 +9,7 @@ import { runHealthChecks } from '@/lib/server/health-checks';
  *
  * lib/evidence-sui/seal-health.ts existed as a library with no route, so neither
  * developer could see Seal's state without writing code. This exposes it,
- * plus the database, the Sui RPC, the published package ID, and the
+ * plus the database, the Solana RPC, the Kora fee payer, and the
  * feature flags — the same checks `npm run doctor` prints as a table, from
  * the same module, so the two cannot disagree.
  *

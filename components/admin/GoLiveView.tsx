@@ -99,7 +99,7 @@ export default function GoLiveView({ report, rerunHref }: { report: HealthReport
       <CheckList
         id="go-live-money"
         title="Moving real money"
-        lead="The setup a person does by hand: the price sources payouts and the treasury preview read, the fee wallet, WhatsApp delivery, the passkey domain and wallet screening."
+        lead="The setup a person does by hand: the fee payer, WhatsApp delivery, the passkey domain and wallet screening."
         rows={MONEY}
         report={report}
       />

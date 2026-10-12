@@ -228,13 +228,13 @@ test('the settlement digest lands on the run that survives the restart', async (
   await patchBatchRun(db, 'batch_1', {
     state: 'SETTLED',
     digest: '0xabc',
-    packageId: '0xpkg',
+    legacyContract: '0xpkg',
   });
 
   const read = await getBatchRun(db, 'acme', 'batch_1');
   assert.equal(read.state, 'SETTLED');
   assert.equal(read.digest, '0xabc');
-  assert.equal(read.packageId, '0xpkg');
+  assert.equal(read.legacyContract, '0xpkg');
   await client.close();
 });
 

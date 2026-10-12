@@ -11,12 +11,12 @@ type ActivityPage =
   | { available: false; reason: string };
 
 /**
- * Invoices paid in USDC on Sui, to the issuer's own Splash wallet.
+ * Invoices paid in USDC on Solana, to the issuer's own vault.
  *
- * The issuer's receiving address is its main admin's Splash wallet — the Sui
- * address of their passkey, the same person who approves payments. Splash
+ * The issuer's receiving address is its Squads vault (org_vaults.vault_pda),
+ * which no Splash key can move. Splash
  * shows it to the payer with the exact amount (lib/payments/usdc-invoice.ts),
- * and when asked, reads that wallet's USDC activity from chain to find the
+ * and when asked, reads the vault's USDC activity from chain to find the
  * transfer. It never holds the money and never moves any.
  *
  * Recording a payment is one conditional UPDATE: it only lands on an invoice
@@ -136,7 +136,7 @@ function paid(row: { usdcTxDigest: string; usdcPayerAddress: string | null; usdc
     digest: row.usdcTxDigest,
     payer: row.usdcPayerAddress,
     paidAt: (row.usdcPaidAt ?? new Date()).toISOString(),
-    explorerUrl: explorerTxUrl('mainnet', row.usdcTxDigest),
+    explorerUrl: explorerTxUrl(row.usdcTxDigest),
   };
 }
 
@@ -225,7 +225,7 @@ export async function publicUsdcForSlug(slug: string) {
   if (!row) return null;
   if (row.usdcTxDigest) {
     return {
-      paid: { digest: row.usdcTxDigest, explorerUrl: explorerTxUrl('mainnet', row.usdcTxDigest), paidAt: row.usdcPaidAt?.toISOString() ?? null },
+      paid: { digest: row.usdcTxDigest, explorerUrl: explorerTxUrl(row.usdcTxDigest), paidAt: row.usdcPaidAt?.toISOString() ?? null },
       terms: null,
     };
   }

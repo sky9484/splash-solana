@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   // copy that would not survive. An invoice without one, paid in USDC, is open.
   if (input.documentBase64 && stablecoinOnly()) {
     return NextResponse.json(
-      { error: 'Attaching the invoice document is not open yet. Create the invoice without it; it can still be paid in USDC on Sui.', code: LAUNCH_SCOPE_CODE },
+      { error: 'Attaching the invoice document is not open yet. Create the invoice without it; it can still be paid in USDC.', code: LAUNCH_SCOPE_CODE },
       { status: 403, headers: { 'Cache-Control': 'no-store' } },
     );
   }
