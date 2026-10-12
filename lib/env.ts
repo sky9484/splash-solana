@@ -268,6 +268,17 @@ export const envSchema = z.object({
   ZKLOGIN_USER_SALT: optional,
 
   /**
+   * "Continue with Google" (lib/auth/google-oidc.ts): plain OIDC, code + PKCE.
+   * Identity only; no key material comes from Google. Use a separate OAuth
+   * client per environment: the ID token's `aud` must equal this client id.
+   */
+  FEATURE_GOOGLE_SIGNIN: flag('false'),
+  GOOGLE_OIDC_CLIENT_ID: optional,
+  GOOGLE_OIDC_CLIENT_SECRET: optional,
+  /** Must be registered with Google exactly, e.g. https://app.example/api/auth/google/callback. */
+  GOOGLE_OIDC_REDIRECT_URI: httpsUrl,
+
+  /**
    * WebAuthn relying-party id. A credential is bound to it and the browser
    * will not offer it on any other host, so a passkey enrolled on localhost
    * cannot be used on v1.splashz.xyz. Decided once per environment; changing
@@ -531,6 +542,11 @@ function productionIssues(env: Env): Issue[] {
   if (env.FEATURE_KYB_GATE) {
     need('SUMSUB_APP_TOKEN', 'FEATURE_KYB_GATE=true');
     need('SUMSUB_SECRET_KEY', 'FEATURE_KYB_GATE=true');
+  }
+  if (env.FEATURE_GOOGLE_SIGNIN) {
+    need('GOOGLE_OIDC_CLIENT_ID', 'FEATURE_GOOGLE_SIGNIN=true');
+    need('GOOGLE_OIDC_CLIENT_SECRET', 'FEATURE_GOOGLE_SIGNIN=true');
+    need('GOOGLE_OIDC_REDIRECT_URI', 'FEATURE_GOOGLE_SIGNIN=true');
   }
   if (env.FEATURE_ZKLOGIN) {
     need('ZKLOGIN_GOOGLE_CLIENT_ID', 'FEATURE_ZKLOGIN=true — and it is part of address derivation, so decide it once per environment');

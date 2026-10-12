@@ -41,6 +41,15 @@ function resolveSecret(): string | null {
   return cachedDevSecret;
 }
 
+/**
+ * The session secret, for callers that derive a separate key from it (the
+ * Google sign-in flow cookie, lib/auth/google-oidc.ts). Never returned to a
+ * client. null in production when CUSTOMER_SESSION_SECRET is unset.
+ */
+export function customerSessionSecret(): string | null {
+  return resolveSecret();
+}
+
 function loadOrCreateDevSecret(): string {
   try {
     if (existsSync(DEV_SECRET_FILE)) {
