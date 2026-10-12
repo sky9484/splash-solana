@@ -27,7 +27,7 @@ const organizationJsonLd = {
   url: BRAND.siteUrl,
   logo: `${BRAND.siteUrl}/splash-main-icon.png`,
   description:
-    "Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana, delivered to their bank, with proof for the auditor. A person approves every payment.",
+    "Malaysian businesses pay suppliers in the Philippines in USDC on Solana, delivered to their bank, with proof for the auditor. A person approves every payment.",
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "customer support",

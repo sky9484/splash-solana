@@ -27,7 +27,7 @@ const fontMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: "Splash · Pay suppliers abroad. Prove every payment.",
-  description: "Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana. Delivered to their bank, with proof for the auditor. Sandbox.",
+  description: "Malaysian businesses pay suppliers in the Philippines in USDC on Solana. Delivered to their bank, with proof for the auditor. Sandbox.",
   openGraph: {
     title: "Splash · Pay suppliers abroad. Prove every payment.",
     description: "Pay suppliers abroad in USDC on Solana. A person approves every payment, and every payment keeps its proof.",

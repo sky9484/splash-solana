@@ -110,6 +110,14 @@ export function usd(minor: string | bigint): string {
   return formatUsd(BigInt(minor));
 }
 
+/** "5,416.082957 USDC": every unit, for where cent-rounded figures would not add up. */
+export function usdcExact(minor: string | bigint): string {
+  const v = BigInt(minor);
+  const abs = v < 0n ? -v : v;
+  const whole = (abs / 1_000_000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${v < 0n ? '−' : ''}${whole}.${(abs % 1_000_000n).toString().padStart(6, '0')} USDC`;
+}
+
 export function php(minor: string | bigint): string {
   return formatPhp(BigInt(minor));
 }

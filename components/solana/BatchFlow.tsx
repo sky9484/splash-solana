@@ -9,7 +9,7 @@ import type { Wire } from '@/lib/solana-app/json';
 import type { batchView, listBatches } from '@/lib/solana-app/batch-service';
 
 import { clock, secondsLeft } from './ApprovalCard';
-import { api, ApiError, dateShort, existingDeviceKey, php, shortKey, signPrepared, usd } from './client';
+import { api, ApiError, dateShort, existingDeviceKey, php, shortKey, signPrepared, usd, usdcExact } from './client';
 import { notifyCompanyChanged, useCompany } from './useCompany';
 
 type BatchDTO = Wire<ReturnType<typeof batchView>>;
@@ -29,6 +29,28 @@ function useNow(active: boolean) {
 
 function Pill({ tone, children }: { tone: 'ok' | 'warn' | 'pending' | 'sim'; children: React.ReactNode }) {
   return <span className={`sx-pill sx-pill-${tone}`}>{children}</span>;
+}
+
+/** The batch's rows as integers, as written (no rounding, no floats), for the ledger. Same shape as History's. */
+function batchCsv(batch: BatchDTO): string {
+  const head = ['batch_id', 'line', 'supplier', 'bank', 'account_last4', 'invoice', 'amount_php_minor', 'you_pay_usdc_minor', 'splash_fee_usdc_minor', 'chunk', 'status', 'bank_reference', 'deposit_address'];
+  const cell = (v: string | number | null) => {
+    const s = v === null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+  };
+  const rows = batch.rows.map((r) =>
+    [batch.id, r.line, r.supplierName, r.bank, r.accountLast4, r.invoiceNumber, r.amountPhpMinor, r.youPayUsdcMinor, r.splashFeeMinor, r.chunkIndex === null ? null : r.chunkIndex + 1, r.status, r.bankReference, r.depositAddress].map(cell).join(','),
+  );
+  return [head.join(','), ...rows].join('\n');
+}
+
+function downloadCsv(batch: BatchDTO) {
+  const url = URL.createObjectURL(new Blob([batchCsv(batch)], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `splash-${batch.id}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 const rowTone = (s: string) => (s === 'paid' ? 'ok' : s === 'returned' || s === 'not_sent' ? 'warn' : 'pending');
@@ -233,6 +255,9 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
           <dt>From your vault</dt>
           <dd className="sx-num">
             {usd(batch.totals.youPayMinor)} <span className="sx-muted sx-small">including Splash&rsquo;s fee of {usd(batch.totals.feeMinor)}</span>
+            <span className="sx-muted sx-small" style={{ display: 'block' }}>
+              Exactly {usdcExact(batch.totals.youPayMinor)}
+            </span>
           </dd>
           <dt>Paid by</dt>
           <dd>{batch.partnerLabel}, one deposit address per supplier</dd>
@@ -393,7 +418,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
                 <td className="sx-num-col" data-label="Receives">
                   {php(r.amountPhpMinor)}
                 </td>
-                <td className="sx-num-col" data-label="From your vault">
+                <td className="sx-num-col" data-label="From your vault" title={usdcExact(r.youPayUsdcMinor)}>
                   {usd(r.youPayUsdcMinor)}
                 </td>
                 <td data-label="Chunk">{r.chunkIndex === null ? 'Not planned' : r.chunkIndex + 1}</td>
@@ -409,6 +434,15 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
             ))}
           </tbody>
         </table>
+        <div className="sx-row" style={{ marginTop: 12, justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <p className="sx-small sx-muted" style={{ maxWidth: '62ch' }}>
+            Amounts are rounded to the cent. Each transfer is exact to six decimals of USDC, so the rows can add up to a cent more or
+            less than the total above. The CSV has every amount exactly.
+          </p>
+          <button type="button" className="sx-btn sx-btn-ghost sx-btn-sm" onClick={() => downloadCsv(batch)}>
+            Download CSV
+          </button>
+        </div>
       </section>
     </div>
   );

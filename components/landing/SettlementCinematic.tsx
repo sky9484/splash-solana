@@ -209,7 +209,7 @@ function HeroCopy({ animated }: { animated: boolean }) {
         <span>Prove every payment.</span>
       </motion.h1>
       <motion.p variants={animated ? rise : undefined} className="iso-hero-description">
-        Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana.
+        Malaysian businesses pay suppliers in the Philippines in USDC on Solana.
         Delivered to their bank. Proof for the auditor. We never hold the money.
       </motion.p>
       <motion.div variants={animated ? rise : undefined} className="iso-hero-actions">

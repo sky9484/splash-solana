@@ -268,7 +268,7 @@ const loopCards = [
     number: '01',
     label: 'Settle',
     title: "Pay the supplier's bank.",
-    copy: 'Pay suppliers in the Philippines and Indonesia in USDC. Every approved payout builds verified counterparties and settlement history.',
+    copy: 'Pay suppliers in the Philippines in USDC on Solana. Every approved payout builds verified counterparties and settlement history.',
     image: '/isometric/loop-settle-v3.png',
     imageAlt: 'Isometric settlement: a USD coin crossing an approved rail to arrive as a PHP coin',
     meta: 'USDC → PHP · sandbox',
@@ -809,7 +809,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               <Image src="/splash-main-icon.png" alt="" width={841} height={823} />
               <strong>Splash</strong>
             </span>
-            <p>Supplier payments from Malaysia to the Philippines and Indonesia, with proof for the auditor.</p>
+            <p>Supplier payments from Malaysia to the Philippines, with proof for the auditor.</p>
             <div className="cin-footer-status" aria-label="Network status">
               <span><i aria-hidden="true" /> Sandbox · Solana devnet</span>
               <span><i aria-hidden="true" /> Settlement on Solana</span>

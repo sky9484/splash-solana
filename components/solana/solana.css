@@ -47,6 +47,9 @@
 :where(.sx) h3 { font-size: 16px; line-height: 1.35; font-weight: 620; }
 /* The pay flow's step title, under the dashboard's page header. */
 .sx .sx-flow-title { font-size: 22px; line-height: 1.25; font-weight: 640; }
+/* The step heading takes focus so a screen reader announces the new step. It is not a control, so it
+   shows no focus ring (WCAG 2.4.7 covers operable components). */
+.sx .sx-flow-title:focus-visible { outline: none; box-shadow: none; }
 :where(.sx) p { margin: 0; }
 .sx-lede { color: var(--slate); max-width: 62ch; margin-top: 8px; }
 .sx-muted { color: var(--slate); }
