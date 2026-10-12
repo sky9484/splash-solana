@@ -117,8 +117,8 @@ const sidePanels = [
   {
     icon: Sparkles,
     title: 'Settlement',
-    metric: '~400ms',
-    body: 'Sui finality anchors the payment trail with receipts ready for audit review.',
+    metric: 'On Solana',
+    body: 'A person approves with their device key. The payment is recorded on Solana, and its receipt evidence is anchored there for audit review.',
   },
 ];
 
@@ -254,7 +254,7 @@ export default function TransferPage() {
           label: state.amount.targetCurrency,
           sublabel: destinationLabel,
         }]}
-        captions={['400ms Sui finality', 'Quote locked at signing', 'On-chain receipt']}
+        captions={["You don't need SOL", 'Quote locked at signing', 'On-chain receipt']}
       />
 
       <Stepper current={state.step} />

@@ -1,10 +1,15 @@
+import { SOLANA_CONFIG } from '../solana/config.ts';
+import { stablecoinCluster } from '../payments/stablecoin-lane.ts';
+
 export type PaymentMethod = 'HELD_BALANCE' | 'BANK_USD' | 'STABLECOIN';
 export type UsdProviderId = 'STRIPE' | 'AIRWALLEX';
-export type StablecoinAssetSymbol = 'USDC' | 'USDSUI' | 'USDT';
-export type StablecoinRail = 'SUI_NATIVE' | 'CCTP';
-export type CctpSourceChain = 'ETHEREUM' | 'SOLANA' | 'BASE' | 'ARBITRUM';
+/** USDC only on the Solana build (D-7): nothing is swapped into it. */
+export type StablecoinAssetSymbol = 'USDC';
+/** SOLANA: native USDC sent on Solana. CCTP: USDC burned on another chain, minted on Solana. */
+export type StablecoinRail = 'SOLANA' | 'CCTP';
+export type CctpSourceChain = 'ETHEREUM' | 'BASE' | 'ARBITRUM';
 export type FundingFeeTier = 'STANDARD' | 'DISCOUNT';
-export type NormalizeRoute = 'passthrough' | 'dex:usdsui->usdc' | 'dex:usdt->usdc';
+export type NormalizeRoute = 'passthrough';
 export type KytPolicy = 'standard-or-enhanced';
 export type FundingSourceId = 'SPLASH_BALANCE' | 'BANK_USD' | StablecoinAssetSymbol;
 export type FundingSourceKind = 'held' | 'fiat' | 'stablecoin';
@@ -19,7 +24,8 @@ export type UsdProvider = {
 export type StablecoinAsset = {
   symbol: StablecoinAssetSymbol;
   label: string;
-  coinType: string;
+  /** The SPL mint deposits must arrive in (lib/solana/config.ts). */
+  mint: string;
   decimals: number;
   rails: StablecoinRail[];
   cctpSourceChains: CctpSourceChain[];
@@ -34,7 +40,6 @@ export type FundingSourceOption = {
   label: string;
   description: string;
   feeTier: FundingFeeTier;
-  instant?: boolean;
   enabled: boolean;
   unavailableReason?: string;
   providerIds?: UsdProviderId[];
@@ -88,7 +93,6 @@ function envFlag(env: NodeJS.ProcessEnv, key: string, defaultValue: boolean) {
 function enabledCctpChains(env: NodeJS.ProcessEnv): CctpSourceChain[] {
   const definitions: Array<[CctpSourceChain, string]> = [
     ['ETHEREUM', 'FUNDING_CCTP_ETHEREUM_ENABLED'],
-    ['SOLANA', 'FUNDING_CCTP_SOLANA_ENABLED'],
     ['BASE', 'FUNDING_CCTP_BASE_ENABLED'],
     ['ARBITRUM', 'FUNDING_CCTP_ARBITRUM_ENABLED'],
   ];
@@ -97,19 +101,14 @@ function enabledCctpChains(env: NodeJS.ProcessEnv): CctpSourceChain[] {
 }
 
 export function getFundingRegistry(env: NodeJS.ProcessEnv = process.env): FundingRegistry {
-  const demoMode = env.NODE_ENV !== 'production' || env.USE_MOCK_APIS === 'true' || env.NEXT_PUBLIC_DEMO_MODE === 'true';
-  const configuredUsdcType = env.USDC_TYPE && env.USDC_TYPE !== '0x2::sui::SUI' ? env.USDC_TYPE : '';
-  const usdcType = configuredUsdcType || (demoMode ? 'demo::usdc::USDC' : '');
-  const usdsuiType = env.USDSUI_TYPE || (demoMode ? 'demo::usdsui::USDSUI' : '');
+  const mint = SOLANA_CONFIG[stablecoinCluster(env)].usdcMint;
   const cctpEnabled = envFlag(env, 'FUNDING_RAIL_CCTP_ENABLED', true);
-  const suiNativeEnabled = envFlag(env, 'FUNDING_RAIL_SUI_NATIVE_ENABLED', true);
+  const solanaEnabled = envFlag(env, 'FUNDING_RAIL_SOLANA_ENABLED', true);
   const cctpSourceChains = cctpEnabled ? enabledCctpChains(env) : [];
 
   const usdcRails: StablecoinRail[] = [];
-  if (suiNativeEnabled) usdcRails.push('SUI_NATIVE');
+  if (solanaEnabled) usdcRails.push('SOLANA');
   if (cctpEnabled && cctpSourceChains.length > 0) usdcRails.push('CCTP');
-
-  const suiOnlyRails: StablecoinRail[] = suiNativeEnabled ? ['SUI_NATIVE'] : [];
 
   return {
     featureEnabled: envFlag(env, 'FEATURE_DUAL_FUNDING', true),
@@ -131,35 +130,13 @@ export function getFundingRegistry(env: NodeJS.ProcessEnv = process.env): Fundin
       {
         symbol: 'USDC',
         label: 'USDC',
-        coinType: usdcType,
+        mint,
         decimals: 6,
         rails: usdcRails,
         cctpSourceChains,
         normalizeRoute: 'passthrough',
         kytPolicy: 'standard-or-enhanced',
-        enabled: envFlag(env, 'FUNDING_ASSET_USDC_ENABLED', true) && usdcRails.length > 0 && Boolean(usdcType),
-      },
-      {
-        symbol: 'USDSUI',
-        label: 'USDsui',
-        coinType: usdsuiType,
-        decimals: 6,
-        rails: suiOnlyRails,
-        cctpSourceChains: [],
-        normalizeRoute: 'dex:usdsui->usdc',
-        kytPolicy: 'standard-or-enhanced',
-        enabled: envFlag(env, 'FUNDING_ASSET_USDSUI_ENABLED', true) && suiOnlyRails.length > 0 && Boolean(usdsuiType),
-      },
-      {
-        symbol: 'USDT',
-        label: 'USDT',
-        coinType: env.USDT_TYPE ?? '',
-        decimals: 6,
-        rails: usdcRails,
-        cctpSourceChains,
-        normalizeRoute: 'dex:usdt->usdc',
-        kytPolicy: 'standard-or-enhanced',
-        enabled: envFlag(env, 'FUNDING_ASSET_USDT_ENABLED', false) && usdcRails.length > 0 && Boolean(env.USDT_TYPE),
+        enabled: envFlag(env, 'FUNDING_ASSET_USDC_ENABLED', true) && usdcRails.length > 0,
       },
     ],
   };
@@ -181,14 +158,13 @@ export function fundingMethodForSelection(selection: FundingSelection): PaymentM
 }
 
 export function labelForFundingSource(source: FundingSourceId) {
-  if (source === 'SPLASH_BALANCE') return 'Splash balance';
+  if (source === 'SPLASH_BALANCE') return 'Vault balance';
   if (source === 'BANK_USD') return 'Bank USD';
-  if (source === 'USDSUI') return 'USDsui';
   return source;
 }
 
 export function describeFundingSelection(selection: FundingSelection) {
-  if (selection.type === 'held') return 'Splash balance';
+  if (selection.type === 'held') return 'Vault balance';
   if (selection.type === 'fiat') return `Bank USD via ${selection.provider}`;
   return `${selection.asset} via ${selection.rail}${selection.sourceChain ? ` / ${selection.sourceChain}` : ''}`;
 }
@@ -227,10 +203,9 @@ export function buildFundingSources(input: {
     {
       id: 'SPLASH_BALANCE',
       type: 'held',
-      label: 'Splash balance',
-      description: 'Use held native USDC balance instantly.',
+      label: 'Vault balance',
+      description: 'Pay from the USDC already in your vault.',
       feeTier: 'DISCOUNT',
-      instant: true,
       enabled: balanceIsEnough,
       balanceMicro: heldBalanceMicro,
       unavailableReason: balanceIsEnough ? undefined : 'Insufficient held balance',
@@ -249,9 +224,7 @@ export function buildFundingSources(input: {
       id: asset.symbol,
       type: 'stablecoin' as const,
       label: asset.label,
-      description: asset.symbol === 'USDC'
-        ? 'Deposit USDC; CCTP mints native USDC on Sui when selected.'
-        : `Deposit ${asset.label}; Splash normalizes it to native USDC.`,
+      description: 'Deposit native USDC on Solana into your vault, or bring USDC from Ethereum, Base or Arbitrum with CCTP.',
       feeTier: 'DISCOUNT' as const,
       enabled: true,
       rails: asset.rails,
@@ -281,7 +254,7 @@ export function resolveFundingSelection(
   if (!registry.featureEnabled) throw new FundingRegistryError('Dual funding is disabled');
 
   if (selection.type === 'held') {
-    if (selection.source !== 'SPLASH_BALANCE') throw new FundingRegistryError('Held funding must use the Splash balance source');
+    if (selection.source !== 'SPLASH_BALANCE') throw new FundingRegistryError('Held funding must use the vault balance source');
     if (selection.feeTier !== 'DISCOUNT') throw new FundingRegistryError('Held balance funding must use the DISCOUNT fee tier');
     return { selection };
   }

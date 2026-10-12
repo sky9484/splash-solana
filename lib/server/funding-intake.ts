@@ -15,8 +15,10 @@ import {
 export type InboundDeposit = {
   sessionId: string;
   sourceTxDigest: string;
-  receivedCoinType: string;
-  destinationCoinType?: string;
+  /** The SPL mint the deposit arrived in (SOLANA rail). */
+  receivedMint: string;
+  /** The SPL mint CCTP minted into on Solana (CCTP rail). */
+  destinationMint?: string;
   amountMicro: number;
   sourceType: FundingSourceType;
   riskScore: number;
@@ -44,15 +46,15 @@ function validateInboundAsset(input: InboundDeposit) {
   const { asset } = resolveFundingSelection(session.selection);
   if (!asset) throw new Error('Funding asset is unavailable');
 
-  if (session.selection.rail === 'SUI_NATIVE') {
-    if (!asset.coinType || input.receivedCoinType !== asset.coinType) {
-      throw new Error(`Rejected non-canonical ${asset.symbol} coin type`);
+  if (session.selection.rail === 'SOLANA') {
+    if (!asset.mint || input.receivedMint !== asset.mint) {
+      throw new Error(`Rejected a deposit that is not native ${asset.symbol} (wrong mint)`);
     }
   } else {
     if (session.selection.asset !== 'USDC') throw new Error('CCTP only accepts USDC');
-    if (input.cctpMessageStatus !== 'minted') throw new Error('CCTP message has not minted on Sui');
-    if (!asset.coinType || input.destinationCoinType !== asset.coinType) {
-      throw new Error('CCTP destination is not native Sui USDC');
+    if (input.cctpMessageStatus !== 'minted') throw new Error('CCTP message has not minted on Solana');
+    if (!asset.mint || input.destinationMint !== asset.mint) {
+      throw new Error('CCTP destination is not native USDC on Solana');
     }
   }
   return { session, asset };
@@ -83,9 +85,9 @@ export async function ingestStablecoinDeposit(input: InboundDeposit) {
     kytPolicy: assessment.policy,
     kytReasons: assessment.reasons,
     sourceTxDigest: input.sourceTxDigest,
-    receivedCoinType: input.receivedCoinType,
+    receivedMint: input.receivedMint,
     receivedAmountMicro: input.amountMicro,
-    nativeSuiUsdc: selection.rail === 'CCTP' ? true : selection.asset === 'USDC',
+    nativeUsdc: selection.rail === 'CCTP' ? true : selection.asset === 'USDC',
     adminFlag: assessment.outcome === 'QUARANTINED' ? assessment.reasons.join('; ') : undefined,
   });
   if (assessment.outcome !== 'CLEARED') return readFundingSession(session.id)!;

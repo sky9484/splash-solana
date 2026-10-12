@@ -33,7 +33,6 @@ function deps(overrides = {}) {
     feeAddressConfigured: () => overrides.fee ?? true,
     destinationOf: async () => overrides.destination ?? 'EXTERNAL',
     anchorFeeOn: () => overrides.anchorFee ?? false,
-    gaslessOn: () => overrides.gasless ?? true,
   };
 }
 
@@ -44,8 +43,8 @@ test('it reads the ways people ask, and only when USDC is said', () => {
   assert.deepEqual(parseUsdcSendIntent('Please pay 1,250.50 usdc to Cebu Traders.'), { amount: '1250.50', name: 'Cebu Traders' });
   assert.deepEqual(parseUsdcSendIntent('transfer $75 USDC to "Acme"'), { amount: '75', name: 'Acme' });
   assert.deepEqual(parseUsdcSendIntent('send Manila Parts 500 USDC'), { amount: '500', name: 'Manila Parts' });
-  assert.deepEqual(parseUsdcSendIntent('send 500 USDC to Manila Parts on Sui'), { amount: '500', name: 'Manila Parts' });
-  assert.deepEqual(parseUsdcSendIntent('send 500 USDC to Maria’s Slush wallet'), { amount: '500', name: 'Maria' });
+  assert.deepEqual(parseUsdcSendIntent('send 500 USDC to Manila Parts on Solana'), { amount: '500', name: 'Manila Parts' });
+  assert.deepEqual(parseUsdcSendIntent('send 500 USDC to Maria’s Phantom wallet'), { amount: '500', name: 'Maria' });
 
   for (const other of [
     'pay Maria 500',                 // a payout request: the lane rules decide
@@ -71,7 +70,8 @@ test('a saved wallet recipient: free, total and allowance, and a link that carri
     'To Manila Parts Supply · 0xcccccc…cccccc',
     'Amount 500.00 USDC',
     'Splash fee: free',
-    'Leaves your wallet 500.00 USDC, with no network fee',
+    'Leaves your vault 500.00 USDC',
+    "You don't need SOL: Splash's fee payer covers the network fee.",
     '4,500.00 USDC of your 30-day allowance left after',
   ]);
   assert.equal(answer.handoff.cta, 'Review in Send USDC');
@@ -144,7 +144,7 @@ test('a closed lane prepares nothing; a missing fee address matters only when th
 test('the anchor fee, when on, shows on the card; to a Splash user it stays free', async () => {
   const out = await usdcHandoffFor('org_1', 'send 500 USDC to Manila Parts', deps({ anchorFee: true }));
   assert.ok(out.handoff.lines.includes('Audit-anchor fee 0.10 USDC, added on top'));
-  assert.ok(out.handoff.lines.includes('Leaves your wallet 500.10 USDC, with no network fee'));
+  assert.ok(out.handoff.lines.includes('Leaves your vault 500.10 USDC'));
   const internal = await usdcHandoffFor('org_1', 'send 500 USDC to Manila Parts', deps({ anchorFee: true, destination: 'SPLASH' }));
   assert.ok(internal.handoff.lines.includes('Splash fee: free (to another Splash user)'));
 });
@@ -180,13 +180,13 @@ test('Zeke answers it after the lane refusal and before the model', async () => 
   assert.match(oxwal, /yield \{ type: 'handoff', handoff: handoff\.handoff \}/);
 });
 
-test('the card links only into Send USDC, and Send USDC fills in without quoting', async () => {
+test('the card links only into Send USDC, which carries its query into Transfer', async () => {
   const thread = code(await readFile(new URL('../components/oxwal/ThreadView.tsx', import.meta.url), 'utf8'));
   assert.match(thread, /item\.handoff\.href\.startsWith\('\/dashboard\/send-usdc\?'\)/);
-  const desk = code(await readFile(new URL('../components/stablecoin/SendUsdcDesk.tsx', import.meta.url), 'utf8'));
-  const prefill = desk.slice(desk.indexOf("const to = params.get('to')"), desk.indexOf("setPrefilled(params.get('from') === 'zeke')"));
-  assert.match(prefill, /wallets\.some\(\(r\) => r\.id === to\)/, 'only a recipient this workspace saved');
-  assert.doesNotMatch(prefill, /getQuote\(|fetch\(/, 'filling in is not quoting');
+  // Send USDC is part of Transfer on the Solana build; the hand-off's query survives the redirect.
+  const page = code(await readFile(new URL('../app/dashboard/send-usdc/page.tsx', import.meta.url), 'utf8'));
+  assert.match(page, /redirect\(suffix \? `\/dashboard\/transfer\?\$\{suffix\}` : '\/dashboard\/transfer'\)/);
+  assert.doesNotMatch(page, /fetch\(|quote/i, 'redirecting is not quoting');
 });
 
 // ─── Phase 12: more ways to ask, and the model's own way in ─────────────────
@@ -238,8 +238,3 @@ test('the model path turns a prepared transfer into the same card, and every too
   assert.deepEqual(unlabelled, [], 'a tool without a label shows the operator only "Working"');
 });
 
-test('with gasless switched off, the card says the wallet pays gas in SUI', async () => {
-  const out = await usdcHandoffFor('org_1', 'send 500 USDC to Manila Parts', deps({ gasless: false }));
-  assert.ok(out.handoff.lines.includes('Leaves your wallet 500.00 USDC, plus a little SUI for gas'));
-  assert.ok(!out.handoff.lines.some((line) => /no network fee/.test(line)));
-});

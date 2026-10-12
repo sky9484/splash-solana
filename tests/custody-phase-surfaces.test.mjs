@@ -36,9 +36,8 @@ const sweep = () => import('../lib/server/sweep.ts');
  * a verified business gets a TREASURY_ALLOCATE proposal and fixture balances.
  */
 
-delete process.env.SPLASH_CUSTODY_PACKAGE_ID;
+delete process.env.SPLASH_CUSTODY_PHASE;
 
-const CUSTODY_PACKAGE = '0x' + 'cd'.repeat(32);
 const FIXTURE_AMOUNTS = ['11140000000', '24500000000', '98720000', '24598720000'];
 
 async function source(relative) {
@@ -82,9 +81,9 @@ test('this file runs in Phase 0', async () => {
 
 test('the pay link names a Splash collection account only once custody is on', async () => {
   const { payLinkBankInstructions } = await payLink();
-  assert.equal(payLinkBankInstructions({ custodyPackageId: '' }), null);
+  assert.equal(payLinkBankInstructions({ custodyEnabled: false }), null);
   assert.equal(payLinkBankInstructions(), null, 'and the live config is Phase 0');
-  const phase2 = payLinkBankInstructions({ custodyPackageId: CUSTODY_PACKAGE });
+  const phase2 = payLinkBankInstructions({ custodyEnabled: true });
   assert.ok(phase2 && phase2.swift && phase2.account, 'Phase 2 still has the account to show');
 });
 

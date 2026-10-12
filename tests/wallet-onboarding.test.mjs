@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, createSign } from 'node:crypto';
 import test from 'node:test';
 
 import { isKilledEntityEmail, emailDomain, killedEntityDomains } from '../lib/auth/killed-entities.ts';
@@ -17,18 +16,12 @@ import {
   createCustomerSessionToken,
   readCustomerSessionToken,
 } from '../lib/auth/customer-session.ts';
-import {
-  ZkLoginVerificationError,
-  clearJwksCacheForTesting,
-  primeJwksCacheForTesting,
-  verifyZkLoginJwt,
-} from '../lib/auth/zklogin.ts';
 
 /**
  * Wallet / onboarding / custody spec acceptance tests.
  *
- * §2.4 killed-entity denylist · §3 KYB state machine · §4 session widening and
- * server-side zkLogin JWT verification (IACR 2026/227 mitigations).
+ * §2.4 killed-entity denylist · §3 KYB state machine · §4 session widening.
+ * Google ID-token verification lives in tests/google-oidc.test.mjs.
  */
 
 const SECRET = 'test-secret-'.padEnd(48, 'x');
@@ -112,11 +105,10 @@ test('§3 verdict mapping and coarse projection stay consistent', () => {
 
 // ── §4 session widening ─────────────────────────────────────────────────────
 
-test('§4 session round-trips userRole/suiAddress/orgId without dropping them', () => {
+test('§4 session round-trips userRole/orgId without dropping them', () => {
   const session = createCustomerSessionFromIdentity({
     email: 'ops@splash.finance',
     userRole: 'checker',
-    suiAddress: '0xabc',
     orgId: 'demo-business',
   });
   const token = createCustomerSessionToken(session, SECRET);
@@ -124,7 +116,6 @@ test('§4 session round-trips userRole/suiAddress/orgId without dropping them', 
 
   assert.ok(decoded);
   assert.equal(decoded.userRole, 'checker');
-  assert.equal(decoded.suiAddress, '0xabc');
   assert.equal(decoded.orgId, 'demo-business');
   // The legacy display field is untouched, so DashboardHeader keeps working.
   assert.equal(decoded.role, 'business_admin');
@@ -154,124 +145,9 @@ test('§2.4 a session for a killed-entity domain stops verifying even if signed'
   assert.equal(readCustomerSessionToken(token, SECRET), null, 'denylist must apply at session mint, not just signup');
 });
 
-// ── §4 / T1 zkLogin JWT verification ────────────────────────────────────────
-
-const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-const JWK = { ...publicKey.export({ format: 'jwk' }), kid: 'test-key', alg: 'RS256', use: 'sig' };
-const AUD = 'splash-test-client-id';
-const ENV = { ZKLOGIN_GOOGLE_CLIENT_ID: AUD };
-
-function signJwt(payload, { header } = {}) {
-  const head = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'test-key', ...header })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signer = createSign('RSA-SHA256');
-  signer.update(`${head}.${body}`);
-  return `${head}.${body}.${signer.sign(privateKey).toString('base64url')}`;
-}
-
-function claims(overrides = {}) {
-  const now = Math.floor(Date.now() / 1000);
-  return {
-    iss: 'https://accounts.google.com',
-    sub: 'provider-user-123',
-    aud: AUD,
-    email: 'ops@splash.finance',
-    nonce: 'expected-nonce',
-    iat: now - 10,
-    exp: now + 3600,
-    ...overrides,
-  };
-}
-
-test.beforeEach(() => {
-  clearJwksCacheForTesting();
-  primeJwksCacheForTesting('google', [JWK]);
-});
-
-test('T1 a well-formed, correctly-audienced token verifies', async () => {
-  const verified = await verifyZkLoginJwt({ jwt: signJwt(claims()), provider: 'google', env: ENV });
-  assert.equal(verified.sub, 'provider-user-123');
-  assert.equal(verified.email, 'ops@splash.finance');
-});
-
-test('T1 a token minted for ANOTHER app is refused (cross-app impersonation)', async () => {
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: signJwt(claims({ aud: 'some-other-app' })), provider: 'google', env: ENV }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'bad_audience',
-  );
-});
-
-test('T1 a token from a non-allowlisted issuer is refused', async () => {
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: signJwt(claims({ iss: 'https://evil.example' })), provider: 'google', env: ENV }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'bad_issuer',
-  );
-});
-
-test('T1 an expired token is refused', async () => {
-  const now = Math.floor(Date.now() / 1000);
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: signJwt(claims({ exp: now - 3600, iat: now - 7200 })), provider: 'google', env: ENV }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'expired',
-  );
-});
-
-test('T1 a tampered payload fails the signature check', async () => {
-  const token = signJwt(claims());
-  const [head, , sig] = token.split('.');
-  const forged = Buffer.from(JSON.stringify(claims({ email: 'attacker@evil.example' }))).toString('base64url');
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: `${head}.${forged}.${sig}`, provider: 'google', env: ENV }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'bad_signature',
-  );
-});
-
-test('T1 alg=none / alg-confusion is refused before any signature work', async () => {
-  const head = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(claims())).toString('base64url');
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: `${head}.${body}.`, provider: 'google', env: ENV }),
-    (error) => error instanceof ZkLoginVerificationError && ['bad_algorithm', 'malformed_token'].includes(error.code),
-  );
-});
-
-test('T1 non-canonical / malformed tokens are refused (strict parsing)', async () => {
-  for (const bad of ['not-a-jwt', 'a.b', 'a.b.c.d', 'a.b.c']) {
-    await assert.rejects(
-      () => verifyZkLoginJwt({ jwt: bad, provider: 'google', env: ENV }),
-      (error) => error instanceof ZkLoginVerificationError,
-      `"${bad}" must be refused`,
-    );
-  }
-});
-
-test('T1 nonce must bind the presented ephemeral key', async () => {
-  // Correct nonce passes.
-  await assert.doesNotReject(() => verifyZkLoginJwt({
-    jwt: signJwt(claims()), provider: 'google', env: ENV, expectedNonce: 'expected-nonce',
-  }));
-  // A token whose nonce belongs to a different ephemeral key is refused.
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: signJwt(claims()), provider: 'google', env: ENV, expectedNonce: 'a-different-nonce' }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'bad_nonce',
-  );
-});
-
-test('T1 verification fails closed when no client id is configured for the env', async () => {
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: signJwt(claims()), provider: 'google', env: {} }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'not_configured',
-  );
-});
-
-test('T1 an unknown signing key is refused', async () => {
-  // Same kid, different key: the provider rotated, or an attacker is bluffing.
-  const other = generateKeyPairSync('rsa', { modulusLength: 2048 });
-  primeJwksCacheForTesting('google', [{
-    ...other.publicKey.export({ format: 'jwk' }), kid: 'test-key', alg: 'RS256', use: 'sig',
-  }]);
-  await assert.rejects(
-    () => verifyZkLoginJwt({ jwt: signJwt(claims()), provider: 'google', env: ENV }),
-    (error) => error instanceof ZkLoginVerificationError && error.code === 'bad_signature',
-  );
+test('§4 a cookie from the earlier build carrying a Sui address still verifies, and the address is dropped', () => {
+  const session = createCustomerSessionFromIdentity({ email: 'ops@splash.finance' });
+  const decoded = readCustomerSessionToken(createCustomerSessionToken({ ...session, suiAddress: '0xabc' }, SECRET), SECRET);
+  assert.ok(decoded);
+  assert.equal('suiAddress' in decoded, false, 'the reader copies known fields only');
 });

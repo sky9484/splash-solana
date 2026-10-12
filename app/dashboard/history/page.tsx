@@ -1,6 +1,6 @@
 'use client';
 
-import { suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowUpRight,
@@ -303,7 +303,7 @@ export default function HistoryPage() {
     const body = await response.json() as { verified?: boolean; error?: string };
     setVerification((current) => ({
       ...current,
-      [key]: body.verified ? 'Inclusion + Walrus + Sui anchor verified' : body.error ?? 'Verification failed',
+      [key]: body.verified ? 'Inclusion + Walrus + Solana anchor verified' : body.error ?? 'Verification failed',
     }));
   }
 
@@ -384,7 +384,7 @@ export default function HistoryPage() {
               Daily audit batches
             </div>
             <p className="mt-1 text-[13px] text-[#326273]/90">
-              Completed payments are Merkle-batched, access-controlled, stored on Walrus, then anchored on Sui.
+              Completed payments are Merkle-batched, encrypted with Seal, stored on Walrus, then anchored on Solana.
             </p>
           </div>
           <span className="rounded-full bg-[#5C9EAD]/10 px-3 py-1 text-[13px] font-bold text-[#326273]">
@@ -406,7 +406,7 @@ export default function HistoryPage() {
                 <div className="flex gap-2">
                   <StatusBadge status={batch.walrusMode} />
                   <StatusBadge status={batch.sealMode} />
-                  <a href={suiVisionTxUrl(batch.anchorDigest)} target="_blank" rel="noreferrer" className="rounded-lg bg-white px-3 py-2 text-[13px] font-bold text-[#326273]">
+                  <a href={solanaTxUrl(batch.anchorDigest)} target="_blank" rel="noreferrer" className="rounded-lg bg-white px-3 py-2 text-[13px] font-bold text-[#326273]">
                     Anchor tx
                   </a>
                 </div>

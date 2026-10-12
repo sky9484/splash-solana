@@ -67,7 +67,7 @@ export default function TrustPage() {
       <footer className="wc-footer">
         <div className="iso-shell wc-footer-inner">
           <span>{BRAND.copyright()}</span>
-          <span>Records: encrypted, stored permanently, anchored on Sui</span>
+          <span>Settlement on Solana · Evidence encrypted, stored, and anchored on Solana</span>
         </div>
       </footer>
     </main>

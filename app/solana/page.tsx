@@ -53,7 +53,7 @@ export default function SolanaLanding() {
             needs your device&rsquo;s signature. The receipt is checked in your browser against the anchored record.
           </p>
           <p className="sx-small">
-            Splash never holds the money. Prior work: <Link href="/">the Sui build</Link>.
+            Splash never holds the money. <Link href="/">Back to Splash</Link>.
           </p>
         </div>
       </section>

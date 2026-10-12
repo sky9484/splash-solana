@@ -13,7 +13,8 @@ import {
   reserveOutflow,
   RESERVATION_MS,
 } from '../lib/server/stablecoin-outflows.ts';
-import { parseUsdcMinor, SUI_USDC_COIN_TYPE } from '../lib/payments/stablecoin-lane.ts';
+import { parseUsdcMinor } from '../lib/payments/stablecoin-lane.ts';
+import { SOLANA_CONFIG } from '../lib/solana/config.ts';
 
 /**
  * The outflow ledger against real migrations: reservations, the shared cap,
@@ -34,9 +35,10 @@ async function migratedDb() {
   return { client, db };
 }
 
-const SENDER = '0x' + '11'.repeat(32);
-const RECIPIENT = '0x' + '22'.repeat(32);
-const FEE = '0x' + '33'.repeat(32);
+const SENDER = '9fZ34EK7' + '1'.repeat(36);
+const RECIPIENT = '4ZXV7pQe' + '2'.repeat(36);
+const FEE = 'FeeAddr7' + '3'.repeat(36);
+const USDC_MINT = SOLANA_CONFIG.devnet.usdcMint;
 const usdc = (s) => parseUsdcMinor(s);
 const HASH = 'a'.repeat(64);
 
@@ -50,7 +52,7 @@ function reserve(db, orgId, principal, extra = {}) {
     orgId,
     kind: 'TRANSFER',
     supplierId: null,
-    coinType: SUI_USDC_COIN_TYPE.mainnet,
+    coinType: USDC_MINT,
     principalMinor: principal,
     feeMinor: principal / 125n,
     senderAddress: SENDER,
@@ -60,12 +62,12 @@ function reserve(db, orgId, principal, extra = {}) {
   });
 }
 
-test('a reservation holds allowance, and a mainnet row is marked anchor-pending', async () => {
+test('a reservation holds allowance, on the configured cluster, and is marked anchor-pending', async () => {
   const { client, db } = await migratedDb();
   const orgId = await org(client);
   const r = await reserve(db, orgId, usdc('4000'));
   assert.equal(r.ok, true);
-  assert.equal(r.network, 'mainnet');
+  assert.equal(r.network, 'devnet', 'SOLANA_CLUSTER unset is devnet');
   const row = (await client.query(`SELECT status, anchor_status FROM stablecoin_outflows WHERE id = '${r.id}'`)).rows[0];
   assert.equal(row.status, 'PENDING');
   assert.equal(row.anchor_status, 'PENDING_MAINNET_PUBLISH');
@@ -133,7 +135,7 @@ test('confirmed x402 payments count against the same allowance', async () => {
   await client.close();
 });
 
-test('a suspended business cannot reserve anything; a verified one is on mainnet too, with Tier 3 limits', async () => {
+test('a suspended business cannot reserve anything; a verified one gets the Tier 3 limits', async () => {
   const { client, db } = await migratedDb();
   const suspended = await org(client, { id: 'org_susp', kyb: 'SUSPENDED' });
   const r = await reserve(db, suspended, usdc('1'));
@@ -143,9 +145,9 @@ test('a suspended business cannot reserve anything; a verified one is on mainnet
   const verified = await org(client, { id: 'org_v', kyb: 'ACTIVE' });
   const v = await reserve(db, verified, usdc('20000'));
   assert.equal(v.ok, true, 'above the unverified cap, within Tier 3');
-  assert.equal(v.network, 'mainnet', 'there is no stablecoin sandbox');
+  assert.equal(v.network, 'devnet');
   const row = (await client.query(`SELECT network, anchor_status FROM stablecoin_outflows WHERE id = '${v.id}'`)).rows[0];
-  assert.equal(row.network, 'mainnet');
+  assert.equal(row.network, 'devnet');
   assert.equal(row.anchor_status, 'PENDING_MAINNET_PUBLISH');
   await client.close();
 });
@@ -155,7 +157,7 @@ test('the database itself refuses a nonsense row', async () => {
   await org(client);
   await assert.rejects(
     () => client.exec(`INSERT INTO stablecoin_outflows (id, org_id, kind, network, coin_type, principal_minor, fee_minor, sender_address, recipient_address, reserved_until, anchor_status)
-      VALUES ('bad', 'org_sc', 'TRANSFER', 'mainnet', 'x', 0, 0, 'a', 'b', now(), 'NOT_REQUIRED')`),
+      VALUES ('bad', 'org_sc', 'TRANSFER', 'devnet', 'x', 0, 0, 'a', 'b', now(), 'NOT_REQUIRED')`),
     /check/i,
     'a zero principal violates the CHECK constraint',
   );
@@ -163,7 +165,7 @@ test('the database itself refuses a nonsense row', async () => {
     () => client.exec(`INSERT INTO stablecoin_outflows (id, org_id, kind, network, coin_type, principal_minor, fee_minor, sender_address, recipient_address, reserved_until, anchor_status)
       VALUES ('tn', 'org_sc', 'TRANSFER', 'testnet', 'x', 1, 0, 'a', 'b', now(), 'NOT_REQUIRED')`),
     /check/i,
-    'the ledger holds mainnet rows only',
+    'the ledger holds Solana cluster names only (devnet, mainnet-beta)',
   );
   await client.close();
 });

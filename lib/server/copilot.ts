@@ -3,8 +3,8 @@ import { copilotModel } from '../ai/model.ts';
 /**
  * Zeke — layered copilot intelligence.
  *
- * Real implementations (no placeholders): grounded in corridor data, MemWal
- * behavioral memory, and the floating USDY treasury rate. Claude is used where
+ * Real implementations (no placeholders): grounded in corridor data and the
+ * caller's own invoices. Claude is used where
  * it adds value (invoice extraction) but every function degrades gracefully
  * without ANTHROPIC_API_KEY. RULE: the copilot only SUGGESTS — the user must
  * authorize execution. Never invents PII/account numbers.
@@ -12,8 +12,8 @@ import { copilotModel } from '../ai/model.ts';
 
 import { getCorridorFeeBps } from '@/lib/fx/corridors';
 import { custodyPhaseEnabled } from '@/lib/server/custody-phase';
-import { recallForOrg, rememberForOrg, type RecalledMemory } from '@/lib/server/memwal';
-import { getTreasuryRate } from '@/lib/server/usdy';
+/** A remembered behaviour, as the earlier build's memory store returned it. */
+type RecalledMemory = { blob_id: string; text: string; distance: number };
 
 export interface CopilotSuggestion {
   suggestionId: string;
@@ -73,7 +73,8 @@ function normaliseAmount(raw: string): { amount: string; amountMinor: bigint } {
 function rememberInvoiceVendor(orgId: string, recipient: string, currency: string): void {
   const vendor = recipient.replace(/\s+/g, ' ').trim().slice(0, 80);
   if (!vendor || !currency) return;
-  void rememberForOrg(orgId, `Invoice vendor ${vendor} settles in ${currency}`);
+  // No behaviour memory on this build (the earlier memory store is gone).
+  void orgId;
 }
 
 export async function parseInvoice(
@@ -180,12 +181,16 @@ export async function optimizeBatch(
   };
 }
 
-// ─── Personalized suggestions from MemWal behavioral memory ─────────────────────
+// ─── Personalized suggestions from recalled behaviour ───────────────────────────
+//
+// No behaviour-memory store runs on this build, so nothing is recalled today.
+// The scoring below is kept, and tested, so a store added later is held to it.
 
 /**
- * How close a recalled memory is to the recall query, 0..1. The MemWal SDK
- * defines semantic similarity as `1.0 - distance` (lower distance is closer)
- * and documents no bound on distance, so the result is clamped. It is the only thing
+ * How close a recalled memory is to the recall query, 0..1. The earlier
+ * build's memory store defined semantic similarity as `1.0 - distance` (lower
+ * distance is closer) and documented no bound on distance, so the result is
+ * clamped. It is the only thing
  * these cards measure, and it measures relevance to the query, not whether
  * the suggestion is right. It used to be floored at 0.6 and 0.55, so a filler
  * memory at distance 0.95 (5% similar) was shown as 60%. null when the
@@ -197,10 +202,10 @@ export function memoryRelevance(distance: number): number | null {
 }
 
 /**
- * Below this, a recalled memory is filler, not a pattern: the MemWal SDK's
- * own default `minRelevance` (its AI middleware keeps `1 - distance >= 0.3`).
- * This adapter calls `recall()` without a cutoff, so without one the cards
- * were built from whatever came back.
+ * Below this, a recalled memory is filler, not a pattern: the earlier memory
+ * store's own default `minRelevance` (it kept `1 - distance >= 0.3`). Its
+ * adapter recalled without a cutoff, so without one the cards were built from
+ * whatever came back.
  */
 export const MIN_MEMORY_RELEVANCE = 0.3;
 
@@ -255,16 +260,10 @@ export function suggestionsFromMemories(memories: RecalledMemory[]): CopilotSugg
  * shown at an invented 60%.
  */
 export function idleCashSuggestion(custodyOn: boolean, executionOn: boolean): CopilotSuggestion | null {
-  if (!custodyOn || !executionOn) return null;
-  const rate = getTreasuryRate();
-  return {
-    suggestionId: `cop_${Date.now()}`,
-    type: 'treasury',
-    title: 'Put idle USDC to work',
-    description: `Idle Available cash earns 0%. Smart Treasury (Ondo USDY, T-bill) is ${rate.label}. Move some over?`,
-    confidence: null,
-    requiresAuth: true,
-  };
+  // Treasury is not on the Solana build (prompt 07 §4.2), so there is no card.
+  void custodyOn;
+  void executionOn;
+  return null;
 }
 
 /** What the cards ask memory for. The copilot page never sent its own. */
@@ -278,15 +277,13 @@ const SUGGESTION_RECALL_QUERY = 'patterns';
 export async function getCopilotSuggestions(
   orgId: string,
   custodyOn: boolean = custodyPhaseEnabled(),
-  // The same reading as app/api/treasury/route.ts.
+  // Kept for callers; treasury is not on this build, so it changes nothing.
   treasuryExecutionOn: boolean = process.env.TREASURY_EXECUTION_ENABLED === 'true',
 ): Promise<CopilotSuggestion[]> {
-  let out: CopilotSuggestion[] = [];
-  try {
-    out = suggestionsFromMemories(await recallForOrg(orgId, SUGGESTION_RECALL_QUERY, 6));
-  } catch {
-    // memory unavailable — fall back below
-  }
+  const out: CopilotSuggestion[] = [];
+  // No behaviour memory on this build, so suggestions come from nothing remembered.
+  void orgId;
+  void SUGGESTION_RECALL_QUERY;
   if (out.length === 0) {
     const fallback = idleCashSuggestion(custodyOn, treasuryExecutionOn);
     if (fallback) out.push(fallback);

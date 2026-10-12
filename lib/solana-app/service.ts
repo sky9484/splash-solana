@@ -217,18 +217,22 @@ export async function registerKeys(orgId: string, proofs: Array<{ role: 'device'
   return { device: org.keys.device ?? null, kit: org.keys.kit ?? null };
 }
 
-export async function createVault(orgId: string) {
-  const org = getOrg(orgId);
-  if (org.vault) throw new ServiceError('vault_exists', 'This company already has a vault.', 409);
-  if (!org.keys.device || !org.keys.kit) throw new ServiceError('keys_missing', 'Save your recovery kit and create the device key first.', 409);
+/**
+ * Create an autonomous Squads vault (solo mode: device + recovery kit,
+ * threshold 1, configAuthority null) and confirm on the created account that
+ * nobody, Splash included, can change it. Shared by the demo onboarding and
+ * the account setup (lib/solana-app/account-setup.ts).
+ */
+export async function createAutonomousVault(input: { devicePublicKey: string; kitPublicKey: string; sponsorTag: string }) {
+  if (input.devicePublicKey === input.kitPublicKey) throw new ServiceError('bad_request', 'The device key and the recovery kit must be different keys.');
   const rt = runtime();
   const feePayer = await rt.chain.getFeePayer();
   const createKey = Keypair.generate(); // signs the create once, then dropped; it gains no authority
   const plan = buildCreateVaultInstruction({
     mode: 'solo',
     members: [
-      { role: 'admin_device', publicKey: org.keys.device.publicKey },
-      { role: 'recovery_kit_a', publicKey: org.keys.kit.publicKey },
+      { role: 'admin_device', publicKey: input.devicePublicKey },
+      { role: 'recovery_kit_a', publicKey: input.kitPublicKey },
     ],
     createKey: createKey.publicKey,
     feePayer,
@@ -237,10 +241,18 @@ export async function createVault(orgId: string) {
   });
   const tx = buildSponsoredTransaction(feePayer, [plan.instruction], await rt.chain.getLatestBlockhash());
   tx.sign([createKey]);
-  const receipt = await rt.chain.sendSponsored(tx, { orgId: org.id });
+  const receipt = await rt.chain.sendSponsored(tx, { orgId: input.sponsorTag });
   const onChain = await rt.chain.getMultisig(plan.multisigPda);
-  if (onChain && onChain.configAuthority !== null) throw new ServiceError('send_failed', 'The vault was created with a config authority. Stop and contact support.', 500);
-  org.vault = { ...plan.vault, createdAt: nowIso(), signature: receipt.signature, simulated: receipt.simulated, cluster: receipt.cluster };
+  const configAuthority = onChain ? onChain.configAuthority : null;
+  if (configAuthority !== null) throw new ServiceError('send_failed', 'The vault was created with a config authority. Stop and contact support.', 500);
+  return { ...plan.vault, configAuthority, createdAt: nowIso(), signature: receipt.signature, simulated: receipt.simulated, cluster: receipt.cluster };
+}
+
+export async function createVault(orgId: string) {
+  const org = getOrg(orgId);
+  if (org.vault) throw new ServiceError('vault_exists', 'This company already has a vault.', 409);
+  if (!org.keys.device || !org.keys.kit) throw new ServiceError('keys_missing', 'Save your recovery kit and create the device key first.', 409);
+  org.vault = await createAutonomousVault({ devicePublicKey: org.keys.device.publicKey, kitPublicKey: org.keys.kit.publicKey, sponsorTag: org.id });
   return org.vault;
 }
 

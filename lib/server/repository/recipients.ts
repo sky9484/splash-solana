@@ -70,11 +70,11 @@ export type RecipientRow = {
   kybInviteSent?: boolean;
   travelRule?: TravelRuleColumns;
   demo?: boolean;
-  /** BANK (local currency via a partner rail) or WALLET (USDC on Sui). */
+  /** BANK (local currency via a payout partner) or WALLET (USDC on Solana). */
   payoutMethod?: 'BANK' | 'WALLET';
-  /** Lower-cased Sui address; set only for WALLET recipients. */
+  /** Solana address (base58, case-sensitive); set only for WALLET recipients. */
   walletAddress?: string;
-  /** 'SLUSH' | 'METAMASK_SUI_SNAP'. */
+  /** 'PHANTOM' | 'SOLFLARE' | 'BACKPACK' | 'OTHER'. */
   walletProvider?: string;
   /** Sanctions screening outcome; null = never screened. */
   screeningVerdict?: string | null;

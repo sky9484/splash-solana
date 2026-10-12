@@ -28,7 +28,9 @@ export type ServiceErrorCode =
   | 'uncertain'
   | 'webhook_invalid'
   | 'transaction_too_large'
-  | 'devnet_not_supported';
+  | 'devnet_not_supported'
+  | 'not_authorized'
+  | 'device_exists';
 
 export class ServiceError extends Error {
   readonly code: ServiceErrorCode;

@@ -10,7 +10,7 @@ export default function SplashLoading({ label = 'Loading your dashboard' }: { la
       <div className="splash-loading-panel">
         <div className="splash-loading-route" aria-hidden="true">
           <motion.i animate={{ left: ['5%', '86%'] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }} />
-          <span>USD</span><span>SUI</span><span>LOCAL</span>
+          <span>USDC</span><span>SOLANA</span><span>LOCAL</span>
         </div>
         <motion.div
           animate={{ y: [0, -7, 0] }}

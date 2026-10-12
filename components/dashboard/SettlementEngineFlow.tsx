@@ -24,13 +24,12 @@ export type FlowNode = {
   flag?: string;
 };
 
-type Variant = 'settlement' | 'treasury' | 'batch';
+type Variant = 'settlement' | 'batch';
 
 type CoreCopy = { kicker: string; title: string; sub: string };
 
 const CORE: Record<Variant, CoreCopy> = {
-  settlement: { kicker: 'Settlement engine', title: 'Splash · Sui', sub: 'Atomic settle-or-revert' },
-  treasury:   { kicker: 'Treasury projection', title: 'USDY model', sub: 'Approval-gated simulation' },
+  settlement: { kicker: 'Settlement engine', title: 'Splash · Solana', sub: 'A person approves each payment' },
   batch:      { kicker: 'Batch engine',      title: 'Payout run',   sub: 'Screen · authorize · settle' },
 };
 
@@ -38,9 +37,6 @@ const DEFAULT_SOURCES: Record<Variant, FlowNode[]> = {
   settlement: [
     { label: 'Stripe', sublabel: 'USD collection', src: '/stripe-logo.svg' },
     { label: 'Airwallex', sublabel: 'Bank rails', src: '/airwallex-logo.png' },
-  ],
-  treasury: [
-    { label: 'Idle USD', sublabel: 'Available balance' },
   ],
   batch: [
     { label: 'CSV upload', sublabel: 'Recipients' },
@@ -55,10 +51,6 @@ const DEFAULT_DESTS: Record<Variant, FlowNode[]> = {
     { label: 'IDR', sublabel: 'Implemented in code', flag: '🇮🇩' },
     { label: 'SGD', sublabel: 'Implemented in code', flag: '🇸🇬' },
   ],
-  treasury: [
-    { label: 'USDY yield', sublabel: 'variable · T-bill' },
-    { label: 'Withdraw', sublabel: 'T+1–T+3 to Available' },
-  ],
   batch: [
     { label: 'PHP', sublabel: 'Cleared', flag: '🇵🇭' },
     { label: 'IDR', sublabel: 'Cleared', flag: '🇮🇩' },
@@ -67,8 +59,7 @@ const DEFAULT_DESTS: Record<Variant, FlowNode[]> = {
 };
 
 const DEFAULT_CAPTIONS: Record<Variant, string[]> = {
-  settlement: ['400ms Sui finality', 'One live-model corridor', 'Walrus audit proof'],
-  treasury:   ['Projected USDY rate', 'Human approval required', 'Execution gated'],
+  settlement: ["You don't need SOL", 'One live-model corridor', 'Walrus audit proof'],
   batch:      ['One authorization', 'Every row screened', 'Receipts anchored'],
 };
 

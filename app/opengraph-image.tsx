@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'Splash working-capital network for Southeast Asia payouts';
+export const alt = 'Splash: pay suppliers abroad, prove every payment';
 export const size = {
   width: 1200,
   height: 630,
@@ -178,7 +178,7 @@ export default function OpenGraphImage() {
             <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: 4, textTransform: 'uppercase' }}>Splash</div>
           </div>
           <div style={{ fontSize: 23, color: colors.teal, fontWeight: 900, letterSpacing: 4, textTransform: 'uppercase' }}>
-            Working-capital network
+            Settlement on Solana
           </div>
           <div
             style={{
@@ -190,15 +190,13 @@ export default function OpenGraphImage() {
               letterSpacing: '-2px',
             }}
           >
-            <div style={{ display: 'flex' }}>Collect USD.</div>
-            <div style={{ display: 'flex' }}>Pay Southeast Asia.</div>
-            <div style={{ display: 'flex' }}>
-              <div style={{ display: 'flex', width: 390, whiteSpace: 'nowrap' }}>Keep cash</div>
-              <div style={{ display: 'flex', color: colors.teal, fontStyle: 'italic' }}>working.</div>
-            </div>
+            <div style={{ display: 'flex' }}>Pay suppliers</div>
+            <div style={{ display: 'flex' }}>abroad.</div>
+            <div style={{ display: 'flex', whiteSpace: 'nowrap' }}>Prove every</div>
+            <div style={{ display: 'flex', color: colors.teal, fontStyle: 'italic' }}>payment.</div>
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-            {['Sandbox', 'Sui testnet', 'No customer funds'].map((item) => (
+            {['Sandbox', 'Solana devnet', 'No customer funds'].map((item) => (
               <div
                 key={item}
                 style={{
