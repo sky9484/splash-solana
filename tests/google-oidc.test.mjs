@@ -75,7 +75,8 @@ test('nonce: a token from another sign-in attempt is refused', async () => {
 });
 
 test('nonce: a token with no nonce is refused', async () => {
-  const { nonce: _omit, ...claims } = goodClaims();
+  const claims = goodClaims();
+  delete claims.nonce;
   await rejects(verify(signJwt(claims)), 'bad_nonce');
 });
 
@@ -101,7 +102,8 @@ test('exp / iat: expired and future-dated tokens are refused', async () => {
 });
 
 test('email_verified: absent, false and the string "true" all refuse', async () => {
-  const { email_verified: _omit, ...absent } = goodClaims();
+  const absent = goodClaims();
+  delete absent.email_verified;
   await rejects(verify(signJwt(absent)), 'email_unverified');
   await rejects(verify(signJwt(goodClaims({ email_verified: false }))), 'email_unverified');
   await rejects(verify(signJwt(goodClaims({ email_verified: 'true' }))), 'email_unverified');

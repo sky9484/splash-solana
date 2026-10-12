@@ -126,7 +126,7 @@ export const users = pgTable('users', {
   /**
    * scrypt, formatted by lib/auth/password.ts. Nullable because an identity
    * can exist without one — an invited user before they set a password, or a
-   * zkLogin identity that never has one at all.
+   * Google sign-in identity that never has one at all.
    */
   passwordHash: text('password_hash'),
   /** Null until the address is proven. Not a boolean: when it happened is the
@@ -303,12 +303,11 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
 ]);
 
 /**
- * Wallet spec §2.3 — per-human zkLogin signer ↔ record mapping.
- *
- * One org has ONE on-chain BusinessAccount but MANY individual signers: a
- * zkLogin address is derived from (iss, sub, aud, salt), so `ceo@acme.com` and
- * `controller@acme.com` get different Sui addresses. That is what gives
- * maker-checker per-human signer attribution.
+ * RETIRED. Held the per-person Sui signer address of the earlier (Sui) build,
+ * derived at sign-in. Nothing reads or writes it any more: on Solana a
+ * person's signer is their device key, registered per member, and sign-in
+ * (password or Google) derives no key. Kept only until the migration that
+ * drops it together with the other Sui address columns.
  *
  * `oauth_sub` is a provider user id — treat it as PII: never log it raw.
  */

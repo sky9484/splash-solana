@@ -17,8 +17,8 @@ import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, 
  *     a signed, short-lived, httpOnly cookie. It is REQUIRED, never optional;
  *   - `email_verified` is the boolean `true`, or the sign-in is refused.
  *
- * The verifier was carried over from the removed zkLogin module (same
- * strict decoding and claim checks), minus everything Sui.
+ * The strict decoding and claim checks were carried over from the earlier
+ * build's Google verifier, minus everything Sui, with the nonce made mandatory.
  */
 
 export type GoogleIdClaims = {

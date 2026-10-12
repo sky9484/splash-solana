@@ -122,11 +122,11 @@ function dummyHash(): Promise<string> {
 /**
  * Mark an address proven.
  *
- * Reached from exactly two places: the zkLogin route, when the provider's
- * token carries the boolean claim `email_verified: true`, and
- * `lib/auth/email-verification.ts`, when a link delivered to the mailbox is
- * opened. The first proof time is kept — proving an address twice does not
- * move the date it was first proven.
+ * Proving a mailbox through a delivered link goes through
+ * `lib/auth/email-verification.ts`, and through Google through
+ * `linkVerifiedIdentity` below; both also move the credential version. This
+ * is the bare marker, for the seed and for operators. The first proof time is
+ * kept — proving an address twice does not move the date it was first proven.
  */
 export async function markEmailVerified(db: DrizzleDb, email: string, now = new Date()): Promise<void> {
   await db

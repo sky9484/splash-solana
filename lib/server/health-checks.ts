@@ -157,42 +157,6 @@ export async function checkSeal(): Promise<Check> {
   }
 }
 
-/* ── Enoki ────────────────────────────────────────────────────────────── */
-
-/**
- * The application makes no Enoki call, and needs none: USDC wallet transfers
- * carry no gas on Sui (lib/payments/stablecoin-lane.ts, Gas), and settlement
- * pays its own. ENOKI_API_KEY stays optional for a later sponsor.
- * This probe is therefore the codebase's only Enoki request: an authenticated
- * read of the app record, which is what a valid key unlocks and an invalid
- * one does not. It proves the key, not the integration.
- */
-export async function checkEnoki(): Promise<Check> {
-  const key = getEnv().ENOKI_API_KEY;
-  if (!key) return { ok: true, status: 'skipped', detail: 'ENOKI_API_KEY not set — not needed: USDC transfers carry no gas, and nothing calls Enoki' };
-  try {
-    const { value, ms } = await timed('Enoki', async () => {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
-      try {
-        return await fetch('https://api.enoki.mystenlabs.com/v1/app', {
-          headers: { Authorization: `Bearer ${key}` },
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(t);
-      }
-    });
-    if (value.status === 401 || value.status === 403) {
-      return { ok: false, status: 'fail', detail: `key rejected (HTTP ${value.status})`, latencyMs: ms };
-    }
-    if (!value.ok) return { ok: false, status: 'fail', detail: `Enoki answered HTTP ${value.status}`, latencyMs: ms };
-    return { ok: true, status: 'ok', detail: 'key accepted by Enoki', latencyMs: ms };
-  } catch (e) {
-    return { ok: false, status: 'fail', detail: reason(e) };
-  }
-}
-
 /* ── Flags ────────────────────────────────────────────────────────────── */
 
 export function featureFlags(): Record<string, string | boolean> {
@@ -204,7 +168,7 @@ export function featureFlags(): Record<string, string | boolean> {
     USE_MOCK_APIS: env.USE_MOCK_APIS,
     LAUNCH_SCOPE: env.LAUNCH_SCOPE,
     NEXT_PUBLIC_DEMO_MODE: env.NEXT_PUBLIC_DEMO_MODE,
-    FEATURE_ZKLOGIN: env.FEATURE_ZKLOGIN,
+    FEATURE_GOOGLE_SIGNIN: env.FEATURE_GOOGLE_SIGNIN,
     FEATURE_KYB_GATE: env.FEATURE_KYB_GATE,
     FEATURE_DUAL_FUNDING: env.FEATURE_DUAL_FUNDING,
     OXWAL_CHAIN_MODE: env.OXWAL_CHAIN_MODE,
@@ -220,7 +184,7 @@ export type HealthReport = {
   checkedAt: string;
   flags: Record<string, string | boolean>;
   checks: {
-    rpc: Check; package: Check; db: Check; seal: Check; enoki: Check;
+    rpc: Check; package: Check; db: Check; seal: Check;
     /* Go-live: the setup a person does by hand (lib/server/go-live-checks.ts). */
     laneNode: Check; peg: Check; usdyPrice: Check; feeAddress: Check; twilio: Check; passkeyDomain: Check; screening: Check;
     launchScope: Check;
@@ -228,12 +192,12 @@ export type HealthReport = {
 };
 
 export async function runHealthChecks(): Promise<HealthReport> {
-  const [rpc, pkg, db, seal, enoki, laneNode, peg, usdyPrice, feeAddress, twilio, screening] = await Promise.all([
-    checkRpc(), checkPackage(), checkDb(), checkSeal(), checkEnoki(),
+  const [rpc, pkg, db, seal, laneNode, peg, usdyPrice, feeAddress, twilio, screening] = await Promise.all([
+    checkRpc(), checkPackage(), checkDb(), checkSeal(),
     checkLaneNode(), checkPeg(), checkUsdyPrice(), checkFeeAddress(), checkTwilio(), checkScreening(),
   ]);
   const checks = {
-    rpc, package: pkg, db, seal, enoki,
+    rpc, package: pkg, db, seal,
     laneNode, peg, usdyPrice, feeAddress, twilio, passkeyDomain: checkPasskeyDomain(), screening,
     launchScope: checkLaunchScope(),
   };

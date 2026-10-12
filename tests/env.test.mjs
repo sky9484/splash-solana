@@ -100,14 +100,15 @@ test('production: vendor keys are demanded only when mocks and demo mode are bot
   for (const k of ['PDAX_API_KEY', 'WALRUS_PUBLISHER_URL', 'AIRWALLEX_API_KEY', 'STRIPE_SECRET_KEY']) {
     assert.ok(keys.includes(k), `${k} should be named once vendors are live`);
   }
-  // Nothing calls Enoki: USDC transfers carry no gas, so production must not
-  // refuse to boot without a key for it.
-  assert.ok(!keys.includes('ENOKI_API_KEY'), 'ENOKI_API_KEY is optional');
 });
 
-test('production: FEATURE_ZKLOGIN=true requires the client id and the salt', () => {
-  const keys = keysOf(() => parseEnv({ ...PROD_OK, FEATURE_ZKLOGIN: 'true' }));
-  assert.deepEqual(keys.sort(), ['ZKLOGIN_GOOGLE_CLIENT_ID', 'ZKLOGIN_USER_SALT']);
+test('production: FEATURE_GOOGLE_SIGNIN=true requires the client id, secret and redirect URI', () => {
+  const keys = keysOf(() => parseEnv({ ...PROD_OK, FEATURE_GOOGLE_SIGNIN: 'true' }));
+  assert.deepEqual(keys.sort(), ['GOOGLE_OIDC_CLIENT_ID', 'GOOGLE_OIDC_CLIENT_SECRET', 'GOOGLE_OIDC_REDIRECT_URI']);
+});
+
+test('Google sign-in off: none of its keys is demanded', () => {
+  assert.doesNotThrow(() => parseEnv({ ...PROD_OK }), 'production boots without any GOOGLE_OIDC_* key while the flag is off');
 });
 
 test('a Seal key that moved into config/ is refused by name if still set, in any mode', () => {

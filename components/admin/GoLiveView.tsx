@@ -27,7 +27,6 @@ const INFRASTRUCTURE: Row[] = [
   { key: 'package', name: 'Splash package', role: 'The published Move package' },
   { key: 'db', name: 'Postgres', role: 'Ledger, approvals and the 30-day allowance' },
   { key: 'seal', name: 'Seal', role: 'Encrypted records' },
-  { key: 'enoki', name: 'Enoki', role: 'Optional gas sponsor — not needed' },
   { key: 'launchScope', name: 'Launch scope', role: 'Which lanes this server opens (LAUNCH_SCOPE)' },
 ];
 
