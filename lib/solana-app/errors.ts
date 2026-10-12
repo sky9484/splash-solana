@@ -33,6 +33,7 @@ export type ServiceErrorCode =
   | 'not_an_approver'
   | 'already_approved'
   | 'payee_changed'
+  | 'sponsor_cap'
   | 'not_authorized'
   | 'device_exists';
 

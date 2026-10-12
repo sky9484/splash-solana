@@ -29,7 +29,7 @@ import bs58 from 'bs58';
 
 import { explorerAddressUrl, explorerTxUrl, usdcMint } from '../solana/config.ts';
 import { buildDepositForBurnInstruction } from '../solana/cctp-v2-solana.ts';
-import { utcDay } from '../solana/kora.ts';
+import { defaultSponsorPolicy, utcDay, type SponsorPolicy } from '../solana/kora.ts';
 import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
 import { buildMemoInstruction, buildPaymentMemo, buildPayoutInstructions, buildSplashFeeInstructions, getAssociatedTokenAddress } from '../solana/payout.ts';
 import { createPossessionChallenge, verifyPossession } from '../solana/recovery-kit.ts';
@@ -56,6 +56,7 @@ import { canonicalJson } from '../solana-evidence/canonical.ts';
 import { anchoredRootFromMemo, verifyBundle, type VerifyResult } from '../solana-evidence/verify.ts';
 import { assertDraftOnly, assertRouterRefersToEngineQuote } from '../solana-zeke/guard.ts';
 import { InvoiceFieldsSchema, readInvoice, ReaderError, type InvoiceFieldName } from '../solana-zeke/reader.ts';
+import { explainChecks } from '../solana-zeke/checker.ts';
 import { explainRoutes } from '../solana-zeke/router.ts';
 import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 
@@ -249,7 +250,14 @@ export async function createAutonomousVault(input: { devicePublicKey: string; ki
   });
   const tx = buildSponsoredTransaction(feePayer, [plan.instruction], await rt.chain.getLatestBlockhash());
   tx.sign([createKey]);
-  const receipt = await rt.chain.sendSponsored(tx, { orgId: input.sponsorTag });
+  const slot = await takeSponsorSlot(input.sponsorTag);
+  let receipt;
+  try {
+    receipt = await rt.chain.sendSponsored(tx, { orgId: input.sponsorTag });
+  } catch (e) {
+    await slot.release();
+    throw e;
+  }
   // §5.4: confirm on the created account that nobody, Splash included, can change it.
   const onChain = await rt.chain.getMultisig(plan.multisigPda);
   if (!onChain) throw new ServiceError('send_failed', 'The vault was not found after creation. Nothing else was done; try again.', 502);
@@ -942,6 +950,7 @@ async function sendStep(p: PaymentRecord, step: string, tx: VersionedTransaction
   const sim = await rt.chain.simulate(tx);
   if (!sim.ok) return { status: 'failed', signature: null, error: sim.error ?? 'simulation failed', logs: sim.logs.slice(-40) };
   const key = chainCallKey(p.id, step);
+  const slot = await takeSponsorSlot(p.orgId);
   let signature: string | null = null;
   try {
     const receipt = await rt.chain.sendSponsored(tx, {
@@ -954,7 +963,10 @@ async function sendStep(p: PaymentRecord, step: string, tx: VersionedTransaction
     });
     signature = receipt.signature;
   } catch (e) {
-    if (!signature) return { status: 'failed', signature: null, error: (e as Error).message, logs: [] };
+    if (!signature) {
+      await slot.release(); // refused before the fee payer signed: the slot goes back
+      return { status: 'failed', signature: null, error: (e as Error).message, logs: [] };
+    }
     // Signed and recorded, broadcast uncertain: never resend; the poll below (or resume) decides.
   }
   const outcome = await awaitCommitment(rt.chain, { signature: signature!, lastValidBlockHeight, target: 'confirmed', timeoutMs: confirmWaitMs() });
@@ -1241,6 +1253,21 @@ export async function noteProblem(paymentId: string, problem: { code: string; me
 
 /* ------------------------------------------------------------------ refuse service (§5.6) */
 
+/**
+ * Take one of the org's sponsored transactions for today before Kora is asked (§5.6). Refused when
+ * the day's cap is reached: nothing is signed. The cap is the sponsor policy's (kora.toml).
+ */
+async function takeSponsorSlot(orgId: string, now = new Date()): Promise<{ release: () => Promise<void> }> {
+  const rt = runtime();
+  const cap = ((rt.chain as { policy?: SponsorPolicy }).policy ?? defaultSponsorPolicy(usdcMint(rt.env.cluster).toBase58())).perOrgDailyTxCap;
+  const day = utcDay(now);
+  const slot = await rt.sponsors.reserve(orgId, day, cap);
+  if (!slot.ok) {
+    throw new ServiceError('sponsor_cap', `This company has used today's ${cap} sponsored transactions. Nothing was sent; try again tomorrow or contact support.`, 429);
+  }
+  return { release: () => rt.sponsors.release(orgId, day) };
+}
+
 /** Staff pause service for a company: no Kora signature, no new proposal. The vault stays the company's. */
 export function suspendOrg(orgId: string, input: { by: string; reason: string }, now = new Date()) {
   const org = getOrg(orgId);
@@ -1515,6 +1542,9 @@ export async function paymentView(paymentId: string) {
     if (cctp) cards.push({ ...cardFor(cctp, [cctp.policy]), label: 'Via Polygon' });
   }
   const explorer = (sig: string, simulated: boolean) => (devnet && !simulated ? explorerTxUrl(sig, rt.env.cluster) : null);
+  // Zeke Checker: the deterministic results in plain words. It explains; it never decides.
+  const checker = p.policy ? explainChecks({ tier: DEMO_TIER, checks: p.policy.checks, extraChecks: p.policy.extraChecks, screeningLabel: p.policy.kyt.label }) : null;
+  if (checker) assertDraftOnly(checker);
   return {
     id: p.id,
     state: p.state,
@@ -1523,7 +1553,7 @@ export async function paymentView(paymentId: string) {
     simulated: rt.env.mode === 'offline',
     invoice: { id: inv.id, confirmed: inv.confirmed },
     cards,
-    zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null },
+    zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,
     approval: p.approval,
     approvals: { threshold: p.threshold, approved: p.approvedBy.length },

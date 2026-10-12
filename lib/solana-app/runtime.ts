@@ -25,6 +25,7 @@ import { createMockPartner, type MockPayoutPartner } from '../solana-partner/moc
 import { InMemoryEvidenceStore } from '../solana-evidence/store.ts';
 import { getDb } from '../db/client.ts';
 import { createMemoryPaymentRepo, createPostgresPaymentRepo, type PaymentRepo } from './payment-repo.ts';
+import { createMemorySponsorLedger, createPostgresSponsorLedger, type SponsorLedger } from './sponsor-ledger.ts';
 
 export interface SolanaAppRuntime {
   key: string;
@@ -42,15 +43,25 @@ export interface SolanaAppRuntime {
   evidence: InMemoryEvidenceStore;
   sealKey: Promise<CryptoKey>;
   payments: PaymentRepo;
+  /** Per-org daily sponsored-transaction counter, checked before Kora (§5.6). Same store as payments. */
+  sponsors: SponsorLedger;
+}
+
+function wantsPostgres(source: NodeJS.ProcessEnv): boolean {
+  const choice = (source.SOLANA_PAYMENT_STORE ?? '').trim();
+  if (choice === 'memory' || (choice !== 'postgres' && !source.DATABASE_URL)) return false;
+  if (!source.DATABASE_URL) throw new Error('SOLANA_PAYMENT_STORE=postgres needs DATABASE_URL');
+  return true;
 }
 
 /** Postgres when a database is configured, unless told otherwise; memory for the offline demo and tests. */
 export function paymentRepoFor(source: NodeJS.ProcessEnv): PaymentRepo {
-  const choice = (source.SOLANA_PAYMENT_STORE ?? '').trim();
-  if (choice === 'memory' || (choice !== 'postgres' && !source.DATABASE_URL)) return createMemoryPaymentRepo();
-  if (!source.DATABASE_URL) throw new Error('SOLANA_PAYMENT_STORE=postgres needs DATABASE_URL');
   // getDb opens the pool on first use only, so the offline demo never connects.
-  return createPostgresPaymentRepo(getDb());
+  return wantsPostgres(source) ? createPostgresPaymentRepo(getDb()) : createMemoryPaymentRepo();
+}
+
+export function sponsorLedgerFor(source: NodeJS.ProcessEnv): SponsorLedger {
+  return wantsPostgres(source) ? createPostgresSponsorLedger(getDb()) : createMemorySponsorLedger();
 }
 
 const G = globalThis as typeof globalThis & { __splashSolanaRuntime?: SolanaAppRuntime };
@@ -77,6 +88,7 @@ export function runtime(source: NodeJS.ProcessEnv = process.env): SolanaAppRunti
     evidence: new InMemoryEvidenceStore(),
     sealKey: globalThis.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']) as Promise<CryptoKey>,
     payments: paymentRepoFor(source),
+    sponsors: sponsorLedgerFor(source),
   };
   G.__splashSolanaRuntime = rt;
   return rt;
