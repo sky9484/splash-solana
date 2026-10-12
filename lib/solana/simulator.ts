@@ -24,7 +24,7 @@ import bs58 from 'bs58';
 
 import { PROGRAM_IDS, readSolanaEnv, usdcMint, type SolanaEnv } from './config.ts';
 import { decodeDepositForBurn, bytes32ToEvmAddress } from './cctp-v2-solana.ts';
-import { createKoraClient, createMemorySponsorUsage, defaultSponsorPolicy, serializeForKora, utcDay, validateSponsoredTransaction, type KoraClient, type SponsorPolicy, type SponsorUsage } from './kora.ts';
+import { createKoraClient, createMemorySponsorUsage, defaultSponsorPolicy, serializeForKora, sponsoredCreatedAccounts, sponsoredFeeLamports, sponsoredRentLamports, utcDay, validateSponsoredTransaction, type KoraClient, type SponsorPolicy, type SponsorUsage } from './kora.ts';
 import { decodeTransferChecked, getAssociatedTokenAddress, isSplashMemo } from './payout.ts';
 import { estimateFromRecentFees } from './compute-budget.ts';
 import { decodeMultisigAccount, MAX_TRANSACTION_BYTES, type MultisigSummary } from './squads.ts';
@@ -83,6 +83,8 @@ export interface ChainClient {
   getNextTransactionIndex(multisigPda: PublicKey): Promise<bigint>;
   /** USDC minor units held in the owner's associated token account (0 if none). */
   getUsdcBalance(owner: PublicKey | string): Promise<bigint>;
+  /** Lamports held by an address (the fee payer's SOL, for the admin console). */
+  getSolBalance(address: PublicKey | string): Promise<bigint>;
   /** Validate (I-3), let Kora sign as fee payer, send. Throws on refusal or failure. */
   sendSponsored(tx: VersionedTransaction, ctx?: SendContext): Promise<ChainReceipt>;
   /** A blockhash and the height after which it expires. */
@@ -106,6 +108,8 @@ function keyOf(seed: string): PublicKey {
 /** Fee payer the simulator pretends Kora uses. No private key exists for it. */
 export const SIMULATED_FEE_PAYER = keyOf('splash:simulator:kora-fee-payer:v1');
 export const SIMULATED_SQUADS_TREASURY = keyOf('splash:simulator:squads-treasury:v1');
+/** What the simulated fee payer starts with: 2 SOL. Every sponsored send takes its fee and rent from it. */
+export const SIMULATED_FEE_PAYER_START_LAMPORTS = 2_000_000_000n;
 
 export function simulatedSignature(serializedTx: Uint8Array): string {
   return bs58.encode(sha512(serializedTx));
@@ -183,6 +187,8 @@ export class SolanaSimulator implements ChainClient {
   readonly events: SimEvent[] = [];
   readonly burns: SimBurn[] = [];
   private state: SimState = { balances: new Map(), accounts: new Set(), multisigs: new Map(), vaultTxs: new Map(), proposals: new Map() };
+  /** The simulated fee payer's SOL, in lamports. */
+  private feePayerLamports = SIMULATED_FEE_PAYER_START_LAMPORTS;
   private blockhashCounter = 0;
   /** Block height. Each send is one block; tests move it with advanceBlocks(). */
   private height = 1_000;
@@ -210,6 +216,16 @@ export class SolanaSimulator implements ChainClient {
 
   async getFeePayer() {
     return SIMULATED_FEE_PAYER;
+  }
+
+  /** Only the fee payer holds SOL in the simulator; every other address reads 0. */
+  async getSolBalance(address: PublicKey | string) {
+    return (typeof address === 'string' ? address : address.toBase58()) === SIMULATED_FEE_PAYER.toBase58() ? this.feePayerLamports : 0n;
+  }
+
+  /** Tests: add SOL to the simulated fee payer (or take it away, with a negative amount). */
+  topUpFeePayer(lamports: bigint) {
+    this.feePayerLamports += lamports;
   }
 
   async getLatestBlockhash() {
@@ -328,10 +344,21 @@ export class SolanaSimulator implements ChainClient {
       if (this.dropCount > 0) this.dropCount -= 1;
       return { signature, cluster: this.cluster, simulated: true };
     }
+    // What the fee payer pays: the fee (exact) and the rent of every account this send creates, read
+    // against the ledger before it commits, so "new" is exact here.
+    const exists = (a: string) => this.state.accounts.has(a) || this.state.multisigs.has(a) || this.state.vaultTxs.has(a) || this.state.proposals.has(a);
+    const vaultOf = tx.message.staticAccountKeys.map((k) => this.state.multisigs.get(k.toBase58())).find(Boolean);
+    const cost = {
+      feeLamports: sponsoredFeeLamports(tx),
+      rentLamports: sponsoredRentLamports(tx, { isNew: (a) => !exists(a), members: vaultOf?.members.length ?? 2 }),
+      rentExact: true,
+    };
+    if (cost.feeLamports + cost.rentLamports > this.feePayerLamports) throw new Error('Simulator: the fee payer has too little SOL for this send. Top it up.');
     this.run(tx, ctx, { commit: true, sigVerify: true });
+    this.feePayerLamports -= cost.feeLamports + cost.rentLamports;
     this.landed.set(signature, this.height);
     this.usage.record(ctx.orgId ?? 'offline-demo', utcDay(now));
-    return { signature, cluster: this.cluster, simulated: true };
+    return { signature, cluster: this.cluster, simulated: true, cost };
   }
 
   /** Validate and apply a transaction; commit only when asked. */
@@ -643,10 +670,26 @@ export class DevnetChain implements ChainClient {
       throw new Error('Kora returned a different message than the one the approver signed. Nothing was sent.');
     }
     const signature = bs58.encode(signed.signatures[0]!);
+    // Which of the accounts this send creates are new, read before it lands (one RPC call); if that
+    // read fails, every one counts (an upper bound). Squads sizes make the rent an estimate here.
+    const created = sponsoredCreatedAccounts(tx);
+    let isNew: ((a: string) => boolean) | undefined;
+    try {
+      const infos = created.length ? await this.connection.getMultipleAccountsInfo(created.map((a) => new PublicKey(a))) : [];
+      const missing = new Set(created.filter((_, i) => infos[i] === null));
+      isNew = (a) => missing.has(a);
+    } catch {
+      isNew = undefined;
+    }
+    const cost = { feeLamports: sponsoredFeeLamports(tx), rentLamports: sponsoredRentLamports(tx, { isNew }), rentExact: false };
     await ctx.onSigned?.(signature);
     await this.connection.sendRawTransaction(signed.serialize(), { skipPreflight: true, maxRetries: 5 });
     this.usage.record(orgId, utcDay(now));
-    return { signature, cluster: this.cluster, simulated: false };
+    return { signature, cluster: this.cluster, simulated: false, cost };
+  }
+
+  async getSolBalance(address: PublicKey | string) {
+    return BigInt(await this.connection.getBalance(typeof address === 'string' ? new PublicKey(address) : address, 'confirmed'));
   }
 }
 

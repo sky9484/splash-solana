@@ -26,6 +26,11 @@ const ALLOWED = [
     why: 'the admin wallet screen labels the server key that pays Sui gas for Seal allowlist updates',
   },
   {
+    file: 'app/admin/(console)/evidence/page.tsx',
+    line: /const SPONSOR_LABEL = 'Sui sponsor \(evidence only\)';/,
+    why: 'the admin evidence section names the key that pays Sui gas for evidence allowlist updates (prompt 07 §7.4)',
+  },
+  {
     file: 'components/compliance/TrustCompliance.tsx',
     line: /kept on a separate storage network that runs on Sui/,
     why: 'the /trust evidence paragraph (prompt 07 §4.2 acceptance) says where the encrypted record lives',

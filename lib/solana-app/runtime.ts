@@ -20,6 +20,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { utf8ToBytes } from '@noble/hashes/utils.js';
 
 import { readSolanaEnv, type SolanaEnv } from '../solana/config.ts';
+import { utcDay } from '../solana/kora.ts';
 import { createMemoryNonceStore, type NonceStore } from '../solana/recovery-kit.ts';
 import { chain, resetChain, type ChainClient } from '../solana/simulator.ts';
 import { createMockPartner, type MockPayoutPartner } from '../solana-partner/mock-partner.ts';
@@ -28,6 +29,7 @@ import { getDb } from '../db/client.ts';
 import { createMemoryDocStore, createPostgresDocStore, type DocStore } from './doc-store.ts';
 import { createMemoryPaymentRepo, createPostgresPaymentRepo, type PaymentRepo } from './payment-repo.ts';
 import { createMemorySponsorLedger, createPostgresSponsorLedger, type SponsorLedger } from './sponsor-ledger.ts';
+import { store } from './store.ts';
 
 export interface SolanaAppRuntime {
   key: string;
@@ -74,6 +76,42 @@ export function docStoreFor(source: NodeJS.ProcessEnv): DocStore {
 
 const G = globalThis as typeof globalThis & { __splashSolanaRuntime?: SolanaAppRuntime };
 
+/**
+ * Every sponsored send goes through here, whichever service makes it (payments, batches, moves,
+ * vault creation, anchors). Two rules sit at this one choke point, in front of Kora:
+ *   - a company Splash has suspended gets no fee-payer signature, whatever code path asks
+ *     (the services check too; this is the last word);
+ *   - what each landed send cost the fee payer (its fee, exactly, and the rent of the accounts it
+ *     created) goes to the sponsor ledger, for the admin console. A ledger write that fails never
+ *     fails the send: the money already moved.
+ * Everything else passes straight through to the chain client.
+ */
+export function sponsorAccountedChain(inner: ChainClient, ledger: () => SponsorLedger): ChainClient {
+  return new Proxy(inner, {
+    get(target, prop) {
+      if (prop === 'sendSponsored') {
+        return async (tx: Parameters<ChainClient['sendSponsored']>[0], ctx: Parameters<ChainClient['sendSponsored']>[1] = {}) => {
+          const orgId = ctx.orgId;
+          if (orgId && store().orgs.get(orgId)?.suspended) {
+            throw new Error('Sponsorship refused: Splash has paused service for this company. Nothing was signed or sent.');
+          }
+          const receipt = await target.sendSponsored(tx, ctx);
+          if (orgId && receipt.cost) {
+            try {
+              await ledger().addSpend(orgId, utcDay(ctx.now ?? new Date()), receipt.cost);
+            } catch {
+              /* the send landed; only the console's spend line is behind */
+            }
+          }
+          return receipt;
+        };
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
 function envKey(env: SolanaEnv): string {
   return `${env.mode}|${env.cluster}|${env.rpcUrl}|${env.koraRpcUrl ?? ''}`;
 }
@@ -87,7 +125,7 @@ export function runtime(source: NodeJS.ProcessEnv = process.env): SolanaAppRunti
   const rt: SolanaAppRuntime = {
     key,
     env,
-    chain: chain(source),
+    chain: sponsorAccountedChain(chain(source), () => rt.sponsors),
     partner: createMockPartner({ webhookSecret, seed: `splash-devnet-${Date.now()}` }),
     webhookSecret,
     attester: Keypair.generate(),

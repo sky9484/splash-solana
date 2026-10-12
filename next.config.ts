@@ -4,6 +4,9 @@ import { SECURITY_HEADERS } from "./lib/security/headers.ts";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // A second dev server (the browser walkthrough's, on its own port and database) needs its own
+  // output folder so it never touches the one a person is using. Unset: the usual .next.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   async headers() {
     // The five static headers, on every response — API routes included. The
     // Content-Security-Policy is per request (it carries the nonce) and is

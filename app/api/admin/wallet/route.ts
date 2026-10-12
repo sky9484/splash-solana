@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
  * can move customer money: the Kora fee payer pays network fees under an
  * allowlist and never sends SOL or tokens (I-3); the evidence sponsor pays
  * Sui gas for allowlist updates only. No private key ever leaves the server.
- * The SAS attester signs evidence roots only. Balances join with the admin
- * console rebuild (Phase 5).
+ * The SAS attester signs evidence roots only. Each comes with its balance:
+ * lamports for the Solana keys, MIST for the evidence sponsor (null when the
+ * network was not read). Amounts are decimal strings of integers.
  */
 export async function GET() {
   const session = await getAdminSession();
@@ -23,15 +24,25 @@ export async function GET() {
   try {
     const rt = runtime();
     const feePayer = (await rt.chain.getFeePayer()).toBase58();
+    const attester = rt.attester.publicKey.toBase58();
     const cluster = rt.env.cluster;
-    const { evidenceSponsorFromEnv } = await import('@/lib/evidence-sui/sponsor');
+    const lamportsOf = async (address: string) => {
+      try {
+        return (await rt.chain.getSolBalance(address)).toString();
+      } catch {
+        return null;
+      }
+    };
+    const { evidenceSponsorFromEnv, sponsorBalanceMist } = await import('@/lib/evidence-sui/sponsor');
     const sponsor = evidenceSponsorFromEnv();
+    const sponsorAddress = sponsor ? await sponsor.address() : null;
+    const sponsorMist = sponsorAddress ? await sponsorBalanceMist(sponsorAddress) : null;
     return NextResponse.json({
       mode: rt.env.mode,
       cluster,
-      feePayer: { role: 'Kora fee payer', address: feePayer, explorerUrl: explorerAddressUrl(feePayer, cluster) },
-      attester: { role: 'SAS attester (evidence roots only)', address: rt.attester.publicKey.toBase58() },
-      evidenceSponsor: sponsor ? { role: 'Sui sponsor (evidence only)', address: await sponsor.address() } : null,
+      feePayer: { role: 'Kora fee payer', address: feePayer, lamports: await lamportsOf(feePayer), explorerUrl: explorerAddressUrl(feePayer, cluster) },
+      attester: { role: 'SAS attester (evidence roots only)', address: attester, lamports: await lamportsOf(attester) },
+      evidenceSponsor: sponsorAddress ? { role: 'Sui sponsor (evidence only)', address: sponsorAddress, mist: sponsorMist === null ? null : sponsorMist.toString() } : null,
     });
   } catch (error) {
     return NextResponse.json(

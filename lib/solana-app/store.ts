@@ -55,6 +55,28 @@ export interface OrgRecord {
   moves?: MoveRecord[];
   /** Splash refuses service: no Kora signature, no new proposal. Splash cannot freeze the vault itself. */
   suspended: { at: string; by: string; reason: string } | null;
+  /** Every suspend and unsuspend, oldest first, never edited (the admin console's audit log). */
+  serviceLog?: ServiceLogEntry[];
+}
+
+export interface ServiceLogEntry {
+  at: string;
+  /** The staff member's email (admin session). */
+  by: string;
+  action: 'suspend' | 'unsuspend';
+  reason: string;
+}
+
+/** A partner webhook as it arrived, and what Splash did with it (the admin console's webhooks section). */
+export interface WebhookLogEntry {
+  at: string;
+  paymentId: string;
+  status: string;
+  /** accepted: applied; duplicate: the same (payment, status) again, a no-op; refused: not applied, with why. */
+  result: 'accepted' | 'duplicate' | 'refused';
+  /** The HMAC check: true passed, false failed, null not reached (the body was malformed). */
+  signatureOk: boolean | null;
+  reason: string | null;
 }
 
 /** Which of the company's two vaults: #0 pays suppliers, #1 holds operating cash (treasury). */
@@ -249,16 +271,19 @@ export interface SolanaAppStore {
   batches: Map<string, BatchRecord>;
   /** Which companies were loaded from the document store, and what was last written for each document. */
   docs: { loaded: Set<string>; written: Map<string, string> };
+  /** The last 200 partner webhooks this server received, newest last. Process memory: since this server started. */
+  webhookLog: WebhookLogEntry[];
 }
 
 const G = globalThis as typeof globalThis & { __splashSolanaAppStore?: SolanaAppStore };
 
 export function store(): SolanaAppStore {
-  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), docs: { loaded: new Set(), written: new Map() } });
+  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), docs: { loaded: new Set(), written: new Map() }, webhookLog: [] });
   // A store made by older code in this process (a dev reload) gains the maps added since.
   s.shares ??= new Map();
   s.batches ??= new Map();
   s.docs ??= { loaded: new Set(), written: new Map() };
+  s.webhookLog ??= [];
   return s;
 }
 

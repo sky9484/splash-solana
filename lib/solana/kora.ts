@@ -168,6 +168,94 @@ function flatten(tx: VersionedTransaction | Transaction): { feePayer: PublicKey 
   };
 }
 
+/* ---------------------------------------------------------------- what a sponsored send costs */
+
+/** Solana's base fee, per required signature. */
+export const LAMPORTS_PER_SIGNATURE = 5_000n;
+/** Rent-exempt minimum of an SPL token account (165 bytes): what an ATA the fee payer creates costs it. */
+export const TOKEN_ACCOUNT_RENT_LAMPORTS = 2_039_280n;
+
+/** Rent-exempt minimum of an account of `size` bytes: (size + 128) × 3,480 lamports per byte-year × 2 years. */
+export function rentExemptLamports(size: number): bigint {
+  return BigInt(size + 128) * 6_960n;
+}
+
+/**
+ * The fee the fee payer pays for this transaction, exact: 5,000 lamports per required signature
+ * plus the priority fee (unit price × unit limit, rounded up), read from its compute budget.
+ */
+export function sponsoredFeeLamports(tx: VersionedTransaction | Transaction): bigint {
+  const f = flatten(tx);
+  let limit: bigint | null = null;
+  let price = 0n;
+  for (const ix of f.ixs) {
+    if (ix.programId.toBase58() !== SOLANA_PROGRAMS.computeBudget) continue;
+    const b = Buffer.from(ix.data);
+    if (b[0] === 2 && b.length >= 5) limit = BigInt(b.readUInt32LE(1));
+    if (b[0] === 3 && b.length >= 9) price = b.readBigUInt64LE(1);
+  }
+  const priority = price > 0n ? (price * (limit ?? 200_000n * BigInt(f.ixs.length)) + 999_999n) / 1_000_000n : 0n;
+  return LAMPORTS_PER_SIGNATURE * BigInt(f.signerCount) + priority;
+}
+
+/** Squads V4 account sizes (programs/squads_multisig_program/src/state), for the rent the fee payer puts in. */
+function squadsAccountSize(kind: 'multisigCreateV2' | 'vaultTransactionCreate' | 'proposalCreate', data: Uint8Array, members: number): number {
+  if (kind === 'proposalCreate') return 8 + 32 + 8 + 1 + 8 + 1 + 3 * (4 + 32 * members);
+  if (kind === 'multisigCreateV2') {
+    const [{ args }] = multisig.generated.multisigCreateV2Struct.deserialize(Buffer.from(data));
+    return 8 + 32 + 32 + 2 + 4 + 8 + 8 + 1 + (args.rentCollector ? 32 : 0) + 1 + 4 + 33 * args.members.length;
+  }
+  const [{ args }] = multisig.generated.vaultTransactionCreateStruct.deserialize(Buffer.from(data));
+  return 8 + 32 + 32 + 8 + 1 + 1 + 1 + 4 + args.ephemeralSigners + args.transactionMessage.length;
+}
+
+/** Every account this transaction may create at the fee payer's expense (token accounts, Squads accounts). */
+export function sponsoredCreatedAccounts(tx: VersionedTransaction | Transaction): string[] {
+  const out = new Set<string>();
+  for (const ix of flatten(tx).ixs) {
+    const pid = ix.programId.toBase58();
+    if (pid === SOLANA_PROGRAMS.associatedToken && ix.keys[1]) out.add(ix.keys[1].toBase58());
+    if (pid === SOLANA_PROGRAMS.squadsV4) {
+      const kind = squadsKind(ix.data);
+      const created = kind === 'multisigCreateV2' ? ix.keys[2] : kind === 'vaultTransactionCreate' || kind === 'proposalCreate' ? ix.keys[1] : undefined;
+      if (created) out.add(created.toBase58());
+    }
+  }
+  return [...out];
+}
+
+/**
+ * The rent this transaction makes the fee payer put into new accounts: token accounts it creates
+ * (exact) and the Squads accounts it pays for (multisig, vault transaction, proposal; sized from the
+ * instruction). Splash's vaults set no rent collector, so none of it comes back.
+ *
+ * `isNew(address)` says whether an account does not exist yet; without it every created account
+ * counts (an upper bound). `members` is the vault's member count, for the proposal's size.
+ */
+export function sponsoredRentLamports(tx: VersionedTransaction | Transaction, opts: { isNew?: (address: string) => boolean; members?: number } = {}): bigint {
+  const f = flatten(tx);
+  const isNew = opts.isNew ?? (() => true);
+  let rent = 0n;
+  for (const ix of f.ixs) {
+    const pid = ix.programId.toBase58();
+    if (pid === SOLANA_PROGRAMS.associatedToken) {
+      const ata = ix.keys[1];
+      if (ata && isNew(ata.toBase58())) rent += TOKEN_ACCOUNT_RENT_LAMPORTS;
+    } else if (pid === SOLANA_PROGRAMS.squadsV4) {
+      const kind = squadsKind(ix.data);
+      if (kind !== 'multisigCreateV2' && kind !== 'vaultTransactionCreate' && kind !== 'proposalCreate') continue;
+      const created = kind === 'multisigCreateV2' ? ix.keys[2] : ix.keys[1];
+      if (created && !isNew(created.toBase58())) continue;
+      try {
+        rent += rentExemptLamports(squadsAccountSize(kind, ix.data, opts.members ?? 2));
+      } catch {
+        /* undecodable: the validator refuses it before it is ever sent */
+      }
+    }
+  }
+  return rent;
+}
+
 /**
  * Enforce I-3 locally. Returns every reason it refuses, not just the first, so a log line explains
  * the whole problem. A transaction this refuses is never sent to Kora.
