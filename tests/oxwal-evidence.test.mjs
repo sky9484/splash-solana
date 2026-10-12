@@ -16,20 +16,8 @@ test('settlement evidence module defines encrypted Walrus-backed evidence bundle
   assert.match(evidence, /ciphertextHash: sha256\(ciphertext\)/);
 });
 
-test('composed payment anchors the stored evidence hash and Walrus blob', async () => {
-  const composedPayment = await source('lib/server/composed-payment.ts');
-
-  assert.match(composedPayment, /createTransferSettlementEvidence/);
-  assert.match(composedPayment, /sealAndStoreSettlementEvidence/);
-  assert.match(composedPayment, /shouldUseMockSeal/);
-  assert.match(composedPayment, /if \(!shouldUseMockSeal\(\)\) await assertSealWritable\(\)/);
-  assert.match(composedPayment, /const auditHash = evidence\.record\.ciphertextHash/);
-  assert.match(composedPayment, /backingBlobId: evidence\.walrus\.blobId/);
-  assert.match(composedPayment, /evidence: evidence\.record/);
-});
-
 test('Seal demo crypto is unavailable in production transfer runtime', async () => {
-  const seal = await source('lib/server/seal.ts');
+  const seal = await source('lib/evidence-sui/seal.ts');
   const runtimeMode = await source('lib/server/runtime-mode.ts');
 
   assert.match(seal, /canUseDemoCrypto/);
@@ -47,17 +35,6 @@ test('Seal demo crypto is unavailable in production transfer runtime', async () 
   // The flags are the record of that decision.
   assert.equal(canUseDemoCrypto({ NODE_ENV: 'production', USE_MOCK_APIS: 'true' }), true);
   assert.equal(canUseDemoCrypto({ NODE_ENV: 'production', NEXT_PUBLIC_DEMO_MODE: 'true' }), true);
-});
-
-test('audit receipt persists evidence and audit route verifies it', async () => {
-  const operations = await source('lib/server/operations.ts');
-  const authorizeRoute = await source('app/api/transfers/authorize/route.ts');
-  const auditRoute = await source('app/api/audit/[intentId]/route.ts');
-
-  assert.match(operations, /evidence\?: StoredSettlementEvidence/);
-  assert.match(authorizeRoute, /evidence: result\.evidence/);
-  assert.match(auditRoute, /verifyStoredSettlementEvidence/);
-  assert.match(auditRoute, /proof: await settlementProof/);
 });
 
 test('receipt exposes a collapsed independent settlement proof drawer', async () => {

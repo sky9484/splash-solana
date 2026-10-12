@@ -229,7 +229,7 @@ export default function FundingSelector({
           icon="USDC"
           label="USDC"
           title="Pay with USDC"
-          detail={canUseUsdcBalance ? `Use ${options.heldBalanceUsdc} USDC balance instantly` : 'Deposit USDC with a QR address'}
+          detail={canUseUsdcBalance ? `Pay from your vault: ${options.heldBalanceUsdc} USDC` : 'Deposit USDC with a QR address'}
           meta={!canUseUsdc ? usdcSource?.unavailableReason ?? 'USDC unavailable' : '0.70% to local currency'}
           onClick={() => selectPrimary('USDC')}
         />
@@ -415,9 +415,9 @@ function ContextualFlow({
               <WalletCards className="size-4" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h4 className="text-sm font-bold text-[#0C3E48]">Using available USDC balance</h4>
+              <h4 className="text-sm font-bold text-[#0C3E48]">Using your vault balance</h4>
               <p className="mt-1 text-xs leading-5 text-[#326273]/90">
-                Splash will debit held native USDC at confirmation. Available balance: {options.heldBalanceUsdc} USDC.
+                A person approves this payment from your vault with their device key. Vault balance: {options.heldBalanceUsdc} USDC.
               </p>
             </div>
           </div>
@@ -483,7 +483,7 @@ function ContextualFlow({
         <div>
           <h4 className="text-sm font-bold text-[#0C3E48]">USDC deposit</h4>
           <p className="mt-1 text-xs leading-5 text-[#326273]/90">
-            Deposit details and QR appear after confirmation. CCTP must mint native USDC on Sui; wrapped assets are rejected.
+            Deposit details and a QR for your vault appear after confirmation. CCTP must mint native USDC on Solana; wrapped tokens are rejected.
           </p>
         </div>
         {canUseUsdcBalance ? (
@@ -493,7 +493,7 @@ function ContextualFlow({
             onClick={onUsdcBalance}
             className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#326273]/14 bg-white px-3 py-2 text-xs font-bold text-[#0C3E48] transition-all hover:border-[#5C9EAD]/70 hover:bg-[#F8FCFD] focus-ring disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Use USDC balance
+            Use vault balance
           </button>
         ) : null}
       </div>
@@ -514,13 +514,13 @@ function ContextualFlow({
                     : 'border-[#326273]/12 bg-white hover:border-[#5C9EAD]/70 hover:bg-[#F8FCFD]',
                 )}
               >
-                {rail === 'SUI_NATIVE' ? 'Sui native' : 'Circle CCTP'}
+                {rail === 'SOLANA' ? 'Native USDC on Solana' : 'Circle CCTP'}
               </button>
             ))}
           </div>
         ) : (
           <div className="rounded-xl border border-[#5C9EAD]/25 bg-white p-3 text-sm text-[#326273]">
-            <span className="font-bold">USDC</span> uses the Sui native rail for this source.
+            <span className="font-bold">USDC</span> arrives as native USDC on Solana for this source.
           </div>
         )}
 
@@ -546,7 +546,7 @@ function ContextualFlow({
 
         <div className="rounded-xl border border-[#326273]/10 bg-white p-3 text-xs leading-5 text-[#326273]/90">
           <Banknote className="mr-2 inline size-4 text-[#326273]" aria-hidden="true" />
-          USDC will settle as native USDC before payment_router.
+          USDC lands in your vault as native USDC before it is paid out.
         </div>
       </div>
     </div>

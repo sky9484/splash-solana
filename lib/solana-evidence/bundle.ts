@@ -192,6 +192,26 @@ export interface EvidenceBatch {
   leaves: Array<{ bundleId: string; leafHex: string; proof: MerkleProof }>;
 }
 
+/** A Walrus blob id as the publisher returns it (base64url), or an in-memory store id. */
+const BLOB_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * walrus_blob_ids_root: sha256 over the batch's blob ids, sorted ascending and
+ * joined with '\n', as lowercase hex. It binds the anchored root to exactly
+ * the encrypted blobs stored for the batch, so a verifier holding the batch's
+ * blob ids can check none was swapped. Sorting makes it independent of upload
+ * order; '\n' cannot occur in a blob id, so the join is unambiguous.
+ */
+export function walrusBlobIdsRoot(blobIds: readonly string[]): string {
+  if (blobIds.length === 0) throw new EvidenceError('a batch needs at least one blob id');
+  const sorted = [...blobIds].sort();
+  for (let i = 0; i < sorted.length; i++) {
+    if (!BLOB_ID.test(sorted[i])) throw new EvidenceError(`not a blob id: ${sorted[i].slice(0, 40)}`);
+    if (i > 0 && sorted[i] === sorted[i - 1]) throw new EvidenceError(`duplicate blob id ${sorted[i]}`);
+  }
+  return bytesToHex(sha256(utf8ToBytes(sorted.join('\n'))));
+}
+
 /** Bundles are ordered by (createdAt, bundleId) so a batch is reproducible from its bundles. */
 export function buildEvidenceBatch(bundles: CorridorPayoutBundle[], period: { start: Date; end: Date }): EvidenceBatch {
   if (bundles.length === 0) throw new EvidenceError('empty batch');

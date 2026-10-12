@@ -10,15 +10,12 @@ import { createAccount } from '../lib/auth/accounts.ts';
 import { UnauthorizedError, resolveAuthorityFromDb } from '../lib/auth/authority.ts';
 import {
   COMPRESSED_P256_BYTES,
-  PASSKEY_FLAG,
   PasskeyError,
   assertCompressedP256,
   enrolPasskey,
   findCredential,
   relyingPartyId,
   revokePasskey,
-  suiAddressForPasskey,
-  verifyApprovalSignature,
 } from '../lib/auth/passkey.ts';
 
 function code(source) {
@@ -63,30 +60,20 @@ async function accountWithPasskey(db, email, key = KEY_A, rpId = 'localhost') {
 
 test('the public key is stored at enrolment, because it is never offered again', async () => {
   const { client, db } = await migratedDb();
-  const { credential } = await accountWithPasskey(db, 'approver@example.com');
+  await accountWithPasskey(db, 'approver@example.com');
 
   const row = (await db.select().from(schema.passkeyCredentials))[0];
   assert.equal(row.publicKey, KEY_A, 'the key must be persisted verbatim');
-  assert.equal(row.suiAddress, credential.suiAddress);
-  assert.match(row.suiAddress, /^0x[0-9a-f]{64}$/);
-
-  // The address is stored, not recomputed per request: an approval is checked
-  // against a value we committed to at enrolment.
-  assert.equal(await suiAddressForPasskey(row.publicKey), row.suiAddress);
+  // A passkey is a sign-in factor on the Solana build: it derives no chain address.
+  assert.equal(row.suiAddress, null);
   await client.close();
-});
-
-test('a different key gives a different address, so a signer is identifiable', async () => {
-  assert.notEqual(await suiAddressForPasskey(KEY_A), await suiAddressForPasskey(KEY_B));
 });
 
 test('only a 33-byte compressed point is accepted', async () => {
   assert.equal(COMPRESSED_P256_BYTES, 33);
-  assert.equal(PASSKEY_FLAG, 0x06);
   assert.doesNotThrow(() => assertCompressedP256(KEY_A));
 
-  // An uncompressed 0x04 point is the common mistake: right length family,
-  // wrong encoding, and it would derive a different address silently.
+  // An uncompressed 0x04 point is the common mistake: right family, wrong encoding.
   const uncompressed = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(32, 1)]).toString('base64');
   assert.throws(() => assertCompressedP256(uncompressed), /compressed point/);
   assert.throws(() => assertCompressedP256(Buffer.alloc(32).toString('base64')), /33 bytes/);
@@ -118,7 +105,7 @@ test('a passkey on a different origin is a different credential', async () => {
     publicKey: KEY_B,
     rpId: 'v1.splashz.xyz',
   });
-  assert.notEqual(prod.suiAddress, (await findCredential(db, { userId: account.userId, rpId: 'localhost' })).suiAddress);
+  assert.notEqual(prod.credentialId, (await findCredential(db, { userId: account.userId, rpId: 'localhost' })).credentialId);
 
   // And each is only found on its own origin — which is what the browser does
   // too: a credential is scoped to its rpId and is not offered elsewhere.
@@ -143,55 +130,7 @@ test('revocation is a tombstone, so an anchored approval keeps its referent', as
   await client.close();
 });
 
-/* ── Verification: the three things that must hold ─────────────────────── */
-
-const baseVerify = (overrides = {}) => ({
-  credential: { id: 'pk_1', userId: 'u', credentialId: 'c', publicKey: KEY_A, suiAddress: '0x' + 'ab'.repeat(32), rpId: 'localhost' },
-  transactionBytes: Buffer.from('tx-bytes').toString('base64'),
-  signature: Buffer.from('sig').toString('base64'),
-  sender: '0x' + 'ab'.repeat(32),
-  presentedCanonHash: 'hash-1',
-  currentCanonHash: 'hash-1',
-  ...overrides,
-});
-
-test('a canon hash that moved since signing is refused, before any crypto runs', async () => {
-  // Dynamic linking, PSD2 RTS Art. 5: the signature covers bytes that name the
-  // intent, and the intent carries the amount and payee. Edit the payment and
-  // the hash moves, so the signature no longer describes what it approved.
-  const result = await verifyApprovalSignature(baseVerify({ currentCanonHash: 'hash-2' }));
-  assert.equal(result.ok, false);
-  assert.equal(result.code, 'canon_changed');
-});
-
-test('a sender that is not the enrolled address is refused', async () => {
-  const result = await verifyApprovalSignature(baseVerify({ sender: '0x' + 'cd'.repeat(32) }));
-  assert.equal(result.ok, false);
-  assert.equal(result.code, 'sender_mismatch');
-});
-
-test('the sender check is case-insensitive, since hex casing is not identity', async () => {
-  const upper = ('0x' + 'ab'.repeat(32)).toUpperCase().replace('0X', '0x');
-  const result = await verifyApprovalSignature(baseVerify({ sender: upper }));
-  // Not a sender mismatch — it fails later, on the signature, which is the
-  // point: casing must not be what rejects a valid approver.
-  assert.equal(result.ok, false);
-  assert.notEqual(result.code, 'sender_mismatch');
-});
-
-test('a signature that does not verify is refused, and a broken one does not throw', async () => {
-  const result = await verifyApprovalSignature(baseVerify());
-  assert.equal(result.ok, false);
-  assert.ok(['bad_signature', 'verification_error'].includes(result.code), `unexpected code ${result.code}`);
-});
-
-test('verification uses the ENROLLED key, never one the request supplies', async () => {
-  const source = code(await readFile(new URL('../lib/auth/passkey.ts', import.meta.url), 'utf8'));
-  // The only public key that reaches PasskeyPublicKey is credential.publicKey.
-  assert.match(source, /new PasskeyPublicKey\(assertCompressedP256\(input\.credential\.publicKey\)\)/);
-  const verifyBlock = source.slice(source.indexOf('export async function verifyApprovalSignature'));
-  assert.doesNotMatch(verifyBlock, /input\.publicKey/, 'a caller must not be able to bring its own key');
-});
+/* Verification is plain WebAuthn: tests/webauthn.test.mjs. */
 
 /* ── rpId is configuration, not a header ───────────────────────────────── */
 
@@ -237,11 +176,13 @@ test('the enrolment surface never returns the stored public key', async () => {
 test('the security page enrols a signer and offers no approval control', async () => {
   const page = code(await readFile(new URL('../app/settings/security/page.tsx', import.meta.url), 'utf8'));
   const widget = code(await readFile(new URL('../components/auth/PasskeyEnrolment.tsx', import.meta.url), 'utf8'));
-  // Phase 6 builds the Move entry point. Until it exists, a button that signs
-  // something nothing can verify on chain would be theatre.
+  // The passkey is a sign-in and step-up factor; approving happens on the
+  // approval surfaces, which check it there.
   for (const source of [page, widget]) {
     assert.doesNotMatch(source, /\bapprove\s*\(|approveIntent|signAndExecute/);
   }
-  assert.match(widget, /authenticatorAttachment: 'platform'/);
-  assert.match(widget, /userVerification: 'required'/);
+  const client = code(await readFile(new URL('../lib/auth/webauthn-client.ts', import.meta.url), 'utf8'));
+  assert.match(widget, /createPasskey\(/);
+  assert.match(client, /authenticatorAttachment: 'platform'/);
+  assert.match(client, /userVerification: 'required'/);
 });

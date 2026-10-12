@@ -1,7 +1,7 @@
 'use client';
 
 import { usd } from './client';
-import { useOrg } from './useOrg';
+import { useCompany } from './useCompany';
 
 type Tag = { text: string; tone: 'locked' | 'splash' | 'vault' | 'planned' | 'stub' };
 
@@ -15,9 +15,9 @@ const TONE: Record<Tag['tone'], string> = {
 
 /** Rules as sentences with real values, each tagged with where it is enforced (design brief §6). */
 export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perPaymentMinor: string; dailyMinor: string; quoteTtlSec: number }) {
-  const { state } = useOrg();
-  const suppliers = state.status === 'ready' ? state.org.suppliers : [];
-  const used = state.status === 'ready' ? state.org.limits.usedTodayUsdcMinor : null;
+  const { state } = useCompany();
+  const suppliers = state.status === 'ready' ? state.company.suppliers : [];
+  const used = state.status === 'ready' ? state.company.limits.usedTodayUsdcMinor : null;
   const rules: Array<{ text: React.ReactNode; tags: Tag[] }> = [
     { text: "Every supplier payment needs this device's signature. Nothing pays on its own.", tags: [{ text: 'Locked · always on', tone: 'locked' }, { text: 'Enforced by your vault', tone: 'vault' }] },
     { text: <>Per payment up to {usd(perPaymentMinor)}.</>, tags: [{ text: 'Enforced by Splash', tone: 'splash' }] },

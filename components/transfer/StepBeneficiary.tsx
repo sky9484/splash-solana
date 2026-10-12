@@ -14,7 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 import TravelRuleFields, { type TravelRulePayment } from './TravelRuleFields';
 import type { RecipientRecord } from '@/lib/server/operations';
 import { checkMinimumSettlement, minSettlementUsd, formatUsd } from '@/lib/policy/limits';

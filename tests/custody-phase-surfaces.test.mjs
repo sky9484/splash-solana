@@ -36,9 +36,8 @@ const sweep = () => import('../lib/server/sweep.ts');
  * a verified business gets a TREASURY_ALLOCATE proposal and fixture balances.
  */
 
-delete process.env.SPLASH_CUSTODY_PACKAGE_ID;
+delete process.env.SPLASH_CUSTODY_PHASE;
 
-const CUSTODY_PACKAGE = '0x' + 'cd'.repeat(32);
 const FIXTURE_AMOUNTS = ['11140000000', '24500000000', '98720000', '24598720000'];
 
 async function source(relative) {
@@ -82,9 +81,9 @@ test('this file runs in Phase 0', async () => {
 
 test('the pay link names a Splash collection account only once custody is on', async () => {
   const { payLinkBankInstructions } = await payLink();
-  assert.equal(payLinkBankInstructions({ custodyPackageId: '' }), null);
+  assert.equal(payLinkBankInstructions({ custodyEnabled: false }), null);
   assert.equal(payLinkBankInstructions(), null, 'and the live config is Phase 0');
-  const phase2 = payLinkBankInstructions({ custodyPackageId: CUSTODY_PACKAGE });
+  const phase2 = payLinkBankInstructions({ custodyEnabled: true });
   assert.ok(phase2 && phase2.swift && phase2.account, 'Phase 2 still has the account to show');
 });
 
@@ -111,18 +110,13 @@ test('with no collection account the payer is told to pay the issuer, and why, i
 
 /* ── The landing ───────────────────────────────────────────────────────── */
 
-test('the landing ladder puts both fund-holding rungs in Phase 2, in the licence words', async () => {
+test('the landing offers no fund-holding rung: the Solana build never holds the money', async () => {
+  // The ladder once sold a sweep account and a stored balance (both hold funds, and need a licence
+  // Splash does not have). On the Solana build the money stays in the business's own vault and the
+  // payout partner pays the bank, so the landing names neither (prompt 07 §12: treasury out of scope).
   const landing = await source('components/IsometricLanding.tsx');
-  const start = landing.indexOf('const recipientLadder');
-  assert.ok(start > 0, 'the ladder exists');
-  const ladder = landing.slice(start, landing.indexOf('];', start));
-  // It sold the sweep account as a "Phase 1 launch" into "a Splash account",
-  // and stored balance as merely "Corridor gated".
-  assert.doesNotMatch(ladder, /Phase 1 launch|Corridor gated|sweep value into a Splash account/);
-  for (const title of ['Sweep account', 'Stored balance']) {
-    assert.match(ladder, new RegExp(`title: '${title}',\\s*status: 'Phase 2'`), `${title} is Phase 2`);
-  }
-  assert.match(ladder, /\$\{CUSTODY_LICENCE\}/, 'the sweep rung names the licence it waits for');
+  assert.doesNotMatch(landing, /const recipientLadder|Sweep account|Stored balance|Phase 1 launch|sweep value into a Splash account/);
+  assert.match(landing, /We never hold the money|no Splash key can move/i);
 });
 
 /* ── Settings ──────────────────────────────────────────────────────────── */

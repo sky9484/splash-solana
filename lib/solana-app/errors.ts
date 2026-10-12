@@ -5,6 +5,9 @@
  */
 export type ServiceErrorCode =
   | 'org_not_found'
+  | 'kyb_not_active'
+  | 'terms_not_accepted'
+  | 'not_in_launch_scope'
   | 'invoice_not_found'
   | 'payment_not_found'
   | 'receipt_not_found'
@@ -19,6 +22,7 @@ export type ServiceErrorCode =
   | 'insufficient_balance'
   | 'no_route'
   | 'quote_expired'
+  | 'rejected_by_policy'
   | 'policy_denied'
   | 'not_prepared'
   | 'signature_required'
@@ -28,7 +32,14 @@ export type ServiceErrorCode =
   | 'uncertain'
   | 'webhook_invalid'
   | 'transaction_too_large'
-  | 'devnet_not_supported';
+  | 'devnet_not_supported'
+  | 'org_suspended'
+  | 'not_an_approver'
+  | 'already_approved'
+  | 'payee_changed'
+  | 'sponsor_cap'
+  | 'not_authorized'
+  | 'device_exists';
 
 export class ServiceError extends Error {
   readonly code: ServiceErrorCode;

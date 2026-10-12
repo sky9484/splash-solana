@@ -282,11 +282,10 @@ export async function patchTransfer(
 /** The fields that belong to the receipt alone and live in `settlement_metadata`. */
 type ReceiptOnly = Pick<
   AuditReceipt,
-  'memwalRecordId' | 'extractionSnapshot' | 'approvedBy' | 'approvedAt' | 'auditAnchorDigest' | 'evidence'
+  'extractionSnapshot' | 'approvedBy' | 'approvedAt' | 'auditAnchorDigest' | 'evidence'
 >;
 
 const RECEIPT_ONLY_FIELDS: Array<keyof ReceiptOnly> = [
-  'memwalRecordId',
   'extractionSnapshot',
   'approvedBy',
   'approvedAt',
@@ -338,7 +337,6 @@ function toAuditReceipt(record: TransferIntentRecord, transitions: TransitionRow
       normalizeVenue: record.fundingNormalizeVenue,
       effectiveSlippageBps: record.fundingEffectiveSlippageBps,
     },
-    memwalRecordId: extra.memwalRecordId,
     extractionSnapshot: extra.extractionSnapshot,
     approvedBy: extra.approvedBy,
     approvedAt: extra.approvedAt,

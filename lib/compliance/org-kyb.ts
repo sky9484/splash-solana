@@ -110,45 +110,35 @@ export async function setOrgKybState(
 }
 
 /**
- * The full KYB_ADMIN_APPROVED → on-chain verify → ACTIVE sequence (spec §3.3).
- *
- * Ordering matters and is deliberate:
- *   1. transition to KYB_ADMIN_APPROVED first, so the accountable decision is
- *      recorded even if the chain call later fails;
- *   2. call `business_account::verify_business` (AdminCap-gated);
- *   3. only then ACTIVE — money movement unlocks strictly after the chain
- *      agrees the account is verified.
- *
- * If step 2 throws, the org is left at KYB_ADMIN_APPROVED — approved, but NOT
- * able to move money. That is the correct failure posture: never activate on an
- * unverified account.
+ * KYB_ADMIN_APPROVED → ACTIVE, on a staff member's accountable decision
+ * (spec §3.3). The decision is recorded first, so if activation fails the org
+ * is left approved but NOT able to move money: never activate on a half-done
+ * approval.
  */
-export async function approveOrgKybOnChain(input: {
+export async function approveOrgKyb(input: {
   orgId: string;
   riskScore: number;
-}): Promise<{ digest: string; businessAccountId: string; state: KybLifecycleState }> {
+}): Promise<{ state: KybLifecycleState; riskScore: number }> {
+  // The Solana build has no on-chain business account to verify: a company's
+  // money sits in its own Squads vault, which KYB neither creates nor gates.
+  // The accountable human decision is recorded, then the org is activated.
+  // (A KYB tier attestation on Solana, SAS, is planned; no PII goes on chain.)
   const from = await readOrgKybState(input.orgId);
   // Idempotent re-approval of an already-active org is a no-op, not an error.
-  if (from === 'ACTIVE') {
-    return { digest: '', businessAccountId: await resolveBusinessAccountId(input.orgId), state: 'ACTIVE' };
-  }
-
+  if (from === 'ACTIVE') return { state: 'ACTIVE', riskScore: input.riskScore };
   if (from !== 'KYB_ADMIN_APPROVED') {
     await setOrgKybState(input.orgId, 'KYB_ADMIN_APPROVED', 'ADMIN');
   }
-
-  const businessAccountId = await resolveBusinessAccountId(input.orgId);
-  const { verifyBusinessOnSui } = await import('../server/sui-settlement.ts');
-  const verified = await verifyBusinessOnSui({ businessAccountId, riskScore: input.riskScore });
-
   await setOrgKybState(input.orgId, 'ACTIVE', 'ADMIN');
-  return { digest: verified.digest, businessAccountId, state: 'ACTIVE' };
+  return { state: 'ACTIVE', riskScore: input.riskScore };
 }
 
 /**
- * The org's on-chain BusinessAccount. Per-org first so verifying one tenant can
- * never flip another's account; the env value is a single-tenant fallback for
- * the demo workspace only.
+ * The key the org's ledger rows and funding sessions are filed under. An org
+ * that already has rows keeps its earlier key (organizations.sui_business_account_id,
+ * written by the earlier build), so balances are not orphaned; otherwise the
+ * key is the org's Squads vault address. Per-org, from the database only: no
+ * environment fallback can make two tenants share one key.
  */
 export async function resolveBusinessAccountId(orgId: string): Promise<string> {
   const db = await resolveDb();
@@ -160,24 +150,9 @@ export async function resolveBusinessAccountId(orgId: string): Promise<string> {
       .limit(1);
     const stored = rows[0]?.id?.trim();
     if (stored) return stored;
+    const { findOrgVault } = await import('../auth/devices.ts');
+    const vault = await findOrgVault(db as never, orgId);
+    if (vault?.vaultPda) return vault.vaultPda;
   }
-
-  const fallback = (process.env.SPLASH_BUSINESS_ACCOUNT_ID ?? '').trim();
-  if (!fallback) {
-    throw new Error(
-      `No on-chain BusinessAccount for org ${orgId}. Set organizations.sui_business_account_id, ` +
-      'or SPLASH_BUSINESS_ACCOUNT_ID for the single-tenant demo workspace.',
-    );
-  }
-  return fallback;
-}
-
-/** Record the org's on-chain BusinessAccount object id (wallet spec §2.3). */
-export async function setOrgBusinessAccountId(orgId: string, objectId: string): Promise<void> {
-  const db = await resolveDb();
-  if (!db) return;
-  await db
-    .update(organizations)
-    .set({ suiBusinessAccountId: objectId, updatedAt: new Date() })
-    .where(eq(organizations.id, orgId));
+  throw new Error(`No ledger account for org ${orgId}: it has no vault yet.`);
 }

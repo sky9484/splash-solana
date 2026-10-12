@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // The browser walkthrough's own dev server output (next.config.ts NEXT_DIST_DIR).
+    ".next-e2e/**",
     ".tools/**",
     ".tmp/**",
     "out/**",
@@ -18,6 +20,26 @@ const eslintConfig = defineConfig([
     // .next build output; they are linted in their own checkout, not here.
     ".claude/**",
   ]),
+  // One module owns Sui (prompt 07 §4.1): the evidence layer, Seal + Walrus.
+  // Nothing else may import a Mysten package — settlement is Solana. The
+  // dynamic-import case is caught by tests/solana-boundary.test.mjs.
+  {
+    files: ["**/*.{ts,tsx,js,jsx,mjs,cjs}"],
+    ignores: ["lib/evidence-sui/**", "tests/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@mysten/*", "@mysten-incubation/*"],
+              message: "Only lib/evidence-sui/** may import @mysten packages (prompt 07 §4.1). Go through the evidence layer.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

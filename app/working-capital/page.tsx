@@ -12,7 +12,7 @@ import WorkingCapitalFlywheel from '@/components/supply/WorkingCapitalFlywheel';
 export const metadata: Metadata = {
   title: 'Dynamic discounting for Southeast Asia — early invoice payment on Splash (roadmap)',
   description:
-    'Splash is building buyer-funded dynamic discounting for the Philippines and Southeast Asia: early payment on verified invoices over the same Sui settlement rail that moves payouts today. Coming capability, subject to licensing.',
+    'Splash is building buyer-funded dynamic discounting for the Philippines and Southeast Asia: early payment on verified invoices over the same Solana settlement rail that moves payouts today. Coming capability, subject to licensing.',
   keywords: [
     'dynamic discounting Philippines',
     'early payment program Southeast Asia',
@@ -277,7 +277,7 @@ export default function WorkingCapitalPage() {
       <footer className="wc-footer">
         <div className="iso-shell wc-footer-inner">
           <span>{BRAND.copyright()}</span>
-          <span>Supply loop: roadmap · Settle loop: live on testnet</span>
+          <span>Supply loop: roadmap · Settle loop: sandbox on Solana devnet</span>
         </div>
       </footer>
     </main>

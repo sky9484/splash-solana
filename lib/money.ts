@@ -266,7 +266,5 @@ export function sumMinor(values: Iterable<bigint>): bigint {
 
 /** Common decimal places, so call sites stop writing 6 and 1_000_000. */
 export const USD_DECIMALS = 2;
-/** USDC, USDT and the Sui coin types this app settles in. */
+/** USDC, USDT and the six-decimal tokens this app settles in. */
 export const MICRO_DECIMALS = 6;
-/** SUI itself. */
-export const MIST_DECIMALS = 9;

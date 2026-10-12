@@ -41,14 +41,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   try {
     const { asset } = resolveFundingSelection(session.selection);
-    if (!asset?.coinType) {
-      return NextResponse.json({ error: `${session.selection.asset} coin type is not configured` }, { status: 503 });
+    if (!asset?.mint) {
+      return NextResponse.json({ error: `${session.selection.asset} mint is not configured` }, { status: 503 });
     }
     const credited = await ingestStablecoinDeposit({
       sessionId: session.id,
       sourceTxDigest: `DEMO_DEPOSIT_${Date.now().toString(36)}`,
-      receivedCoinType: session.selection.rail === 'SUI_NATIVE' ? asset.coinType : `source:${session.selection.sourceChain}:USDC`,
-      destinationCoinType: session.selection.rail === 'CCTP' ? asset.coinType : undefined,
+      receivedMint: session.selection.rail === 'SOLANA' ? asset.mint : `source:${session.selection.sourceChain}:USDC`,
+      destinationMint: session.selection.rail === 'CCTP' ? asset.mint : undefined,
       amountMicro: session.amountExpectedMicro,
       sourceType: 'self_custody',
       riskScore: 12,

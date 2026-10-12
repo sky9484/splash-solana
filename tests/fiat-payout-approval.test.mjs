@@ -107,33 +107,6 @@ function code(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
 }
 
-test('authorize: WhatsApp style needs an approval for EVERY payout, spent once and given back on refusal', async () => {
-  const route = code(await readFile(new URL('../app/api/transfers/authorize/route.ts', import.meta.url), 'utf8'));
-  // Not only on the authenticator-code rails: any payout, when the style is on.
-  assert.match(route, /if \(settings\.whatsappEnabled && !approvalClaim\.approved\) \{/);
-  assert.match(route, /if \(!whatsappApproved\) return approvalRequiredResponse\('FIAT_TRANSFER'\)/);
-  // Given back unless the transfer (or a queue proposal) now carries it.
-  assert.match(route, /finally \{\s*if \(spent\.release && !spent\.kept\) await spent\.release\(\)/);
-  // Kept only once the payer is debited: a balance refusal after the transfer
-  // row exists still moved nothing, so it gives the approval back.
-  const refusal = route.indexOf("code: 'insufficient_ledger_balance'");
-  const kept = route.lastIndexOf('spent.kept = true;');
-  assert.ok(refusal > 0 && kept > refusal, 'the approval is kept after the balance check, not before');
-  assert.match(route, /if \(proposal\) spent\.kept = true;/);
-});
-
-test('authorize: an approved-proposal claim only counts for the payment it approved', async () => {
-  const route = code(await readFile(new URL('../app/api/transfers/authorize/route.ts', import.meta.url), 'utf8'));
-  // The claim is resolved against THIS payment's substance and spent there
-  // (lib/server/approved-proposal.ts compares the two digests).
-  assert.match(
-    route,
-    /resolveApprovalClaim\(request, orgId, \{\s*kind: 'PAYMENT',\s*substance: fiatPaymentSubstance,\s*body: rawBody as Record<string, unknown>,/,
-  );
-  // One resolution, used for both the second-approver lift and the WhatsApp skip.
-  assert.equal(route.match(/resolveApprovalClaim\(/g).length, 1);
-});
-
 test('the wizard waits for the approval before Send, and asks again when it lapses', async () => {
   const wizard = code(await readFile(new URL('../components/transfer/StepQuote.tsx', import.meta.url), 'utf8'));
   assert.match(wizard, /<ApprovalFlow[\s\S]*?purpose="FIAT_TRANSFER"/);

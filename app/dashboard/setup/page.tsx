@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import SetupStepper from '@/components/onboarding/SetupStepper';
+import DeviceSetup from '@/components/setup/DeviceSetup';
 import { getCustomerSession } from '@/lib/server/customer-auth';
 import { readOnboardingState, type OnboardingState } from '@/lib/server/onboarding';
 
@@ -16,10 +17,14 @@ export default async function SetupPage() {
   if (!session) redirect('/login');
 
   let state: OnboardingState | null = null;
+  // Why the stepper is missing matters: with no database nothing can be read,
+  // but a member with no company access yet is a normal state, not a fault.
+  let unavailable: 'no_database' | 'no_access' | null = null;
   try {
     state = await readOnboardingState(session);
   } catch {
     state = null;
+    unavailable = process.env.DATABASE_URL ? 'no_access' : 'no_database';
   }
 
   return (
@@ -33,9 +38,27 @@ export default async function SetupPage() {
         everything else here is yours to finish at your own pace.
       </p>
 
-      <div className="mt-8">
+      <section className="mt-8" aria-labelledby="device-vault-heading">
+        <h2 id="device-vault-heading" className="text-lg font-bold text-[#1F4452]">This device and your vault</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#326273]">
+          Approvals are signed on this device. Splash never holds your keys.
+        </p>
+        <div className="mt-4">
+          <DeviceSetup />
+        </div>
+      </section>
+
+      <h2 className="mt-10 text-lg font-bold text-[#1F4452]">Business verification</h2>
+      <div className="mt-4">
         {state ? (
           <SetupStepper state={state} />
+        ) : unavailable === 'no_access' ? (
+          <section className="dash-surface p-6">
+            <h3 className="text-lg font-bold text-[#1F4452]">Opens when you have access to your company</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]">
+              Business verification belongs to the company. Once its owner gives you access, its steps appear here.
+            </p>
+          </section>
         ) : (
           <section className="dash-surface p-6">
             <h2 className="text-lg font-bold text-[#1F4452]">Setup is unavailable on this machine</h2>

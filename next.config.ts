@@ -4,6 +4,9 @@ import { SECURITY_HEADERS } from "./lib/security/headers.ts";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // A second dev server (the browser walkthrough's, on its own port and database) needs its own
+  // output folder so it never touches the one a person is using. Unset: the usual .next.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   async headers() {
     // The five static headers, on every response — API routes included. The
     // Content-Security-Policy is per request (it carries the nonce) and is
@@ -41,7 +44,6 @@ const nextConfig: NextConfig = {
       { pathname: "/splash-main-icon.png", search: "" },
       { pathname: "/airwallex-logo.png", search: "" },
       { pathname: "/sumsub-logo.png", search: "" },
-      { pathname: "/deepbook-mark.png", search: "" },
     ],
     // A redirect is followed without re-checking remotePatterns (16.3 follows
     // 3 by default), so follow none. dangerouslyAllowLocalIP is already false

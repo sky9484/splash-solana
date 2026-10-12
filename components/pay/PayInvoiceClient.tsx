@@ -19,7 +19,7 @@ type PublicInvoice = {
   /** A Splash collection account, or null in Phase 0: Splash may not hold the
    *  payer's funds yet, so the payer pays the issuer directly. */
   bankInstructions: { beneficiary: string; bank: string; account: string; swift: string } | null;
-  /** USDC on Sui straight to the issuer's own wallet, when they have one. */
+  /** USDC on Solana straight to the issuer's own vault, when they have one. */
   usdc?: PublicUsdc;
   /** Whether a bank payment can be reported here. False in a USDC-only
    *  launch, where the report route answers 403. Absent means true. */
@@ -117,7 +117,7 @@ export default function PayInvoiceClient({ slug, invoice }: { slug: string; invo
                   <h2 className="text-lg font-black">Paid by bank?</h2>
                   <p className="mt-1 text-sm text-foreground/60">
                     Let {invoice.issuerOrg} know directly.{' '}
-                    {invoice.usdc ? 'This page confirms USDC payments on Sui only.' : `${invoice.issuerOrg} has not set up USDC payments on Sui yet, so pay them directly.`}
+                    {invoice.usdc ? 'This page confirms USDC payments on Solana only.' : `${invoice.issuerOrg} has not set up USDC payments on Solana yet, so pay them directly.`}
                   </p>
                 </div>
               ) : paid ? (

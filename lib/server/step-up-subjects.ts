@@ -61,7 +61,7 @@ export function stablecoinTransferSubject(
       },
       label: `${formatUsdc(principal)} USDC x402 to ${host}`,
       summary:
-        `Pay ${formatUsdc(principal)} USDC over x402 to ${host} (${shortAddress(row.recipientAddress)}) on Sui mainnet ` +
+        `Pay ${formatUsdc(principal)} USDC over x402 to ${host} (${shortAddress(row.recipientAddress)}) ` +
         `for ${row.resource}. No Splash fee; it leaves ${shortAddress(row.senderAddress)}.`,
     };
   }
@@ -80,7 +80,7 @@ export function stablecoinTransferSubject(
     },
     label: `${formatUsdc(principal)} USDC to ${recipientName}`,
     summary:
-      `Send ${formatUsdc(principal)} USDC to ${recipientName} (${shortAddress(row.recipientAddress)}) on Sui mainnet. ` +
+      `Send ${formatUsdc(principal)} USDC to ${recipientName} (${shortAddress(row.recipientAddress)}) on Solana. ` +
       `Fee ${formatUsdc(fee)} USDC; ${formatUsdc(principal + fee)} USDC leaves ${shortAddress(row.senderAddress)}.`,
   };
 }

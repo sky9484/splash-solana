@@ -2,16 +2,18 @@
 
 import { Building2, Check, Landmark, Lock, Zap } from 'lucide-react';
 
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 import { useCustodyPhaseOn, useSweepSwitchOn } from '@/components/dashboard/CustodyPhaseContext';
 import { CUSTODY_PHASE_WHY, deliveryTierOpen } from '@/lib/custody-phase-rules';
 import { getCorridorFeeBps } from '@/lib/fx/corridors';
 import type { RecipientTier } from '@/lib/server/operations';
 
-const options: Array<{ tier: RecipientTier; icon: typeof Building2; title: string; body: (currency: string) => string; eta: string }> = [
-  { tier: 'PAYOUT_ONLY', icon: Building2, title: 'Direct to business bank account / crypto wallet', body: (currency) => `Bank: they receive ${currency} in their business account. Wallet: USDC on Sui lands in their Slush or MetaMask (Sui Snap) wallet.`, eta: '3–20 min' },
-  { tier: 'SWEEP_ACCOUNT', icon: Zap, title: 'Splash receive account (auto-sweep)', body: () => 'Account experience; funds sweep to their bank in seconds.', eta: '≈5 s receive + sweep' },
-  { tier: 'STORED_BALANCE', icon: Landmark, title: 'Splash balance', body: () => 'Funds stay as USD. Instant. Re-spendable in-network.', eta: 'Instant' },
+// No delivery time is quoted here: it depends on the payout partner and the
+// rail, and an invented one reads as a promise.
+const options: Array<{ tier: RecipientTier; icon: typeof Building2; title: string; body: (currency: string) => string }> = [
+  { tier: 'PAYOUT_ONLY', icon: Building2, title: 'Direct to business bank account / crypto wallet', body: (currency) => `Bank: they receive ${currency} in their business account. Wallet: USDC on Solana lands in their own wallet, such as Phantom, Solflare or Backpack.` },
+  { tier: 'SWEEP_ACCOUNT', icon: Zap, title: 'Splash receive account (auto-sweep)', body: () => 'Account experience; funds sweep on to their bank.' },
+  { tier: 'STORED_BALANCE', icon: Landmark, title: 'Splash balance', body: () => 'Funds stay as USD, re-spendable in-network.' },
 ];
 
 const CUSTODY_NOTE_ID = 'delivery-custody-phase-note';
@@ -67,7 +69,7 @@ export default function StepDelivery({ state, set, prev, next }: { state: Transf
               <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${selected ? 'bg-[#237284] text-card' : 'bg-muted text-[#1F4452]'} ${lock ? 'opacity-50' : ''}`}><Icon className="h-5 w-5" /></span>
               <span>
                 {/* Only the offer dims; the reason below stays at full contrast. */}
-                <span className={`block ${lock ? 'opacity-55' : ''}`}><strong className="block">{option.title}</strong><small className="mt-1 block leading-5 text-foreground/90">{option.body(state.amount.targetCurrency)}</small><small className="mt-2 block font-semibold text-foreground">ETA {option.eta} · {option.tier === 'STORED_BALANCE' ? '0.00% transfer' : `${(feeBps / 100).toFixed(2)}% corridor fee`}</small>{option.tier === 'SWEEP_ACCOUNT' && <small className="mt-1 block text-foreground/90">Pass-through account; funds rest for seconds.</small>}{option.tier === 'STORED_BALANCE' && <small className="mt-1 block text-foreground/90">Off-ramp fees apply when leaving the network.</small>}</span>
+                <span className={`block ${lock ? 'opacity-55' : ''}`}><strong className="block">{option.title}</strong><small className="mt-1 block leading-5 text-foreground/90">{option.body(state.amount.targetCurrency)}</small><small className="mt-2 block font-semibold text-foreground">{option.tier === 'STORED_BALANCE' ? '0.00% transfer' : `${(feeBps / 100).toFixed(2)}% corridor fee`}</small>{option.tier === 'SWEEP_ACCOUNT' && <small className="mt-1 block text-foreground/90">Pass-through account; funds move on to their bank.</small>}{option.tier === 'STORED_BALANCE' && <small className="mt-1 block text-foreground/90">Off-ramp fees apply when leaving the network.</small>}</span>
                 {lock && (
                   <small className="mt-3 flex items-start gap-1.5 text-[13px] font-semibold leading-5 text-foreground">
                     <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -75,7 +77,7 @@ export default function StepDelivery({ state, set, prev, next }: { state: Transf
                       ? 'Locked until Phase 2'
                       : lock === 'sweep_switch'
                         ? 'Switched off right now. Choose a direct payout instead.'
-                        : 'Available when in-country custody partner is live — pilot via PDAX.'}
+                        : 'Available when an in-country custody partner is live.'}
                   </small>
                 )}
               </span>

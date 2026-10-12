@@ -5,7 +5,7 @@ import { explorerTxUrl } from './stablecoin-lane.ts';
  *
  * One row per transfer Splash quoted — sent, failed or expired — with what an
  * accountant or auditor asks for: who was paid, how much, the fee, who asked
- * for it and who approved it, the transaction on Sui, and the sha256 audit
+ * for it and who approved it, the transaction on Solana, and the sha256 audit
  * record Splash kept. Amounts are exact, six decimal places as USDC has, with
  * no thousands separators, so a spreadsheet reads them as numbers.
  *
@@ -102,7 +102,7 @@ export function usdcRecordsCsv(records: UsdcRecord[]): string {
       plainUsdc(total),
       textCell(r.senderAddress),
       textCell(r.txDigest),
-      r.txDigest ? textCell(explorerTxUrl('mainnet', r.txDigest)) : '',
+      r.txDigest ? textCell(explorerTxUrl(r.txDigest)) : '',
       textCell(r.auditHash),
       textCell(r.anchorStatus.toLowerCase()),
       textCell(r.requestedBy),

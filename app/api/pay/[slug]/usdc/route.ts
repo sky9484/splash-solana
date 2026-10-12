@@ -5,7 +5,7 @@ import { RATE_LIMITS, clientIp, enforceRateLimit } from '@/lib/server/rate-limit
 import { checkInvoiceUsdcPayment, invoiceUsdcBySlug } from '@/lib/server/usdc-invoice-payments';
 
 /**
- * "I've sent it — check": has this invoice been paid in USDC on Sui?
+ * "I've sent it — check": has this invoice been paid in USDC on Solana?
  *
  * Public, like the pay link it belongs to — the slug is the capability — and
  * limited by network before the slug is looked up. It reads the issuer's

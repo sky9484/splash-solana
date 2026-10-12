@@ -1,6 +1,6 @@
 'use client';
 
-import { suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, ChevronDown, Database, ExternalLink, FileKey2, Lock, ShieldCheck, XCircle } from 'lucide-react';
 
@@ -94,16 +94,16 @@ export default function SettlementProofDrawer({ transferIntentId, fallback }: Se
         <div className="mt-4 rounded-md bg-[#F6F0ED] p-3 text-[13px] text-[#326273]/90">
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill ok={independent?.verified ?? false} label={independent?.verified ? 'Verified' : checking ? 'Checking' : 'Needs review'} />
-            {independent?.anchorRecorded && <StatusPill ok label="Sui anchor recorded" />}
+            {independent?.anchorRecorded && <StatusPill ok label="Solana anchor recorded" />}
           </div>
           <div className="mt-3 grid gap-2 font-mono">
-            <ProofRow label="Sui digest" value={digest ?? 'Pending'} mono />
+            <ProofRow label="Solana signature" value={digest ?? 'Pending'} mono />
             <ProofRow label="Audit event" value={auditEventId ?? 'Pending'} mono />
             <ProofRow label="Expected hash" value={independent?.expectedCiphertextHash ?? 'Pending'} mono />
           </div>
           {digest && (
-            <a href={suiVisionTxUrl(digest)} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 font-bold text-[var(--info)]">
-              Open Sui proof
+            <a href={solanaTxUrl(digest)} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 font-bold text-[var(--info)]">
+              Open in Solana Explorer
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}

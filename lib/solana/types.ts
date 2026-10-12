@@ -98,6 +98,18 @@ export interface ChainReceipt {
   cluster: Cluster;
   /** true when produced by the offline simulator, never by a network. */
   simulated: boolean;
+  /**
+   * What the fee payer paid for this send (sponsored sends only): the fee, exact from the
+   * transaction (lib/solana/kora.ts sponsoredFeeLamports), and the rent for accounts it created.
+   */
+  cost?: SponsoredCost;
+}
+
+export interface SponsoredCost {
+  feeLamports: bigint;
+  rentLamports: bigint;
+  /** Exact when the chain knew which accounts were new (offline); an estimate from account sizes otherwise. */
+  rentExact: boolean;
 }
 
 export interface PartnerPayoutEvent {

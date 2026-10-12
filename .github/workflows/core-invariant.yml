@@ -1,12 +1,20 @@
 # The non-custody invariant, enforced on every push and pull request.
 #
-# STATUS.md and SECURITY.md both cite this check as the evidence that Splash
-# structurally cannot hold client funds. Until this workflow existed the check
-# only ran when someone happened to type `npm run lint` locally — so the claim
-# "CI-enforced" was not true. It is now.
+# On Sui this job ran scripts/check-core-no-balance.mjs over move/splash_core.
+# That package and that script were deleted with the Sui settlement layer
+# (docs/solana-build/SUI-REMOVAL.md). On Solana the same promise — Splash
+# structurally cannot hold client funds — is two invariants, each pinned by tests:
 #
-# This job is deliberately narrow and has no external dependencies: it must stay
-# green and fast enough that nobody is tempted to skip it.
+#   I-1  no Splash key is a member of a customer vault, and the vault has no
+#        config authority (nobody, Splash included, can change its members);
+#   I-2  USDC leaves the vault only to the quoted payout partner deposit address
+#        (or the CCTP mint recipient) and the Splash fee account — never to the
+#        fee payer, the vault itself, or any other Splash-controlled account.
+#
+# This job is deliberately narrow and needs no service, network or secret: it
+# must stay green and fast enough that nobody is tempted to skip it. If it
+# fails, fix the code that let a Splash key or a Splash destination in — never
+# loosen the test.
 name: core invariant
 
 on:
@@ -15,7 +23,7 @@ on:
   pull_request:
 
 jobs:
-  no-client-value-in-core:
+  splash-never-holds-client-funds:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,19 +32,16 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - name: splash_core holds no client value
-        # The single most important check in the repository. If this fails, the
-        # fix is to move the offending struct to move/splash_custody — never to
-        # add an exception to the script.
-        run: node scripts/check-core-no-balance.mjs
+      - run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: the invariant checker itself still catches what it claims to
-        # A control that can be walked past is worse than no control, because it
-        # gets quoted as evidence. These pin every bypass an adversarial review
-        # found in the first version: nested containers, aliased imports,
-        # multi-line fields, single-line structs, and subdirectories.
+      - name: I-1 and I-2 hold (no Splash key on a vault, no Splash destination)
         run: |
-          npm ci --ignore-scripts --no-audit --no-fund
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
                --experimental-strip-types \
-               --test tests/core-invariant-check.test.mjs
+               --import ./scripts/alias-hook.mjs \
+               --test \
+               tests/solana-chain-simulator.test.mjs \
+               tests/solana-chain-squads.test.mjs \
+               tests/solana-chain-payout-cctp.test.mjs \
+               tests/solana-chain-payout-fee.test.mjs \
+               tests/solana-chain-kora.test.mjs

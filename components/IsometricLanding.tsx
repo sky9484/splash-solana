@@ -15,7 +15,6 @@ import {
   Gauge,
   PenLine,
   ShieldCheck,
-  TrendingUp,
   Workflow,
   Zap,
 } from 'lucide-react';
@@ -23,110 +22,108 @@ import {
 import FloatingToken from '@/components/landing/FloatingToken';
 import SettlementCinematic from '@/components/landing/SettlementCinematic';
 import WaitlistCta from '@/components/landing/WaitlistCta';
-import LocalTime from '@/components/LocalTime';
 import ControlPlaneExplainer from '@/components/oxwal/ControlPlaneExplainer';
 import RoadmapChip from '@/components/supply/RoadmapChip';
 import { claims, lockedCopy } from '@/content/claims';
 import { BRAND } from '@/content/brand';
-import { CUSTODY_LICENCE } from '@/lib/custody-phase-rules';
 
 const operatingLayers = [
   {
     number: '01',
-    label: 'Liquidity',
-    title: 'Keep USD productive.',
-    copy: 'Keep payout inventory ready while treasury projections model how excess USD could remain productive.',
+    label: 'Vault',
+    title: 'Your money stays yours.',
+    copy: "Money sits in your business's own Squads vault. No Splash key can move it.",
     image: '/cinematic/liquidity-pools.png',
     imageAlt: 'Tiered isometric liquidity pools with gold coin reserves flowing between basins',
-    meta: 'Available cash - projected treasury',
+    meta: 'Your vault - your approval',
   },
   {
     number: '02',
     label: 'Settlement',
-    title: 'Funds cannot get stuck.',
-    copy: 'Every payment settles completely or not at all. It never lands halfway.',
+    title: 'Transfer and fee, one transaction.',
+    copy: "A payment's transfer and Splash's fee land together, or nothing moves. A batch goes in chunks, and each chunk pays all its suppliers or none.",
     image: '/cinematic/settlement-machine.png',
     imageAlt: 'Isometric settlement machine turning US dollar coins into local currency through a checkpoint',
-    meta: lockedCopy.speed,
+    meta: "USDC on Solana - you don't need SOL",
   },
   {
     number: '03',
-    label: 'Treasury',
-    title: 'Make cash work harder.',
-    copy: 'Zeke recommends a treasury posture. Your business approves every action; execution remains gated.',
+    label: 'Approval',
+    title: 'Zeke drafts. A person approves.',
+    copy: 'Zeke drafts payments and batches. It cannot sign or send. A person approves each payment with their device key.',
     image: '/cinematic/treasury-island.png',
     imageAlt: 'Isometric floating treasury island with an open vault of reserves and orbiting coins',
-    meta: 'Simulation - human approval',
+    meta: 'Device key - human approval',
   },
 ];
 
+/* How it works, in the four steps prompt 07 §6.1 names. Step 04's line is one of the two the copy
+   rules let name the evidence layer (scripts/copy-rules.mjs SANCTIONED_TECH_LINES). */
 const flowSteps = [
   {
-    id: 'intake',
+    id: 'vault',
     number: '01',
-    title: 'Invoice in, or type it in',
-    description:
-      'Two ways in: collect through a pay link or upload an accepted invoice — or start a manual transfer and fill in the recipient, bank details, amount, and purpose yourself.',
-    image: '/cinematic/flow-collect-v4.png',
-    imageAlt: 'Collect isometric typography with an invoice, pay link, and dollar coins',
-    stat: 'Invoice or manual entry',
+    title: 'Your vault',
+    description: 'Your company gets its own Squads vault on Solana. Its keys are made in your browser, and no Splash key can move the money.',
+    image: '/cinematic/treasury-island.png',
+    imageAlt: 'An isometric vault, open, with stacked coins inside',
+    width: 2752,
+    height: 1536,
+    stat: 'Squads, on Solana',
   },
   {
-    id: 'review',
+    id: 'route',
     number: '02',
-    title: 'Review quotes',
-    description: 'KYB, recipient status, route, fee, treasury floor, and evidence labels appear before signature.',
+    title: 'Best route by pesos received',
+    description: 'Zeke reads the invoice and a person checks every field. Routes are ranked by the pesos your supplier receives, with every fee shown first.',
     image: '/cinematic/flow-review-quotes-v4.png',
-    imageAlt: 'Review quotes isometric typography with FX quote cards, checklist, and approval stamp',
-    stat: 'Human approval',
-  },
-  {
-    id: 'settle',
-    number: '03',
-    title: 'Settle in one signature',
-    description: 'The prepared payment either completes as approved or stops safely before funds move.',
-    image: '/cinematic/flow-settle-v4.png',
-    imageAlt: 'Settle isometric typography with a coin passing an approval gate and a signing pen',
-    stat: lockedCopy.speed,
-  },
-  {
-    id: 'deliver',
-    number: '04',
-    title: 'Deliver locally',
-    description: 'Pay a verified supplier or sweep value into the recipient ladder where the corridor allows it.',
-    image: '/cinematic/flow-deliver-v4.png',
-    imageAlt: 'Deliver isometric typography with a truck bringing a peso coin to a local shop',
+    imageAlt: 'Quote cards beside a checklist and an approval stamp',
+    width: 1448,
+    height: 1086,
     stat: lockedCopy.fee,
   },
   {
+    id: 'approve',
+    number: '03',
+    title: 'A person approves',
+    description: "One approval on your device signs it. You don't need SOL. A payout partner then pays the supplier's bank in pesos.",
+    image: '/cinematic/settlement-machine.png',
+    imageAlt: 'Dollar coins pass a checkpoint and leave as peso coins on a delivery truck',
+    width: 2752,
+    height: 1536,
+    stat: lockedCopy.agent,
+  },
+  {
     id: 'proof',
-    number: '05',
-    title: 'Anchor the proof',
-    description: 'Receipts, encrypted documents, and daily audit evidence remain available for review.',
+    number: '04',
+    title: 'Proof saved',
+    description: 'Proof saved: encrypted on Walrus, anchored on Solana',
+    detail: 'One record per payment: the invoice, the approval, the transfer and the rate. Trace every transaction on Solscan.',
     image: '/cinematic/flow-proof-v4.png',
-    imageAlt: 'Proof isometric typography with an archive vault, sealed certificate, and shield badge',
+    imageAlt: 'An archive cabinet with a sealed certificate and a shield badge',
+    width: 1448,
+    height: 1086,
     stat: 'A record that lasts',
   },
-];
+] as Array<{ id: string; number: string; title: string; description: string; detail?: string; image: string; imageAlt: string; width: number; height: number; stat: string }>;
 
 /* Metrics ticker: the moving bridge band at the bottom of the hero. */
 const marqueeItems = [
-  ['1 live testnet', 'MY to PH corridor'],
+  ['1 sandbox corridor', 'MY to PH'],
   ['Modeled routes', 'expand with controls'],
-  ['~400ms', 'Sui settlement finality'],
-  ['Free', 'USDC transfers'],
-  ['0.70%', 'to local currency'],
-  ['Human approved', 'AI recommendations'],
+  ['USDC', 'settled on Solana'],
+  ["You don't need SOL", 'network fees covered'],
+  ['0.10%', 'Splash fee per payout'],
+  ['A person approves', 'Zeke drafts'],
   ['Stored proof', 'A record that lasts'],
 ];
 
+// No payout partner is named here, and no logo stands in for the settlement
+// network: there is no approved Solana mark in public/ yet.
 const partnerRail: Array<{ src: string; name: string; role: string; logoClass?: string }> = [
   { src: '/stripe-logo.svg', name: 'Stripe', role: 'USD collection' },
-  { src: '/partners/airwallex.png', name: 'Airwallex', role: 'bank rails', logoClass: 'iso-airwallex-logo' },
   { src: '/partners/pyth.png', name: 'Pyth', role: 'FX and peg data' },
-  { src: '/deepbook-mark.png', name: 'DeepBook', role: 'amount-sized liquidity', logoClass: 'iso-deepbook-logo' },
   { src: '/sumsub-logo.png', name: 'Sumsub', role: 'KYB and KYC' },
-  { src: '/sui-logo-blue.svg', name: 'Sui', role: 'settlement network' },
 ];
 
 /** Partner badge: logo only at rest. Hover (or focus) dims the logo and
@@ -138,7 +135,7 @@ function PartnerBadge({ src, name, role, logoClass }: (typeof partnerRail)[numbe
       type="button"
       className="iso-partner-item cin-partner"
       onClick={() => setPopping(true)}
-      aria-label={`${name} — ${role}`}
+      aria-label={`${name}: ${role}`}
     >
       <span
         className={`cin-partner-logo ${popping ? 'is-popping' : ''}`}
@@ -158,13 +155,6 @@ function PartnerBadge({ src, name, role, logoClass }: (typeof partnerRail)[numbe
 
 const comparisonRows = [
   {
-    feature: 'Settlement speed',
-    bank: '2-5 days',
-    broker: '1-3 days',
-    wise: '1-2 days',
-    splash: lockedCopy.speed,
-  },
-  {
     feature: 'Starting fee',
     bank: '3-5%',
     broker: '2-4%',
@@ -172,131 +162,56 @@ const comparisonRows = [
     splash: lockedCopy.fee,
   },
   {
-    feature: 'FX transparency',
+    feature: 'Rate and fees',
     bank: 'Hidden markup',
     broker: 'Cash spread',
     wise: 'Mid-market',
-    splash: 'Oracle-labeled quote',
-  },
-  {
-    feature: 'Atomic settlement',
-    bank: 'No',
-    broker: 'No',
-    wise: 'No',
-    splash: 'Yes',
+    splash: 'Every fee shown before you approve',
   },
   {
     feature: 'Batch payments',
     bank: 'Limited',
     broker: 'No',
     wise: 'Limited',
-    splash: 'Native',
+    splash: 'In chunks, each all-or-none',
   },
   {
-    feature: 'AI treasury copilot',
+    feature: 'AI assistant',
     bank: 'No',
     broker: 'No',
     wise: 'No',
     splash: lockedCopy.agent,
   },
   {
-    feature: 'Early payment on invoices',
-    bank: 'Manual factoring',
-    broker: 'No',
-    wise: 'No',
-    splash: 'Buyer-approved discount offer',
-  },
-  {
-    feature: 'Bilateral netting',
-    bank: 'Manual',
-    broker: 'No',
-    wise: 'No',
-    splash: 'Modeled in account loop',
-  },
-  {
-    feature: 'Permanent audit trail',
+    feature: 'Proof for the auditor',
     bank: 'Siloed records',
     broker: 'Manual receipts',
     wise: 'Platform history',
-    splash: 'Encrypted and kept',
-  },
-  {
-    feature: 'Recipient account ladder',
-    bank: 'Bank account only',
-    broker: 'Cash-out only',
-    wise: 'Wise account',
-    splash: 'Payout, sweep, stored balance',
+    splash: 'One record per payment, encrypted',
   },
 ];
 
-type YieldBenchmarks = {
-  bank: number;
-  broker: number;
-  wise: number;
-  splash: number;
-  asOf: string;
-};
-
-const fallbackYieldBenchmarks: YieldBenchmarks = {
-  bank: 0.38,
-  broker: 3.12,
-  wise: 3.14,
-  splash: 0,
-  asOf: '',
-};
-
-const percentFormatter = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-function formatPercent(value: number) {
-  return `${percentFormatter.format(value)}%`;
-}
-
+/* What Zeke does in this build, agent by agent (lib/solana-zeke, /dashboard/zeke). Nothing planned. */
 const copilotLayers = [
   {
-    icon: Gauge,
-    title: 'Rate intelligence',
-    copy: 'Watch every corridor and surface better timing before a payment is approved.',
+    icon: FileCheck2,
+    title: 'Reader',
+    copy: 'Reads the invoice into a draft and shows where each field came from. A person confirms every field.',
   },
   {
-    icon: FileCheck2,
-    title: 'Invoice forecasting',
-    copy: 'Extract upcoming obligations from invoices while the original file stays encrypted.',
+    icon: Gauge,
+    title: 'Router',
+    copy: 'Explains each route in plain words: what the supplier receives, every fee, and when it arrives.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Checker',
+    copy: 'Explains the rules a payment passed or failed. The rules run as code; Zeke cannot change or skip them.',
   },
   {
     icon: Workflow,
-    title: 'Batch optimizer',
-    copy: 'Recognize repeat corridor patterns and suggest grouped payouts with lower operating cost.',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Treasury advisor',
-    copy: 'Model payout liquidity and projected yield, then wait for explicit business approval.',
-  },
-];
-
-// Rungs 02 and 03 hold customer funds: Phase 2, behind the same custody gate
-// the transfer form and /api/transfers/authorize enforce.
-const recipientLadder = [
-  {
-    number: '01',
-    title: 'Payout',
-    status: 'Live-model',
-    copy: 'Deliver local currency to a verified recipient through the current payout rail.',
-  },
-  {
-    number: '02',
-    title: 'Sweep account',
-    status: 'Phase 2',
-    copy: `A Splash account that sweeps to the recipient's bank. It holds funds, which needs ${CUSTODY_LICENCE}.`,
-  },
-  {
-    number: '03',
-    title: 'Stored balance',
-    status: 'Phase 2',
-    copy: 'Keep value inside the network where regulation and partner controls permit it.',
+    title: 'Auditor',
+    copy: 'Builds the evidence pack for each payment. It drafts; it never gives anyone access.',
   },
 ];
 
@@ -308,42 +223,42 @@ const trustGates = [
     number: '01',
     label: 'Verify',
     icon: ShieldCheck,
-    title: 'KYB on both sides.',
-    copy: 'A payout only exists between verified businesses. Sumsub gates every counterparty before a quote is even prepared.',
-    meta: 'Sumsub KYB · wired',
+    title: 'Verified before money moves.',
+    copy: "Your business is verified before any payout. A supplier's new bank details are confirmed by call-back before the first payment.",
+    meta: 'KYB gate · bank call-back',
   },
   {
     number: '02',
     label: 'Approve',
     icon: PenLine,
     title: 'A person signs. Always.',
-    copy: 'Zeke prepares. You approve. No payout, batch, or treasury move executes without a human signature.',
+    copy: 'Zeke drafts. A person approves with their device key. No payout or batch executes without that approval.',
     meta: 'Maker-checker · human-final',
   },
   {
     number: '03',
     label: 'Settle',
     icon: Zap,
-    title: 'Atomic or not at all.',
-    copy: 'The prepared payment completes exactly as approved — or stops safely before funds move. No partial states.',
-    meta: lockedCopy.speed,
+    title: 'Exactly as approved.',
+    copy: "A payment's transfer and Splash's fee land in one Solana transaction, or nothing moves. A batch goes in chunks, and each chunk is all-or-none.",
+    meta: 'Settled on Solana',
   },
   {
     number: '04',
     label: 'Prove',
     icon: Anchor,
     title: 'Evidence outlives the payment.',
-    copy: 'Receipts and encrypted documents are written where they cannot be quietly changed — a record you can hand to an auditor.',
+    copy: 'Each receipt is encrypted, kept, and anchored on Solana, so it cannot be quietly changed. Hand it to your auditor with a link.',
     meta: 'Encrypted and recorded',
   },
 ];
 
 const headerNavItems = [
-  { href: '#how-it-works', label: 'How it works', detail: '5 steps' },
-  { href: '#platform', label: 'Platform', detail: 'Pay + treasury' },
+  { href: '#how-it-works', label: 'How it works', detail: '4 steps' },
+  { href: '#platform', label: 'Platform', detail: 'Vault + proof' },
   { href: '/working-capital', label: 'Working capital', detail: 'Supply loop' },
-  { href: '#corridors', label: 'Routes', detail: 'MY-PH testnet' },
-  { href: '#comparison', label: 'Compare', detail: 'Fees + speed' },
+  { href: '#corridors', label: 'Routes', detail: 'MY-PH sandbox' },
+  { href: '#comparison', label: 'Compare', detail: 'Fees + proof' },
   { href: '#copilot', label: 'Zeke', detail: 'Prepare + approve' },
 ];
 
@@ -352,27 +267,27 @@ const loopCards = [
   {
     number: '01',
     label: 'Settle',
-    title: 'Move it in minutes.',
-    copy: 'Collect USD, pay Southeast Asia. Every approved payout builds verified counterparties and settlement history.',
+    title: "Pay the supplier's bank.",
+    copy: 'Pay suppliers in the Philippines in USDC on Solana. Every approved payout builds verified counterparties and settlement history.',
     image: '/isometric/loop-settle-v3.png',
-    imageAlt: 'Isometric settlement: a USD coin crossing an approved rail in minutes to arrive as a PHP coin',
-    meta: 'USD → PHP · live on testnet',
+    imageAlt: 'Isometric settlement: a USD coin crossing an approved rail to arrive as a PHP coin',
+    meta: 'USDC → PHP · sandbox',
     roadmap: false,
   },
   {
     number: '02',
-    label: 'Save',
-    title: 'Grow it while it waits.',
-    copy: 'Idle USD follows a projected, variable treasury posture. Your business approves every move.',
+    label: 'Keep',
+    title: 'Keep it in your vault.',
+    copy: "Money waits in your business's own Squads vault. No Splash key can move it, and a person approves every payment out.",
     image: '/isometric/loop-save-v3.png',
-    imageAlt: 'Isometric treasury tiers of idle USD growing along a yield curve, gated by an approve control',
-    meta: 'Projected · variable · human-approved',
+    imageAlt: 'Isometric treasury tiers of USD held behind an approve control',
+    meta: 'Your vault · human-approved',
     roadmap: false,
   },
   {
     number: '03',
     label: 'Supply',
-    title: 'Finance it — the moat.',
+    title: 'Finance it, later.',
     copy: 'Invoices would become working capital: your buyer funds early payment against a receivable both sides can verify.',
     image: '/isometric/loop-supply.png',
     imageAlt: 'Isometric supply loop: an invoice financed early and returned as working capital',
@@ -386,30 +301,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
   // The control plane reveals below the copilot on demand — a credit-roll,
   // not a second section.
   const [ctrlOpen, setCtrlOpen] = useState(false);
-  const [yieldBenchmarks, setYieldBenchmarks] = useState(fallbackYieldBenchmarks);
   const [showBackToTop, setShowBackToTop] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    async function refreshYields() {
-      try {
-        const response = await fetch('/api/market/yields');
-        if (!response.ok) return;
-        const body = await response.json() as YieldBenchmarks;
-        if (active) setYieldBenchmarks(body);
-      } catch {
-        // Keep the latest known benchmarks if a source is temporarily unavailable.
-      }
-    }
-
-    void refreshYields();
-    const interval = window.setInterval(refreshYields, 5 * 60 * 1000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     function updateHeaderState() {
@@ -449,17 +341,6 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
     return () => observer.disconnect();
   }, []);
 
-  const liveComparisonRows = [
-    ...comparisonRows,
-    {
-      feature: 'Yield on idle USD',
-      bank: `${formatPercent(yieldBenchmarks.bank)} APY`,
-      broker: `${formatPercent(yieldBenchmarks.broker)} APY`,
-      wise: `${formatPercent(yieldBenchmarks.wise)} APY`,
-      splash: `${formatPercent(yieldBenchmarks.splash)} projected variable APY`,
-    },
-  ];
-
   return (
     <main className={`iso-landing${isPhone ? ' is-phone' : ''}`}>
       <header className={`iso-header ${showBackToTop ? 'is-scrolled' : ''}`}>
@@ -483,7 +364,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           <div className="iso-header-actions">
             <span className="iso-header-status">
               <small>Sandbox</small>
-              <strong>MY-PH testnet</strong>
+              <strong>MY-PH sandbox</strong>
             </span>
             <Link href="/signup" className="iso-button iso-button-small">
               Start sending
@@ -516,14 +397,14 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
             <div>
               <p className="iso-kicker">The three loops</p>
               <h2 className="iso-section-title">
-                Move it. Grow it.
+                Move it. Keep it.
                 <span>Finance it.</span>
               </h2>
             </div>
             <p>
-              Idle dollars on Sui already move for free — Splash&apos;s job is what the transfer
-              alone can&apos;t do. Settle in minutes. Save while it waits. Supply turns invoices
-              into working capital.
+              USDC on Solana already moves. Splash&apos;s job is what the transfer alone can&apos;t
+              do: reach the supplier&apos;s bank, keep the money in your own vault, and turn
+              invoices into working capital.
             </p>
           </div>
 
@@ -554,9 +435,10 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           </div>
 
           <div className="iso-loops-foot">
-            <p className="iso-gasless-note">
-              <strong>Where the fees live:</strong> simple USD payouts ride Sui&apos;s zero-fee
-              rail; programmable settlement is gas-sponsored. You never hold SUI.
+            <p className="iso-fee-note">
+              <strong>Where the fees live:</strong> Splash&apos;s fee payer covers the Solana
+              network fees, so you don&apos;t need SOL. Splash charges 0.10% per payout (US$2
+              minimum); the payout partner&apos;s fee is shown before you approve.
             </p>
             <Link href="/working-capital" className="iso-button iso-button-small">
               Explore the Supply loop
@@ -588,8 +470,8 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           <div className="iso-flow-copy">
             <p className="iso-kicker">How it works</p>
             <h2 className="iso-section-title iso-section-title-light">
-              Five steps.
-              <span>No limbo.</span>
+              Four steps.
+              <span>One record.</span>
             </h2>
             <div className="iso-flow-tabs" role="tablist" aria-label="Settlement flow">
               {flowSteps.map((step) => {
@@ -611,15 +493,11 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               })}
             </div>
             <div className="iso-flow-branch">
-              <strong>Manual transfer branch</strong>
+              <strong>Many suppliers at once</strong>
               <span>
-                No invoice needed: recipient, bank details, amount, and purpose typed by hand, and
-                checked against KYB before anything is signed.
+                Upload a file. It goes in chunks sized to fit a Solana transaction, signed in one
+                approval; a chunk that fails is retried on its own.
               </span>
-            </div>
-            <div className="iso-flow-branch">
-              <strong>Working-capital branch</strong>
-              <span>Accepted invoice to supplier discount offer to buyer approval to settlement proof.</span>
             </div>
           </div>
 
@@ -633,9 +511,9 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                 key={activeFlow.id}
                 src={activeFlow.image}
                 alt={activeFlow.imageAlt}
-                width={1448}
-                height={1086}
-                priority={activeFlow.id === 'settle'}
+                width={activeFlow.width}
+                height={activeFlow.height}
+                priority={activeFlow.id === 'vault'}
               />
             </div>
             <div className="iso-flow-caption">
@@ -643,6 +521,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               <div>
                 <strong>{activeFlow.title}</strong>
                 <p>{activeFlow.description}</p>
+                {activeFlow.detail ? <p>{activeFlow.detail}</p> : null}
               </div>
             </div>
           </div>
@@ -663,37 +542,23 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               </h2>
             </div>
             <p>
-              Splash makes internal account movement free, charges when value exits to local rails, and adds
-              programmable settlement, approval-led AI, and private audit proof.
+              Splash charges when a payout leaves for a supplier&apos;s bank, shows every fee before you
+              approve, and keeps one record per payment for the auditor.
             </p>
           </div>
 
           <div id="corridors" className="iso-corridor-layout iso-corridor-embed">
           <div className="iso-corridor-copy">
-            <p className="iso-kicker">One testnet corridor. Modeled expansion routes.</p>
             <h2 className="iso-section-title">
-              USD in.
-              <span>Local out.</span>
+              USDC in.
+              <span>Pesos out.</span>
             </h2>
             <p>
-              The MY-to-PH corridor is the proving ground. Additional routes stay modeled until partner, liquidity,
-              and regulatory controls are ready market by market.
+              Malaysia to the Philippines is the sandbox corridor. Indonesia follows when a payout
+              partner and the controls are ready.
             </p>
             <div className="iso-route-list">
-              <span className="is-live">PHP testnet</span><span>MYR</span><span>IDR</span><span>VND</span>
-              <span>THB</span><span>SGD</span><span>EUR</span><span>GBP</span>
-            </div>
-            <div className="iso-recipient-ladder">
-              {recipientLadder.map((step) => (
-                <article key={step.number}>
-                  <span>{step.number}</span>
-                  <div>
-                    <small>{step.status}</small>
-                    <strong>{step.title}</strong>
-                    <p>{step.copy}</p>
-                  </div>
-                </article>
-              ))}
+              <span className="is-live">PHP sandbox</span><span>IDR next</span>
             </div>
             <Link href="/signup" className="iso-inline-link">
               Open the payout desk
@@ -723,7 +588,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                 </tr>
               </thead>
               <tbody>
-                {liveComparisonRows.map((row) => (
+                {comparisonRows.map((row) => (
                   <tr key={row.feature}>
                     <th scope="row">{row.feature}</th>
                     <td>{row.bank}</td>
@@ -734,22 +599,13 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                 ))}
               </tbody>
             </table>
-            <div className="iso-yield-live is-demoted">
-              <i aria-hidden="true" />
-              <strong>Reference yield benchmark</strong>
-              <span>
-                FDIC national savings - IBKR Pro cash - Wise USD Interest - Splash treasury projection
-                {yieldBenchmarks.asOf ? <> - refreshed <LocalTime value={yieldBenchmarks.asOf} format="time" options={{ hour: '2-digit', minute: '2-digit' }} /></> : ''}
-                {' '}· Yield is hygiene, not the headline — the working-capital loop is.
-              </span>
-            </div>
           </div>
         </div>
       </section>
 
       <section id="trust" className="iso-section iso-trust">
         <div className="cin-drop" style={{ top: 30, right: '5%' }} aria-hidden="true">
-          <FloatingToken src="/cinematic/token-sui.png" alt="Sui token" size={104} float="cin-float-slow" />
+          <FloatingToken src="/cinematic/token-php.png" alt="Philippine peso token" size={104} float="cin-float-slow" />
         </div>
         <div className="iso-shell">
           <div className="iso-section-heading iso-heading-split">
@@ -762,7 +618,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
             </div>
             <p>
               A payment on Splash cannot skip a checkpoint: verified before it&apos;s quoted,
-              approved before it&apos;s signed, atomic when it settles, anchored after it lands.
+              approved before it&apos;s signed, sent exactly as approved, anchored after it lands.
             </p>
           </div>
 
@@ -807,8 +663,8 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               </h2>
             </div>
             <p>
-              One approval-gated desk for liquidity, settlement, and treasury. Funding, payout,
-              receivables, and treasury actions stay sandboxed until those rails are active.
+              One approval-gated desk for your vault, your suppliers&apos; payouts and the proof.
+              Everything runs in the sandbox until a payout partner is live.
             </p>
           </div>
 
@@ -846,13 +702,13 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
             <div className="iso-copilot-memory">
               <BrainCircuit aria-hidden="true" />
               <span>
-                <small>MemWal remembers patterns</small>
-                <strong>AI proposes. Your team approves.</strong>
+                <small>Zeke drafts</small>
+                <strong>It cannot sign or send. A person approves.</strong>
               </span>
             </div>
           </div>
 
-          {/* The MemWal badge is pinned to the stage's bottom edge, so this
+          {/* The Zeke badge is pinned to the stage's bottom edge, so this
               sits in flow directly beneath it — the stage column's own CTA. */}
           <button
             type="button"
@@ -871,14 +727,13 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           </div>
 
           <div className="iso-copilot-copy">
-            <p className="iso-kicker">AI Copilot</p>
             <h2 className="iso-section-title">
-              Context that gets
-              <span>more useful.</span>
+              Zeke drafts.
+              <span>You approve.</span>
             </h2>
             <p>
-              The copilot connects rates, invoices, batch habits, and treasury posture without storing PII,
-              account numbers, transaction hashes, or raw dollar amounts in MemWal.
+              Zeke reads invoices, explains routes and checks the rules. It cannot sign or send; a
+              person approves each payment with their device key.
             </p>
             <div className="iso-copilot-list">
               {copilotLayers.map(({ icon: Icon, title, copy }) => (
@@ -907,7 +762,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               </div>
               <p>
                 Every Zeke recommendation runs this exact pipeline before money can move. The phase
-                names below are the engine&apos;s own state machine — inspect them in the Action Queue.
+                names below are the engine&apos;s own state machine; inspect them in the Action Queue.
               </p>
             </div>
             <ControlPlaneExplainer />
@@ -920,11 +775,11 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           <div className="iso-final-copy">
             <p className="iso-kicker">Move money better</p>
             <h2 className="iso-section-title iso-section-title-light">
-              Your global treasury,
-              <span>finally programmable.</span>
+              Pay the supplier.
+              <span>Keep the proof.</span>
             </h2>
             <p>
-              Start with USD. Prove the MY-to-PH path. Expand only when controls and partners are ready.
+              Start in the sandbox: your own vault, a mock payout partner, and a record for every payment.
             </p>
             <div className="iso-hero-actions">
               <Link href="/signup" className="iso-button iso-button-gold">
@@ -954,10 +809,10 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               <Image src="/splash-main-icon.png" alt="" width={841} height={823} />
               <strong>Splash</strong>
             </span>
-            <p>USD-first settlement infrastructure for Southeast Asian finance teams.</p>
+            <p>Supplier payments from Malaysia to the Philippines, with proof for the auditor.</p>
             <div className="cin-footer-status" aria-label="Network status">
-              <span><i aria-hidden="true" /> Sandbox · MY-PH testnet</span>
-              <span><i aria-hidden="true" /> {lockedCopy.speed}</span>
+              <span><i aria-hidden="true" /> Sandbox · Solana devnet</span>
+              <span><i aria-hidden="true" /> Settlement on Solana</span>
               <span><i aria-hidden="true" /> {lockedCopy.agent}</span>
             </div>
           </div>
@@ -989,7 +844,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           <div className="iso-shell cin-footer-bar-inner">
             <span>{BRAND.copyright()}</span>
             <span className="cin-footer-tick">
-              USDC transfers carry no Splash fee · {lockedCopy.speed} · {lockedCopy.fee}
+              Settlement on Solana · Evidence encrypted with Seal, stored on Walrus
             </span>
           </div>
         </div>

@@ -1,13 +1,15 @@
-import { suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 
 import Receipt from '@/components/Receipt';
+import { SharedReceipt } from '@/components/solana/SharedReceipt';
 import { receiptNetworkLine } from '@/lib/network-label';
 import { findReceiptShare } from '@/lib/server/receipt-share';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Receipt · Splash', robots: { index: false, follow: false } };
 
 /**
  * W9.2 — public, read-only receipt (the "Share with supplier" link).
@@ -18,12 +20,15 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SharedReceiptPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  // A Solana receipt's share link ("Share with auditor"): the receipt, its checks and its Solscan trace,
+  // read in the browser from /api/solana/shared/[token]. Anything else is the earlier transfer receipt.
+  if (/^shr_[0-9a-f]{32}$/.test(token)) return <SharedReceipt token={token} />;
   const share = await findReceiptShare(token);
   if (!share) notFound();
 
   const { intent, audit, display } = share;
   const settled = Boolean(intent.suiTxDigest);
-  const explorerUrl = intent.suiTxDigest ? suiVisionTxUrl(intent.suiTxDigest) : null;
+  const explorerUrl = intent.suiTxDigest ? solanaTxUrl(intent.suiTxDigest) : null;
   const history = audit?.statusHistory ?? [];
   const sentAt = history[0]?.at ?? intent.createdAt;
   const deliveredAt =

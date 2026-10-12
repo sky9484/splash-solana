@@ -12,7 +12,7 @@
  *   a tenant-isolation bug that happened to be hidden by there being one tenant.
  *
  * `payment_intents` was designed for this record and never wired up — org id,
- * bigint minor units, funding fields, Sui digest, audit anchor id, all already
+ * bigint minor units, funding fields, settlement signature, audit anchor id, all already
  * there. This module is the wiring.
  *
  * ─── Every read takes an orgId, and it is not optional ──────────────────────
