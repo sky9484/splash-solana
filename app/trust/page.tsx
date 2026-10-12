@@ -11,7 +11,7 @@ const legalApproved = process.env.LEGAL_APPROVED === 'true';
 export const metadata: Metadata = {
   title: 'Trust & compliance — Splash',
   description:
-    'How Splash handles licensing, custody governance, and audit evidence: partners of record today, an explicit licensing path, and encrypted, permanent storage-anchored records.',
+    'Who holds what: the business holds its own vault and keys, and none of Splash’s keys can move its money. What Splash can and cannot do, where the licences stand, and how each payment’s record is kept.',
   // Draft until counsel signs off — keep the page out of indexes.
   robots: legalApproved ? undefined : { index: false, follow: false },
 };
@@ -47,13 +47,13 @@ export default function TrustPage() {
         <div className="iso-shell">
           <p className="iso-kicker">Trust &amp; compliance</p>
           <h1 className="iso-section-title wc-hero-title">
-            Partners of record today.
-            <span>Our own licences next.</span>
+            Your money stays in your vault.
+            <span>Here is who holds what.</span>
           </h1>
           <p className="wc-hero-desc">
             Trust in payments is earned in a specific order: controls first, partners of record
-            second, licenses third. This page states exactly where Splash is on that path — nothing
-            more, nothing less.
+            second, licences third. This page states where Splash is on that path today, and nothing
+            more.
           </p>
         </div>
       </section>
@@ -67,7 +67,7 @@ export default function TrustPage() {
       <footer className="wc-footer">
         <div className="iso-shell wc-footer-inner">
           <span>{BRAND.copyright()}</span>
-          <span>Settlement on Solana · Evidence encrypted, stored, and anchored on Solana</span>
+          <span>Settlement on Solana · Evidence encrypted with Seal, stored on Walrus</span>
         </div>
       </footer>
     </main>
