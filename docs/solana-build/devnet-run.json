@@ -1,62 +1,87 @@
 {
-  "startedAt": "2026-10-10T23:27:08.217Z",
-  "finishedAt": "2026-10-10T23:28:45.075Z",
+  "startedAt": "2026-10-12T14:39:36.603Z",
+  "finishedAt": "2026-10-12T14:41:54.324Z",
   "cluster": "devnet",
   "rpcHost": "api.devnet.solana.com",
   "feePayerMode": "local-keypair",
   "feePayer": "FmSgP964DRmJkavJsBThwdWfyGNu93mg2XcvHEwNpUMT",
   "squadsCreationFeeLamports": "0",
   "vault": {
-    "multisigPda": "H2EoCQ1ejDFSvGMgCjZgTJwXs25dw7KDPA96u6thCoWX",
-    "vaultPda": "iFL7ceiXEip4VTqTcTsVR8eZWMTcLHFga8hwm4dkeVS",
+    "multisigPda": "43t75nCGbosxJHyUHAjEDdTe2GGrnb1tw6KpMBqLwaE1",
+    "vaultPda": "9fZ34EK7EupQAHvdR6xrnJ8XHPb2w5Tpknabp36rPMPr",
     "threshold": 1,
     "members": [
       {
         "role": "admin_device",
-        "publicKey": "TgRAyTcrJNT1b4eKmRGyUeUeeeyjRxxPydPWThknRwD"
+        "publicKey": "64ZQPaLPseF5btaoX9k8pdQnKbqJiScLVzKqdmWjMUHy"
       },
       {
         "role": "recovery_kit_a",
-        "publicKey": "FCx3qZbgSkSfaMofXCk4Mnifnb3CAjwWetCxnL1SSUPp"
+        "publicKey": "4XbbTGCgjMkVqFNHQGbM9FBpqFaMKptMyhKYNPjcsTfJ"
       }
     ],
     "configAuthority": null,
-    "vaultUsdcAccount": "7ctGAPyKvdt8CaPW2Z49VdPKbu1TsC3q28YhWVLXBxhL",
-    "explorer": "https://explorer.solana.com/address/H2EoCQ1ejDFSvGMgCjZgTJwXs25dw7KDPA96u6thCoWX?cluster=devnet"
+    "vaultUsdcAccount": "4FHfZaUfgSHPeMPz1VYjfjVR3y1dKB365JcGu1sdXYBH",
+    "explorer": "https://explorer.solana.com/address/43t75nCGbosxJHyUHAjEDdTe2GGrnb1tw6KpMBqLwaE1?cluster=devnet"
   },
   "payout": {
-    "destination": "9cXMdip8rSQrQR5KDbhxfcJSgDEUAkCL7y1TSNiLjTS2",
-    "destinationUsdcAccount": "BBoCzWCh2urLAKW7iThwSQxiMW3sYuM3HvBCkQzqW4wj",
+    "destination": "CgtM1q6PsY7eLfT1gsAjwCUrGiVa53mpMWjrprFoH5zL",
+    "destinationUsdcAccount": "9Yv49kZz346o9eZ61aDXiouBM9tjrx2GL5RtNZVF84RA",
     "amountMinor": "1000000",
-    "memo": "splash:v1:e16f037d2235ae7cf50d02d8052fcdfbbcb3fd2e4bc57b9cc47ceca1cda183b9",
-    "reference": "J7SZ4oFQ9HTGyFbfw7uuxaAR7Kn6pC9xnNJPkFKwvSFi",
+    "memo": "splash:v1:2bcf351e327575a9bd25bd9c23245ba8419557253387aae6fbc1f58345213d7d",
+    "reference": "NRxUoLF8B5RTUsZYAPGvRcJLLAhj3m6KzFgdqLeVMTJ",
     "balanceAfterMinor": "1000000"
   },
-  "cctp": null,
+  "cctp": {
+    "destinationDomain": 7,
+    "mintRecipient": "0xBf5fDb5FD8725543bEc714611EDA8A803c139bE7",
+    "amountMinor": "1000000",
+    "messageSentEventData": "DaaYxF2m2sT1VHPjJoEn8yWSdfBQEqX4K61CtgryyDVU",
+    "iris": "https://iris-api-sandbox.circle.com/v2/messages/5?transactionHash=55pHme5QJggNfHh3pqEMui9oUPLTUKKMGqKZjC434ceBCi9FELFiRyrbCPQYdNVLEXGfrP2EkcL8BJxBh1qgtBUL",
+    "attestationStatus": "complete"
+  },
   "steps": [
     {
       "name": "multisig_create_v2",
-      "signature": "2EXPgUcf2wFcKCRYuEtRbzKrc9R4SAxSK4pmc88DaMoVbd8L6m9cf9AyBsEDtc3eysPZ3YZ4UEQ46boeHUEPr9gh",
-      "explorer": "https://explorer.solana.com/tx/2EXPgUcf2wFcKCRYuEtRbzKrc9R4SAxSK4pmc88DaMoVbd8L6m9cf9AyBsEDtc3eysPZ3YZ4UEQ46boeHUEPr9gh?cluster=devnet",
-      "at": "2026-10-10T23:27:09.384Z"
+      "signature": "3adk8o85jJ82naeofXNqGpX38Ho8BeNum3FcptMUbKS8kig7GHaSkMeKaHnnLM57Wz5NJfnSaixAZ4A2VVzdjcpB",
+      "explorer": "https://explorer.solana.com/tx/3adk8o85jJ82naeofXNqGpX38Ho8BeNum3FcptMUbKS8kig7GHaSkMeKaHnnLM57Wz5NJfnSaixAZ4A2VVzdjcpB?cluster=devnet",
+      "at": "2026-10-12T14:39:37.538Z"
     },
     {
       "name": "vault_usdc_ata_create",
-      "signature": "25suZosPACHLszmW2rtSj8fQxtm59jKjLXyTkm6n8HNUsDaTKp3F1wf2t6Ud1VGXsBmUe7jtHc2MS8xpkbg4Trsu",
-      "explorer": "https://explorer.solana.com/tx/25suZosPACHLszmW2rtSj8fQxtm59jKjLXyTkm6n8HNUsDaTKp3F1wf2t6Ud1VGXsBmUe7jtHc2MS8xpkbg4Trsu?cluster=devnet",
-      "at": "2026-10-10T23:27:10.499Z"
+      "signature": "4mJiEo7N83HBkYcA8SfK72tRCCHXKZxF8GCf4zCHVgXqqLj1H94rmuVwo45LrUe5yZgxS2qE69DfXsoU7PD5UrWT",
+      "explorer": "https://explorer.solana.com/tx/4mJiEo7N83HBkYcA8SfK72tRCCHXKZxF8GCf4zCHVgXqqLj1H94rmuVwo45LrUe5yZgxS2qE69DfXsoU7PD5UrWT?cluster=devnet",
+      "at": "2026-10-12T14:39:38.466Z"
     },
     {
       "name": "payout_propose_1_of_1",
-      "signature": "5F8jAzfoHMQC5wpx4QeCyGSQAPoWQnDpP4F666qJdLX9oTCvCsamgTcmrNwrJfT9WPBJVsn8GS7v4DG4eJFHFfJg",
-      "explorer": "https://explorer.solana.com/tx/5F8jAzfoHMQC5wpx4QeCyGSQAPoWQnDpP4F666qJdLX9oTCvCsamgTcmrNwrJfT9WPBJVsn8GS7v4DG4eJFHFfJg?cluster=devnet",
-      "at": "2026-10-10T23:28:44.321Z"
+      "signature": "Y1Ds2zQ1LbidnMZqY2fVsYTT9pBK1o9Ho2r1P9jHsZGDjXvc3d4d15BF8iUipezCU4R9sjHqxenh5m8428q2NbV",
+      "explorer": "https://explorer.solana.com/tx/Y1Ds2zQ1LbidnMZqY2fVsYTT9pBK1o9Ho2r1P9jHsZGDjXvc3d4d15BF8iUipezCU4R9sjHqxenh5m8428q2NbV?cluster=devnet",
+      "at": "2026-10-12T14:41:39.051Z"
     },
     {
       "name": "payout_execute",
-      "signature": "4ZXV7pHNGJrFR9j6hdj2hZM8LkdTLkQ55MVoae7XQUexLnL27KaQoKdjKqEV58WNVT5Hy1wHhVGxF97HTVLygj8D",
-      "explorer": "https://explorer.solana.com/tx/4ZXV7pHNGJrFR9j6hdj2hZM8LkdTLkQ55MVoae7XQUexLnL27KaQoKdjKqEV58WNVT5Hy1wHhVGxF97HTVLygj8D?cluster=devnet",
-      "at": "2026-10-10T23:28:45.056Z"
+      "signature": "5Bn26U8SQ5xM36jTsWWniNYBrhRatnZR78rBgbCxYzFFqiX3pPjfpDEqNjEmCp5Y1ajspHwHjGBBCAD3LynRWAhJ",
+      "explorer": "https://explorer.solana.com/tx/5Bn26U8SQ5xM36jTsWWniNYBrhRatnZR78rBgbCxYzFFqiX3pPjfpDEqNjEmCp5Y1ajspHwHjGBBCAD3LynRWAhJ?cluster=devnet",
+      "at": "2026-10-12T14:41:40.081Z"
+    },
+    {
+      "name": "vault_sol_for_cctp_event_rent",
+      "signature": "3xe1iuKgHmJWTkXB1DVJkwSe2zVjDt8DjLK2WZZfMo4YJ3RRvdiU2k7KvbW4VEnqrDvFFEAvZzfvCNvAAivdkTLx",
+      "explorer": "https://explorer.solana.com/tx/3xe1iuKgHmJWTkXB1DVJkwSe2zVjDt8DjLK2WZZfMo4YJ3RRvdiU2k7KvbW4VEnqrDvFFEAvZzfvCNvAAivdkTLx?cluster=devnet",
+      "at": "2026-10-12T14:41:40.963Z"
+    },
+    {
+      "name": "cctp_propose_1_of_1",
+      "signature": "3GbTdraZT63Yo7RZASsXuvNNh9WSH9bgmpLyhBudveEiDsnqS8UQ4Nt1cYfe1hXhMZAs5YnXSu1btVpDQLtq4WZP",
+      "explorer": "https://explorer.solana.com/tx/3GbTdraZT63Yo7RZASsXuvNNh9WSH9bgmpLyhBudveEiDsnqS8UQ4Nt1cYfe1hXhMZAs5YnXSu1btVpDQLtq4WZP?cluster=devnet",
+      "at": "2026-10-12T14:41:42.031Z"
+    },
+    {
+      "name": "cctp_deposit_for_burn_execute",
+      "signature": "55pHme5QJggNfHh3pqEMui9oUPLTUKKMGqKZjC434ceBCi9FELFiRyrbCPQYdNVLEXGfrP2EkcL8BJxBh1qgtBUL",
+      "explorer": "https://explorer.solana.com/tx/55pHme5QJggNfHh3pqEMui9oUPLTUKKMGqKZjC434ceBCi9FELFiRyrbCPQYdNVLEXGfrP2EkcL8BJxBh1qgtBUL?cluster=devnet",
+      "at": "2026-10-12T14:41:43.007Z"
     }
   ],
   "status": "ok",
@@ -64,5 +89,134 @@
   "notes": [
     "Devnet only. Recovery kit words were generated in memory and discarded: this vault is throwaway.",
     "simulated: false for every signature in this file."
+  ],
+  "cctpAttempts": [
+    {
+      "at": "2026-10-12T14:41:54.323Z",
+      "outcome": "ok",
+      "change": "baseline: vault is event_rent_payer (0.01 SOL sent to vault), event account = Squads ephemeral signer 0",
+      "burnSignature": "55pHme5QJggNfHh3pqEMui9oUPLTUKKMGqKZjC434ceBCi9FELFiRyrbCPQYdNVLEXGfrP2EkcL8BJxBh1qgtBUL",
+      "attestationStatus": "complete",
+      "attestationSec": 11
+    }
+  ],
+  "previousRuns": [
+    {
+      "startedAt": "2026-10-10T23:27:08.217Z",
+      "finishedAt": "2026-10-10T23:28:45.075Z",
+      "cluster": "devnet",
+      "rpcHost": "api.devnet.solana.com",
+      "feePayerMode": "local-keypair",
+      "feePayer": "FmSgP964DRmJkavJsBThwdWfyGNu93mg2XcvHEwNpUMT",
+      "squadsCreationFeeLamports": "0",
+      "vault": {
+        "multisigPda": "H2EoCQ1ejDFSvGMgCjZgTJwXs25dw7KDPA96u6thCoWX",
+        "vaultPda": "iFL7ceiXEip4VTqTcTsVR8eZWMTcLHFga8hwm4dkeVS",
+        "threshold": 1,
+        "members": [
+          {
+            "role": "admin_device",
+            "publicKey": "TgRAyTcrJNT1b4eKmRGyUeUeeeyjRxxPydPWThknRwD"
+          },
+          {
+            "role": "recovery_kit_a",
+            "publicKey": "FCx3qZbgSkSfaMofXCk4Mnifnb3CAjwWetCxnL1SSUPp"
+          }
+        ],
+        "configAuthority": null,
+        "vaultUsdcAccount": "7ctGAPyKvdt8CaPW2Z49VdPKbu1TsC3q28YhWVLXBxhL",
+        "explorer": "https://explorer.solana.com/address/H2EoCQ1ejDFSvGMgCjZgTJwXs25dw7KDPA96u6thCoWX?cluster=devnet"
+      },
+      "payout": {
+        "destination": "9cXMdip8rSQrQR5KDbhxfcJSgDEUAkCL7y1TSNiLjTS2",
+        "destinationUsdcAccount": "BBoCzWCh2urLAKW7iThwSQxiMW3sYuM3HvBCkQzqW4wj",
+        "amountMinor": "1000000",
+        "memo": "splash:v1:e16f037d2235ae7cf50d02d8052fcdfbbcb3fd2e4bc57b9cc47ceca1cda183b9",
+        "reference": "J7SZ4oFQ9HTGyFbfw7uuxaAR7Kn6pC9xnNJPkFKwvSFi",
+        "balanceAfterMinor": "1000000"
+      },
+      "cctp": null,
+      "steps": [
+        {
+          "name": "multisig_create_v2",
+          "signature": "2EXPgUcf2wFcKCRYuEtRbzKrc9R4SAxSK4pmc88DaMoVbd8L6m9cf9AyBsEDtc3eysPZ3YZ4UEQ46boeHUEPr9gh",
+          "explorer": "https://explorer.solana.com/tx/2EXPgUcf2wFcKCRYuEtRbzKrc9R4SAxSK4pmc88DaMoVbd8L6m9cf9AyBsEDtc3eysPZ3YZ4UEQ46boeHUEPr9gh?cluster=devnet",
+          "at": "2026-10-10T23:27:09.384Z"
+        },
+        {
+          "name": "vault_usdc_ata_create",
+          "signature": "25suZosPACHLszmW2rtSj8fQxtm59jKjLXyTkm6n8HNUsDaTKp3F1wf2t6Ud1VGXsBmUe7jtHc2MS8xpkbg4Trsu",
+          "explorer": "https://explorer.solana.com/tx/25suZosPACHLszmW2rtSj8fQxtm59jKjLXyTkm6n8HNUsDaTKp3F1wf2t6Ud1VGXsBmUe7jtHc2MS8xpkbg4Trsu?cluster=devnet",
+          "at": "2026-10-10T23:27:10.499Z"
+        },
+        {
+          "name": "payout_propose_1_of_1",
+          "signature": "5F8jAzfoHMQC5wpx4QeCyGSQAPoWQnDpP4F666qJdLX9oTCvCsamgTcmrNwrJfT9WPBJVsn8GS7v4DG4eJFHFfJg",
+          "explorer": "https://explorer.solana.com/tx/5F8jAzfoHMQC5wpx4QeCyGSQAPoWQnDpP4F666qJdLX9oTCvCsamgTcmrNwrJfT9WPBJVsn8GS7v4DG4eJFHFfJg?cluster=devnet",
+          "at": "2026-10-10T23:28:44.321Z"
+        },
+        {
+          "name": "payout_execute",
+          "signature": "4ZXV7pHNGJrFR9j6hdj2hZM8LkdTLkQ55MVoae7XQUexLnL27KaQoKdjKqEV58WNVT5Hy1wHhVGxF97HTVLygj8D",
+          "explorer": "https://explorer.solana.com/tx/4ZXV7pHNGJrFR9j6hdj2hZM8LkdTLkQ55MVoae7XQUexLnL27KaQoKdjKqEV58WNVT5Hy1wHhVGxF97HTVLygj8D?cluster=devnet",
+          "at": "2026-10-10T23:28:45.056Z"
+        }
+      ],
+      "status": "ok",
+      "error": null,
+      "notes": [
+        "Devnet only. Recovery kit words were generated in memory and discarded: this vault is throwaway.",
+        "simulated: false for every signature in this file."
+      ]
+    },
+    {
+      "startedAt": "2026-10-12T14:35:34.989Z",
+      "finishedAt": null,
+      "cluster": "devnet",
+      "rpcHost": "api.devnet.solana.com",
+      "feePayerMode": "local-keypair",
+      "feePayer": "FmSgP964DRmJkavJsBThwdWfyGNu93mg2XcvHEwNpUMT",
+      "squadsCreationFeeLamports": "0",
+      "vault": {
+        "multisigPda": "6xiTUNiNoWpWJMB7N5tTp1m3YFZXxWfviLPZ12otLXBX",
+        "vaultPda": "8AbDe4wZVGqVSFqKqqaLQxRapbBGvMqQofbh1TDqfB66",
+        "threshold": 1,
+        "members": [
+          {
+            "role": "admin_device",
+            "publicKey": "C92FvYVGeiKeCyRoV6XyeQ7Y5pmev5hUurFCbSXED1oz"
+          },
+          {
+            "role": "recovery_kit_a",
+            "publicKey": "2JcRikMXZsKt8oXy2iwutofBZG97sj35WLdTKicvtWD6"
+          }
+        ],
+        "configAuthority": null,
+        "vaultUsdcAccount": "9Gmaq51tjLP39PgomYcy7FSRf3nju9Hvpgxub1FBNs1V",
+        "explorer": "https://explorer.solana.com/address/6xiTUNiNoWpWJMB7N5tTp1m3YFZXxWfviLPZ12otLXBX?cluster=devnet"
+      },
+      "payout": null,
+      "cctp": null,
+      "steps": [
+        {
+          "name": "multisig_create_v2",
+          "signature": "2UA2FpKCJwSSFi97YE2nU63ky7pz4XVmZUB2EY49UKaFKov8xMcn3iFiXhuTLf9Mv1vV3serEsppz92DFQHjMJmf",
+          "explorer": "https://explorer.solana.com/tx/2UA2FpKCJwSSFi97YE2nU63ky7pz4XVmZUB2EY49UKaFKov8xMcn3iFiXhuTLf9Mv1vV3serEsppz92DFQHjMJmf?cluster=devnet",
+          "at": "2026-10-12T14:35:36.124Z"
+        },
+        {
+          "name": "vault_usdc_ata_create",
+          "signature": "4yQuMTeWV2HmdQPwcoMphRxVVtxbU37V5DKnQDvERAbPsZCCcMvApLphPFiMX8QP7uqoyAiWAkdqZwkbbefztkeE",
+          "explorer": "https://explorer.solana.com/tx/4yQuMTeWV2HmdQPwcoMphRxVVtxbU37V5DKnQDvERAbPsZCCcMvApLphPFiMX8QP7uqoyAiWAkdqZwkbbefztkeE?cluster=devnet",
+          "at": "2026-10-12T14:35:37.087Z"
+        }
+      ],
+      "status": "aborted",
+      "error": "Process was stopped from outside while waiting for faucet USDC (not a chain error). Vault never funded; its in-memory device key is gone, so the vault is abandoned. Re-run as a detached process.",
+      "notes": [
+        "Devnet only. Recovery kit words were generated in memory and discarded: this vault is throwaway.",
+        "simulated: false for every signature in this file."
+      ]
+    }
   ]
 }
