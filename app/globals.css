@@ -3974,7 +3974,7 @@ body {
 
 .iso-footer p,
 .iso-footer > .iso-shell > small {
-  color: rgba(12, 62, 72, .66);
+  color: rgba(12, 62, 72, .86); /* 4.5:1 on the footer paper; .66 measured 4.2:1 */
   font-size: 12px;
   line-height: 1.6;
 }
@@ -7971,7 +7971,6 @@ button.iso-product-row {
 
   /* Footer: status line, legal, ticker and copyright. */
   .iso-landing .cin-footer-status span,
-  .iso-landing .cin-footer-col small,
   .iso-landing .cin-footer-tick,
   .iso-landing .cin-footer-bar span { font-size: 11px; }
 }
