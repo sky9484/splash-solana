@@ -129,3 +129,68 @@ So that Zeke never contradicts the quote a person sees, its replies point at the
 - the admin "Sui sponsor (evidence only)" label
 
 Note: the pattern's case-insensitive `PTB` also matches inside words such as `ReceiptByHash`. Such lines were reworded rather than allow-listed.
+
+## D-P3-1 · Compute budget and ATA creation sit at the top level, not inside the vault transaction (§5.3)
+
+§5.3 lists, inside the vault transaction:
+- ComputeBudget
+- an ATA create
+- the payout transferChecked
+- the fee transferChecked
+- the memo
+
+Two of these cannot work there:
+- **ComputeBudget** instructions only take effect at the top level of a transaction. Inside a Squads vault transaction they run as a CPI and do nothing.
+- **An ATA create** needs a rent payer. The vault holds only USDC, never SOL.
+
+So each outer transaction (proposal and execute) starts with limit, then price, and the ATA creates sit before the execute with Kora as rent payer. The vault transaction holds exactly the payout leg, the fee leg and the memo, so the fee and the payment still succeed or fail together.
+
+- The priority fee is the 75th percentile of `getRecentPrioritizationFees`, capped with the sponsor check's own formula at 100,000 lamports.
+- The unit limit comes from a simulation plus 15% where one is possible. The execute cannot be simulated before its proposal exists, so it uses a default.
+
+## D-P3-2 · 0.10% per payout on every route (D17)
+
+`lib/route-engine/fees.ts` charged 0.15% on Fastest and Safest under an earlier canon. Prompt 07 §5.2 (D17) says 0.10% per payout, so every policy is now 10 bps.
+
+Unchanged:
+- the US$2 minimum
+- the 0.33% all-in target from US$2,000
+- the 0.05% floor
+
+The table is still per-policy, so reverting is one line. The dashboard's older quote (`lib/fx/corridors.ts`, 70 bps) is replaced in Phase 4, when /dashboard/transfer moves onto this engine.
+
+## D-P3-3 · No address lookup table in batch chunks (§5.5 vs §5.6)
+
+§5.5 asks for one ALT per batch. §5.6 allowlists exactly nine programs for sponsored transactions, and the lookup-table program is not one of them. `validateSponsoredTransaction` also refuses lookups.
+
+The batch is chunked by measured size without an ALT: five payees per chunk today, with the execute the binding constraint at 1,203 of 1,232 bytes. Adding an ALT needs two changes Sebastian should approve:
+- add `AddressLookupTab1e1111111111111111111111111` to `kora.toml` and `SPONSOR_ALLOWED_PROGRAMS`
+- let the sponsor check accept lookups whose tables the app created
+
+## D-P3-4 · The money-path memo is `splash:pay:v1:<paymentId>` (§5.3)
+
+The earlier memo carried the salted invoice commitment. §5.3 asks for the payment id only. That is an opaque random `pay_` + 16 hex, so there is still no invoice data on chain (I-5). The commitment stays in the evidence bundle.
+
+The simulator and sponsor check accept both formats, so the runs recorded before this change still verify.
+
+## D-P3-5 · Kora signs, Splash broadcasts (§5.1)
+
+`DevnetChain` used Kora's `signAndSendTransaction`, so the signature was unknown until after broadcast, and a crash mid-send could not be resumed by signature. It now works in this order:
+1. Call `signTransaction`.
+2. Check that Kora returned the exact message the approver signed.
+3. Record the signature under `paymentId:step`.
+4. Broadcast it.
+
+A resumed worker polls that signature. It never sends again.
+
+## D-P3-6 · Where the state lives, and what is still in memory
+
+**Durable:**
+- Payments: `solana_payments`, with transitions and chain calls, whenever `DATABASE_URL` is set (`SOLANA_PAYMENT_STORE=memory` overrides).
+- The per-org sponsorship counter.
+
+**Still in process memory** until Phase 4 moves the flow onto signed-in organizations:
+- the offline demo's companies and invoices
+- the invoice reservation and the daily-limit reservation
+
+Within one process those reservations are atomic: the check and the reservation happen with no await between them. Across instances, the payment's own compare-and-set still prevents a double send of one payment. Two payments for one invoice on two instances is the gap Phase 4 closes.
