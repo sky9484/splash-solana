@@ -46,7 +46,8 @@ import {
   MAX_TRANSACTION_BYTES,
   transactionSize,
 } from '../solana/squads.ts';
-import type { ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote } from '../solana/types.ts';
+import type { Cluster, ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote, VaultInfo } from '../solana/types.ts';
+import type { ShareRecord } from './doc-store.ts';
 import { quoteRoutes, POLICIES } from '../route-engine/index.ts';
 import { createKytStub, evaluatePolicy, TIER_LIMITS, type EnginePolicyResult } from '../route-engine/policy.ts';
 import { isQuoteExpired, routeKindOf, type RouteKind } from '../route-engine/quote.ts';
@@ -310,6 +311,83 @@ export async function createVault(orgId: string) {
   if (!org.keys.device || !org.keys.kit) throw new ServiceError('keys_missing', 'Save your recovery kit and create the device key first.', 409);
   org.vault = await createAutonomousVault({ devicePublicKey: org.keys.device.publicKey, kitPublicKey: org.keys.kit.publicKey, sponsorTag: org.id });
   return org.vault;
+}
+
+/* ------------------------------------------------------------------ the signed-in company */
+
+export interface AccountCompany {
+  /** The dashboard organization's id: the same company, not a copy of it. */
+  orgId: string;
+  companyName: string;
+  /** The signed-in person, shown on approvals they make. */
+  personName: string;
+  /** The vault the setup recorded (org_vaults), or null before setup. */
+  vault: (VaultInfo & { createdAt: string; signature: string; simulated: boolean; cluster: Cluster }) | null;
+  /** This member's own device key (member_devices), or null before setup. */
+  deviceKey: string | null;
+}
+
+/**
+ * The dashboard's organization IS the Solana app's company (prompt 07 §6.2). Who it is, its vault and
+ * the member's device come from what account setup wrote (org_vaults, member_devices); this makes the
+ * working copy agree with that on every request. The salt, verified suppliers and fundings are the
+ * company's own documents (company.ts) and are kept.
+ *
+ * Offline, a vault the database recorded but this process never saw (the dev server restarted) is put
+ * back into the simulator at its last used transaction index, with no simulated money.
+ */
+export async function syncAccountCompany(input: AccountCompany): Promise<OrgRecord> {
+  const s = store();
+  let org = s.orgs.get(input.orgId);
+  if (!org) {
+    org = { id: input.orgId, companyName: input.companyName, personName: input.personName, createdAt: nowIso(), saltHex: randomHex(32), challenges: {}, keys: {}, suppliers: [], dailyDebits: {}, seenCommitments: [], fundings: [], suspended: null };
+    s.orgs.set(org.id, org);
+  }
+  org.companyName = input.companyName;
+  org.personName = input.personName;
+  if (input.deviceKey && org.keys.device?.publicKey !== input.deviceKey) org.keys.device = { publicKey: input.deviceKey, provenAt: nowIso() };
+  if (input.vault) {
+    org.vault = input.vault;
+    const kit = input.vault.members.find((m) => m.role === 'recovery_kit_a');
+    if (kit && org.keys.kit?.publicKey !== kit.publicKey) org.keys.kit = { publicKey: kit.publicKey, provenAt: input.vault.createdAt };
+    const rt = runtime();
+    if (rt.chain instanceof SolanaSimulator && input.vault.simulated && !(await rt.chain.getMultisig(new PublicKey(input.vault.multisigPda)))) {
+      const used = (await rt.payments.listByOrg(org.id)).reduce((max, p) => (p.transactionIndex !== null && p.transactionIndex > max ? p.transactionIndex : max), 0n);
+      rt.chain.restoreVault({ multisigPda: input.vault.multisigPda, threshold: input.vault.threshold, members: input.vault.members.map((m) => m.publicKey), transactionIndex: used });
+      // Simulated money does not survive a restart, and the old fundings are no longer in the vault.
+      org.fundings = [];
+    }
+  }
+  return org;
+}
+
+/* ------------------------------------------------------------------ receipt share links */
+
+/**
+ * A link a business hands its auditor: it opens this one receipt (the record, its verify steps, the
+ * Solscan trace and the evidence pack) without signing in, and nothing else. One live link per
+ * receipt; minting again returns it. The token is 128 random bits.
+ */
+export function shareReceipt(orgId: string, receiptId: string, by: string, now = new Date()): ShareRecord {
+  const e = getEvidence(receiptId);
+  if (e.orgId !== orgId) throw new ServiceError('receipt_not_found', 'That receipt is not on the server for this company.', 404);
+  const s = store();
+  for (const sh of s.shares.values()) if (sh.receiptId === receiptId && sh.revokedAt === null) return sh;
+  const share: ShareRecord = { token: `shr_${randomHex(16)}`, receiptId, orgId, createdAt: nowIso(now), createdBy: by, revokedAt: null };
+  s.shares.set(share.token, share);
+  return share;
+}
+
+/** The live share behind a token, or a not-found error that says nothing about why. */
+export function openShare(token: string): ShareRecord {
+  const share = store().shares.get(token);
+  if (!share || share.revokedAt !== null) throw new ServiceError('receipt_not_found', 'This receipt link is not valid. Ask the business that shared it for a new one.', 404);
+  return share;
+}
+
+/** A receipt only its own company may read. */
+export function assertReceiptOf(receiptId: string, orgId: string): void {
+  if (getEvidence(receiptId).orgId !== orgId) throw new ServiceError('receipt_not_found', 'That receipt is not on the server for this company.', 404);
 }
 
 /* ------------------------------------------------------------------ funding and summary */
@@ -1042,9 +1120,11 @@ const UNCERTAIN = { code: 'uncertain', message: "Checking whether this payment w
  * Execute only with the device key's signature on every prepared transaction (I-4). Signatures are
  * checked before anything is sent; a missing or wrong one sends nothing.
  */
-export async function submitApproval(paymentId: string, input: { signatures?: Array<{ id: string; signature: string }> }, now = new Date()): Promise<PaymentRecord> {
+export async function submitApproval(paymentId: string, input: { signatures?: Array<{ id: string; signature: string }>; who?: string }, now = new Date()): Promise<PaymentRecord> {
   let p = await getPayment(paymentId);
   assertServiceable(p.orgId);
+  // The approver's name on the record: the signed-in person, else the company's contact (the demo).
+  const who = input.who?.trim() || getOrg(p.orgId).personName;
   if (!['checked', 'proposed', 'approved', 'execute_failed'].includes(p.state)) throw new ServiceError('wrong_state', 'This payment is not waiting for approval.', 409);
   const prepared = p.prepared;
   if (!prepared) throw new ServiceError('not_prepared', 'Nothing to sign yet. Press approve again.', 409);
@@ -1136,8 +1216,8 @@ export async function submitApproval(paymentId: string, input: { signatures?: Ar
       d.approvedBy = approvedBy;
       d.pendingApprover = null;
       d.signatures.push(...records);
-      if (first) d.approvals.push({ who: org.personName, role: 'admin_device', action: 'propose', at, keyPublic: prepared.signer, policyResult });
-      d.approvals.push({ who: org.personName, role: roleOf(org, prepared.signer), action: 'approve', at, keyPublic: prepared.signer, policyResult });
+      if (first) d.approvals.push({ who, role: 'admin_device', action: 'propose', at, keyPublic: prepared.signer, policyResult });
+      d.approvals.push({ who, role: roleOf(org, prepared.signer), action: 'approve', at, keyPublic: prepared.signer, policyResult });
       if (!met) d.prepared = null;
     }, met ? 'threshold met' : `approval ${approvedBy.length} of ${p.threshold}`, now));
   }
@@ -1148,7 +1228,7 @@ export async function submitApproval(paymentId: string, input: { signatures?: Ar
     if (p.state === 'execute_failed') {
       p = await cas(() => repo().transition(p.id, { from: 'execute_failed', version: p.version }, 'approved', (d) => { d.problem = null; }, 'execute rebuilt', now));
     }
-    p = await executeStep(p, exec.m, exec.tx, prepared, q, now);
+    p = await executeStep(p, exec.m, exec.tx, prepared, q, who, now);
   }
   return p;
 }
@@ -1157,7 +1237,7 @@ function roleOf(org: OrgRecord, key: string): 'admin_device' | 'approver_device'
   return org.vault?.members.find((m) => m.publicKey === key)?.role === 'approver_device' ? 'approver_device' : 'admin_device';
 }
 
-async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTransaction, prepared: PreparedApproval, q: RouteQuote, now: Date): Promise<PaymentRecord> {
+async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTransaction, prepared: PreparedApproval, q: RouteQuote, who: string, now: Date): Promise<PaymentRecord> {
   const org = getOrg(p.orgId);
   const policyResult = { allowed: p.policy!.allowed, reasons: p.policy!.reasons, checks: p.policy!.checks };
   const out = await sendStep(p, m.step, tx, m.lastValidBlockHeight, async (signature) => {
@@ -1166,7 +1246,7 @@ async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTr
       d.execution.signature = signature;
       d.timeline.sentAt = nowIso();
       d.prepared = null;
-      d.approvals.push({ who: org.personName, role: roleOf(org, prepared.signer), action: 'execute', at: nowIso(), keyPublic: prepared.signer, policyResult });
+      d.approvals.push({ who, role: roleOf(org, prepared.signer), action: 'execute', at: nowIso(), keyPublic: prepared.signer, policyResult });
       d.signatures.push(signatureRecord('squads_vault_execute', signature), signatureRecord(prepared.kind === 'solana_direct' ? 'spl_transfer' : 'cctp_burn', signature));
       d.executedRoute = { quoteId: q.id, network: q.target.network, depositAddress: q.target.depositAddress, amountMinor: prepared.transferAmountMinor, steps: q.steps };
     }, 'execute broadcast', now));

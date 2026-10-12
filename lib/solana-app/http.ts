@@ -47,28 +47,14 @@ export async function paymentFor(paymentId: string, orgId: string) {
 const base58 = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,88}$/);
 const id = (prefix: string) => z.string().regex(new RegExp(`^${prefix}_[0-9a-f]{16}$`));
 
+/**
+ * Request bodies. None carries an orgId: which company a request acts for comes from the session and
+ * the membership row (lib/server/solana-company.ts), never from what the browser sends.
+ */
 export const schemas = {
-  orgId: id('org'),
-  createOrg: z.object({ companyName: z.string().min(2).max(120), personName: z.string().max(80).optional() }).strict(),
-  challenge: z
-    .object({
-      orgId: id('org'),
-      keys: z.array(z.object({ role: z.enum(['device', 'kit']), publicKey: base58 }).strict()).min(1).max(2),
-    })
-    .strict(),
-  keys: z
-    .object({
-      orgId: id('org'),
-      proofs: z
-        .array(z.object({ role: z.enum(['device', 'kit']), publicKey: base58, nonce: z.string().regex(/^[0-9a-f]{64}$/), signature: base58 }).strict())
-        .min(1)
-        .max(2),
-    })
-    .strict(),
-  orgOnly: z.object({ orgId: id('org') }).strict(),
+  empty: z.object({}).strict(),
   invoice: z
     .object({
-      orgId: id('org'),
       sample: z.boolean().optional(),
       text: z.string().max(20_000).optional(),
       source: z.enum(['paste', 'upload']).optional(),
@@ -77,7 +63,6 @@ export const schemas = {
     .refine((v) => v.sample === true || (typeof v.text === 'string' && v.text.trim().length > 0), { message: 'text or sample required' }),
   verifyBank: z
     .object({
-      orgId: id('org'),
       by: z.string().min(1).max(80),
       method: z.enum(['call-back', 'supplier-account']),
       bank: z.string().min(2).max(120),
@@ -86,7 +71,6 @@ export const schemas = {
     .strict(),
   confirm: z
     .object({
-      orgId: id('org'),
       fields: z
         .object({
           invoiceNumber: z.string().max(64),
@@ -99,16 +83,14 @@ export const schemas = {
         })
         .strict(),
       confirmed: z.array(z.enum(['invoiceNumber', 'supplierName', 'supplierBank', 'supplierAccountLast4', 'amountPhpMinor', 'dueDate', 'einvoiceRef'])).max(7),
-      confirmedBy: z.string().max(80).optional(),
     })
     .strict(),
-  quote: z.object({ orgId: id('org'), invoiceId: id('inv') }).strict(),
+  quote: z.object({ invoiceId: id('inv') }).strict(),
   select: z
-    .object({ orgId: id('org'), quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80), rehearsal: z.enum(['none', 'kyt_flag', 'partner_return']).optional() })
+    .object({ quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80), rehearsal: z.enum(['none', 'kyt_flag', 'partner_return']).optional() })
     .strict(),
   approve: z
     .object({
-      orgId: id('org'),
       signatures: z.array(z.object({ id: z.string().regex(/^m\d{1,2}$/), signature: base58 }).strict()).max(8).optional(),
     })
     .strict(),
@@ -123,4 +105,6 @@ export const schemas = {
       signature: z.string().regex(/^[0-9a-f]{64}$/),
     })
     .strict(),
+  receiptId: id('rcpt'),
+  shareToken: z.string().regex(/^shr_[0-9a-f]{32}$/),
 };

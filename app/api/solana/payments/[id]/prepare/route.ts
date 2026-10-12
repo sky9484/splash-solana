@@ -1,12 +1,20 @@
-import { handle, paymentFor, readBody, schemas } from '@/lib/solana-app/http';
+import { paymentFor, readBody, schemas } from '@/lib/solana-app/http';
 import { prepareApproval } from '@/lib/solana-app/service';
+import { companyRoute, requireReadyToApprove } from '@/lib/server/solana-company';
 
-/** Unsigned Squads proposal and execute messages for the device key to sign in the browser. */
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+/**
+ * Unsigned Squads proposal and execute messages for THIS member's device key to sign in the browser.
+ * The signer is the device on record for the signed-in member, never a key the browser names.
+ */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  return handle(async () => {
+  return companyRoute(request, async (ctx) => {
     const { id } = await params;
-    const body = await readBody(request, schemas.orgOnly);
-    await paymentFor(id, body.orgId);
-    return await prepareApproval(id);
+    await readBody(request, schemas.empty);
+    const { deviceKey } = requireReadyToApprove(ctx);
+    await paymentFor(id, ctx.orgId);
+    return await prepareApproval(id, { signer: deviceKey });
   });
 }

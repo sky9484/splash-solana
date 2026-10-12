@@ -8,6 +8,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -439,6 +440,22 @@ export const solanaSponsorUsage = pgTable('solana_sponsor_usage', {
   ...timestamps,
 }, (table) => [
   uniqueIndex('solana_sponsor_usage_org_day').on(table.orgId, table.day),
+]);
+
+/**
+ * The Solana app's per-company documents (drizzle/0031): the company record, its invoices, its
+ * evidence and its receipt share links. Read whole on a company's first request, written back whole
+ * when a request changes one. Money state is NOT here: payments are solana_payments (compare-and-set).
+ */
+export const solanaDocuments = pgTable('solana_documents', {
+  kind: text('kind').notNull(),
+  id: text('id').notNull(),
+  orgId: text('org_id').notNull(),
+  body: jsonb('body').notNull(),
+  ...timestamps,
+}, (table) => [
+  primaryKey({ name: 'solana_documents_pk', columns: [table.kind, table.id] }),
+  index('solana_documents_org_idx').on(table.orgId, table.kind),
 ]);
 
 /** Suppliers — the relationship-first noun (today's "recipients"). */

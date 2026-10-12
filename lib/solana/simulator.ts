@@ -265,6 +265,23 @@ export class SolanaSimulator implements ChainClient {
     };
   }
 
+  /**
+   * Offline only: put back a vault the database recorded but this process never saw (the dev server
+   * restarted; the simulator's ledger is in memory). Members get every permission, as at creation
+   * (squads.ts). The balance starts at zero: simulated money does not survive a restart, and the
+   * screen says "Add test USDC" again. Does nothing if the vault is already here.
+   */
+  restoreVault(input: { multisigPda: string; threshold: number; members: string[]; transactionIndex: bigint }): boolean {
+    if (this.state.multisigs.has(input.multisigPda)) return false;
+    this.state.multisigs.set(input.multisigPda, {
+      threshold: input.threshold,
+      members: input.members.map((key) => ({ key, mask: multisig.types.Permissions.all().mask })),
+      transactionIndex: input.transactionIndex,
+      configAuthority: null,
+    });
+    return true;
+  }
+
   async getNextTransactionIndex(multisigPda: PublicKey) {
     const m = this.state.multisigs.get(multisigPda.toBase58());
     if (!m) throw new Error('Simulator: unknown multisig');

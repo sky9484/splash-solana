@@ -1,10 +1,11 @@
 /**
- * In-memory server store for the Solana demo: orgs, invoices and evidence.
- * Payments are NOT here: they live behind the payment repository
- * (payment-repo.ts), in Postgres when one is configured, so the state machine
- * survives a restart (prompt 07 §5.1). A module singleton kept on globalThis (so Next's dev reloads and
- * separately bundled route handlers share one copy); it resets when the
- * process restarts. Nothing here is a secret a person holds: the recovery
+ * The in-process working copy of the Solana app's companies, invoices, evidence and receipt share
+ * links. With a database these are documents in solana_documents, loaded on a company's first
+ * request and written back after each one (company.ts, doc-store.ts); without one, this is all
+ * there is. Payments are NOT here: they live behind the payment repository (payment-repo.ts), in
+ * Postgres when one is configured, so the state machine survives a restart (prompt 07 §5.1).
+ * A module singleton kept on globalThis (so Next's dev reloads and separately bundled route
+ * handlers share one copy). Nothing here is a secret a person holds: the recovery
  * words and the device private key never reach the server (only public keys
  * and proof-of-possession signatures do).
  */
@@ -19,6 +20,7 @@ import type { ReaderOutput } from '../solana-zeke/reader.ts';
 import type { RouterOutput } from '../solana-zeke/router.ts';
 import type { PossessionChallenge } from '../solana/recovery-kit.ts';
 import type { Cluster, ConfirmedInvoice, PartnerPayoutEvent, VaultInfo } from '../solana/types.ts';
+import type { ShareRecord } from './doc-store.ts';
 import type { PaymentState } from './payment-machine.ts';
 
 export type BankVerification = { by: string; method: 'call-back' | 'supplier-account' | 'existing-record'; at: string };
@@ -196,13 +198,17 @@ export interface SolanaAppStore {
   orgs: Map<string, OrgRecord>;
   invoices: Map<string, InvoiceRecord>;
   evidence: Map<string, EvidenceRecord>;
+  /** Receipt share links, by token. */
+  shares: Map<string, ShareRecord>;
+  /** Which companies were loaded from the document store, and what was last written for each document. */
+  docs: { loaded: Set<string>; written: Map<string, string> };
 }
 
 const G = globalThis as typeof globalThis & { __splashSolanaAppStore?: SolanaAppStore };
 
 export function store(): SolanaAppStore {
   if (!G.__splashSolanaAppStore) {
-    G.__splashSolanaAppStore = { orgs: new Map(), invoices: new Map(), evidence: new Map() };
+    G.__splashSolanaAppStore = { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), docs: { loaded: new Set(), written: new Map() } };
   }
   return G.__splashSolanaAppStore;
 }

@@ -205,3 +205,15 @@ Prompt 07 §6.2 says explorer links point to Solana Explorer. Sky asked on 13 Oc
   - **Batch chunks.** Each chunk's proposals carry `<batchId>.c<n>`. The execute adds no copy: running the vault transaction runs its memo, and Solscan shows that log under the Squads execute. A copy would cost one payee per chunk (5 → 4, measured).
 - **Checked on Solscan, 13 Oct.** The Part A execute `4ZXV7pHN…` opens at `solscan.io/tx/…?cluster=devnet`. It shows the vault → deposit transfer, the Squads execute, a finalized result and a sponsored fee, and its program logs read `Memo (len 74): "splash:v1:…"`.
 - **What the receipt shows.** The receipt and the evidence pack list each transaction and each account (vault, the vault's USDC account, the partner deposit) with a Solscan link. Offline there are no links: a simulated signature exists on no network, and the panel says so.
+
+## D-P4-2 · The dashboard's organization is the Solana company, and its records are documents
+
+D-P3-6 left the companies, invoices and evidence in process memory, and `/api/solana` took `orgId` from the request body. Phase 4 closes both gaps.
+
+- **Who and which company come from the session.** Every company route goes through `lib/server/solana-company.ts`: the signed-in session, then the membership row, then the vault and this member's device as account setup recorded them (`org_vaults`, `member_devices`). No request schema accepts an `orgId`; a test scans every route to keep it that way.
+- **Approvals.** `prepare` signs with the member's own device on record, never a key the browser names. `approve` records the signed-in person's name on the approval.
+- **The public demo onboarding is gone.** `/api/solana/onboarding/*` and `/api/solana/orgs/[orgId]` created companies with no sign-in. Account setup (`/api/setup/*`, Phase 1) is now the only way to make a vault.
+- **Documents.** The company record (its salt, verified suppliers, fundings, paid commitments, daily totals and the refuse-service switch), its invoices, its evidence and its receipt share links are rows in `solana_documents` (migration 0031). They load on a company's first request and only the changed ones are written back after each request. Payments are unchanged: `solana_payments` with compare-and-set.
+- **Receipts are no longer readable by id alone.** Earlier, anyone holding a receipt id could read it and its evidence pack, which includes the invoice fields and salt. Now a receipt needs its company's session, or a share link the company minted ("Share with auditor": `shr_` plus 128 random bits, one live link per receipt).
+- **Offline restarts.** A vault the database recorded but the restarted simulator never saw is put back at its last used transaction index, with no simulated money.
+- **Still true.** Documents are last-writer-wins. Two app instances writing the same company's daily total at the same instant can lose one increment. The payment's own compare-and-set still prevents a double send, and the duplicate-invoice check reads the reloaded commitments. A per-company row lock is the fix if the app ever runs on more than one instance.
