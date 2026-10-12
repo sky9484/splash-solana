@@ -6,8 +6,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return handle(async () => {
     const { id } = await params;
     const body = await readBody(request, schemas.orgOnly);
-    paymentFor(id, body.orgId);
+    await paymentFor(id, body.orgId);
     await requote(id);
-    return { payment: paymentView(id) };
+    return { payment: await paymentView(id) };
   });
 }

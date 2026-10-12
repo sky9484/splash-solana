@@ -38,8 +38,8 @@ export async function handle(fn: () => Promise<unknown> | unknown, status = 200)
 }
 
 /** A payment belongs to one org; refuse requests that name another. */
-export function paymentFor(paymentId: string, orgId: string) {
-  const p = getPayment(paymentId);
+export async function paymentFor(paymentId: string, orgId: string) {
+  const p = await getPayment(paymentId);
   if (p.orgId !== orgId) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
   return p;
 }

@@ -7,6 +7,6 @@ export const dynamic = 'force-dynamic';
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const { id } = await params;
-    return { receipt: receiptView(id) };
+    return { receipt: await receiptView(id) };
   });
 }

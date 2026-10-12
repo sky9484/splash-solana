@@ -83,7 +83,7 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
   assert.equal(conf.bankDetailsVerified.method, 'call-back');
 
   const payment = await svc.quote(org.id, invoice.id);
-  const view = svc.paymentView(payment.id);
+  const view = await svc.paymentView(payment.id);
   assert.ok(view.cards.length >= 1 && view.cards.length <= 3);
   assert.equal(view.zeke.suggests, 'Cheapest');
   const direct = view.cards.find((c) => c.kind === 'solana_direct');
@@ -93,8 +93,10 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
   assert.ok(cctp, 'the CCTP lane gets a card');
   assert.equal(cctp.solNote, 'Needs 0.01 SOL in the vault (test pending)');
 
-  const selected = svc.selectRoute(payment.id, { quoteId: direct.quoteId });
-  assert.equal(selected.status, 'AWAITING_APPROVAL');
+  const selected = await svc.selectRoute(payment.id, { quoteId: direct.quoteId });
+  assert.equal(selected.state, 'checked');
+  assert.equal(selected.approval.draftedBy, 'Zeke', 'the card says Zeke drafted this');
+  assert.equal(selected.approval.depositAddress, selected.payout.deposits.find((d) => d.network === 'solana').address, 'the approver sees the payee');
   const card = selected.approval;
   assert.equal(card.supplierName, 'Manila Freight Services Inc.');
   assert.equal(card.accountLast4, '4471');
@@ -111,12 +113,13 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
 
   const before = await runtime().chain.getUsdcBalance(vault.vaultPda);
   const sent = await svc.submitApproval(payment.id, { signatures: await signAll(keys, org.id, prepared) });
-  assert.equal(sent.status, 'SENT');
+  assert.equal(sent.state, 'confirmed');
+  assert.ok(sent.execution.finalizedAt, 'offline: finalized at once');
   const after = await runtime().chain.getUsdcBalance(vault.vaultPda);
   assert.equal(before - after, card.youPayUsdcMinor, 'vault paid exactly what the card said');
   // I-2: the payout leg went to the partner deposit address; the fee leg to the Splash fee account.
-  const deposit = store().payments.get(payment.id).executedRoute.depositAddress;
-  assert.equal(deposit, store().payments.get(payment.id).payout.deposits.find((d) => d.network === 'solana').address);
+  const deposit = (await svc.getPayment(payment.id)).executedRoute.depositAddress;
+  assert.equal(deposit, (await svc.getPayment(payment.id)).payout.deposits.find((d) => d.network === 'solana').address);
   assert.equal(await runtime().chain.getUsdcBalance(deposit), sent.executedRoute.amountMinor);
   assert.equal(await runtime().chain.getUsdcBalance(runtime().feeAccountOwner), card.costs.splashMinor);
   const sim = runtime().chain;
@@ -129,8 +132,13 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
   // Partner: received then paid, HMAC-verified; the receipt is built.
   const n = await svc.deliverPartnerEvents(payment.id);
   assert.equal(n, 2);
-  const paid = svc.getPayment(payment.id);
-  assert.equal(paid.status, 'PAID');
+  const paid = await svc.getPayment(payment.id);
+  assert.equal(paid.state, 'anchored', 'paid, then evidenced, then anchored (the execute was finalized first)');
+  const path = (await runtime().payments.transitions(payment.id)).map((t) => t.to);
+  assert.deepEqual(path, ['draft', 'quoted', 'checked', 'proposed', 'approved', 'executed', 'confirmed', 'partner_paid', 'evidenced', 'anchored']);
+  const calls = await runtime().payments.listCalls(payment.id);
+  assert.ok(calls.length >= 2 && calls.every((c) => c.key === `${payment.id}:${c.step}` && c.signature), 'every chain call is recorded under paymentId:step');
+  assert.ok(calls.some((c) => c.step === 'execute:0' && c.status === 'finalized'));
   assert.ok(paid.receiptId);
   assert.match(paid.partnerEvents.find((e) => e.status === 'paid').bankReference, /^MOCK-PESONET-/);
 
@@ -139,7 +147,7 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
   assert.equal(verified.simulated, true);
 
   // The browser path: the wire form (bigint as strings) verifies the same; tampering fails.
-  const rv = JSON.parse(JSON.stringify(toWire(svc.receiptView(paid.receiptId))));
+  const rv = JSON.parse(JSON.stringify(toWire(await svc.receiptView(paid.receiptId))));
   assert.equal(rv.simulated, true);
   const anchor = anchoredRootFromMemo(rv.anchor.memo, { simulated: rv.anchor.simulated });
   assert.equal(verifyBundle({ bundle: rv.bundle, proof: rv.proof, anchor }).ok, true);
@@ -148,7 +156,7 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
   assert.equal(verifyBundle({ bundle: tampered, proof: rv.proof, anchor }).ok, false);
 
   // The evidence pack lets an auditor recompute the commitment, and holds no recovery words.
-  const pack = svc.evidencePack(paid.receiptId);
+  const pack = await svc.evidencePack(paid.receiptId);
   assert.equal(pack.simulated, true);
   const { computeInvoiceCommitment } = await import('../lib/solana-evidence/bundle.ts');
   const salt = new Uint8Array(Buffer.from(pack.invoiceDisclosure.saltHex, 'hex'));
@@ -164,8 +172,8 @@ test('I-4: execute without the device signature is refused and nothing moves', a
   await svc.fund(org.id);
   const invoice = await confirmSample(org.id);
   const payment = await svc.quote(org.id, invoice.id);
-  const direct = svc.paymentView(payment.id).cards.find((c) => c.kind === 'solana_direct');
-  svc.selectRoute(payment.id, { quoteId: direct.quoteId });
+  const direct = (await svc.paymentView(payment.id)).cards.find((c) => c.kind === 'solana_direct');
+  await svc.selectRoute(payment.id, { quoteId: direct.quoteId });
   const prepared = await svc.prepareApproval(payment.id);
   const balance = await runtime().chain.getUsdcBalance(vault.vaultPda);
 
@@ -185,11 +193,14 @@ test('I-4: execute without the device signature is refused and nothing moves', a
   if (all.length > 1) await assert.rejects(svc.submitApproval(payment.id, { signatures: swapped }), (e) => e.code === 'signature_invalid');
 
   assert.equal(await runtime().chain.getUsdcBalance(vault.vaultPda), balance, 'nothing moved');
-  assert.equal(svc.getPayment(payment.id).status, 'AWAITING_APPROVAL');
-  // No service function executes on its own: the only path to SENT is submitApproval with signatures.
+  assert.equal((await svc.getPayment(payment.id)).state, 'checked');
+  assert.deepEqual(await runtime().payments.listCalls(payment.id), [], 'no refused attempt reached the chain call ledger');
+  // No service function executes on its own: the only path to the chain is submitApproval with signatures.
   assert.equal(typeof svc.autoExecute, 'undefined');
   const sent = await svc.submitApproval(payment.id, { signatures: all });
-  assert.equal(sent.status, 'SENT');
+  assert.equal(sent.state, 'confirmed');
+  // The same signatures again: the payment moved on, so nothing is sent twice.
+  await assert.rejects(svc.submitApproval(payment.id, { signatures: all }), (e) => e.code === 'wrong_state');
 });
 
 test('policy: bank details must be verified; a duplicate invoice is blocked; quotes expire', async () => {
@@ -197,28 +208,28 @@ test('policy: bank details must be verified; a duplicate invoice is blocked; quo
   await svc.fund(org.id);
   const unverified = await confirmSample(org.id, { verify: false });
   let p = await svc.quote(org.id, unverified.id);
-  let card = svc.paymentView(p.id).cards[0];
-  p = svc.selectRoute(p.id, { quoteId: card.quoteId });
-  assert.equal(p.status, 'POLICY_DENIED');
+  let card = (await svc.paymentView(p.id)).cards[0];
+  p = await svc.selectRoute(p.id, { quoteId: card.quoteId });
+  assert.equal(p.state, 'rejected_by_policy');
   assert.equal(p.problem.code, 'bank_unverified');
   await assert.rejects(svc.prepareApproval(p.id), (e) => e.code === 'wrong_state');
 
   // Pay it properly once.
   const first = await confirmSample(org.id);
   p = await svc.quote(org.id, first.id);
-  card = svc.paymentView(p.id).cards.find((c) => c.kind === 'solana_direct');
-  svc.selectRoute(p.id, { quoteId: card.quoteId });
+  card = (await svc.paymentView(p.id)).cards.find((c) => c.kind === 'solana_direct');
+  await svc.selectRoute(p.id, { quoteId: card.quoteId });
   await svc.submitApproval(p.id, { signatures: await signAll(keys, org.id, await svc.prepareApproval(p.id)) });
   await svc.deliverPartnerEvents(p.id);
-  assert.equal(svc.getPayment(p.id).status, 'PAID');
+  assert.equal((await svc.getPayment(p.id)).state, 'anchored');
 
   // Same invoice again: the supplier is known now (no call-back needed) but it is a duplicate.
   const again = await svc.readInvoiceDraft(org.id, { sample: true });
   assert.equal(again.invoice.bankStatus, 'known');
   svc.confirmInvoice(org.id, again.invoice.id, { fields: toWire(again.invoice.draft.fields), confirmed: [...FIELDS] });
   const dup = await svc.quote(org.id, again.invoice.id);
-  const dupSel = svc.selectRoute(dup.id, { quoteId: svc.paymentView(dup.id).cards[0].quoteId });
-  assert.equal(dupSel.status, 'POLICY_DENIED');
+  const dupSel = await svc.selectRoute(dup.id, { quoteId: (await svc.paymentView(dup.id)).cards[0].quoteId });
+  assert.equal(dupSel.state, 'rejected_by_policy');
   assert.equal(dupSel.problem.code, 'duplicate_invoice');
 
   // Expiry: a quote older than its TTL cannot be approved.
@@ -226,8 +237,10 @@ test('policy: bank details must be verified; a duplicate invoice is blocked; quo
   void fresh;
   const exp = await svc.quote(org.id, unverified.id);
   const later = new Date(Date.now() + 120_000);
-  const sel = svc.selectRoute(exp.id, { quoteId: svc.paymentView(exp.id).cards[0].quoteId }, later);
-  assert.equal(sel.status, 'POLICY_DENIED');
+  const sel = await svc.selectRoute(exp.id, { quoteId: (await svc.paymentView(exp.id)).cards[0].quoteId }, later);
+  assert.equal(sel.state, 'quote_expired');
+  // An expired quote is re-quoted, never approved.
+  assert.equal((await svc.requote(exp.id)).state, 'quoted');
 });
 
 test('webhooks: HMAC checked, replays deduped, foreign signatures refused', async () => {
@@ -235,16 +248,16 @@ test('webhooks: HMAC checked, replays deduped, foreign signatures refused', asyn
   await svc.fund(org.id);
   const inv = await confirmSample(org.id);
   const p = await svc.quote(org.id, inv.id);
-  svc.selectRoute(p.id, { quoteId: svc.paymentView(p.id).cards.find((c) => c.kind === 'solana_direct').quoteId });
+  await svc.selectRoute(p.id, { quoteId: (await svc.paymentView(p.id)).cards.find((c) => c.kind === 'solana_direct').quoteId });
   await svc.submitApproval(p.id, { signatures: await signAll(keys, org.id, await svc.prepareApproval(p.id)) });
   const events = await svc.observeDeposit(p.id);
   const wire = events.map((e) => JSON.parse(JSON.stringify(toWire(e))));
   const forged = { ...wire[0], signature: signWebhook({ ...events[0], signature: undefined }, 'some-other-secret-0123456789').signature };
   await assert.rejects(svc.receivePartnerWebhook(forged), (e) => e.code === 'webhook_invalid');
-  assert.deepEqual(await svc.receivePartnerWebhook(wire[0]), { duplicate: false, status: 'PARTNER_RECEIVED' });
-  assert.deepEqual(await svc.receivePartnerWebhook(wire[0]), { duplicate: true, status: 'PARTNER_RECEIVED' });
-  assert.deepEqual(await svc.receivePartnerWebhook(wire[1]), { duplicate: false, status: 'PAID' });
-  assert.deepEqual(await svc.receivePartnerWebhook(wire[1]), { duplicate: true, status: 'PAID' });
+  assert.deepEqual(await svc.receivePartnerWebhook(wire[0]), { duplicate: false, state: 'confirmed' });
+  assert.deepEqual(await svc.receivePartnerWebhook(wire[0]), { duplicate: true, state: 'confirmed' });
+  assert.deepEqual(await svc.receivePartnerWebhook(wire[1]), { duplicate: false, state: 'anchored' });
+  assert.deepEqual(await svc.receivePartnerWebhook(wire[1]), { duplicate: true, state: 'anchored' });
 });
 
 test('CCTP route (offline) and the problem rehearsals: screening flag, partner return', async () => {
@@ -254,35 +267,35 @@ test('CCTP route (offline) and the problem rehearsals: screening flag, partner r
   // CCTP V2 to Polygon, if the engine offers it.
   const inv = await confirmSample(org.id);
   const p = await svc.quote(org.id, inv.id);
-  const all = svc.getPayment(p.id).engine;
+  const all = (await svc.getPayment(p.id)).engine;
   const cctpQuote = ['cheapest', 'fastest', 'safest'].flatMap((k) => all.ranked[k]).find((q) => q.target.network === 'polygon');
   assert.ok(cctpQuote, 'the engine offers a CCTP V2 route');
   {
-    svc.selectRoute(p.id, { quoteId: cctpQuote.id });
+    await svc.selectRoute(p.id, { quoteId: cctpQuote.id });
     const sent = await svc.submitApproval(p.id, { signatures: await signAll(keys, org.id, await svc.prepareApproval(p.id)) });
     assert.ok(sent.signatures.some((s) => s.purpose === 'cctp_burn'));
     await svc.deliverPartnerEvents(p.id);
-    assert.equal(svc.getPayment(p.id).status, 'PAID');
-    assert.equal(svc.verifyReceipt(svc.getPayment(p.id).receiptId).ok, true);
+    assert.equal((await svc.getPayment(p.id)).state, 'anchored');
+    assert.equal(svc.verifyReceipt((await svc.getPayment(p.id)).receiptId).ok, true);
   }
 
   // Screening flag rehearsal: the KYT stub flags the deposit address; payment blocked.
   const inv2 = await svc.readInvoiceDraft(org.id, { text: (await import('../lib/solana-zeke/fixtures/sample-invoice.ts')).SAMPLE_INVOICE_TEXT.replace('INV-0412', 'INV-0413') });
   svc.confirmInvoice(org.id, inv2.invoice.id, { fields: toWire(inv2.invoice.draft.fields), confirmed: [...FIELDS] });
   const k = await svc.quote(org.id, inv2.invoice.id);
-  const ks = svc.selectRoute(k.id, { quoteId: svc.paymentView(k.id).cards[0].quoteId, rehearsal: 'kyt_flag' });
-  assert.equal(ks.status, 'POLICY_DENIED');
+  const ks = await svc.selectRoute(k.id, { quoteId: (await svc.paymentView(k.id)).cards[0].quoteId, rehearsal: 'kyt_flag' });
+  assert.equal(ks.state, 'rejected_by_policy');
   assert.equal(ks.problem.code, 'kyt_flagged');
   assert.match(ks.problem.message, /Screening flagged this supplier's wallet/);
 
   // Partner return rehearsal: returned webhook, money back in the vault (simulated), invoice free again.
-  const r = svc.selectRoute(k.id, { quoteId: svc.paymentView(k.id).cards.find((c) => c.kind === 'solana_direct').quoteId, rehearsal: 'partner_return' });
-  assert.equal(r.status, 'AWAITING_APPROVAL');
+  const r = await svc.selectRoute(k.id, { quoteId: (await svc.paymentView(k.id)).cards.find((c) => c.kind === 'solana_direct').quoteId, rehearsal: 'partner_return' });
+  assert.equal(r.state, 'checked');
   const before = await runtime().chain.getUsdcBalance(vault.vaultPda);
   await svc.submitApproval(k.id, { signatures: await signAll(keys, org.id, await svc.prepareApproval(k.id)) });
   await svc.deliverPartnerEvents(k.id);
-  const returned = svc.getPayment(k.id);
-  assert.equal(returned.status, 'REFUNDED');
+  const returned = await svc.getPayment(k.id);
+  assert.equal(returned.state, 'partner_failed');
   assert.match(returned.problem.message, /Money is back in your Solana balance/);
   const back = await runtime().chain.getUsdcBalance(vault.vaultPda);
   assert.equal(before - back, returned.approval.costs.splashMinor, 'the payout came back; the fee leg did not');

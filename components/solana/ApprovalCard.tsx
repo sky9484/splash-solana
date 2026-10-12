@@ -19,7 +19,8 @@ export function clock(sec: number): string {
 
 /**
  * The signing card: the only coral object in the product. Every field comes from the confirmed
- * invoice, the engine's quote and the policy result (I-6). No Zeke text is rendered here.
+ * invoice, the engine's quote and the policy result (I-6). No Zeke text is rendered here; the
+ * fixed "Zeke drafted this" label says who prepared it (prompt 07 §5.4), not what Zeke wrote.
  */
 export function ApprovalCard({
   card,
@@ -50,6 +51,7 @@ export function ApprovalCard({
   return (
     <section className="sx-approve" aria-label={`Approve payment. Supplier receives ${receive}.`}>
       <p className="sx-visually-hidden">Supplier receives {receive}.</p>
+      <p className="sx-small sx-muted">{card.draftedBy} drafted this · a person approves</p>
       <p className="sx-approve-supplier">{card.supplierName}</p>
       <p className="sx-muted">
         {card.bank} <span className="sx-mono">•••• {card.accountLast4}</span>
@@ -83,6 +85,10 @@ export function ApprovalCard({
         <dt>Route</dt>
         <dd>
           {card.routeLabel}. {card.laneNote}.
+        </dd>
+        <dt>Paid to</dt>
+        <dd>
+          Payout partner deposit <span className="sx-mono">{card.depositAddress.slice(0, 4)}…{card.depositAddress.slice(-4)}</span>
         </dd>
         <dt>Invoice</dt>
         <dd>

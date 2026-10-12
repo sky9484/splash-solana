@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    const pack = evidencePack(id);
+    const pack = await evidencePack(id);
     return new Response(JSON.stringify(toWire(pack), null, 2), {
       headers: {
         'content-type': 'application/json; charset=utf-8',

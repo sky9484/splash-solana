@@ -8,15 +8,19 @@
  *   → readInvoiceDraft (Zeke Reader, draft only) → verifyBank → confirmInvoice
  *   → quote (mock partner quotes → quoteRoutes; Zeke Router explains)
  *   → selectRoute (evaluatePolicy → approval card from deterministic fields, I-6)
- *   → prepareApproval (unsigned Squads proposal + execute transactions)
- *   → submitApproval (the browser's device-key signatures; refused without them)
+ *   → prepareApproval (policy + payee re-checked; unsigned Squads transactions, compute budget first)
+ *   → submitApproval (the browser's device-key signatures; refused without them; each transaction
+ *     simulated, then signed by the fee payer, recorded under paymentId:step, then broadcast)
  *   → observeDeposit → receivePartnerWebhook (HMAC verified, deduped)
- *   → buildEvidence (bundle, batch, memo anchor) → receipt
+ *   → evidence once the execute is finalized (bundle, batch, memo anchor) → receipt
+ *
+ * Payment state is the machine in payment-machine.ts, stored through the repository
+ * (payment-repo.ts): every change a compare-and-set; `resumePayment` picks up after a crash.
  *
  * Every chain call goes through `runtime().chain`, which is `chain()`: the
  * offline simulator by default, DevnetChain with SPLASH_SOLANA_MODE=devnet.
  */
-import { Keypair, PublicKey, TransactionMessage, VersionedTransaction, type TransactionInstruction } from '@solana/web3.js';
+import { Keypair, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -26,11 +30,14 @@ import bs58 from 'bs58';
 import { explorerAddressUrl, explorerTxUrl, usdcMint } from '../solana/config.ts';
 import { buildDepositForBurnInstruction } from '../solana/cctp-v2-solana.ts';
 import { utcDay } from '../solana/kora.ts';
-import { buildMemoInstruction, buildPayoutInstructions, buildSplashFeeInstructions, buildSplashMemo, getAssociatedTokenAddress } from '../solana/payout.ts';
+import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
+import { buildMemoInstruction, buildPaymentMemo, buildPayoutInstructions, buildSplashFeeInstructions, getAssociatedTokenAddress } from '../solana/payout.ts';
 import { createPossessionChallenge, verifyPossession } from '../solana/recovery-kit.ts';
 import { SolanaSimulator, simulatedSignature } from '../solana/simulator.ts';
 import {
+  assertAutonomousSummary,
   buildCreateVaultInstruction,
+  buildProposalApprove,
   buildSponsoredTransaction,
   buildVaultExecuteInstruction,
   buildVaultProposal,
@@ -52,7 +59,10 @@ import { InvoiceFieldsSchema, readInvoice, ReaderError, type InvoiceFieldName } 
 import { explainRoutes } from '../solana-zeke/router.ts';
 import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 
+import { awaitCommitment } from './confirm.ts';
 import { ServiceError } from './errors.ts';
+import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
+import { StateConflictError, type ChainCall } from './payment-repo.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
   store,
@@ -62,8 +72,11 @@ import {
   type InvoiceRecord,
   type OrgRecord,
   type PaymentRecord,
+  type PreparedApproval,
   type PreparedMessage,
+  type ProposalPurpose,
   type Rehearsal,
+  type SerializedInstruction,
 } from './store.ts';
 
 /* ------------------------------------------------------------------ constants */
@@ -123,12 +136,6 @@ function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
   return inv;
 }
 
-export function getPayment(paymentId: string): PaymentRecord {
-  const p = store().payments.get(paymentId);
-  if (!p) throw new ServiceError('payment_not_found', 'That payment is not on the server. The demo resets when the server restarts.', 404);
-  return p;
-}
-
 function requireVault(org: OrgRecord) {
   if (!org.vault) throw new ServiceError('vault_missing', 'Create your vault first.', 409);
   return org.vault;
@@ -178,6 +185,7 @@ export function createOrg(input: { companyName: string; personName?: string }): 
     dailyDebits: {},
     seenCommitments: [],
     fundings: [],
+    suspended: null,
   };
   store().orgs.set(org.id, org);
   return org;
@@ -242,10 +250,15 @@ export async function createAutonomousVault(input: { devicePublicKey: string; ki
   const tx = buildSponsoredTransaction(feePayer, [plan.instruction], await rt.chain.getLatestBlockhash());
   tx.sign([createKey]);
   const receipt = await rt.chain.sendSponsored(tx, { orgId: input.sponsorTag });
+  // §5.4: confirm on the created account that nobody, Splash included, can change it.
   const onChain = await rt.chain.getMultisig(plan.multisigPda);
-  const configAuthority = onChain ? onChain.configAuthority : null;
-  if (configAuthority !== null) throw new ServiceError('send_failed', 'The vault was created with a config authority. Stop and contact support.', 500);
-  return { ...plan.vault, configAuthority, createdAt: nowIso(), signature: receipt.signature, simulated: receipt.simulated, cluster: receipt.cluster };
+  if (!onChain) throw new ServiceError('send_failed', 'The vault was not found after creation. Nothing else was done; try again.', 502);
+  try {
+    assertAutonomousSummary(onChain, { splashKeys: await splashKeys(rt), expectedMembers: [input.devicePublicKey, input.kitPublicKey], expectedThreshold: plan.vault.threshold });
+  } catch (e) {
+    throw new ServiceError('send_failed', `The vault does not match what was asked for (${(e as Error).message}). Stop and contact support.`, 500);
+  }
+  return { ...plan.vault, configAuthority: null, createdAt: nowIso(), signature: receipt.signature, simulated: receipt.simulated, cluster: receipt.cluster };
 }
 
 export async function createVault(orgId: string) {
@@ -277,23 +290,21 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
-  const payments = [...store().payments.values()]
-    .filter((p) => p.orgId === org.id)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .map((p) => {
-      const inv = store().invoices.get(p.invoiceId);
-      return {
-        id: p.id,
-        status: p.status,
-        supplierName: inv?.confirmed?.supplierName ?? '',
-        amountPhpMinor: p.payout.amountPhpMinor,
-        receiptId: p.receiptId,
-        createdAt: p.createdAt,
-      };
-    });
-  const inFlight = payments.filter((p) => p.status === 'SENT' || p.status === 'PARTNER_RECEIVED');
+  const payments = (await rt.payments.listByOrg(org.id)).map((p) => {
+    const inv = store().invoices.get(p.invoiceId);
+    return {
+      id: p.id,
+      state: p.state,
+      stateLabel: STATE_LABEL[p.state],
+      supplierName: inv?.confirmed?.supplierName ?? '',
+      amountPhpMinor: p.payout.amountPhpMinor,
+      receiptId: p.receiptId,
+      createdAt: p.createdAt,
+    };
+  });
+  const inFlight = payments.filter((p) => ['proposed', 'approved', 'executed', 'confirmed'].includes(p.state));
   return {
-    org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt },
+    org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt, suspended: org.suspended },
     mode: rt.env.mode,
     cluster: rt.env.cluster,
     simulated: rt.env.mode === 'offline',
@@ -415,6 +426,93 @@ export function confirmInvoice(
   return confirmed;
 }
 
+/* ------------------------------------------------------------------ payments: state and helpers */
+
+/**
+ * The payment state machine (payment-machine.ts) through the repository (payment-repo.ts): every
+ * state change below is a compare-and-set on (state, version), and every chain call is recorded
+ * under `paymentId:step` with its signature before it is broadcast. A crashed worker resumes from
+ * the stored state (`resumePayment`) without sending anything twice.
+ */
+const repo = () => runtime().payments;
+
+export async function getPayment(paymentId: string): Promise<PaymentRecord> {
+  const p = await repo().get(paymentId);
+  if (!p) throw new ServiceError('payment_not_found', 'That payment is not on the server. The demo resets when the server restarts.', 404);
+  return p;
+}
+
+/** A lost compare-and-set is a payment someone else moved on: say so, change nothing. */
+async function cas<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof StateConflictError) {
+      const now = e.actual ? STATE_LABEL[e.actual.state].toLowerCase() : 'gone';
+      throw new ServiceError('wrong_state', `This payment changed in another window (it is now ${now}). Refresh before going on.`, 409);
+    }
+    if (e instanceof IllegalTransitionError) throw new ServiceError('wrong_state', 'That step does not apply to this payment any more. Refresh before going on.', 409);
+    throw e;
+  }
+}
+
+function serializeIx(ix: TransactionInstruction): SerializedInstruction {
+  return {
+    programId: ix.programId.toBase58(),
+    keys: ix.keys.map((k) => ({ pubkey: k.pubkey.toBase58(), isSigner: k.isSigner, isWritable: k.isWritable })),
+    dataBase64: Buffer.from(ix.data).toString('base64'),
+  };
+}
+
+function deserializeIx(s: SerializedInstruction): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: new PublicKey(s.programId),
+    keys: s.keys.map((k) => ({ pubkey: new PublicKey(k.pubkey), isSigner: k.isSigner, isWritable: k.isWritable })),
+    data: Buffer.from(s.dataBase64, 'base64'),
+  });
+}
+
+/** What the approver is agreeing to pay, and to whom. Re-checked before every device prompt (§5.4). */
+function payeeHashOf(p: PaymentRecord, q: RouteQuote): string {
+  const inv = getInvoice(p.orgId, p.invoiceId);
+  const c = inv.confirmed!;
+  return bytesToHex(
+    sha256(
+      utf8ToBytes(
+        canonicalJson({
+          quoteId: q.id,
+          network: q.target.network,
+          depositAddress: q.target.depositAddress,
+          payoutDeposit: p.payout.deposits.find((d) => d.network === q.target.network)?.address ?? null,
+          supplierName: c.supplierName,
+          bank: c.supplierBank,
+          accountLast4: c.supplierAccountLast4,
+          amountPhpMinor: c.amountPhpMinor,
+          sourceMinor: q.source.amountMinor,
+          splashMinor: q.costs.splashMinor,
+        }),
+      ),
+    ),
+  );
+}
+
+/** Reserve the invoice and the daily limit before anything is sent, so a parallel approval cannot double pay. */
+function reserve(p: PaymentRecord, q: RouteQuote, now: Date) {
+  const org = getOrg(p.orgId);
+  const inv = getInvoice(p.orgId, p.invoiceId);
+  if (!org.seenCommitments.includes(inv.confirmed!.commitmentHex)) org.seenCommitments.push(inv.confirmed!.commitmentHex);
+  const day = utcDay(now);
+  org.dailyDebits[day] = (org.dailyDebits[day] ?? 0n) + q.source.amountMinor;
+  return () => release(p, q, day);
+}
+
+function release(p: PaymentRecord, q: RouteQuote, day: string) {
+  const org = getOrg(p.orgId);
+  const inv = getInvoice(p.orgId, p.invoiceId);
+  org.seenCommitments = org.seenCommitments.filter((c) => c !== inv.confirmed!.commitmentHex);
+  org.dailyDebits[day] = (org.dailyDebits[day] ?? 0n) - q.source.amountMinor;
+}
+
 /* ------------------------------------------------------------------ quote and route */
 
 export async function quote(orgId: string, invoiceId: string, opts: { now?: Date; paymentId?: string } = {}): Promise<PaymentRecord> {
@@ -456,40 +554,62 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   const router = explainRoutes({ picks: engine.picks, ranked: engine.ranked, homeLane: engine.homeLane, selected: 'cheapest' });
   assertRouterRefersToEngineQuote(router, allQuotes);
 
-  const existing = store().payments.get(paymentId);
-  const record: PaymentRecord = existing
-    ? { ...existing, engine, router, payout, status: 'QUOTED', selectedQuoteId: null, policy: null, approval: null, prepared: null, problem: null }
-    : {
-        id: paymentId,
-        orgId: org.id,
-        invoiceId: inv.id,
-        createdAt: nowIso(now),
-        status: 'QUOTED',
-        payout,
-        engine,
-        router,
-        selectedQuoteId: null,
-        policy: null,
-        approval: null,
-        rehearsal: 'none',
-        prepared: null,
-        signatures: [],
-        approvals: [],
-        partnerEvents: [],
-        timeline: {},
-        executedRoute: null,
-        receiptId: null,
-        problem: null,
-      };
-  store().payments.set(paymentId, record);
-  return record;
+  const fresh = (d: PaymentRecord) => {
+    d.engine = engine;
+    d.router = router;
+    d.payout = payout;
+    d.selectedQuoteId = null;
+    d.policy = null;
+    d.approval = null;
+    d.prepared = null;
+    d.payeeHash = null;
+    d.problem = null;
+    d.threshold = vault.threshold;
+  };
+
+  const existing = opts.paymentId ? await repo().get(paymentId) : null;
+  if (existing) {
+    if (existing.orgId !== org.id) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
+    return cas(() => repo().transition(paymentId, { from: ['quoted', 'checked', 'rejected_by_policy', 'quote_expired', 'proposal_failed'], version: existing.version }, 'quoted', fresh, 're-quoted', now));
+  }
+  const record: PaymentRecord = {
+    id: paymentId,
+    orgId: org.id,
+    invoiceId: inv.id,
+    createdAt: nowIso(now),
+    updatedAt: nowIso(now),
+    state: 'draft',
+    version: 0,
+    threshold: vault.threshold,
+    approvedBy: [],
+    pendingApprover: null,
+    payeeHash: null,
+    transactionIndex: null,
+    plan: null,
+    execution: { attempt: 0, signature: null, confirmedAt: null, finalizedAt: null, lastLogs: null },
+    payout,
+    engine,
+    router,
+    selectedQuoteId: null,
+    policy: null,
+    approval: null,
+    rehearsal: 'none',
+    prepared: null,
+    signatures: [],
+    approvals: [],
+    partnerEvents: [],
+    timeline: {},
+    executedRoute: null,
+    receiptId: null,
+    problem: null,
+  };
+  const drafted = await repo().create(record, 'invoice confirmed');
+  return cas(() => repo().transition(drafted.id, { from: 'draft', version: drafted.version }, 'quoted', undefined, 'quoted', now));
 }
 
 export async function requote(paymentId: string, now = new Date()) {
-  const p = getPayment(paymentId);
-  if (p.status !== 'QUOTED' && p.status !== 'AWAITING_APPROVAL' && p.status !== 'POLICY_DENIED') {
-    throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
-  }
+  const p = await getPayment(paymentId);
+  if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
   return quote(p.orgId, p.invoiceId, { now, paymentId: p.id });
 }
 
@@ -547,27 +667,36 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     aboveTarget: q.flags.includes('above_target'),
     policy: { allowed: policy.allowed, checks, kytLabel: policy.kyt.label },
     signerPublicKey: org.keys.device!.publicKey,
+    depositAddress: q.target.depositAddress,
+    draftedBy: 'Zeke',
     simulated: runtime().env.mode === 'offline',
   };
 }
 
-export function selectRoute(paymentId: string, input: { quoteId: string; rehearsal?: Rehearsal }, now = new Date()): PaymentRecord {
-  const p = getPayment(paymentId);
-  if (p.status !== 'QUOTED' && p.status !== 'AWAITING_APPROVAL' && p.status !== 'POLICY_DENIED') {
+export async function selectRoute(paymentId: string, input: { quoteId: string; rehearsal?: Rehearsal }, now = new Date()): Promise<PaymentRecord> {
+  const p = await getPayment(paymentId);
+  if (!['quoted', 'checked', 'rejected_by_policy'].includes(p.state)) {
+    if (p.state === 'quote_expired') throw new ServiceError('quote_expired', 'Quote expired. Refresh to get a new quote.', 409);
     throw new ServiceError('wrong_state', 'This payment has already been approved.', 409);
   }
   const q = findQuote(p, input.quoteId);
   if (!q) throw new ServiceError('bad_request', 'That route is not one of this payment’s quotes. Get a new quote.', 400);
   const rt = runtime();
-  p.rehearsal = rt.env.mode === 'offline' ? (input.rehearsal ?? 'none') : 'none';
-  const policy = runPolicy(p, q, now);
-  p.selectedQuoteId = q.id;
-  p.policy = policy;
-  p.approval = buildApprovalCard(p, q, policy);
-  p.prepared = null;
-  p.status = policy.allowed ? 'AWAITING_APPROVAL' : 'POLICY_DENIED';
-  p.problem = policy.allowed ? null : problemFromPolicy(policy);
-  return p;
+  const rehearsal = rt.env.mode === 'offline' ? (input.rehearsal ?? 'none') : 'none';
+  const policy = runPolicy({ ...p, rehearsal }, q, now);
+  const expired = isQuoteExpired(q, now);
+  const to: PaymentState = expired ? 'quote_expired' : policy.allowed ? 'checked' : 'rejected_by_policy';
+  return cas(() =>
+    repo().transition(p.id, { from: p.state, version: p.version }, to, (d) => {
+      d.rehearsal = rehearsal;
+      d.selectedQuoteId = q.id;
+      d.policy = policy;
+      d.approval = buildApprovalCard(d, q, policy);
+      d.prepared = null;
+      d.payeeHash = policy.allowed && !expired ? payeeHashOf(d, q) : null;
+      d.problem = policy.allowed && !expired ? null : problemFromPolicy(policy);
+    }, `route ${q.id}`, now),
+  );
 }
 
 function problemFromPolicy(policy: EnginePolicyResult): { code: string; message: string } {
@@ -582,33 +711,38 @@ function problemFromPolicy(policy: EnginePolicyResult): { code: string; message:
 
 /* ------------------------------------------------------------------ approve and execute */
 
-/**
- * Build the unsigned Squads transactions for the selected route. The device key must sign every one
- * of them in the browser; the server cannot.
- */
-export async function prepareApproval(paymentId: string, now = new Date()) {
-  const p = getPayment(paymentId);
-  if (p.status !== 'AWAITING_APPROVAL' || !p.selectedQuoteId) throw new ServiceError('wrong_state', 'Choose a route that passes your rules first.', 409);
-  const q = findQuote(p, p.selectedQuoteId)!;
-  const policy = runPolicy(p, q, now);
-  if (!policy.allowed) {
-    p.policy = policy;
-    p.approval = buildApprovalCard(p, q, policy);
-    p.status = 'POLICY_DENIED';
-    p.problem = problemFromPolicy(policy);
-    throw new ServiceError(isQuoteExpired(q, now) ? 'quote_expired' : 'policy_denied', p.problem.message, 409);
+/** The refuse-service switch (§5.6): a suspended company gets no Kora signature and no new proposal. */
+function assertServiceable(orgId: string) {
+  const org = getOrg(orgId);
+  if (org.suspended) {
+    throw new ServiceError('org_suspended', 'Splash has paused service for this company, so nothing new can be sent. Your money stays in your vault, which only your approvers control. Contact support.', 403);
   }
-  const org = getOrg(p.orgId);
-  const vault = requireVault(org);
-  const inv = getInvoice(p.orgId, p.invoiceId);
+}
+
+/** Device keys that may approve routine payments. The recovery kit is for recovery, not payments. */
+function approverKeys(org: OrgRecord): string[] {
+  return (org.vault?.members ?? []).filter((m) => m.role === 'admin_device' || m.role === 'approver_device').map((m) => m.publicKey);
+}
+
+async function budgeted(feePayer: PublicKey, ixs: TransactionInstruction[], blockhash: string, fallbackLimit: number, simulateFirst: boolean): Promise<{ ixs: TransactionInstruction[]; unitLimit: number; microLamports: bigint }> {
   const rt = runtime();
-  const feePayer = await rt.chain.getFeePayer();
-  const multisigPda = new PublicKey(vault.multisigPda);
-  const vaultPda = new PublicKey(vault.vaultPda);
-  const member = new PublicKey(org.keys.device!.publicKey);
+  const writable = [...new Map(ixs.flatMap((ix) => ix.keys.filter((k) => k.isWritable).map((k) => [k.pubkey.toBase58(), k.pubkey] as const))).values()];
+  const estimate = await rt.chain.getPriorityFeeEstimate(writable);
+  let unitLimit = fallbackLimit;
+  if (simulateFirst) {
+    const draft = buildSponsoredTransaction(feePayer, [...computeBudgetInstructions({ unitLimit: fallbackLimit, microLamports: 0n }), ...ixs], blockhash);
+    const sim = await rt.chain.simulate(draft);
+    if (sim.ok && sim.unitsConsumed) unitLimit = unitLimitFromSimulation(sim.unitsConsumed, fallbackLimit);
+  }
+  const microLamports = cappedMicroLamports(unitLimit, estimate);
+  return { ixs: [...computeBudgetInstructions({ unitLimit, microLamports }), ...ixs], unitLimit, microLamports };
+}
+
+/** The vault transaction's instructions for the selected route. */
+function buildRoutePlan(p: PaymentRecord, q: RouteQuote, vault: NonNullable<OrgRecord['vault']>, feePayer: PublicKey, keys: string[], transactionIndex: bigint) {
+  const rt = runtime();
   const kind = routeKindOf(q);
-  const keys = await splashKeys(rt);
-  const transactionIndex = await rt.chain.getNextTransactionIndex(multisigPda);
+  const vaultPda = new PublicKey(vault.vaultPda);
   const splashFee = q.costs.splashMinor;
   const transferAmount = q.source.amountMinor - splashFee;
   const expectedDeposit = p.payout.deposits.find((d) => d.network === q.target.network)?.address;
@@ -616,11 +750,6 @@ export async function prepareApproval(paymentId: string, now = new Date()) {
     throw new ServiceError('bad_request', 'The quote’s deposit address does not match the partner’s payout. Get a new quote.', 409);
   }
   const fee = splashFee > 0n ? { feeAccountOwner: rt.feeAccountOwner.toBase58(), amountMinor: splashFee } : undefined;
-
-  let inner: TransactionInstruction[];
-  let pre: TransactionInstruction[];
-  let post: TransactionInstruction[];
-  let ephemeralSigners = 0;
   if (kind === 'solana_direct') {
     const plan = buildPayoutInstructions({
       cluster: rt.env.cluster,
@@ -629,91 +758,241 @@ export async function prepareApproval(paymentId: string, now = new Date()) {
       destination: q.target.depositAddress,
       expectedDepositAddress: expectedDeposit,
       amountMinor: transferAmount,
-      commitmentHex: inv.confirmed!.commitmentHex,
+      paymentId: p.id,
       reference: Keypair.generate().publicKey,
       splashKeys: keys,
       splashFee: fee,
     });
-    inner = plan.vaultInstructions;
-    pre = plan.preExecuteInstructions;
-    post = plan.postExecuteInstructions;
-  } else {
-    if (rt.env.mode !== 'offline') {
-      throw new ServiceError('devnet_not_supported', 'The CCTP route is not wired for devnet in this build: the partner cannot watch Polygon yet. Choose the Solana direct route.', 409);
+    return { kind, transferAmount, splashFee, vault: plan.vaultInstructions, pre: plan.preExecuteInstructions, post: plan.postExecuteInstructions, ephemeralSigners: 0 };
+  }
+  if (rt.env.mode !== 'offline') {
+    throw new ServiceError('devnet_not_supported', 'The CCTP route is not wired for devnet in this build: the partner cannot watch Polygon yet. Choose the Solana direct route.', 409);
+  }
+  const { transactionPda } = deriveProposalAddresses(new PublicKey(vault.multisigPda), transactionIndex, 1);
+  const burn = buildDepositForBurnInstruction({
+    cluster: rt.env.cluster,
+    vaultPda,
+    transactionPda,
+    amountMinor: transferAmount,
+    mintRecipientEvm: q.target.depositAddress,
+    expectedMintRecipientEvm: expectedDeposit,
+    speed: kind === 'cctp_v2_fast' ? 'fast' : 'standard',
+    feePayer,
+  });
+  const feePlan = fee ? buildSplashFeeInstructions({ cluster: rt.env.cluster, vaultPda, feePayer, fee, payoutAmountMinor: transferAmount }) : null;
+  const memo = () => buildMemoInstruction(buildPaymentMemo(p.id));
+  return {
+    kind,
+    transferAmount,
+    splashFee,
+    vault: [burn.instruction, ...(feePlan?.vaultInstructions ?? []), memo()],
+    pre: feePlan?.preExecuteInstructions ?? [],
+    post: [memo()],
+    ephemeralSigners: 1,
+  };
+}
+
+function preparedMessage(id: string, purpose: PreparedMessage['purpose'], step: string, tx: VersionedTransaction, lastValidBlockHeight: number, purposes: ProposalPurpose[], budget: { unitLimit: number; microLamports: bigint }, signer: PublicKey): PreparedMessage {
+  const size = tx.serialize().length;
+  if (size > MAX_TRANSACTION_BYTES) throw new ServiceError('transaction_too_large', `Transaction ${id} is ${size} bytes, over the ${MAX_TRANSACTION_BYTES}-byte limit.`, 500);
+  const required = tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures);
+  if (!required.some((k) => k.equals(signer))) throw new ServiceError('send_failed', 'The device key is not a signer of this transaction.', 500);
+  return { id, purpose, step, txBase64: b64(tx.serialize()), messageBase64: b64(tx.message.serialize()), lastValidBlockHeight, purposes, unitLimit: budget.unitLimit, microLamports: budget.microLamports };
+}
+
+/**
+ * Build the unsigned transactions this approver signs, after re-checking policy and that the payee is
+ * unchanged since the route was chosen (§5.4: before the device prompt). The device key must sign every
+ * one of them in the browser; the server cannot.
+ *   checked        vault transaction + proposal + this approval (+ execute when that meets the threshold)
+ *   proposed       one more approval (threshold > 1) (+ execute when it meets the threshold)
+ *   approved,      the execute alone: after a crash between approval and execute, or rebuilt with a
+ *   execute_failed fresh blockhash after the last one expired (never the old bytes again)
+ */
+export async function prepareApproval(paymentId: string, input: { signer?: string } = {}, now = new Date()) {
+  let p = await getPayment(paymentId);
+  assertServiceable(p.orgId);
+  const org = getOrg(p.orgId);
+  const vault = requireVault(org);
+  if (!p.selectedQuoteId) throw new ServiceError('wrong_state', 'Choose a route that passes your rules first.', 409);
+  if (!['checked', 'proposed', 'approved', 'execute_failed'].includes(p.state)) {
+    throw new ServiceError('wrong_state', p.state === 'rejected_by_policy' || p.state === 'quote_expired' ? 'Choose a route that passes your rules first.' : `This payment is ${STATE_LABEL[p.state].toLowerCase()}; there is nothing to approve.`, 409);
+  }
+  const signerKey = input.signer ?? org.keys.device!.publicKey;
+  if (!approverKeys(org).includes(signerKey)) throw new ServiceError('not_an_approver', 'That device is not an approver of this vault.', 403);
+  const q = findQuote(p, p.selectedQuoteId)!;
+
+  if (p.state === 'checked' || p.state === 'proposed') {
+    if (p.approvedBy.includes(signerKey) || p.pendingApprover === signerKey) throw new ServiceError('already_approved', 'This device has already approved this payment.', 409);
+    // Re-check before the prompt: the quote is still valid, limits pass, the payee is unchanged.
+    const policy = p.state === 'checked' ? runPolicy(p, q, now) : null;
+    const expired = isQuoteExpired(q, now);
+    const payeeChanged = p.payeeHash !== payeeHashOf(p, q);
+    if (expired || payeeChanged || (policy && !policy.allowed)) {
+      const problem = payeeChanged
+        ? { code: 'payee_changed', message: 'The payee or amount changed since this route was chosen. Get a new quote before approving.' }
+        : expired
+          ? { code: 'quote_expired', message: 'Quote expired before you approved. Refresh to get a new quote.' }
+          : problemFromPolicy(policy!);
+      const to: PaymentState = p.state === 'proposed' ? 'proposal_failed' : expired ? 'quote_expired' : 'rejected_by_policy';
+      if (p.state === 'proposed') {
+        // An approved-in-part proposal whose quote went stale is abandoned; nothing moved.
+        release(p, q, utcDay(new Date(p.timeline.approvedAt ?? p.updatedAt)));
+      }
+      await cas(() => repo().transition(p.id, { from: p.state, version: p.version }, to, (d) => {
+        if (policy) {
+          d.policy = policy;
+          d.approval = buildApprovalCard(d, q, policy);
+        }
+        d.prepared = null;
+        d.problem = problem;
+      }, problem.code, now));
+      throw new ServiceError(problem.code === 'payee_changed' ? 'payee_changed' : expired ? 'quote_expired' : 'policy_denied', problem.message, 409);
     }
-    ephemeralSigners = 1;
-    const { transactionPda } = deriveProposalAddresses(multisigPda, transactionIndex, 1);
-    const burn = buildDepositForBurnInstruction({
-      cluster: rt.env.cluster,
-      vaultPda,
-      transactionPda,
-      amountMinor: transferAmount,
-      mintRecipientEvm: q.target.depositAddress,
-      expectedMintRecipientEvm: expectedDeposit,
-      speed: kind === 'cctp_v2_fast' ? 'fast' : 'standard',
-      feePayer,
-    });
-    const feePlan = fee ? buildSplashFeeInstructions({ cluster: rt.env.cluster, vaultPda, feePayer, fee, payoutAmountMinor: transferAmount }) : null;
-    const memo = buildMemoInstruction(buildSplashMemo(inv.confirmed!.commitmentHex));
-    inner = [burn.instruction, ...(feePlan?.vaultInstructions ?? []), memo];
-    pre = feePlan?.preExecuteInstructions ?? [];
-    post = [buildMemoInstruction(buildSplashMemo(inv.confirmed!.commitmentHex))];
   }
 
-  const proposal = buildVaultProposal({ multisigPda, transactionIndex, member, feePayer, innerInstructions: inner, ephemeralSigners });
-  const blockhash = await rt.chain.getLatestBlockhash();
-  let groups;
-  try {
-    groups = groupProposalTransactions(proposal, feePayer, blockhash);
-  } catch (e) {
-    throw new ServiceError('transaction_too_large', `This payment does not fit in a Solana transaction: ${(e as Error).message}`, 500);
+  const rt = runtime();
+  const feePayer = await rt.chain.getFeePayer();
+  const multisigPda = new PublicKey(vault.multisigPda);
+  const member = new PublicKey(signerKey);
+  const keys = await splashKeys(rt);
+  const { blockhash, lastValidBlockHeight } = await rt.chain.getBlockhashWithExpiry();
+  const approvalsAfter = p.approvedBy.length + (p.state === 'checked' || p.state === 'proposed' ? 1 : 0);
+  const includesExecute = approvalsAfter >= p.threshold;
+  const messages: PreparedMessage[] = [];
+
+  let transactionIndex = p.transactionIndex;
+  let routePlan: { kind: RouteKind; transferAmount: bigint; splashFee: bigint; vault: TransactionInstruction[]; pre: TransactionInstruction[]; post: TransactionInstruction[]; ephemeralSigners: number };
+  if (p.state === 'checked') {
+    transactionIndex = await rt.chain.getNextTransactionIndex(multisigPda);
+    routePlan = buildRoutePlan(p, q, vault, feePayer, keys, transactionIndex);
+    const proposal = buildVaultProposal({ multisigPda, transactionIndex, member, feePayer, innerInstructions: routePlan.vault, ephemeralSigners: routePlan.ephemeralSigners });
+    let groups: TransactionInstruction[][];
+    try {
+      groups = groupProposalTransactions(proposal, feePayer, blockhash, computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n }));
+    } catch (e) {
+      throw new ServiceError('transaction_too_large', `This payment does not fit in a Solana transaction: ${(e as Error).message}`, 500);
+    }
+    for (const [i, raw] of groups.entries()) {
+      const body = raw.slice(2); // the grouping included a compute budget placeholder for sizing
+      const budget = await budgeted(feePayer, body, blockhash, DEFAULT_UNIT_LIMITS.proposal, i === 0);
+      const purposes: ProposalPurpose[] = [];
+      if (body.includes(proposal.create)) purposes.push('squads_proposal_create');
+      if (body.includes(proposal.approve)) purposes.push('squads_proposal_approve');
+      messages.push(preparedMessage(`m${messages.length}`, 'proposal', `proposal:${i}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, purposes, budget, member));
+    }
+  } else {
+    if (transactionIndex === null || !p.plan) throw new ServiceError('wrong_state', 'This payment has no proposal yet.', 409);
+    routePlan = {
+      kind: routeKindOf(q),
+      transferAmount: q.source.amountMinor - q.costs.splashMinor,
+      splashFee: q.costs.splashMinor,
+      vault: p.plan.vault.map(deserializeIx),
+      pre: p.plan.preExecute.map(deserializeIx),
+      post: p.plan.postExecute.map(deserializeIx),
+      ephemeralSigners: p.plan.ephemeralSigners,
+    };
+    if (p.state === 'proposed') {
+      const budget = await budgeted(feePayer, [buildProposalApprove(multisigPda, transactionIndex, member)], blockhash, DEFAULT_UNIT_LIMITS.proposal, true);
+      messages.push(preparedMessage(`m${messages.length}`, 'approve', `approve:${signerKey.slice(0, 16)}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, ['squads_proposal_approve'], budget, member));
+    }
   }
-  const execute = await buildVaultExecuteInstruction({ multisigPda, transactionIndex, member, innerInstructions: inner, ephemeralSigners });
-  const txs: Array<{ purpose: 'proposal' | 'execute'; tx: VersionedTransaction }> = [
-    ...groups.map((g) => ({ purpose: 'proposal' as const, tx: buildSponsoredTransaction(feePayer, g, blockhash) })),
-    { purpose: 'execute' as const, tx: buildSponsoredTransaction(feePayer, [...pre, execute, ...post], blockhash) },
-  ];
-  const messages: PreparedMessage[] = txs.map(({ purpose, tx }, i) => {
-    const size = tx.serialize().length;
-    if (size > MAX_TRANSACTION_BYTES) throw new ServiceError('transaction_too_large', `Transaction ${i + 1} is ${size} bytes, over the ${MAX_TRANSACTION_BYTES}-byte limit.`, 500);
-    const required = tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures);
-    if (!required.some((k) => k.equals(member))) throw new ServiceError('send_failed', 'The device key is not a signer of this transaction.', 500);
-    return { id: `m${i}`, purpose, txBase64: b64(tx.serialize()), messageBase64: b64(tx.message.serialize()) };
-  });
-  const proposalPurposes = groups.map((g) => {
-    const purposes: Array<'squads_proposal_create' | 'squads_proposal_approve'> = [];
-    if (g.includes(proposal.create)) purposes.push('squads_proposal_create');
-    if (g.includes(proposal.approve)) purposes.push('squads_proposal_approve');
-    return purposes;
-  });
-  p.prepared = {
+
+  if (includesExecute || p.state === 'approved' || p.state === 'execute_failed') {
+    const execute = await buildVaultExecuteInstruction({ multisigPda, transactionIndex: transactionIndex!, member, innerInstructions: routePlan.vault, ephemeralSigners: routePlan.ephemeralSigners });
+    const budget = await budgeted(feePayer, [...routePlan.pre, execute, ...routePlan.post], blockhash, routePlan.kind === 'solana_direct' ? DEFAULT_UNIT_LIMITS.execute : DEFAULT_UNIT_LIMITS.executeCctp, false);
+    messages.push(preparedMessage(`m${messages.length}`, 'execute', `execute:${p.execution.attempt}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, [], budget, member));
+  }
+
+  const prepared: PreparedApproval = {
     createdAt: nowIso(now),
     quoteId: q.id,
-    kind,
-    transactionIndex,
+    kind: routePlan.kind,
+    transactionIndex: transactionIndex!,
     signer: member.toBase58(),
     messages,
-    transferAmountMinor: transferAmount,
-    splashFeeMinor: splashFee,
+    transferAmountMinor: routePlan.transferAmount,
+    splashFeeMinor: routePlan.splashFee,
     depositAddress: q.target.depositAddress,
-    proposalPurposes,
+    includesExecute: messages.some((m) => m.purpose === 'execute'),
   };
+  const plan = { vault: routePlan.vault.map(serializeIx), preExecute: routePlan.pre.map(serializeIx), postExecute: routePlan.post.map(serializeIx), ephemeralSigners: routePlan.ephemeralSigners };
+  p = await cas(() => repo().update(p.id, { version: p.version, states: [p.state] }, (d) => {
+    d.prepared = prepared;
+    if (d.state === 'checked') d.plan = plan;
+  }, now));
   return { paymentId: p.id, signer: member.toBase58(), messages: messages.map((m) => ({ id: m.id, purpose: m.purpose, messageBase64: m.messageBase64 })) };
 }
+
+type SendOutcome = { status: 'confirmed' | 'finalized'; signature: string } | { status: 'failed'; signature: string | null; error: string; logs: string[] } | { status: 'expired'; signature: string } | { status: 'pending'; signature: string };
+
+/** How long a request waits for `confirmed` before answering "still checking". Offline: no wait. */
+function confirmWaitMs(): number {
+  return runtime().env.mode === 'offline' ? 0 : 45_000;
+}
+
+/**
+ * Simulate, then send: the fee payer signs, the signature is recorded under `paymentId:step`, and
+ * only then are the bytes broadcast (§5.1). `beforeBroadcast` runs inside that window so a state
+ * claim that loses its race stops the send. Then wait for `confirmed`.
+ */
+async function sendStep(p: PaymentRecord, step: string, tx: VersionedTransaction, lastValidBlockHeight: number, beforeBroadcast?: (signature: string) => Promise<void>): Promise<SendOutcome> {
+  const rt = runtime();
+  assertServiceable(p.orgId);
+  const sim = await rt.chain.simulate(tx);
+  if (!sim.ok) return { status: 'failed', signature: null, error: sim.error ?? 'simulation failed', logs: sim.logs.slice(-40) };
+  const key = chainCallKey(p.id, step);
+  let signature: string | null = null;
+  try {
+    const receipt = await rt.chain.sendSponsored(tx, {
+      orgId: p.orgId,
+      onSigned: async (sig) => {
+        await repo().recordSigned({ key, paymentId: p.id, step, signature: sig, lastValidBlockHeight });
+        signature = sig;
+        await beforeBroadcast?.(sig);
+      },
+    });
+    signature = receipt.signature;
+  } catch (e) {
+    if (!signature) return { status: 'failed', signature: null, error: (e as Error).message, logs: [] };
+    // Signed and recorded, broadcast uncertain: never resend; the poll below (or resume) decides.
+  }
+  const outcome = await awaitCommitment(rt.chain, { signature: signature!, lastValidBlockHeight, target: 'confirmed', timeoutMs: confirmWaitMs() });
+  if (outcome.status === 'confirmed' || outcome.status === 'finalized') {
+    await repo().updateCall(key, { status: outcome.status });
+    return { status: outcome.status, signature: signature! };
+  }
+  if (outcome.status === 'failed') {
+    await repo().updateCall(key, { status: 'failed', error: outcome.err });
+    return { status: 'failed', signature: signature!, error: outcome.err, logs: [] };
+  }
+  if (outcome.status === 'expired') {
+    await repo().updateCall(key, { status: 'expired' });
+    return { status: 'expired', signature: signature! };
+  }
+  return { status: 'pending', signature: signature! };
+}
+
+function signatureRecord(purpose: ChainSignatureRecord['purpose'], signature: string): ChainSignatureRecord {
+  const rt = runtime();
+  return { purpose, network: 'solana', signature, cluster: rt.env.cluster, simulated: rt.env.mode === 'offline' };
+}
+
+const UNCERTAIN = { code: 'uncertain', message: "Checking whether this payment went through. Don't retry yet." };
 
 /**
  * Execute only with the device key's signature on every prepared transaction (I-4). Signatures are
  * checked before anything is sent; a missing or wrong one sends nothing.
  */
-export async function submitApproval(paymentId: string, input: { signatures?: Array<{ id: string; signature: string }> }, now = new Date()) {
-  const p = getPayment(paymentId);
-  if (p.status !== 'AWAITING_APPROVAL') throw new ServiceError('wrong_state', 'This payment is not waiting for approval.', 409);
+export async function submitApproval(paymentId: string, input: { signatures?: Array<{ id: string; signature: string }> }, now = new Date()): Promise<PaymentRecord> {
+  let p = await getPayment(paymentId);
+  assertServiceable(p.orgId);
+  if (!['checked', 'proposed', 'approved', 'execute_failed'].includes(p.state)) throw new ServiceError('wrong_state', 'This payment is not waiting for approval.', 409);
   const prepared = p.prepared;
   if (!prepared) throw new ServiceError('not_prepared', 'Nothing to sign yet. Press approve again.', 409);
-  const sigs = input.signatures ?? [];
-  const byId = new Map(sigs.map((s) => [s.id, s.signature]));
+  const byId = new Map((input.signatures ?? []).map((s) => [s.id, s.signature]));
   const signer = new PublicKey(prepared.signer);
-  const signed: Array<{ purpose: 'proposal' | 'execute'; tx: VersionedTransaction }> = [];
+  const signed: Array<{ m: PreparedMessage; tx: VersionedTransaction }> = [];
   for (const m of prepared.messages) {
     const sigB58 = byId.get(m.id);
     if (!sigB58) throw new ServiceError('signature_required', "Execution needs this device's signature on every step. Nothing was sent.", 403);
@@ -732,75 +1011,249 @@ export async function submitApproval(paymentId: string, input: { signatures?: Ar
     if (!valid) throw new ServiceError('signature_invalid', "That signature is not from this vault's device key. Nothing was sent.", 403);
     const tx = VersionedTransaction.deserialize(fromB64(m.txBase64));
     tx.addSignature(signer, sig);
-    signed.push({ purpose: m.purpose, tx });
+    signed.push({ m, tx });
   }
   const q = findQuote(p, prepared.quoteId)!;
-  if (isQuoteExpired(q, now)) {
-    p.prepared = null;
-    p.problem = { code: 'quote_expired', message: 'Quote expired before you approved. Refresh to get a new quote.' };
-    throw new ServiceError('quote_expired', p.problem.message, 409);
-  }
-  const rt = runtime();
   const org = getOrg(p.orgId);
-  const inv = getInvoice(p.orgId, p.invoiceId);
-
-  // Reserve the invoice and the daily limit before sending, so a parallel approval cannot double pay.
-  org.seenCommitments.push(inv.confirmed!.commitmentHex);
-  const day = utcDay(now);
-  org.dailyDebits[day] = (org.dailyDebits[day] ?? 0n) + q.source.amountMinor;
-  const release = () => {
-    org.seenCommitments = org.seenCommitments.filter((c) => c !== inv.confirmed!.commitmentHex);
-    org.dailyDebits[day] = (org.dailyDebits[day] ?? 0n) - q.source.amountMinor;
-  };
-
-  const records: ChainSignatureRecord[] = [];
-  const proposals = signed.filter((s) => s.purpose === 'proposal');
-  try {
-    for (const [i, s] of proposals.entries()) {
-      const receipt = await rt.chain.sendSponsored(s.tx, { orgId: org.id, now });
-      for (const purpose of prepared.proposalPurposes[i] ?? []) records.push({ purpose, network: 'solana', signature: receipt.signature, cluster: receipt.cluster, simulated: receipt.simulated });
-    }
-  } catch (e) {
-    release();
-    p.prepared = null;
-    p.status = 'FAILED';
-    p.problem = { code: 'send_failed', message: `The approval did not reach the network, so nothing moved. ${(e as Error).message}` };
-    throw new ServiceError('send_failed', p.problem.message, 502);
-  }
-  const approvedAt = nowIso();
-  p.timeline.approvedAt = approvedAt;
-  p.status = 'APPROVED';
   const policyResult = { allowed: p.policy!.allowed, reasons: p.policy!.reasons, checks: p.policy!.checks };
-  p.approvals.push(
-    { who: org.personName, role: 'admin_device', action: 'propose', at: approvedAt, keyPublic: prepared.signer, policyResult },
-    { who: org.personName, role: 'admin_device', action: 'approve', at: approvedAt, keyPublic: prepared.signer, policyResult },
-  );
 
-  const exec = signed.find((s) => s.purpose === 'execute')!;
-  try {
-    const receipt = await rt.chain.sendSponsored(exec.tx, { orgId: org.id, now });
-    records.push({ purpose: 'squads_vault_execute', network: 'solana', signature: receipt.signature, cluster: receipt.cluster, simulated: receipt.simulated });
-    records.push({ purpose: prepared.kind === 'solana_direct' ? 'spl_transfer' : 'cctp_burn', network: 'solana', signature: receipt.signature, cluster: receipt.cluster, simulated: receipt.simulated });
-  } catch (e) {
-    p.signatures = records;
-    if (rt.env.mode === 'offline') {
-      // The simulator applies a transaction all or nothing: a refusal means nothing moved.
-      release();
-      p.status = 'FAILED';
-      p.problem = { code: 'send_failed', message: `The payment was approved but not sent, so nothing moved. ${(e as Error).message}` };
-      throw new ServiceError('send_failed', p.problem.message, 502);
+  // 1. Proposal (first approver) or one more approval (threshold > 1).
+  const approvalTxs = signed.filter((s) => s.m.purpose === 'proposal' || s.m.purpose === 'approve');
+  if (approvalTxs.length > 0) {
+    if (isQuoteExpired(q, now) && p.state === 'checked') {
+      await cas(() => repo().transition(p.id, { from: 'checked', version: p.version }, 'quote_expired', (d) => {
+        d.prepared = null;
+        d.problem = { code: 'quote_expired', message: 'Quote expired before you approved. Refresh to get a new quote.' };
+      }, 'quote_expired', now));
+      throw new ServiceError('quote_expired', 'Quote expired before you approved. Refresh to get a new quote.', 409);
     }
-    p.problem = { code: 'uncertain', message: "Checking whether this payment went through. Don't retry yet." };
-    throw new ServiceError('uncertain', p.problem.message, 504);
+    const first = p.state === 'checked';
+    if (first) {
+      // Checked and reserved with no await in between, so two approvals of the same invoice (two
+      // windows, or two payments for one invoice) cannot both pass: the second finds it reserved.
+      const commitment = getInvoice(p.orgId, p.invoiceId).confirmed!.commitmentHex;
+      if (getOrg(p.orgId).seenCommitments.includes(commitment)) {
+        throw new ServiceError('wrong_state', 'This invoice is already being paid. Nothing was sent; refresh to see where it is.', 409);
+      }
+    }
+    const releaseReservation = first ? reserve(p, q, now) : () => undefined;
+    // Claim before sending: a second request for the same approval loses this compare-and-set.
+    try {
+      p = await cas(() => repo().transition(p.id, { from: first ? 'checked' : 'proposed', version: p.version }, 'proposed', (d) => {
+        d.transactionIndex = prepared.transactionIndex;
+        d.pendingApprover = prepared.signer;
+        d.problem = null;
+        if (first) d.timeline.approvedAt = nowIso(now);
+      }, first ? 'proposal submitted' : 'approval submitted', now));
+    } catch (e) {
+      releaseReservation();
+      throw e;
+    }
+    const records: ChainSignatureRecord[] = [];
+    for (const { m, tx } of approvalTxs) {
+      const out = await sendStep(p, m.step, tx, m.lastValidBlockHeight);
+      if (out.status === 'pending') {
+        p = await repo().update(p.id, { version: p.version }, (d) => { d.problem = UNCERTAIN; });
+        throw new ServiceError('uncertain', UNCERTAIN.message, 504);
+      }
+      if (out.status === 'failed' || out.status === 'expired') {
+        if (first) releaseReservation();
+        const message = out.status === 'expired'
+          ? 'The approval did not reach the network in time, so nothing moved. Get a new quote and approve again.'
+          : `The approval did not go through, so nothing moved. ${out.error}`;
+        p = await cas(() => repo().transition(p.id, { from: 'proposed', version: p.version }, first ? 'proposal_failed' : 'proposed', (d) => {
+          d.pendingApprover = null;
+          d.prepared = null;
+          d.problem = { code: 'send_failed', message };
+          if (out.status === 'failed') d.execution.lastLogs = out.logs.length ? out.logs : null;
+        }, 'approval not sent', now));
+        throw new ServiceError('send_failed', message, 502);
+      }
+      for (const purpose of m.purposes) records.push(signatureRecord(purpose, out.signature));
+    }
+    const at = nowIso();
+    const approvedBy = [...p.approvedBy, prepared.signer];
+    const met = approvedBy.length >= p.threshold;
+    p = await cas(() => repo().transition(p.id, { from: 'proposed', version: p.version }, met ? 'approved' : 'proposed', (d) => {
+      d.approvedBy = approvedBy;
+      d.pendingApprover = null;
+      d.signatures.push(...records);
+      if (first) d.approvals.push({ who: org.personName, role: 'admin_device', action: 'propose', at, keyPublic: prepared.signer, policyResult });
+      d.approvals.push({ who: org.personName, role: roleOf(org, prepared.signer), action: 'approve', at, keyPublic: prepared.signer, policyResult });
+      if (!met) d.prepared = null;
+    }, met ? 'threshold met' : `approval ${approvedBy.length} of ${p.threshold}`, now));
   }
-  const sentAt = nowIso();
-  p.signatures = records;
-  p.timeline.sentAt = sentAt;
-  p.status = 'SENT';
-  p.prepared = null;
-  p.approvals.push({ who: org.personName, role: 'admin_device', action: 'execute', at: sentAt, keyPublic: prepared.signer, policyResult });
-  p.executedRoute = { quoteId: q.id, network: q.target.network, depositAddress: q.target.depositAddress, amountMinor: prepared.transferAmountMinor, steps: q.steps };
+
+  // 2. The execute, when this signing included it.
+  const exec = signed.find((s) => s.m.purpose === 'execute');
+  if (exec && (p.state === 'approved' || p.state === 'execute_failed')) {
+    if (p.state === 'execute_failed') {
+      p = await cas(() => repo().transition(p.id, { from: 'execute_failed', version: p.version }, 'approved', (d) => { d.problem = null; }, 'execute rebuilt', now));
+    }
+    p = await executeStep(p, exec.m, exec.tx, prepared, q, now);
+  }
   return p;
+}
+
+function roleOf(org: OrgRecord, key: string): 'admin_device' | 'approver_device' {
+  return org.vault?.members.find((m) => m.publicKey === key)?.role === 'approver_device' ? 'approver_device' : 'admin_device';
+}
+
+async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTransaction, prepared: PreparedApproval, q: RouteQuote, now: Date): Promise<PaymentRecord> {
+  const org = getOrg(p.orgId);
+  const policyResult = { allowed: p.policy!.allowed, reasons: p.policy!.reasons, checks: p.policy!.checks };
+  const out = await sendStep(p, m.step, tx, m.lastValidBlockHeight, async (signature) => {
+    // Claim approved → executed with the signature BEFORE broadcast: a racer loses here and sends nothing.
+    p = await cas(() => repo().transition(p.id, { from: 'approved', version: p.version }, 'executed', (d) => {
+      d.execution.signature = signature;
+      d.timeline.sentAt = nowIso();
+      d.prepared = null;
+      d.approvals.push({ who: org.personName, role: roleOf(org, prepared.signer), action: 'execute', at: nowIso(), keyPublic: prepared.signer, policyResult });
+      d.signatures.push(signatureRecord('squads_vault_execute', signature), signatureRecord(prepared.kind === 'solana_direct' ? 'spl_transfer' : 'cctp_burn', signature));
+      d.executedRoute = { quoteId: q.id, network: q.target.network, depositAddress: q.target.depositAddress, amountMinor: prepared.transferAmountMinor, steps: q.steps };
+    }, 'execute broadcast', now));
+  });
+  if (out.status === 'failed' && out.signature === null) {
+    // Refused before anything was signed (simulation or sponsorship): nothing was sent.
+    return cas(() => repo().transition(p.id, { from: 'approved', version: p.version }, 'execute_failed', (d) => {
+      d.prepared = null;
+      d.execution.lastLogs = out.logs.length ? out.logs : null;
+      d.problem = { code: 'send_failed', message: `The payment was approved but not sent, so nothing moved. ${out.error}` };
+    }, 'execute refused', now));
+  }
+  const settled = await settleExecute(p.id, out);
+  if (out.status === 'pending') throw new ServiceError('uncertain', UNCERTAIN.message, 504);
+  return settled;
+}
+
+/** Record what the network said about the execute. */
+async function settleExecute(paymentId: string, out: SendOutcome): Promise<PaymentRecord> {
+  const p = await getPayment(paymentId);
+  if (p.state !== 'executed') return p;
+  const at = nowIso();
+  if (out.status === 'confirmed' || out.status === 'finalized') {
+    return cas(() => repo().transition(p.id, { from: 'executed', version: p.version }, 'confirmed', (d) => {
+      d.execution.confirmedAt = at;
+      if (out.status === 'finalized') d.execution.finalizedAt = at;
+      d.problem = null;
+    }, `execute ${out.status}`));
+  }
+  if (out.status === 'pending') return repo().update(p.id, { version: p.version }, (d) => { d.problem = UNCERTAIN; });
+  const message = out.status === 'failed'
+    ? `The payment failed on the network, so nothing moved. ${out.error}`
+    : 'The payment did not land before its transaction expired, so nothing moved. Approve again: a fresh transaction is built and nothing is sent twice.';
+  return cas(() => repo().transition(p.id, { from: 'executed', version: p.version }, 'execute_failed', (d) => {
+    d.execution.attempt += 1;
+    d.execution.signature = null;
+    if (out.status === 'failed') d.execution.lastLogs = out.logs.length ? out.logs : null;
+    d.problem = { code: out.status === 'expired' ? 'blockhash_expired' : 'execute_failed', message };
+  }, out.status === 'expired' ? 'blockhash expired' : 'execute failed'));
+}
+
+/**
+ * Resume a payment from its stored state: poll the signatures already recorded, move the state on,
+ * and never send anything (§5.1). Safe to call at any time and from any number of workers: each move
+ * is a compare-and-set. `timeoutMs` 0 checks once.
+ */
+export async function resumePayment(paymentId: string, opts: { timeoutMs?: number } = {}): Promise<PaymentRecord> {
+  let p = await getPayment(paymentId);
+  const rt = runtime();
+  const timeoutMs = opts.timeoutMs ?? 0;
+  const calls = await repo().listCalls(p.id);
+  const poll = async (call: ChainCall, target: 'confirmed' | 'finalized') => awaitCommitment(rt.chain, { signature: call.signature, lastValidBlockHeight: call.lastValidBlockHeight, target, timeoutMs });
+
+  if (p.state === 'proposed' && p.pendingApprover) {
+    const open = calls.filter((c) => (c.step.startsWith('proposal:') || c.step.startsWith('approve:')) && c.status === 'signed');
+    for (const call of open) {
+      const out = await poll(call, 'confirmed');
+      if (out.status === 'pending') return p;
+      await repo().updateCall(call.key, out.status === 'failed' ? { status: 'failed', error: out.err } : { status: out.status });
+      if (out.status === 'failed' || out.status === 'expired') {
+        const q = findQuote(p, p.selectedQuoteId!)!;
+        const first = p.approvedBy.length === 0;
+        if (first) release(p, q, utcDay(new Date(p.timeline.approvedAt ?? p.updatedAt)));
+        return cas(() => repo().transition(p.id, { from: 'proposed', version: p.version }, first ? 'proposal_failed' : 'proposed', (d) => {
+          d.pendingApprover = null;
+          d.prepared = null;
+          d.problem = { code: 'send_failed', message: 'The approval did not reach the network, so nothing moved. Approve again.' };
+        }, 'resume: approval not landed'));
+      }
+    }
+    const stillOpen = (await repo().listCalls(p.id)).some((c) => (c.step.startsWith('proposal:') || c.step.startsWith('approve:')) && c.status === 'signed');
+    if (!stillOpen) {
+      const approvedBy = [...p.approvedBy, p.pendingApprover];
+      const met = approvedBy.length >= p.threshold;
+      p = await cas(() => repo().transition(p.id, { from: 'proposed', version: p.version }, met ? 'approved' : 'proposed', (d) => {
+        d.approvedBy = approvedBy;
+        d.pendingApprover = null;
+        d.problem = null;
+      }, 'resume: approval confirmed'));
+    }
+    return p;
+  }
+
+  if (p.state === 'executed') {
+    const call = calls.find((c) => c.step === `execute:${p.execution.attempt}` && c.signature === p.execution.signature);
+    if (!call) return p;
+    const out = await poll(call, 'confirmed');
+    if (out.status === 'pending') return p;
+    await repo().updateCall(call.key, out.status === 'failed' ? { status: 'failed', error: out.err } : { status: out.status });
+    const mapped: SendOutcome = out.status === 'failed' ? { status: 'failed', signature: call.signature, error: out.err, logs: [] } : { status: out.status, signature: call.signature };
+    return settleExecute(p.id, mapped);
+  }
+
+  if (['confirmed', 'partner_paid', 'evidence_failed'].includes(p.state) && !p.execution.finalizedAt && p.execution.signature) {
+    const call = calls.find((c) => c.signature === p.execution.signature);
+    if (call) {
+      const out = await poll(call, 'finalized');
+      if (out.status === 'finalized') {
+        await repo().updateCall(call.key, { status: 'finalized' });
+        p = await repo().update(p.id, { version: p.version }, (d) => { d.execution.finalizedAt = nowIso(); });
+      }
+    }
+  }
+  if ((p.state === 'partner_paid' || p.state === 'evidence_failed') && p.execution.finalizedAt) {
+    p = await settleEvidence(p.id);
+  }
+  return p;
+}
+
+/** Every payment that may have something in flight. For a worker to run after a restart. */
+export async function resumeAll(opts: { timeoutMs?: number } = {}): Promise<Array<{ id: string; state: PaymentState }>> {
+  const open = await repo().listInStates(RESUMABLE_STATES);
+  const out: Array<{ id: string; state: PaymentState }> = [];
+  for (const p of open) {
+    try {
+      const r = await resumePayment(p.id, opts);
+      out.push({ id: r.id, state: r.state });
+    } catch {
+      out.push({ id: p.id, state: p.state });
+    }
+  }
+  return out;
+}
+
+/** Note a problem without changing state (used when background work cannot finish). */
+export async function noteProblem(paymentId: string, problem: { code: string; message: string }) {
+  const p = await getPayment(paymentId);
+  return repo().update(p.id, { version: p.version }, (d) => { d.problem = problem; });
+}
+
+/* ------------------------------------------------------------------ refuse service (§5.6) */
+
+/** Staff pause service for a company: no Kora signature, no new proposal. The vault stays the company's. */
+export function suspendOrg(orgId: string, input: { by: string; reason: string }, now = new Date()) {
+  const org = getOrg(orgId);
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new ServiceError('bad_request', 'Give a reason for the audit log.');
+  org.suspended = { at: nowIso(now), by: input.by.trim() || 'staff', reason };
+  return org.suspended;
+}
+
+export function unsuspendOrg(orgId: string) {
+  const org = getOrg(orgId);
+  org.suspended = null;
+  return null;
 }
 
 /* ------------------------------------------------------------------ partner */
@@ -811,8 +1264,8 @@ export async function submitApproval(paymentId: string, input: { signatures?: Ar
  * Returns the partner's signed webhooks; the caller delivers them to `receivePartnerWebhook`.
  */
 export async function observeDeposit(paymentId: string, now = new Date()): Promise<PartnerPayoutEvent[]> {
-  const p = getPayment(paymentId);
-  if (p.status !== 'SENT' || !p.executedRoute) throw new ServiceError('wrong_state', 'Nothing has been sent for this payment yet.', 409);
+  const p = await getPayment(paymentId);
+  if (p.state !== 'confirmed' || !p.executedRoute) throw new ServiceError('wrong_state', 'Nothing has landed for this payment yet.', 409);
   const rt = runtime();
   const route = p.executedRoute;
   if (p.rehearsal === 'partner_return' && rt.chain instanceof SolanaSimulator) {
@@ -853,37 +1306,45 @@ export async function receivePartnerWebhook(raw: Record<string, unknown>, now = 
   const rt = runtime();
   const check = rt.partner.verifyWebhook(event, { now, maxAgeSec: 3600 });
   if (!check.ok) throw new ServiceError('webhook_invalid', `Webhook refused: ${check.reason}.`, 401);
-  const p = getPayment(event.paymentId);
+  const p = await getPayment(event.paymentId);
   if (event.amountPhpMinor !== p.payout.amountPhpMinor) throw new ServiceError('webhook_invalid', 'Webhook amount differs from the payout.', 422);
   if (p.partnerEvents.some((e) => e.paymentId === event.paymentId && e.status === event.status)) {
-    return { duplicate: true, status: p.status };
+    return { duplicate: true, state: p.state };
   }
-  if (!['SENT', 'PARTNER_RECEIVED'].includes(p.status)) throw new ServiceError('wrong_state', `Payment is ${p.status}; the webhook does not apply.`, 409);
-  p.partnerEvents.push(event);
+  if (p.state !== 'confirmed') throw new ServiceError('wrong_state', `Payment is ${STATE_LABEL[p.state].toLowerCase()}; the webhook does not apply.`, 409);
   if (event.status === 'received') {
-    p.status = 'PARTNER_RECEIVED';
-    p.timeline.receivedAt = event.at;
-  } else if (event.status === 'paid') {
-    if (!p.partnerEvents.some((e) => e.status === 'received')) p.timeline.receivedAt = event.at;
-    p.status = 'PAID';
-    p.timeline.paidAt = event.at;
-    await buildEvidence(p.id);
+    const next = await cas(() => repo().update(p.id, { version: p.version, states: ['confirmed'] }, (d) => {
+      d.partnerEvents.push(event);
+      d.timeline.receivedAt = event.at;
+    }, now));
+    return { duplicate: false, state: next.state };
+  }
+  if (event.status === 'paid') {
+    let next = await cas(() => repo().transition(p.id, { from: 'confirmed', version: p.version }, 'partner_paid', (d) => {
+      d.partnerEvents.push(event);
+      if (!d.partnerEvents.some((e) => e.status === 'received')) d.timeline.receivedAt = event.at;
+      d.timeline.paidAt = event.at;
+    }, 'partner paid', now));
     const inv = getInvoice(p.orgId, p.invoiceId);
     const org = getOrg(p.orgId);
     const c = inv.confirmed!;
     if (c.bankDetailsVerified && !org.suppliers.some((s) => s.name === c.supplierName && s.bank === c.supplierBank && s.accountLast4 === c.supplierAccountLast4)) {
       org.suppliers.push({ name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at } });
     }
-  } else {
-    p.status = 'REFUNDED';
-    p.timeline.returnedAt = event.at;
-    p.problem = { code: 'partner_returned', message: 'The partner returned the payment. Money is back in your Solana balance. Retry or pay another way.' };
-    // The invoice is free to pay again.
-    const org = getOrg(p.orgId);
-    const inv = getInvoice(p.orgId, p.invoiceId);
-    org.seenCommitments = org.seenCommitments.filter((c) => c !== inv.confirmed!.commitmentHex);
+    // Evidence only after the execute is final (§5.1); resume picks it up if it is not yet.
+    next = await resumePayment(p.id);
+    return { duplicate: false, state: next.state };
   }
-  return { duplicate: false, status: p.status };
+  const next = await cas(() => repo().transition(p.id, { from: 'confirmed', version: p.version }, 'partner_failed', (d) => {
+    d.partnerEvents.push(event);
+    d.timeline.returnedAt = event.at;
+    d.problem = { code: 'partner_returned', message: 'The payout partner returned the payment. Money is back in your Solana balance. Retry or pay another way.' };
+  }, 'partner returned', now));
+  // The invoice is free to pay again.
+  const org = getOrg(p.orgId);
+  const inv = getInvoice(p.orgId, p.invoiceId);
+  org.seenCommitments = org.seenCommitments.filter((c) => c !== inv.confirmed!.commitmentHex);
+  return { duplicate: false, state: next.state };
 }
 
 /** Run the partner side once: observe the deposit and deliver its webhooks (optionally spaced out). */
@@ -907,9 +1368,34 @@ async function seal(plaintext: string): Promise<string> {
   return `aesgcm.${b64(iv)}.${b64(ct)}`;
 }
 
-export async function buildEvidence(paymentId: string): Promise<EvidenceRecord> {
-  const p = getPayment(paymentId);
-  if (p.receiptId) return store().evidence.get(p.receiptId)!;
+/** partner_paid (and finalized) → evidenced → anchored; a failure lands in evidence_failed and is retried. */
+async function settleEvidence(paymentId: string): Promise<PaymentRecord> {
+  let p = await getPayment(paymentId);
+  if (p.state !== 'partner_paid' && p.state !== 'evidence_failed') return p;
+  if (!p.execution.finalizedAt) return p;
+  let record: EvidenceRecord;
+  try {
+    record = await buildEvidence(p);
+  } catch (e) {
+    return cas(() => repo().transition(p.id, { from: p.state, version: p.version }, 'evidence_failed', (d) => {
+      d.problem = { code: 'evidence_failed', message: `The payment is paid; its proof is not saved yet and will be retried. (${(e as Error).message})` };
+    }, 'evidence failed'));
+  }
+  p = await cas(() => repo().transition(p.id, { from: p.state, version: p.version }, 'evidenced', (d) => {
+    d.receiptId = record.receiptId;
+    d.problem = null;
+  }, 'evidence saved'));
+  if (record.anchor.status === 'anchored') {
+    p = await cas(() => repo().transition(p.id, { from: 'evidenced', version: p.version }, 'anchored', undefined, `anchored ${record.anchor.method}`));
+  }
+  return p;
+}
+
+async function buildEvidence(p: PaymentRecord): Promise<EvidenceRecord> {
+  if (p.receiptId) {
+    const existing = store().evidence.get(p.receiptId);
+    if (existing) return existing;
+  }
   const org = getOrg(p.orgId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const rt = runtime();
@@ -963,7 +1449,6 @@ export async function buildEvidence(paymentId: string): Promise<EvidenceRecord> 
     stored,
   };
   store().evidence.set(receiptId, record);
-  p.receiptId = receiptId;
   return record;
 }
 
@@ -984,8 +1469,8 @@ export function verifyReceipt(receiptId: string): VerifyResult {
 
 /* ------------------------------------------------------------------ views for the UI */
 
-export function paymentView(paymentId: string) {
-  const p = getPayment(paymentId);
+export async function paymentView(paymentId: string) {
+  const p = await getPayment(paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const rt = runtime();
   const devnet = rt.env.mode === 'devnet';
@@ -1032,7 +1517,8 @@ export function paymentView(paymentId: string) {
   const explorer = (sig: string, simulated: boolean) => (devnet && !simulated ? explorerTxUrl(sig, rt.env.cluster) : null);
   return {
     id: p.id,
-    status: p.status,
+    state: p.state,
+    stateLabel: STATE_LABEL[p.state],
     createdAt: p.createdAt,
     simulated: rt.env.mode === 'offline',
     invoice: { id: inv.id, confirmed: inv.confirmed },
@@ -1040,8 +1526,10 @@ export function paymentView(paymentId: string) {
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null },
     selectedQuoteId: p.selectedQuoteId,
     approval: p.approval,
+    approvals: { threshold: p.threshold, approved: p.approvedBy.length },
     rehearsal: p.rehearsal,
     timeline: p.timeline,
+    finalized: p.execution.finalizedAt !== null,
     signatures: p.signatures.map((s) => ({ ...s, explorerUrl: explorer(s.signature, s.simulated) })),
     partnerEvents: p.partnerEvents.map((e) => ({ status: e.status, at: e.at, bankReference: e.bankReference ?? null })),
     partnerLabel: rt.partner.entry.name,
@@ -1075,9 +1563,9 @@ export function invoiceView(inv: InvoiceRecord) {
   };
 }
 
-export function receiptView(receiptId: string) {
+export async function receiptView(receiptId: string) {
   const e = getEvidence(receiptId);
-  const p = getPayment(e.paymentId);
+  const p = await getPayment(e.paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const org = getOrg(p.orgId);
   const rt = runtime();
@@ -1108,9 +1596,9 @@ export function receiptView(receiptId: string) {
 }
 
 /** The evidence pack a business hands its auditor. Includes the invoice fields and this invoice's salt so the commitment can be recomputed. */
-export function evidencePack(receiptId: string) {
+export async function evidencePack(receiptId: string) {
   const e = getEvidence(receiptId);
-  const p = getPayment(e.paymentId);
+  const p = await getPayment(e.paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const c = inv.confirmed!;
   return {

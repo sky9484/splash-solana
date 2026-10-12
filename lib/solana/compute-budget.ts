@@ -64,7 +64,7 @@ export function computeBudgetInstructions(p: { unitLimit: number; microLamports:
 
 /**
  * A recent-fees estimate from `getRecentPrioritizationFees` samples: the 75th percentile of the
- * non-zero fees (micro-lamports per unit), or 0 when the network shows no contention.
+ * samples above 0 (micro-lamports per unit), or 0 when the network shows no contention.
  */
 export function estimateFromRecentFees(samples: ReadonlyArray<{ prioritizationFee: number }>): number {
   const fees = samples.map((s) => s.prioritizationFee).filter((f) => Number.isFinite(f) && f > 0).sort((a, b) => a - b);

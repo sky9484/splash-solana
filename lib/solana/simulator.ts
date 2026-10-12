@@ -185,6 +185,8 @@ export class SolanaSimulator implements ChainClient {
   finalityDepth = 0;
   /** What getPriorityFeeEstimate returns (micro-lamports per unit). */
   priorityFeeMicroLamports = 0;
+  /** Tests: sends this matches are signed and accepted but never land. */
+  dropIf: ((tx: VersionedTransaction) => boolean) | null = null;
   private readonly mint: PublicKey;
   readonly policy: SponsorPolicy;
   readonly usage: SponsorUsage;
@@ -223,7 +225,7 @@ export class SolanaSimulator implements ChainClient {
     return { confirmationStatus: this.height - at >= this.finalityDepth ? 'finalized' : 'confirmed', err: null };
   }
 
-  async getPriorityFeeEstimate(_writableAccounts: PublicKey[]) {
+  async getPriorityFeeEstimate() {
     return this.priorityFeeMicroLamports;
   }
 
@@ -297,8 +299,8 @@ export class SolanaSimulator implements ChainClient {
     this.run(tx, ctx, { commit: false, sigVerify: true });
     await ctx.onSigned?.(signature);
     this.height += 1;
-    if (this.dropCount > 0) {
-      this.dropCount -= 1;
+    if (this.dropCount > 0 || this.dropIf?.(tx)) {
+      if (this.dropCount > 0) this.dropCount -= 1;
       return { signature, cluster: this.cluster, simulated: true };
     }
     this.run(tx, ctx, { commit: true, sigVerify: true });

@@ -7,9 +7,12 @@
  *   - the evidence attester key (Splash's, never a vault member: I-1), and the
  *     Splash fee account owner (receives the fee leg; never a payout target);
  *   - the single-use nonce store for proof of possession;
- *   - the evidence store and the key that seals bundles before storing.
+ *   - the evidence store and the key that seals bundles before storing;
+ *   - the payment repository (prompt 07 §5.1): Postgres when DATABASE_URL is set (unless
+ *     SOLANA_PAYMENT_STORE=memory), so payments survive a restart; memory otherwise.
  *
- * No env is read here beyond `readSolanaEnv` (SPLASH_SOLANA_MODE and friends).
+ * Env read here: `readSolanaEnv` (SPLASH_SOLANA_MODE and friends), DATABASE_URL and
+ * SOLANA_PAYMENT_STORE.
  */
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -20,6 +23,8 @@ import { createMemoryNonceStore, type NonceStore } from '../solana/recovery-kit.
 import { chain, resetChain, type ChainClient } from '../solana/simulator.ts';
 import { createMockPartner, type MockPayoutPartner } from '../solana-partner/mock-partner.ts';
 import { InMemoryEvidenceStore } from '../solana-evidence/store.ts';
+import { getDb } from '../db/client.ts';
+import { createMemoryPaymentRepo, createPostgresPaymentRepo, type PaymentRepo } from './payment-repo.ts';
 
 export interface SolanaAppRuntime {
   key: string;
@@ -36,6 +41,16 @@ export interface SolanaAppRuntime {
   nonces: NonceStore;
   evidence: InMemoryEvidenceStore;
   sealKey: Promise<CryptoKey>;
+  payments: PaymentRepo;
+}
+
+/** Postgres when a database is configured, unless told otherwise; memory for the offline demo and tests. */
+export function paymentRepoFor(source: NodeJS.ProcessEnv): PaymentRepo {
+  const choice = (source.SOLANA_PAYMENT_STORE ?? '').trim();
+  if (choice === 'memory' || (choice !== 'postgres' && !source.DATABASE_URL)) return createMemoryPaymentRepo();
+  if (!source.DATABASE_URL) throw new Error('SOLANA_PAYMENT_STORE=postgres needs DATABASE_URL');
+  // getDb opens the pool on first use only, so the offline demo never connects.
+  return createPostgresPaymentRepo(getDb());
 }
 
 const G = globalThis as typeof globalThis & { __splashSolanaRuntime?: SolanaAppRuntime };
@@ -46,7 +61,7 @@ function envKey(env: SolanaEnv): string {
 
 export function runtime(source: NodeJS.ProcessEnv = process.env): SolanaAppRuntime {
   const env = readSolanaEnv(source);
-  const key = envKey(env);
+  const key = `${envKey(env)}|${source.SOLANA_PAYMENT_STORE ?? ''}|${source.DATABASE_URL ? 'db' : 'nodb'}`;
   if (G.__splashSolanaRuntime && G.__splashSolanaRuntime.key === key) return G.__splashSolanaRuntime;
   const webhookSecret = new Uint8Array(32);
   globalThis.crypto.getRandomValues(webhookSecret);
@@ -61,6 +76,7 @@ export function runtime(source: NodeJS.ProcessEnv = process.env): SolanaAppRunti
     nonces: createMemoryNonceStore(),
     evidence: new InMemoryEvidenceStore(),
     sealKey: globalThis.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']) as Promise<CryptoKey>,
+    payments: paymentRepoFor(source),
   };
   G.__splashSolanaRuntime = rt;
   return rt;
