@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
-import '@/app/solana/solana.css';
+import '@/components/solana/solana.css';
 import { confirmWords, deriveRecoveryKey, generateRecoveryWords, pickConfirmationIndices, signPossessionChallenge, type PossessionChallenge } from '@/lib/solana/recovery-kit';
 import { copyText, deviceKeySupported, existingDeviceKey, makeDeviceKey, shortKey, signBytesWithDevice } from '@/components/solana/client';
 
@@ -60,6 +61,7 @@ function ErrorNote({ message }: { message: string | null }) {
 }
 
 export default function DeviceSetup() {
+  const router = useRouter();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [holdsKey, setHoldsKey] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>('kit');
@@ -168,6 +170,8 @@ export default function DeviceSetup() {
       setWords(null); // the kit key is in the vault; the words leave this page's memory
       setTyped({});
       await refresh();
+      // The dashboard's sidebar shows the vault from the server layout, which a client update does not re-run.
+      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {

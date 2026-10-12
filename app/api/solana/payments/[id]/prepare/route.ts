@@ -1,6 +1,6 @@
 import { paymentFor, readBody, schemas } from '@/lib/solana-app/http';
 import { prepareApproval } from '@/lib/solana-app/service';
-import { companyRoute, requireReadyToApprove } from '@/lib/server/solana-company';
+import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     await readBody(request, schemas.empty);
     const { deviceKey } = requireReadyToApprove(ctx);
+    await requireMoneyGates(ctx);
     await paymentFor(id, ctx.orgId);
     return await prepareApproval(id, { signer: deviceKey });
   });

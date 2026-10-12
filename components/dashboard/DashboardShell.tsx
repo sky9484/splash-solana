@@ -6,8 +6,8 @@ import FloatingCopilot from '@/components/FloatingCopilot';
 import DashboardHeader from '@/components/DashboardHeader';
 import { CustodyPhaseContext, LaunchScopeContext, SweepSwitchContext } from '@/components/dashboard/CustodyPhaseContext';
 import type { CustomerSession } from '@/lib/auth/customer-session';
-import { explorerCluster } from '@/lib/explorer';
-import { LAUNCH_SCOPE_REASON, type LaunchScope } from '@/lib/launch-scope-rules';
+import type { LaunchScope } from '@/lib/launch-scope-rules';
+import SolanaRail from '@/components/dashboard/SolanaRail';
 import {
   Bot,
   FileText,
@@ -21,8 +21,6 @@ import {
   Phone,
   Send,
   Settings,
-  Timer,
-  TrendingUp,
   UserCircle,
   Wallet,
   X,
@@ -45,18 +43,17 @@ const navGroups: NavGroup[] = [
   {
     title: 'Payments',
     items: [
-      { label: 'Zeke',        href: '/dashboard',          icon: Bot, badge: 'AI' },
-      { label: 'Transfer',     href: '/dashboard/transfer', icon: Send },
-      { label: 'Send USDC',    href: '/dashboard/send-usdc', icon: Wallet },
-      { label: 'Rate holds',   href: '/dashboard/transfers', icon: Timer },
-      { label: 'Batch Payout', href: '/dashboard/batch',    icon: Layers },
+      { label: 'Overview',       href: '/dashboard',          icon: LayoutDashboard },
+      { label: 'Pay a supplier', href: '/dashboard/transfer', icon: Send },
+      { label: 'Batch payout',   href: '/dashboard/batch',    icon: Layers },
+      { label: 'Zeke',           href: '/dashboard/zeke',     icon: Bot, badge: 'AI' },
     ],
   },
   {
-    title: 'Finance',
+    title: 'Money',
     items: [
-      { label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
-      { label: 'Treasury', href: '/dashboard/treasury', icon: TrendingUp },
+      { label: 'Balance',  href: '/dashboard/fund',     icon: Wallet },
+      { label: 'History',  href: '/dashboard/history',  icon: History },
       { label: 'Invoices', href: '/dashboard/invoices', icon: FileText },
     ],
   },
@@ -64,7 +61,6 @@ const navGroups: NavGroup[] = [
     title: 'Contacts',
     items: [
       { label: 'Recipients', href: '/dashboard/recipients', icon: UserCircle },
-      { label: 'History',    href: '/dashboard/history',    icon: History },
     ],
   },
 ];
@@ -89,10 +85,15 @@ type DashboardShellProps = {
   /** The launch scope (lib/server/launch-scope.ts), resolved by the same
    *  layout. Needs no database, so it locks even when `locks` is absent. */
   launchScope?: LaunchScope;
+  /** The Solana rail, resolved by the same layout: the network, the run mode, and this company's
+   *  vault (address and its Solscan page) once account setup has made it. */
+  solana?: { mode: 'offline' | 'devnet'; cluster: 'devnet' | 'mainnet-beta'; vault: { address: string; solscanUrl: string | null } | null };
 };
 
-/** The pages a USDC-only launch does not open; their routes answer 403. */
-const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/transfer', '/dashboard/transfers', '/dashboard/batch', '/dashboard/treasury'];
+/** The pages a USDC-only launch does not open: paying a supplier is a payout to a bank in local
+ *  currency (the payout partner's leg), which that scope leaves closed. Their routes answer 403. */
+const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/transfer', '/dashboard/batch'];
+const SCOPE_REASON = 'Payouts to a supplier’s bank are not open on this launch yet. Your vault and its balance are.';
 
 /** Why a page is closed, and where to go instead. The launch scope answers
  *  first: no verification or setup step opens what this launch leaves out. */
@@ -102,7 +103,7 @@ function pageLock(
   scope: LaunchScope | undefined,
 ): { reason: string; href: string; action: string } | null {
   if (scope === 'stablecoin' && OUT_OF_STABLECOIN_SCOPE.includes(href)) {
-    return { reason: LAUNCH_SCOPE_REASON, href: '/dashboard/send-usdc', action: 'Send USDC' };
+    return { reason: SCOPE_REASON, href: '/dashboard', action: 'Back to overview' };
   }
   const reason = locks ? lockReasonFor(href, locks) : null;
   return reason ? { reason, href: '/dashboard/setup', action: 'Finish account setup' } : null;
@@ -122,10 +123,8 @@ function lockReasonFor(
   // Parity with the routes, or the padlock lies: the spend routes require
   // BOTH the KYB gate and the terms (requireTermsAccepted), so a nav item
   // that only checked KYB would read as open and then answer 412 on submit.
-  const spend = ['/dashboard/transfer', '/dashboard/transfers', '/dashboard/batch'];
-  // Send USDC is the lane an unverified business may use (lib/payments/
-  // stablecoin-lane.ts): terms, not KYB. Its page states any lane lock itself.
-  const termsOnly = ['/dashboard/invoices', '/dashboard/recipients', '/dashboard/send-usdc'];
+  const spend = ['/dashboard/transfer', '/dashboard/batch'];
+  const termsOnly = ['/dashboard/invoices', '/dashboard/recipients'];
   const termsReason = 'Accept the terms in Account setup to start here.';
   if (href === '/dashboard/treasury') {
     if (locks.moneyBlocked) return locks.reason;
@@ -144,7 +143,7 @@ function lockReasonFor(
   return null;
 }
 
-export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope }: DashboardShellProps) {
+export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope, solana }: DashboardShellProps) {
   const [collapsed,  setCollapsed]  = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const router   = useRouter();
@@ -208,7 +207,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
               )}
               <div className="space-y-0.5">
                 {group.items.map(({ label, href, icon: Icon, badge }) => {
-                  const active = pathname === href;
+                  const active = href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
                   const lock = pageLock(href, locks, launchScope);
                   const lockReason = lock?.reason ?? null;
                   return (
@@ -256,16 +255,8 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
           ))}
         </nav>
 
-        {/* Bottom items */}
-        {!collapsed && (
-          <div className="fintech-sidebar-signal">
-            <Lock size={20} aria-hidden="true" className="mx-auto text-white/80" />
-            <span>
-              <small>Settlement rail</small>
-              <strong><i /> {explorerCluster() === 'mainnet-beta' ? 'Solana' : 'Solana devnet'}</strong>
-            </span>
-          </div>
-        )}
+        {/* Bottom items: the network, and this company's vault on it */}
+        {!collapsed && solana ? <SolanaRail {...solana} /> : null}
 
         <div className="space-y-0.5 border-t border-white/10 pt-4">
           <Link
@@ -372,6 +363,15 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
           collapsed ? 'md:ml-20' : 'md:ml-60'
         }`}
       >
+        {solana ? (
+          <p role="note" className="mb-4 rounded-lg border border-[#5C9EAD]/30 bg-[#5C9EAD]/10 px-4 py-2 text-[13px] font-medium text-[#1F4452]">
+            {solana.mode === 'offline' ? (
+              <><strong>Simulated · devnet-ready.</strong> Every transaction runs in a local simulator, and the payout partner is a mock that pays no real bank.</>
+            ) : (
+              <><strong>{solana.cluster === 'mainnet-beta' ? 'Solana' : 'Solana devnet'} · Mock partner.</strong> Test USDC only; the payout partner is a mock that pays no real bank.</>
+            )}
+          </p>
+        ) : null}
         {kyb?.blocked ? (
           <div
             role="status"

@@ -70,8 +70,9 @@ test('ActionCard model exposes full proposal anatomy and trust treatment', () =>
   assert.equal(model.primaryActionLabel, 'Sign & approve');
 });
 
-test('default dashboard is the streaming Zeke surface and avoids browser money storage', async () => {
-  const page = await readFile(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+test('the Zeke desk is the streaming surface and avoids browser money storage', async () => {
+  // /dashboard is the overview now (prompt 07 §6.2); the desk lives at /dashboard/zeke.
+  const page = await readFile(new URL('../app/dashboard/zeke/ZekeDesk.tsx', import.meta.url), 'utf8');
   const layout = await readFile(new URL('../app/dashboard/layout.tsx', import.meta.url), 'utf8');
   const queue = await readFile(new URL('../app/queue/page.tsx', import.meta.url), 'utf8');
   const kybSettings = await readFile(new URL('../app/settings/kyb/page.tsx', import.meta.url), 'utf8');
@@ -101,8 +102,8 @@ test('default dashboard is the streaming Zeke surface and avoids browser money s
   // prop (e.g. the KYB gate state) does not fail a test about the desk surface.
   assert.match(layout, /<DashboardShell[^>]*session=\{session\}/);
   assert.match(layout, /\{children\}<\/DashboardShell>/);
-  assert.match(shell, /label: 'Zeke',\s+href: '\/dashboard'/);
-  assert.match(shell, /href: '\/dashboard\/overview'/);
+  assert.match(shell, /label: 'Zeke',\s+href: '\/dashboard\/zeke'/);
+  assert.match(shell, /label: 'Overview',\s+href: '\/dashboard'/);
   assert.match(queue, /export const dynamic = 'force-dynamic'/);
   assert.match(queue, /getCustomerSession/);
   assert.match(queue, /redirect\('\/login'\)/);

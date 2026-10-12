@@ -33,7 +33,7 @@ import { defaultSponsorPolicy, utcDay, type SponsorPolicy } from '../solana/kora
 import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
 import { buildMemoInstruction, buildPaymentMemo, buildPayoutInstructions, buildSplashFeeInstructions, getAssociatedTokenAddress } from '../solana/payout.ts';
 import { createPossessionChallenge, verifyPossession } from '../solana/recovery-kit.ts';
-import { SolanaSimulator, simulatedSignature } from '../solana/simulator.ts';
+import { isSimulator, simulatedSignature } from '../solana/simulator.ts';
 import {
   assertAutonomousSummary,
   buildCreateVaultInstruction,
@@ -351,7 +351,7 @@ export async function syncAccountCompany(input: AccountCompany): Promise<OrgReco
     const kit = input.vault.members.find((m) => m.role === 'recovery_kit_a');
     if (kit && org.keys.kit?.publicKey !== kit.publicKey) org.keys.kit = { publicKey: kit.publicKey, provenAt: input.vault.createdAt };
     const rt = runtime();
-    if (rt.chain instanceof SolanaSimulator && input.vault.simulated && !(await rt.chain.getMultisig(new PublicKey(input.vault.multisigPda)))) {
+    if (isSimulator(rt.chain) && input.vault.simulated && !(await rt.chain.getMultisig(new PublicKey(input.vault.multisigPda)))) {
       const used = (await rt.payments.listByOrg(org.id)).reduce((max, p) => (p.transactionIndex !== null && p.transactionIndex > max ? p.transactionIndex : max), 0n);
       rt.chain.restoreVault({ multisigPda: input.vault.multisigPda, threshold: input.vault.threshold, members: input.vault.members.map((m) => m.publicKey), transactionIndex: used });
       // Simulated money does not survive a restart, and the old fundings are no longer in the vault.
@@ -396,7 +396,7 @@ export async function fund(orgId: string) {
   const org = getOrg(orgId);
   const vault = requireVault(org);
   const rt = runtime();
-  if (!(rt.chain instanceof SolanaSimulator)) {
+  if (!isSimulator(rt.chain)) {
     throw new ServiceError('devnet_fund_manual', 'On devnet, send test USDC to your vault from the Circle faucet.', 409, {
       vaultAddress: vault.vaultPda,
       faucetUrl: CIRCLE_FAUCET_URL,
@@ -411,18 +411,29 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
-  const payments = (await rt.payments.listByOrg(org.id)).map((p) => {
-    const inv = store().invoices.get(p.invoiceId);
-    return {
-      id: p.id,
-      state: p.state,
-      stateLabel: STATE_LABEL[p.state],
-      supplierName: inv?.confirmed?.supplierName ?? '',
-      amountPhpMinor: p.payout.amountPhpMinor,
-      receiptId: p.receiptId,
-      createdAt: p.createdAt,
-    };
-  });
+  const payments = (await rt.payments.listByOrg(org.id))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+    .map((p) => {
+      const inv = store().invoices.get(p.invoiceId);
+      const execute = p.signatures.find((s) => s.purpose === 'squads_vault_execute') ?? null;
+      return {
+        id: p.id,
+        state: p.state,
+        stateLabel: STATE_LABEL[p.state],
+        supplierName: inv?.confirmed?.supplierName ?? '',
+        invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
+        amountPhpMinor: p.payout.amountPhpMinor,
+        youPayUsdcMinor: p.approval?.youPayUsdcMinor ?? null,
+        receiptId: p.receiptId,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        /** Waiting for a person to approve on a device (the first approval, or the next one on a 2-of-N vault). */
+        awaitingApproval: p.state === 'checked' || p.state === 'proposed',
+        approvals: { approved: p.approvedBy.length, threshold: p.threshold },
+        execute: execute ? { signature: execute.signature, simulated: execute.simulated, ...traceLinks('tx', execute.signature, execute.simulated) } : null,
+        problem: p.problem,
+      };
+    });
   const inFlight = payments.filter((p) => ['proposed', 'approved', 'executed', 'confirmed'].includes(p.state));
   return {
     org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt, suspended: org.suspended },
@@ -1421,7 +1432,7 @@ export async function observeDeposit(paymentId: string, now = new Date()): Promi
   if (p.state !== 'confirmed' || !p.executedRoute) throw new ServiceError('wrong_state', 'Nothing has landed for this payment yet.', 409);
   const rt = runtime();
   const route = p.executedRoute;
-  if (p.rehearsal === 'partner_return' && rt.chain instanceof SolanaSimulator) {
+  if (p.rehearsal === 'partner_return' && isSimulator(rt.chain)) {
     // Offline rehearsal: the mock partner returns the payment and sends the USDC back (simulated).
     await rt.chain.fundUsdc(getOrg(p.orgId).vault!.vaultPda, route.amountMinor);
     getOrg(p.orgId).fundings.push({ signature: 'simulated-return', amountMinor: route.amountMinor, at: nowIso(now), simulated: true, note: 'Returned by mock partner (simulated)' });
@@ -1431,7 +1442,7 @@ export async function observeDeposit(paymentId: string, now = new Date()): Promi
   if (route.network === 'solana') {
     arrived = await rt.chain.getUsdcBalance(route.depositAddress);
   } else {
-    if (!(rt.chain instanceof SolanaSimulator)) throw new ServiceError('devnet_not_supported', 'Watching Polygon is not built yet.', 409);
+    if (!isSimulator(rt.chain)) throw new ServiceError('devnet_not_supported', 'Watching Polygon is not built yet.', 409);
     const execSig = p.signatures.find((s) => s.purpose === 'cctp_burn')?.signature;
     const burn = rt.chain.burns.find((b) => b.signature === execSig);
     if (!burn) throw new ServiceError('wrong_state', 'No burn found for this payment.', 409);
@@ -1578,7 +1589,7 @@ async function buildEvidence(p: PaymentRecord): Promise<EvidenceRecord> {
   assertAttesterIsolated(rt.attester.publicKey.toBase58(), [org.vault!]);
   const anchorPlan = buildMemoAnchor({ attester: rt.attester.publicKey.toBase58(), rootHex: batch.rootHex, count: batch.count });
   let anchor: EvidenceRecord['anchor'];
-  if (rt.chain instanceof SolanaSimulator) {
+  if (isSimulator(rt.chain)) {
     // Offline: the attester signs the memo transaction; the signature is the simulator's deterministic one (I-7).
     const msg = new TransactionMessage({ payerKey: rt.attester.publicKey, recentBlockhash: await rt.chain.getLatestBlockhash(), instructions: [anchorPlan.instruction] }).compileToV0Message();
     const tx = new VersionedTransaction(msg);
@@ -1747,8 +1758,19 @@ export async function receiptView(receiptId: string) {
     anchor: { ...e.anchor, ...(e.anchor.signature ? traceLinks('tx', e.anchor.signature, e.anchor.simulated) : { solscanUrl: null, explorerUrl: null }) },
     signatures: p.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
     trace: paymentTrace(p),
-    stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes },
+    stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes, ciphertextSha256Hex: e.stored.ciphertextSha256Hex },
   };
+}
+
+/**
+ * The sealed record as stored (Walrus, or the in-memory store offline), for the receipt's "check the
+ * stored copy" step: the browser hashes it and compares with the sha256 recorded at storage. Ciphertext
+ * only. Null when the store no longer has it (the offline store empties on restart).
+ */
+export async function evidenceBlob(receiptId: string) {
+  const e = getEvidence(receiptId);
+  const ciphertext = await runtime().evidence.get(e.stored.blobId).catch(() => null);
+  return { blobId: e.stored.blobId, mode: e.stored.mode, ciphertextSha256Hex: e.stored.ciphertextSha256Hex, ciphertext };
 }
 
 /** The evidence pack a business hands its auditor. Includes the invoice fields and this invoice's salt so the commitment can be recomputed. */

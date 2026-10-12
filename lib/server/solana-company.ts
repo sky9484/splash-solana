@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 
+import type { CustomerSession } from '@/lib/auth/customer-session';
 import { findActiveDevice, findOrgVault, type OrgVault } from '@/lib/auth/devices';
 import { organizations, users } from '@/lib/db/schema';
 import { loadCompany, saveCompany } from '@/lib/solana-app/company';
@@ -7,6 +8,10 @@ import { ServiceError } from '@/lib/solana-app/errors';
 import { handle } from '@/lib/solana-app/http';
 import { jsonResponse } from '@/lib/solana-app/json';
 import { syncAccountCompany, type AccountCompany } from '@/lib/solana-app/service';
+import { laneInScope } from '@/lib/launch-scope-rules';
+import { requireActiveOrg } from '@/lib/server/kyb-gate';
+import { launchScope } from '@/lib/server/launch-scope';
+import { requireTermsAccepted } from '@/lib/server/onboarding';
 import { setupDb, setupMemberForRequest } from '@/lib/server/setup-member';
 
 /**
@@ -30,6 +35,7 @@ export interface CompanyContext {
   /** This member's device key, or null before setup. */
   deviceKey: string | null;
   vault: OrgVault | null;
+  session: CustomerSession;
 }
 
 function toServiceVault(v: OrgVault): AccountCompany['vault'] {
@@ -79,6 +85,7 @@ export async function companyForRequest(request: Request): Promise<{ ctx: Compan
     companyName: org?.name ?? auth.member.orgId,
     deviceKey: device?.publicKey ?? null,
     vault,
+    session: auth.session,
   };
   await loadCompany(ctx.orgId);
   await syncAccountCompany({ orgId: ctx.orgId, companyName: ctx.companyName, personName: ctx.personName, vault: vault ? toServiceVault(vault) : null, deviceKey: ctx.deviceKey });
@@ -104,6 +111,25 @@ export async function companyRoute(request: Request, run: (ctx: CompanyContext) 
       await saveCompany(ctx.orgId);
     }
   }, status);
+}
+
+/**
+ * The same gates the dashboard's padlocks show, enforced where money moves: the launch scope must
+ * include payouts to a bank in local currency (the payout partner pays the supplier's bank), the
+ * business must be verified (KYB), and the current terms accepted. Run before a quote and before
+ * every device prompt and send.
+ */
+export async function requireMoneyGates(ctx: CompanyContext): Promise<void> {
+  if (!laneInScope('FIAT_OUT_LOCAL', launchScope())) {
+    throw new ServiceError('not_in_launch_scope', 'Payouts to a supplier’s bank are not open on this launch yet. Nothing was sent.', 403);
+  }
+  const kyb = await requireActiveOrg(ctx.session, { lane: 'FIAT_OUT_LOCAL' });
+  if (kyb.response) {
+    const body = (await kyb.response.json().catch(() => null)) as { error?: string } | null;
+    throw new ServiceError('kyb_not_active', body?.error ?? 'Finish business verification before paying suppliers.', 403);
+  }
+  const terms = await requireTermsAccepted(ctx.orgId);
+  if (terms) throw new ServiceError('terms_not_accepted', 'Accept the current terms in Account setup before paying suppliers.', 412);
 }
 
 /** Money routes need a device on record and a vault with that device in it. */

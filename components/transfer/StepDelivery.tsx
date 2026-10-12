@@ -2,7 +2,7 @@
 
 import { Building2, Check, Landmark, Lock, Zap } from 'lucide-react';
 
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 import { useCustodyPhaseOn, useSweepSwitchOn } from '@/components/dashboard/CustodyPhaseContext';
 import { CUSTODY_PHASE_WHY, deliveryTierOpen } from '@/lib/custody-phase-rules';
 import { getCorridorFeeBps } from '@/lib/fx/corridors';

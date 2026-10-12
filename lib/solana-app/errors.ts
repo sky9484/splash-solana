@@ -5,6 +5,9 @@
  */
 export type ServiceErrorCode =
   | 'org_not_found'
+  | 'kyb_not_active'
+  | 'terms_not_accepted'
+  | 'not_in_launch_scope'
   | 'invoice_not_found'
   | 'payment_not_found'
   | 'receipt_not_found'

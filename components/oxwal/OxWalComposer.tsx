@@ -35,7 +35,7 @@ type OxWalComposerProps = {
   disabled?: boolean;
   title?: string;
   placeholder?: string;
-  /** Mono desk context tag, e.g. "USD→PHP · testnet". */
+  /** Mono desk context tag, e.g. "USDC→PHP · Solana devnet". */
   deskTag?: string;
   compact?: boolean;
   className?: string;
@@ -59,7 +59,7 @@ export default function OxWalComposer({
   disabled = false,
   title,
   placeholder = 'Ask Zeke, or attach an invoice or payout sheet',
-  deskTag = 'USD→PHP · testnet',
+  deskTag = 'USDC→PHP · Solana devnet',
   compact = false,
   className,
   inputRef,

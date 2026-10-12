@@ -14,8 +14,8 @@ const PURPOSE: Record<string, string> = {
 };
 
 /** One row per transaction: a transaction that proposes and approves, or executes and transfers, is one thing to open. */
-function labelFor(purposes: string[]): string {
-  if (purposes.includes('squads_vault_execute')) return 'Sent from your vault';
+function labelFor(purposes: string[], auditor: boolean): string {
+  if (purposes.includes('squads_vault_execute')) return auditor ? 'Sent from the company’s vault' : 'Sent from your vault';
   if (purposes.includes('squads_proposal_create') && purposes.includes('squads_proposal_approve')) return 'Proposed and approved';
   return PURPOSE[purposes[0]!] ?? purposes[0]!;
 }
@@ -35,9 +35,11 @@ function bySignature(transactions: Tx[]): Array<Tx & { purposes: string[] }> {
  * carries, each transaction, and the accounts it touched. Offline the signatures are simulated and
  * exist on no network, so there is nothing to open, and the panel says so instead of linking.
  */
-export function SolscanTrace({ memo, transactions, accounts, anchor }: { memo: string; transactions: Tx[]; accounts: Account[]; anchor?: (Link & { signature: string; simulated: boolean }) | null }) {
+export function SolscanTrace({ memo, transactions, accounts, anchor, auditor = false }: { memo: string; transactions: Tx[]; accounts: Account[]; anchor?: (Link & { signature: string; simulated: boolean }) | null; auditor?: boolean }) {
+  // Someone outside the company reads "the company's vault", never "your vault".
+  const accountLabel = (label: string) => (auditor ? label.replace(/^Your vault/, 'The company’s vault') : label);
   const simulated = transactions.every((t) => t.simulated) && (anchor?.simulated ?? true);
-  const rows = [...bySignature(transactions).map((t) => ({ key: t.signature, label: labelFor(t.purposes), value: t.signature, link: t, simulated: t.simulated, onSolana: t.network === 'solana' })), ...(anchor ? [{ key: `anchor-${anchor.signature}`, label: 'Proof anchored', value: anchor.signature, link: anchor, simulated: anchor.simulated, onSolana: true }] : [])];
+  const rows = [...bySignature(transactions).map((t) => ({ key: t.signature, label: labelFor(t.purposes, auditor), value: t.signature, link: t, simulated: t.simulated, onSolana: t.network === 'solana' })), ...(anchor ? [{ key: `anchor-${anchor.signature}`, label: 'Proof anchored', value: anchor.signature, link: anchor, simulated: anchor.simulated, onSolana: true }] : [])];
   return (
     <section className="sx-card sx-stack" aria-labelledby="trace-title">
       <h2 id="trace-title">Trace it on Solscan</h2>
@@ -71,7 +73,7 @@ export function SolscanTrace({ memo, transactions, accounts, anchor }: { memo: s
         ))}
         {accounts.map((a) => (
           <div key={a.address} style={{ display: 'contents' }}>
-            <dt>{a.label}</dt>
+            <dt>{accountLabel(a.label)}</dt>
             <dd>
               <span className="sx-mono" title={a.address}>
                 {shortKey(a.address, 6)}

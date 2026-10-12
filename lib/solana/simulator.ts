@@ -63,6 +63,14 @@ export interface SimulationResult {
   error: string | null;
 }
 
+/**
+ * The offline simulator, decided by its mode rather than `instanceof`: the chain client is shared across
+ * route bundles (globalThis), and a class from another bundle's copy of this module is a different class.
+ */
+export function isSimulator(chain: ChainClient): chain is SolanaSimulator {
+  return chain.mode === 'offline';
+}
+
 export interface ChainClient {
   readonly mode: RunMode;
   readonly cluster: Cluster;

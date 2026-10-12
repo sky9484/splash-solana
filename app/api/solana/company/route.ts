@@ -1,4 +1,5 @@
 import { orgSummary } from '@/lib/solana-app/service';
+import { deviceKeyIdFor } from '@/lib/solana/device-key';
 import { companyRoute } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
       personName: ctx.personName,
       isOwner: ctx.isOwner,
       deviceKey: ctx.deviceKey,
+      keyId: deviceKeyIdFor(ctx.orgId, ctx.userId),
       canApprove: Boolean(ctx.deviceKey && ctx.vault?.members.some((m) => m.publicKey === ctx.deviceKey)),
     },
   }));

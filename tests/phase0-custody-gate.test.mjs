@@ -97,14 +97,13 @@ test('the treasury page shows no demo balance or transaction as confirmed, and s
   assert.match(page, /<MoneyPathPanel \/>/, 'the money-path panel still mounts (pinned by tests/money-path.test.mjs)');
 });
 
-test('the overview card and the copilot stop presenting treasury numbers in Phase 0', async () => {
-  const overview = await source('app/dashboard/overview/page.tsx');
-  assert.doesNotMatch(overview, /useState\(24500\)/);
-  assert.doesNotMatch(overview, /useState\(98\.72\)/);
-  assert.doesNotMatch(overview, /\+\$3\.22/, 'no invented daily yield');
-  assert.match(overview, /Not available on this build/);
-  assert.doesNotMatch(overview, /\/api\/treasury/, 'the overview card reads no treasury ledger');
-  assert.doesNotMatch(overview, /\byield\b|\bAPY\b|USDY/i, 'no yield or rate wording on the card');
+test('the overview presents no treasury numbers, in any phase', async () => {
+  // The overview is the vault's balance, read from its token account (prompt 07 §6.2). No treasury card.
+  const overview = (await source('app/dashboard/page.tsx')) + (await source('components/solana/Overview.tsx'));
+  assert.doesNotMatch(overview, /useState\(\d/, 'no number the page made up');
+  assert.doesNotMatch(overview, /\/api\/treasury/, 'the overview reads no treasury ledger');
+  assert.doesNotMatch(overview, /\byield\b|\bAPY\b|USDY|treasury/i, 'no yield, rate or treasury wording');
+  assert.match(overview, /useCompany\(\)/, 'every figure comes from the company read');
 
   // The treasury route that served the numbers is gone on the Solana build
   // (prompt 07 §4.2), so nothing can serve them in any phase.

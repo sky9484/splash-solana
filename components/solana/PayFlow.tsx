@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApprovalCard, clock, secondsLeft } from './ApprovalCard';
 import { BalanceHeader } from './BalanceHeader';
-import { api, ApiError, copyText, existingDeviceKey, notifyOrgChanged, pct, php, signPrepared, usd } from './client';
+import { api, ApiError, copyText, existingDeviceKey, pct, php, shareReceiptLink, signPrepared, usd } from './client';
 import { ProgressLine } from './ProgressLine';
-import type { InvoiceDTO, OrgDTO, PaymentDTO } from './types';
-import { useOrg } from './useOrg';
+import { StatusPill } from './StatusPill';
+import type { CompanyDTO, InvoiceDTO, PaymentDTO } from './types';
+import { notifyCompanyChanged, useCompany } from './useCompany';
 
 type Screen = 'start' | 'check' | 'route' | 'approve' | 'progress' | 'done';
 
@@ -58,8 +59,17 @@ const SCREENS: Array<{ key: Screen; label: string }> = [
   { key: 'done', label: 'Done' },
 ];
 
-export function PayFlow() {
-  const { state } = useOrg();
+/** Where a payment picks up when its page is opened again (?payment=…), from its state alone. */
+function screenFor(state: string): Screen {
+  if (state === 'quoted' || state === 'quote_expired' || state === 'rejected_by_policy') return 'route';
+  if (state === 'checked' || state === 'proposed' || state === 'execute_failed') return 'approve';
+  if (state === 'evidenced' || state === 'anchored') return 'done';
+  if (state === 'draft') return 'start';
+  return 'progress';
+}
+
+export function PayFlow({ resumePaymentId }: { resumePaymentId?: string | null } = {}) {
+  const { state } = useCompany();
   const [screen, setScreen] = useState<Screen>('start');
   const [invoice, setInvoice] = useState<InvoiceDTO | null>(null);
   const [docText, setDocText] = useState('');
@@ -69,8 +79,24 @@ export function PayFlow() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const now = useNow(screen === 'route' || screen === 'approve');
 
-  const org = state.status === 'ready' ? state.org : null;
-  const orgId = org?.org.id ?? '';
+  const org = state.status === 'ready' ? state.company : null;
+  const keyId = org?.me.keyId ?? '';
+
+  // Opened from the overview, history or an approval link: pick the payment up where it is.
+  useEffect(() => {
+    if (!resumePaymentId || !org) return;
+    let stop = false;
+    api<{ payment: PaymentDTO }>(`/payments/${resumePaymentId}`)
+      .then((res) => {
+        if (stop) return;
+        setPayment(res.payment);
+        setScreen(screenFor(res.payment.state));
+      })
+      .catch((e) => !stop && setError({ code: e instanceof ApiError ? e.code : 'error', message: (e as Error).message }));
+    return () => {
+      stop = true;
+    };
+  }, [resumePaymentId, org?.org.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = useCallback((s: Screen) => {
     setScreen(s);
@@ -84,16 +110,16 @@ export function PayFlow() {
     let stop = false;
     const tick = async () => {
       try {
-        const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}?orgId=${orgId}`);
+        const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}`);
         if (stop) return;
         setPayment(res.payment);
         if ((res.payment.state === 'evidenced' || res.payment.state === 'anchored') && res.payment.receiptId) {
           setTimeout(() => !stop && setScreen('done'), 900);
-          notifyOrgChanged();
+          notifyCompanyChanged();
           return;
         }
         if (res.payment.state === 'partner_failed' || res.payment.state === 'proposal_failed' || res.payment.state === 'execute_failed') {
-          notifyOrgChanged();
+          notifyCompanyChanged();
           return;
         }
       } catch {
@@ -106,16 +132,15 @@ export function PayFlow() {
       stop = true;
       clearTimeout(t);
     };
-  }, [screen, payment?.id, orgId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screen, payment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (state.status === 'loading') return <p className="sx-muted">Loading…</p>;
+  if (state.status === 'loading') return <p className="sx-muted">Loading your company…</p>;
   if (!org || !org.vault) {
     return (
       <div className="sx-narrow sx-stack">
-        <h1>Pay a supplier</h1>
-        <p className="sx-lede">{state.status === 'reset' ? state.message : 'Set up your vault first. It takes about a minute.'}</p>
-        <Link className="sx-btn" href="/solana/onboarding">
-          Set up a vault
+        <p className="sx-lede">{state.status === 'ready' ? 'Set up this device and your vault first. It takes about a minute.' : state.message}</p>
+        <Link className="sx-btn" href={state.status === 'signin' ? '/login' : '/dashboard/setup'}>
+          {state.status === 'signin' ? 'Sign in' : 'Set up this device'}
         </Link>
       </div>
     );
@@ -130,7 +155,7 @@ export function PayFlow() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ invoice: InvoiceDTO; text: string }>('/invoices', { body: { orgId, ...body } });
+      const res = await api<{ invoice: InvoiceDTO; text: string }>('/invoices', { body });
       setInvoice(res.invoice);
       setDocText(res.text);
       setPayment(null);
@@ -146,7 +171,7 @@ export function PayFlow() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ payment: PaymentDTO }>('/payments', { body: { orgId, invoiceId } });
+      const res = await api<{ payment: PaymentDTO }>('/payments', { body: { invoiceId } });
       setPayment(res.payment);
       go('route');
     } catch (e) {
@@ -160,7 +185,7 @@ export function PayFlow() {
     if (!payment) return;
     setBusy(true);
     try {
-      const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/requote`, { body: { orgId } });
+      const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/requote`, { body: {} });
       setPayment(res.payment);
       go('route');
     } catch (e) {
@@ -175,7 +200,7 @@ export function PayFlow() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/select`, { body: { orgId, quoteId, rehearsal } });
+      const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/select`, { body: { quoteId, rehearsal } });
       setPayment(res.payment);
       go('approve');
     } catch (e) {
@@ -190,19 +215,22 @@ export function PayFlow() {
     setBusy(true);
     setError(null);
     try {
-      if (!(await existingDeviceKey(orgId))) {
-        throw new ApiError('no_device_key', "This browser doesn't hold the device key for this company. Approve from the device that set up the vault.", 0);
+      if (!org!.me.canApprove) {
+        throw new ApiError('not_an_approver', "This device can't approve for your company yet. Finish setup on it, or approve from the device you set up.", 0);
       }
-      const prepared = await api<{ signer: string; messages: Array<{ id: string; purpose: string; messageBase64: string }> }>(`/payments/${payment.id}/prepare`, { body: { orgId } });
-      const signatures = await signPrepared(orgId, prepared.messages);
-      const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/approve`, { body: { orgId, signatures } });
+      if (!(await existingDeviceKey(keyId))) {
+        throw new ApiError('no_device_key', "This browser doesn't hold your device key. Approve from the browser where you set up this device.", 0);
+      }
+      const prepared = await api<{ signer: string; messages: Array<{ id: string; purpose: string; messageBase64: string }> }>(`/payments/${payment.id}/prepare`, { body: {} });
+      const signatures = await signPrepared(keyId, prepared.messages);
+      const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/approve`, { body: { signatures } });
       setPayment(res.payment);
       go('progress');
     } catch (e) {
       fail(e);
       // Refresh the record so the card shows the current policy result.
       try {
-        const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}?orgId=${orgId}`);
+        const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}`);
         setPayment(res.payment);
       } catch {
         /* ignore */
@@ -216,9 +244,9 @@ export function PayFlow() {
   return (
     <div className="sx-stack-lg">
       <div>
-        <h1 ref={headingRef} tabIndex={-1}>
-          {SCREENS[at]!.label === 'Start' ? 'Pay a supplier' : SCREENS[at]!.label}
-        </h1>
+        <h2 ref={headingRef} tabIndex={-1} className="sx-flow-title">
+          {SCREENS[at]!.label === 'Start' ? 'Start with an invoice' : SCREENS[at]!.label}
+        </h2>
         <ol className="sx-steps" aria-label="Payment steps" style={{ marginTop: 14 }}>
           {SCREENS.map((s, i) => (
             <li key={s.key} aria-current={i === at ? 'step' : undefined} data-done={i < at ? 'true' : undefined}>
@@ -231,8 +259,7 @@ export function PayFlow() {
       {screen === 'start' && <StartScreen org={org} busy={busy} error={error} onRead={readDraft} />}
       {screen === 'check' && invoice && (
         <CheckScreen
-          orgId={orgId}
-          personName={org.org.personName}
+          personName={org.me.personName}
           invoice={invoice}
           docText={docText}
           busy={busy}
@@ -295,7 +322,7 @@ function StartScreen({
   error,
   onRead,
 }: {
-  org: OrgDTO;
+  org: CompanyDTO;
   busy: boolean;
   error: { code: string; message: string } | null;
   onRead: (b: { sample?: boolean; text?: string; source?: 'paste' | 'upload' }) => void;
@@ -309,7 +336,7 @@ function StartScreen({
         <div className="sx-notice sx-notice-warn">
           <h3>Your vault is empty</h3>
           <p>
-            Add test USDC before you pay. <Link href="/solana/fund">Go to Balance</Link>
+            Add test USDC before you pay. <Link href="/dashboard/fund">Go to Balance</Link>
           </p>
         </div>
       ) : null}
@@ -362,21 +389,24 @@ function StartScreen({
         </div>
       ) : null}
       <section aria-labelledby="bills-title">
-        <h2 id="bills-title">Payments</h2>
+        <div className="sx-row" style={{ justifyContent: 'space-between' }}>
+          <h2 id="bills-title">Recent payments</h2>
+          {org.payments.length > 5 ? <Link href="/dashboard/history">All payments</Link> : null}
+        </div>
         {org.payments.length === 0 ? (
           <p className="sx-muted" style={{ marginTop: 8 }}>
             No bills yet. Upload your first supplier invoice.
           </p>
         ) : (
           <ul className="sx-verify" style={{ marginTop: 8 }}>
-            {org.payments.map((p) => (
+            {org.payments.slice(0, 5).map((p) => (
               <li key={p.id} style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
                 <span>
                   {p.supplierName || 'Supplier'} <span className="sx-num">{php(p.amountPhpMinor)}</span>
                 </span>
                 <span>
                   <StatusPill state={p.state} label={p.stateLabel} />{' '}
-                  {p.receiptId ? <Link href={`/solana/receipts/${p.receiptId}`}>Receipt</Link> : null}
+                  {p.receiptId ? <Link href={`/dashboard/receipts/${p.receiptId}`}>Receipt</Link> : <Link href={`/dashboard/transfer?payment=${p.id}`}>Open</Link>}
                 </span>
               </li>
             ))}
@@ -387,18 +417,9 @@ function StartScreen({
   );
 }
 
-/** The state's own words (payment-machine.ts STATE_LABEL); the colour only repeats them. */
-function StatusPill({ state, label }: { state: string; label: string }) {
-  const ok = ['partner_paid', 'evidenced', 'anchored'];
-  const warn = ['partner_failed', 'proposal_failed', 'execute_failed', 'rejected_by_policy', 'quote_expired', 'evidence_failed'];
-  const cls = ok.includes(state) ? 'sx-pill-ok' : warn.includes(state) ? 'sx-pill-warn' : 'sx-pill-pending';
-  return <span className={`sx-pill ${cls}`}>{label}</span>;
-}
-
 /* ------------------------------------------------------------------ 2. Check the invoice */
 
 function CheckScreen({
-  orgId,
   personName,
   invoice,
   docText,
@@ -410,7 +431,6 @@ function CheckScreen({
   setBusy,
   setError,
 }: {
-  orgId: string;
   personName: string;
   invoice: InvoiceDTO;
   docText: string;
@@ -448,7 +468,7 @@ function CheckScreen({
     setError(null);
     try {
       const res = await api<{ bankVerification: InvoiceDTO['bankVerification'] }>(`/invoices/${invoice.id}/verify-bank`, {
-        body: { orgId, by: verifier || personName, method, bank: values.supplierBank, accountLast4: values.supplierAccountLast4 },
+        body: { by: verifier || personName, method, bank: values.supplierBank, accountLast4: values.supplierAccountLast4 },
       });
       onInvoice({ ...invoice, bankVerification: res.bankVerification });
     } catch (e) {
@@ -465,7 +485,6 @@ function CheckScreen({
     setError(null);
     try {
       const body = {
-        orgId,
         fields: {
           invoiceNumber: values.invoiceNumber ?? '',
           supplierName: values.supplierName ?? '',
@@ -713,7 +732,7 @@ function RouteScreen({
 function DoneScreen({ payment, onAnother }: { payment: PaymentDTO; onAnother: () => void }) {
   const [copied, setCopied] = useState(false);
   const c = payment.invoice.confirmed;
-  const link = payment.receiptId ? `/solana/receipts/${payment.receiptId}` : null;
+  const link = payment.receiptId ? `/dashboard/receipts/${payment.receiptId}` : null;
   return (
     <div className="sx-stack-lg">
       <section className="sx-card sx-stack">
@@ -741,10 +760,14 @@ function DoneScreen({ payment, onAnother }: { payment: PaymentDTO; onAnother: ()
                 type="button"
                 className="sx-btn sx-btn-ghost"
                 onClick={async () => {
-                  setCopied(await copyText(`${window.location.origin}${link}`));
+                  try {
+                    setCopied(await copyText(await shareReceiptLink(payment.receiptId!)));
+                  } catch {
+                    setCopied(false);
+                  }
                 }}
               >
-                {copied ? 'Receipt link copied' : 'Share with auditor'}
+                {copied ? 'Auditor link copied' : 'Share with auditor'}
               </button>
               <Link className="sx-btn sx-btn-ghost" href={link}>
                 Open receipt

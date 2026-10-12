@@ -37,6 +37,8 @@
  *     source (it simulates and validates inner instructions), not observed.
  */
 import { PublicKey, Transaction, VersionedTransaction, type MessageCompiledInstruction } from '@solana/web3.js';
+
+import { isVersionedTransaction } from './tx-kind.ts';
 import * as multisig from '@sqds/multisig';
 import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -139,7 +141,7 @@ interface FlatIx {
 }
 
 function flatten(tx: VersionedTransaction | Transaction): { feePayer: PublicKey | null; signerCount: number; lookups: number; ixs: FlatIx[]; signerKeys: PublicKey[] } {
-  if (tx instanceof VersionedTransaction) {
+  if (isVersionedTransaction(tx)) {
     const m = tx.message;
     const keys = m.staticAccountKeys;
     const ixs = m.compiledInstructions.map((ci: MessageCompiledInstruction) => ({
@@ -357,6 +359,6 @@ export function createKoraClient(opts: KoraClientOptions): KoraClient {
 }
 
 export function serializeForKora(tx: VersionedTransaction | Transaction): string {
-  const bytes = tx instanceof VersionedTransaction ? tx.serialize() : (tx as Transaction).serialize({ requireAllSignatures: false, verifySignatures: false });
+  const bytes = isVersionedTransaction(tx) ? tx.serialize() : (tx as Transaction).serialize({ requireAllSignatures: false, verifySignatures: false });
   return Buffer.from(bytes).toString('base64');
 }

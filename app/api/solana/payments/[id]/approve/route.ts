@@ -3,7 +3,7 @@ import { after } from 'next/server';
 import { withCompany } from '@/lib/solana-app/company';
 import { paymentFor, readBody, schemas } from '@/lib/solana-app/http';
 import { deliverPartnerEvents, noteProblem, paymentView, submitApproval } from '@/lib/solana-app/service';
-import { companyRoute, requireReadyToApprove } from '@/lib/server/solana-company';
+import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await readBody(request, schemas.approve);
     requireReadyToApprove(ctx);
+    await requireMoneyGates(ctx);
     await paymentFor(id, ctx.orgId);
     const p = await submitApproval(id, { signatures: body.signatures, who: ctx.personName });
     // Only once the execute is confirmed does the mock partner look at its deposit address.

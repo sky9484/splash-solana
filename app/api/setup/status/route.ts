@@ -1,4 +1,5 @@
 import { readSetupStatus } from '@/lib/auth/devices';
+import { deviceKeyIdFor } from '@/lib/solana/device-key';
 import { jsonResponse } from '@/lib/solana-app/json';
 import { syncSetupCookie } from '@/lib/server/setup-cookie';
 import { setupDb, setupMemberForRequest } from '@/lib/server/setup-member';
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
     isOwner: member.isOwner,
     // Where this browser keeps the member's device key (IndexedDB), so the
     // page can tell "registered" from "registered AND held by this browser".
-    keyId: `acct:${member.orgId}:${member.userId}`,
+    keyId: deviceKeyIdFor(member.orgId, member.userId),
     device: 'device' in status ? { publicKey: status.device.publicKey, label: status.device.label, provenAt: status.device.provenAt } : null,
     vault: 'vault' in status && status.vault
       ? {
