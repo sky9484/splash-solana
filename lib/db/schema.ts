@@ -126,7 +126,7 @@ export const users = pgTable('users', {
   /**
    * scrypt, formatted by lib/auth/password.ts. Nullable because an identity
    * can exist without one — an invited user before they set a password, or a
-   * zkLogin identity that never has one at all.
+   * Google sign-in identity that never has one at all.
    */
   passwordHash: text('password_hash'),
   /** Null until the address is proven. Not a boolean: when it happened is the
@@ -303,12 +303,11 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
 ]);
 
 /**
- * Wallet spec §2.3 — per-human zkLogin signer ↔ record mapping.
- *
- * One org has ONE on-chain BusinessAccount but MANY individual signers: a
- * zkLogin address is derived from (iss, sub, aud, salt), so `ceo@acme.com` and
- * `controller@acme.com` get different Sui addresses. That is what gives
- * maker-checker per-human signer attribution.
+ * RETIRED. Held the per-person Sui signer address of the earlier (Sui) build,
+ * derived at sign-in. Nothing reads or writes it any more: on Solana a
+ * person's signer is their device key, registered per member, and sign-in
+ * (password or Google) derives no key. Kept only until the migration that
+ * drops it together with the other Sui address columns.
  *
  * `oauth_sub` is a provider user id — treat it as PII: never log it raw.
  */
@@ -331,6 +330,56 @@ export const walletIdentities = pgTable('wallet_identities', {
   uniqueIndex('wallet_identities_oauth_subject_unique').on(table.oauthIss, table.oauthSub, table.oauthAud),
   index('wallet_identities_user_idx').on(table.userId),
   index('wallet_identities_org_idx').on(table.orgId),
+]);
+
+/**
+ * The device that signs for a member (drizzle/0027). PUBLIC key only: the
+ * private half is a non-extractable WebCrypto key in the member's browser and
+ * never reaches the server. Written only after a proof of possession.
+ * One active device per member per organisation; a second device is added
+ * to the vault by an approved config transaction, not by this table alone.
+ */
+export const memberDevices = pgTable('member_devices', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  orgId: text('org_id').notNull().references(() => organizations.id),
+  /** base58 Ed25519 public key: the member's Solana signer address. */
+  publicKey: text('public_key').notNull(),
+  label: text('label').notNull().default('This device'),
+  provenAt: timestamp('proven_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('member_devices_public_key_unique').on(table.publicKey),
+  uniqueIndex('member_devices_one_active_per_member')
+    .on(table.userId, table.orgId)
+    .where(sql`${table.revokedAt} is null`),
+  index('member_devices_org_idx').on(table.orgId),
+]);
+
+export type OrgVaultMember = { role: 'admin_device' | 'approver_device' | 'recovery_kit_a' | 'recovery_kit_b'; publicKey: string };
+
+/**
+ * The organisation's autonomous Squads vault (drizzle/0027). The database
+ * refuses a row whose config authority is not null (I-1): nobody, Splash
+ * included, may hold a key that changes the vault's members or threshold.
+ */
+export const orgVaults = pgTable('org_vaults', {
+  orgId: text('org_id').primaryKey().references(() => organizations.id),
+  cluster: text('cluster').$type<'devnet' | 'mainnet-beta'>().notNull(),
+  /** true when created by the offline simulator, never by a network (I-7). */
+  simulated: boolean('simulated').notNull(),
+  multisigPda: text('multisig_pda').notNull(),
+  vaultPda: text('vault_pda').notNull(),
+  threshold: integer('threshold').notNull(),
+  members: jsonb('members').$type<OrgVaultMember[]>().notNull(),
+  configAuthorityNull: boolean('config_authority_null').notNull(),
+  createSignature: text('create_signature').notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('org_vaults_multisig_unique').on(table.multisigPda),
+  uniqueIndex('org_vaults_vault_unique').on(table.vaultPda),
 ]);
 
 /** Suppliers — the relationship-first noun (today's "recipients"). */

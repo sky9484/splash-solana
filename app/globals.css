@@ -8144,8 +8144,8 @@ button.iso-product-row {
   .fintech-dashboard-shell .dash-block-interactive:hover { transition: none; transform: none; }
 }
 
-/* ─── zkLogin sign-in ─────────────────────────────────────────────────────
-   The Google button and its divider. Sized to the password submit beside it
+/* ─── Google sign-in ──────────────────────────────────────────────────────
+   The Google button and its divider (components/auth/GoogleSignInButton.tsx). Sized to the password submit beside it
    so neither reads as the primary path: proving identity with a provider and
    proving it with a password are the same act, and the page should not push
    one over the other. */
@@ -8185,6 +8185,11 @@ button.iso-product-row {
   transition: border-color .15s ease, background .15s ease;
 }
 
+.iso-auth-oauth:focus-visible {
+  outline: 2px solid var(--iso-teal);
+  outline-offset: 2px;
+}
+
 .iso-auth-oauth:hover:not(:disabled) {
   border-color: rgba(12, 62, 72, .4);
   background: #fffdf9;
@@ -8200,15 +8205,6 @@ button.iso-product-row {
   color: var(--iso-text-muted);
   font-size: 12.5px;
   line-height: 1.5;
-  text-align: center;
-}
-
-.iso-auth-callback {
-  display: grid;
-  gap: 14px;
-  place-content: center;
-  min-height: 60vh;
-  padding: 40px 24px;
   text-align: center;
 }
 

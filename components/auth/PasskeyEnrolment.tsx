@@ -3,23 +3,18 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * Enrol a passkey as this account's approval signer.
+ * Enrol a passkey as a second check at sign-in (prompt 07 §3.2).
  *
- * `authenticatorAttachment: 'platform'` — the approver is on their own phone
- * or laptop, and the key lives in its secure enclave. A roaming security key
- * would work cryptographically but is the wrong shape for the flow: it has to
- * be carried, and an approval is something a named human does from the device
- * already in their hand.
+ * It is NOT a vault signer. Payments are approved with the member's device
+ * key (lib/solana/device-key.ts, set up at /dashboard/setup); nothing a
+ * passkey signs can move money. The WebAuthn plumbing below still comes from
+ * the earlier build and is replaced by plain WebAuthn verification when the
+ * Sui SDK is confined to the evidence module (prompt 07 Phase 2).
  *
- * The public key is sent to the server the instant it exists. WebAuthn hands
- * it over once, in the attestation, and never again — a later signature comes
- * back with a credential id and no key. Losing it here means the only way to
- * identify a signer later is to make them sign twice and intersect the
- * recovered candidates, which is two extra biometric prompts on the approval
- * path to rebuild something we already had.
- *
- * This screen enrols a signer. It does not approve anything: the queue stays
- * as it is until the Move `approve` entry point exists.
+ * `authenticatorAttachment: 'platform'` — the key lives in the secure enclave
+ * of the person's own phone or laptop. The public key is sent to the server
+ * the instant it exists: WebAuthn hands it over once, in the attestation, and
+ * never again.
  */
 
 type State =
@@ -73,7 +68,7 @@ export default function PasskeyEnrolment() {
 
   async function provider(rpId: string) {
     const { BrowserPasskeyProvider } = await import('@mysten/sui/keypairs/passkey');
-    return new BrowserPasskeyProvider('Splash approval signer', {
+    return new BrowserPasskeyProvider('Splash sign-in', {
       rp: { name: 'Splash', id: rpId },
       authenticatorSelection: {
         // The approver's own device, not a key on a lanyard.
@@ -97,7 +92,7 @@ export default function PasskeyEnrolment() {
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? 'The signer could not be saved.');
+      throw new Error(body.error ?? 'The passkey could not be saved.');
     }
   }
 
@@ -178,44 +173,42 @@ export default function PasskeyEnrolment() {
   if (state.kind === 'unsupported') {
     return (
       <p className="iso-passkey-status">
-        This browser cannot hold a passkey. Approvals will need a device with a biometric or PIN — a phone, or a
-        laptop with Touch ID or Windows Hello.
+        This browser cannot hold a passkey. Use a device with a biometric or PIN — a phone, or a laptop with Touch ID
+        or Windows Hello — to add this sign-in check.
       </p>
     );
   }
 
+  /* A passkey here is a second check at sign-in. It is not a vault signer:
+     payments are approved with the device key from /dashboard/setup. */
   return (
     <div className="iso-passkey">
       {state.kind === 'enrolled' ? (
         <>
           <p className="iso-passkey-status">
-            This account has an approval signer on <strong>{state.rpId}</strong>.
-          </p>
-          <p className="iso-passkey-address" title="The Sui address derived from your passkey">
-            {state.suiAddress}
+            This account has a passkey on <strong>{state.rpId}</strong>.
           </p>
           <p className="iso-passkey-note">
-            Approvals signed by this device carry that address. It is bound to <strong>{state.rpId}</strong> and will
-            not be offered on another host — enrol again there when you need it. Removing the signer does not delete
-            the passkey from your device: restore it later and the same address, with anything sent to it, comes back.
+            It is bound to <strong>{state.rpId}</strong> and won&rsquo;t be offered on another host. Removing it here
+            does not delete the passkey from your device. Payments are approved with your device key, not this passkey.
           </p>
           <button type="button" className="iso-passkey-revoke" onClick={() => void revoke()} disabled={busy !== null}>
-            {busy === 'revoke' ? 'Removing…' : 'Remove this signer'}
+            {busy === 'revoke' ? 'Removing…' : 'Remove this passkey'}
           </button>
         </>
       ) : (
         <>
-          <p className="iso-passkey-status">No approval signer on this account yet.</p>
+          <p className="iso-passkey-status">No passkey on this account yet.</p>
           <p className="iso-passkey-note">
-            Your device holds the key and never releases it. Splash stores only the public half, so an approval can be
-            attributed to you without anyone — including us — being able to produce one on your behalf.
+            A passkey adds a second check when you sign in. Your device holds the key and never releases it; Splash
+            stores only the public half.
           </p>
           <button type="button" className="iso-passkey-enrol" onClick={() => void enrol()} disabled={busy !== null}>
-            {busy === 'enrol' ? 'Waiting for your device…' : 'Set up an approval signer'}
+            {busy === 'enrol' ? 'Waiting for your device…' : 'Add a passkey'}
           </button>
           <p className="iso-passkey-note">
-            Made a Splash passkey on this device before? Restore it instead of setting up a new one — a new passkey is a
-            new Sui address. Your device asks twice; pick the same passkey both times.
+            Made a Splash passkey on this device before? Restore it instead of adding a new one. Your device asks twice;
+            pick the same passkey both times.
           </p>
           <button type="button" className="iso-passkey-revoke" onClick={() => void restore()} disabled={busy !== null}>
             {busy === 'restore' ? 'Waiting for your device…' : 'Restore a passkey on this device'}

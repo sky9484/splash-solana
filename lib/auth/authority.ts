@@ -6,6 +6,7 @@ import type * as schemaModule from '../db/schema.ts';
 import { loadOrgPolicy } from '../policy/org-policy.ts';
 import type { OrgPolicy, UserRole } from '../agent/types.ts';
 import type { CustomerSession } from './customer-session.ts';
+import { findActiveDevice } from './devices.ts';
 
 /**
  * Track A §1.2 — the single server-side authority resolver for every
@@ -42,6 +43,12 @@ export interface AuthorityContext {
   userId: string;
   role: UserRole;
   policy: OrgPolicy;
+  /**
+   * The base58 public key of the device this member registered for this
+   * organisation, or null before setup. A role says what someone may do; this
+   * is the only key whose signature counts as theirs on a vault proposal.
+   */
+  devicePublicKey: string | null;
   resolvedAt: string;
 }
 
@@ -96,12 +103,15 @@ export async function resolveAuthorityFromDb(db: DrizzleDb, email: string): Prom
   }
 
   const membership = rows[0];
+  // Sequential on purpose: one connection at a time, like every other read here.
   const policy = await loadOrgPolicy(db, membership.orgId);
+  const device = await findActiveDevice(db, { userId: membership.userId, orgId: membership.orgId });
   return {
     orgId: membership.orgId,
     userId: membership.userId,
     role: mapDbRole(membership.role),
     policy,
+    devicePublicKey: device?.publicKey ?? null,
     resolvedAt: new Date().toISOString(),
   };
 }

@@ -28,7 +28,7 @@ export type SponsoredTransactionBytes = {
   txBytes: string;
   sponsorSignature?: string;
   txDigest?: string;
-  sponsor: 'enoki' | 'shinami' | 'mock';
+  sponsor: 'shinami' | 'mock';
 };
 
 export type GasSponsorAdapter = {

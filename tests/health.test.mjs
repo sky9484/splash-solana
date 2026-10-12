@@ -16,7 +16,7 @@ const doctorSource = readFileSync(new URL('../scripts/doctor.mjs', import.meta.u
 
 test('flags report the posture switches an operator needs, and only those', () => {
   const flags = featureFlags();
-  for (const key of ['NODE_ENV', 'SUI_NETWORK', 'SUI_SETTLEMENT_MODE', 'USE_MOCK_APIS', 'FEATURE_ZKLOGIN', 'OXWAL_CHAIN_MODE']) {
+  for (const key of ['NODE_ENV', 'SUI_NETWORK', 'SUI_SETTLEMENT_MODE', 'USE_MOCK_APIS', 'FEATURE_GOOGLE_SIGNIN', 'OXWAL_CHAIN_MODE']) {
     assert.ok(key in flags, `${key} should be reported`);
   }
   // Nothing whose name suggests a secret is a flag.
@@ -52,8 +52,7 @@ test('secrets never reach the body: the url is reduced to a host, the key to pre
   assert.ok(dbUses.length > 0);
   assert.match(checksSource, /new URL\(env\.DATABASE_URL\)\.host/);
   assert.doesNotMatch(checksSource, /detail:[^\n]*env\.DATABASE_URL[^\n]*\}/);
-  // The Enoki key is sent as a header, never placed in a detail or data field.
-  assert.match(checksSource, /Authorization: `Bearer \$\{key\}`/);
+  // No secret is placed in a detail or data field.
   assert.doesNotMatch(checksSource, /detail:[^\n]*\$\{key\}/);
   assert.doesNotMatch(checksSource, /data:[^\n]*\bkey\b/);
 });

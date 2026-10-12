@@ -13,7 +13,6 @@ export const USDT_TYPE = process.env.USDT_TYPE ?? '';
 export const USDT_BUFFER_ID = process.env.USDT_BUFFER_ID ?? '';
 export const MIN_USDC_FLOAT_MICRO = Number.parseInt(process.env.MIN_USDC_FLOAT_MICRO ?? '0', 10);
 export const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS ?? '';
-export const ENOKI_API_KEY = process.env.ENOKI_API_KEY ?? '';
 export const OPERATOR_SUI_ADDRESS = process.env.OPERATOR_SUI_ADDRESS ?? '';
 
 export const isUsdtConfigured = () => Boolean(USDT_TYPE && USDT_BUFFER_ID);
