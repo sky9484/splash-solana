@@ -157,6 +157,10 @@ export type SetupStatus =
   | { state: 'no_membership' }
   | { state: 'no_device'; orgId: string; userId: string; vault: OrgVault | null }
   | { state: 'no_vault'; orgId: string; userId: string; device: MemberDevice }
+  /** Joined an organisation whose vault already exists: the device is registered
+   *  but is not (yet) a vault member, so it can sign nothing. Adding it is a
+   *  config transaction the existing members approve. */
+  | { state: 'device_not_in_vault'; orgId: string; userId: string; device: MemberDevice; vault: OrgVault }
   | { state: 'ready'; orgId: string; userId: string; device: MemberDevice; vault: OrgVault };
 
 /**
@@ -174,8 +178,11 @@ export async function readSetupStatus(db: DrizzleDb, email: string): Promise<Set
   const member = rows[0];
   if (!member) return { state: 'no_membership' };
 
-  const [device, vault] = await Promise.all([findActiveDevice(db, member), findOrgVault(db, member.orgId)]);
+  // Sequential on purpose: one connection at a time, like every other read here.
+  const device = await findActiveDevice(db, member);
+  const vault = await findOrgVault(db, member.orgId);
   if (!device) return { state: 'no_device', ...member, vault };
   if (!vault) return { state: 'no_vault', ...member, device };
+  if (!vault.members.some((m) => m.publicKey === device.publicKey)) return { state: 'device_not_in_vault', ...member, device, vault };
   return { state: 'ready', ...member, device, vault };
 }

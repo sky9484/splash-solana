@@ -103,10 +103,9 @@ export async function resolveAuthorityFromDb(db: DrizzleDb, email: string): Prom
   }
 
   const membership = rows[0];
-  const [policy, device] = await Promise.all([
-    loadOrgPolicy(db, membership.orgId),
-    findActiveDevice(db, { userId: membership.userId, orgId: membership.orgId }),
-  ]);
+  // Sequential on purpose: one connection at a time, like every other read here.
+  const policy = await loadOrgPolicy(db, membership.orgId);
+  const device = await findActiveDevice(db, { userId: membership.userId, orgId: membership.orgId });
   return {
     orgId: membership.orgId,
     userId: membership.userId,

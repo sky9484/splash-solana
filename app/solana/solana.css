@@ -17,6 +17,8 @@
   font-size: 15px;
   line-height: 1.55;
 }
+/* Embedded in another shell (the dashboard's /dashboard/setup): same components, no page chrome. */
+.sx.sx-embedded { min-height: 0; background: transparent; }
 :where(.sx) *, :where(.sx) *::before, :where(.sx) *::after { box-sizing: border-box; }
 :where(.sx) a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .sx :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; box-shadow: 0 0 0 1px var(--ink); border-radius: 6px; }

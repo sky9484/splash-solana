@@ -15,6 +15,7 @@ import {
 import { isKilledEntityEmail } from '@/lib/auth/killed-entities';
 import { ensureWorkspaceForEmail } from '@/lib/auth/signup-org';
 import { customerSessionSecret, sessionForAccount, setCustomerSessionCookie } from '@/lib/server/customer-auth';
+import { refreshSetupCookie } from '@/lib/server/setup-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -75,7 +76,8 @@ export async function GET(request: Request) {
     const account = await linkVerifiedIdentity(db, { email: claims.email, name: claims.name });
     await ensureWorkspaceForEmail(account.email);
 
-    await setCustomerSessionCookie(sessionForAccount(account));
+    const session = await setCustomerSessionCookie(sessionForAccount(account));
+    await refreshSetupCookie(session);
     console.info('[google] session minted', { subject: hashSubjectForLog(claims), outcome: account.outcome });
 
     const response = NextResponse.redirect(new URL(flow.returnTo, url.origin), { status: 303, headers: { 'Cache-Control': 'no-store' } });
