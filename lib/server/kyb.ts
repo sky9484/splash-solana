@@ -212,12 +212,8 @@ function byRecency(a: KybCaseRecord, b: KybCaseRecord) {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-async function persist(record: KybCaseRecord): Promise<KybCaseRecord> {
-  if (!usingPostgres()) {
-    memory.cases.set(record.id, record);
-    return record;
-  }
-  await repo.insertOrUpdate(await db(), {
+function toRow(record: KybCaseRecord): repo.KybCaseRow {
+  return {
     id: record.id,
     orgId: record.orgId,
     businessName: record.businessName,
@@ -233,7 +229,15 @@ async function persist(record: KybCaseRecord): Promise<KybCaseRecord> {
     auditTrail: record.auditTrail,
     submittedAt: new Date(record.submittedAt),
     updatedAt: new Date(record.updatedAt),
-  });
+  };
+}
+
+async function persist(record: KybCaseRecord): Promise<KybCaseRecord> {
+  if (!usingPostgres()) {
+    memory.cases.set(record.id, record);
+    return record;
+  }
+  await repo.insertOrUpdate(await db(), toRow(record));
   return record;
 }
 
@@ -273,6 +277,26 @@ export async function findLatestKybCase(orgId: string): Promise<KybCaseRecord | 
   return cases[0] ?? null;
 }
 
+/**
+ * This organisation's case for one registration number, if it has filed one.
+ * Scoped by `orgId` like every read above: the registration number picks
+ * between this org's own cases, never across tenants.
+ */
+export async function findKybCaseByRegistration(
+  orgId: string,
+  registrationNumber: string,
+): Promise<KybCaseRecord | null> {
+  if (!usingPostgres()) {
+    return (
+      Array.from(memory.cases.values()).find(
+        (record) => record.orgId === orgId && record.registrationNumber === registrationNumber,
+      ) ?? null
+    );
+  }
+  const row = await repo.findByRegistrationForOrg(await db(), orgId, registrationNumber);
+  return row ? toRecord(row) : null;
+}
+
 // ── Staff reads. Cross-tenant by design, and named for it. ──────────────────
 
 export async function listKybCasesForStaff(): Promise<KybCaseRecord[]> {
@@ -288,6 +312,19 @@ export async function readKybCaseForStaff(caseId: string): Promise<KybCaseRecord
 
 // ── Writes ─────────────────────────────────────────────────────────────────
 
+/**
+ * A business submitting KYB documents.
+ *
+ * One case per registration number per org (`kyb_cases_org_registration_unique`),
+ * so a resubmission is the same case, not a second one. `caseId` names the
+ * case only on the org's first filing for that number; after that the
+ * existing id stands, and the returned record says which id that is.
+ *
+ * A resubmission appends its documents and its audit event, moves the case
+ * back to SUBMITTED with risk and corridor access reset, and keeps the first
+ * submission time, the reviewer and their notes. In Postgres that merge is one
+ * statement (repo.upsertSubmission); the memory path below mirrors it.
+ */
 export async function recordKybSubmission(input: {
   caseId: string;
   orgId: string;
@@ -297,13 +334,7 @@ export async function recordKybSubmission(input: {
   sumsubApplicantId?: string | null;
 }): Promise<KybCaseRecord> {
   const now = new Date().toISOString();
-  // Read as staff: a resubmission is the same case, and scoping the lookup to
-  // the submitting org would be right but pointless — the org is written below
-  // either way, and a case id collision across orgs is not a thing we want to
-  // resolve by silently creating a second row.
-  const existing = await readKybCaseForStaff(input.caseId);
-
-  const record: KybCaseRecord = {
+  const submission: KybCaseRecord = {
     id: input.caseId,
     orgId: input.orgId,
     businessName: input.businessName,
@@ -311,19 +342,34 @@ export async function recordKybSubmission(input: {
     state: 'SUBMITTED',
     riskTier: 'UNASSIGNED',
     corridorAccess: 'LOCKED',
-    submittedAt: existing?.submittedAt ?? now,
+    submittedAt: now,
     updatedAt: now,
-    assignedTo: existing?.assignedTo ?? null,
-    sumsubApplicantId: input.sumsubApplicantId ?? existing?.sumsubApplicantId ?? null,
+    assignedTo: null,
+    sumsubApplicantId: input.sumsubApplicantId ?? null,
     documents: input.documents,
-    reviewNotes: existing?.reviewNotes ?? null,
-    decisionReason: existing?.decisionReason ?? null,
-    auditTrail: [
-      ...(existing?.auditTrail ?? []),
-      event('system', 'kyb.submitted', 'Merchant submitted KYB documents'),
-    ],
+    reviewNotes: null,
+    decisionReason: null,
+    auditTrail: [event('system', 'kyb.submitted', 'Merchant submitted KYB documents')],
   };
 
+  if (usingPostgres()) {
+    return toRecord(await repo.upsertSubmission(await db(), toRow(submission)));
+  }
+
+  const existing = await findKybCaseByRegistration(input.orgId, input.registrationNumber);
+  const record: KybCaseRecord = existing
+    ? {
+        ...existing,
+        businessName: submission.businessName,
+        state: submission.state,
+        riskTier: submission.riskTier,
+        corridorAccess: submission.corridorAccess,
+        updatedAt: now,
+        sumsubApplicantId: submission.sumsubApplicantId ?? existing.sumsubApplicantId,
+        documents: [...existing.documents, ...submission.documents],
+        auditTrail: [...existing.auditTrail, ...submission.auditTrail],
+      }
+    : submission;
   return persist(record);
 }
 
