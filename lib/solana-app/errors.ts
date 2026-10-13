@@ -43,7 +43,11 @@ export type ServiceErrorCode =
   | 'declaration_required'
   | 'sandbox_only'
   | 'funding_not_found'
-  | 'details_required';
+  | 'details_required'
+  | 'recipient_not_found'
+  | 'bank_details_unverified'
+  | 'bank_number_unavailable'
+  | 'step_up_required';
 
 export class ServiceError extends Error {
   readonly code: ServiceErrorCode;

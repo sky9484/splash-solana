@@ -344,7 +344,7 @@ export default function ProfilePage() {
                 disabled={locked || busy}
                 onChange={(event) => setNote(event.target.value)}
                 rows={2}
-                placeholder="Anything that helps us review faster — e.g. why you need Tier 1."
+                placeholder="Anything that helps our review, such as why you need Tier 1."
                 className="mt-1 w-full resize-none rounded-lg border border-[#326273]/15 bg-[#F6F0ED] px-3 py-2.5 text-sm text-[#326273] focus:border-[#5C9EAD] focus:outline-none disabled:opacity-60"
               />
             </label>

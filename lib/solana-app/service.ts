@@ -67,10 +67,11 @@ import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 import { awaitCommitment } from './confirm.ts';
 import { detailsView, missingDetails, purposeLine, recipientKey } from './transfer-details.ts';
 import { ServiceError } from './errors.ts';
-import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
+import { chainCallKey, DISCARDABLE_STATES, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
+  newSupplierId,
   store,
   type ApprovalCard,
   type BankVerification,
@@ -85,6 +86,7 @@ import {
   type ProposalPurpose,
   type Rehearsal,
   type SerializedInstruction,
+  type SupplierRecord,
 } from './store.ts';
 
 /* ------------------------------------------------------------------ constants */
@@ -452,7 +454,9 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
+  // A discarded payment leaves the company's lists (nothing moved); the staff console still shows it.
   const payments = (await rt.payments.listByOrg(org.id))
+    .filter((p) => p.state !== 'discarded')
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .map((p) => {
       const inv = store().invoices.get(p.invoiceId);
@@ -463,6 +467,8 @@ export async function orgSummary(orgId: string) {
         kind: inv?.source === 'transfer' ? ('transfer' as const) : ('invoice' as const),
         state: p.state,
         stateLabel: STATE_LABEL[p.state],
+        /** Nothing has been sent yet, so a person may drop it (payments only; a batch is not dropped here). */
+        discardable: p.id.startsWith('pay_') && DISCARDABLE_STATES.includes(p.state),
         supplierName: inv?.confirmed?.supplierName ?? '',
         invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
         dueDate: inv?.confirmed?.dueDate ?? null,
@@ -513,7 +519,7 @@ export async function orgSummary(orgId: string) {
           }
         : null,
     invoices: { read: read.length, confirmed: read.filter((i) => i.confirmed).length },
-    suppliers: org.suppliers.map((x) => ({ name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified.at, method: x.verified.method })),
+    suppliers: org.suppliers.map((x) => ({ id: x.id, name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified.at, method: x.verified.method, callBackPending: Boolean(x.pendingCallBack) })),
     limits: { perPaymentUsdcMinor: DEMO_LIMITS.perPaymentUsdcMinor, dailyUsdcMinor: DEMO_LIMITS.dailyUsdcMinor, usedTodayUsdcMinor: org.dailyDebits[utcDay(new Date())] ?? 0n },
     payments,
     faucetUrl: rt.env.mode === 'devnet' ? CIRCLE_FAUCET_URL : null,
@@ -525,22 +531,25 @@ export async function orgSummary(orgId: string) {
 function bankStatusFor(org: OrgRecord, fields: InvoiceFields): { status: InvoiceRecord['bankStatus']; known: BankVerification | null } {
   const sameName = org.suppliers.filter((s) => s.name.toLowerCase() === fields.supplierName.toLowerCase());
   const exact = sameName.find((s) => s.bank === fields.supplierBank && s.accountLast4 === fields.supplierAccountLast4);
-  if (exact) return { status: 'known', known: exact.verified };
+  // New details stored for a saved recipient wait for a call-back: until then they are "changed", and
+  // the rules refuse the payment (bank_details_verified), the same as a new supplier (prompt 10 §S.1.7).
+  if (exact && !exact.pendingCallBack) return { status: 'known', known: exact.verified };
   return { status: sameName.length > 0 ? 'changed' : 'new', known: null };
 }
 
 /**
- * Take a recipient off the company's saved, verified list (Transfer, step 1). Payments already made
- * keep their records untouched. Paying this recipient again needs a new call-back, and the payout
- * partner's questions are asked again, because the saved answers go with it.
+ * Take a recipient off the company's saved, verified list (Transfer, step 1), by its id. Payments
+ * already made keep their records untouched. Paying this recipient again needs a new call-back, and the
+ * payout partner's questions are asked again, because the saved answers go with it. Its full bank
+ * number is destroyed later (the route schedules it: lib/server/bank-details.ts).
  */
-export function removeSupplier(orgId: string, who: { name: string; bank: string; accountLast4: string }): number {
+export function removeSupplier(orgId: string, supplierId: string): { removed: SupplierRecord; remaining: number } {
   const org = getOrg(orgId);
-  const before = org.suppliers.length;
-  org.suppliers = org.suppliers.filter((s) => !(s.name === who.name && s.bank === who.bank && s.accountLast4 === who.accountLast4));
-  if (org.suppliers.length === before) throw new ServiceError('bad_request', 'That recipient is not on your saved list.', 404);
-  if (org.recipientDetails) delete org.recipientDetails[recipientKey({ supplierName: who.name, supplierBank: who.bank, supplierAccountLast4: who.accountLast4 })];
-  return org.suppliers.length;
+  const removed = org.suppliers.find((s) => s.id === supplierId);
+  if (!removed) throw new ServiceError('recipient_not_found', 'That recipient is not on your saved list.', 404);
+  org.suppliers = org.suppliers.filter((s) => s !== removed);
+  if (org.recipientDetails) delete org.recipientDetails[recipientKey({ supplierName: removed.name, supplierBank: removed.bank, supplierAccountLast4: removed.accountLast4 })];
+  return { removed, remaining: org.suppliers.length };
 }
 
 export async function readInvoiceDraft(orgId: string, input: { text?: string; sample?: boolean; source?: 'paste' | 'upload' }) {
@@ -922,6 +931,24 @@ export async function requote(paymentId: string, now = new Date(), opts: { allow
   const p = await getPayment(paymentId);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
   return quote(p.orgId, p.invoiceId, { now, paymentId: p.id, allowShort: opts.allowShort });
+}
+
+/**
+ * Drop a payment nobody has sent: it was quoted, checked, blocked, expired, or its proposal never
+ * reached the vault. It moves to the terminal state "discarded" with who and when on its
+ * transition row; nothing on chain is touched, and USDC already brought into the payments vault
+ * for it stays there. Once anything was sent, it cannot be discarded.
+ */
+export async function discardPayment(paymentId: string, by: string, now = new Date()): Promise<PaymentRecord> {
+  const p = await getPayment(paymentId);
+  if (p.state === 'discarded') return p;
+  if (!DISCARDABLE_STATES.includes(p.state)) {
+    throw new ServiceError('wrong_state', `This payment is ${STATE_LABEL[p.state].toLowerCase()}. Only a payment nothing was sent for can be discarded.`, 409);
+  }
+  return cas(() => repo().transition(p.id, { from: p.state, version: p.version }, 'discarded', (d) => {
+    d.prepared = null;
+    d.problem = null;
+  }, `discarded by ${by.trim() || 'a member'}`, now));
 }
 
 /** The payments vault must hold the route's full cost before it can be chosen or approved. */
@@ -1727,8 +1754,13 @@ async function applyPartnerWebhook(raw: Record<string, unknown>, now: Date) {
     const inv = getInvoice(p.orgId, p.invoiceId);
     const org = getOrg(p.orgId);
     const c = inv.confirmed!;
-    if (c.bankDetailsVerified && !org.suppliers.some((s) => s.name === c.supplierName && s.bank === c.supplierBank && s.accountLast4 === c.supplierAccountLast4)) {
-      org.suppliers.push({ name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at } });
+    const saved = org.suppliers.find((s) => s.name === c.supplierName && s.bank === c.supplierBank && s.accountLast4 === c.supplierAccountLast4);
+    if (c.bankDetailsVerified && !saved) {
+      org.suppliers.push({ id: newSupplierId(), name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at } });
+    } else if (saved?.pendingCallBack && c.bankDetailsVerified && c.bankDetailsVerified.method !== 'existing-record') {
+      // Paid after a call-back on the new details: they are the verified details now.
+      saved.verified = { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at };
+      delete saved.pendingCallBack;
     }
     // Evidence only after the execute is final (§5.1); resume picks it up if it is not yet.
     next = await resumePayment(p.id);

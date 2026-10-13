@@ -24,7 +24,7 @@
 // Env: BASE_URL (default http://localhost:3100), SCREENSHOT_DIR (default
 // docs/solana-build/screenshots), CHROME_PATH. Not part of `npm test` (that glob is *.test.mjs).
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 
@@ -45,12 +45,58 @@ const chrome = findChrome();
 const DESKTOP = [1440, 900];
 const PHONE = [390, 844];
 
+/**
+ * A fresh `next dev` compiles each route on its first request, and with the dev cache off that can
+ * take 15 s or more a route. On the money path that is long enough for a 60 s quote to lapse between
+ * "Review" and "Approve". So every Solana API route is compiled first (an unauthenticated GET: it
+ * answers 401 or 405 and changes nothing), and the walk then times only the product.
+ */
+async function warmRoutes() {
+  const routes = [];
+  const walkDir = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (statSync(full).isDirectory()) walkDir(full);
+      else if (name === 'route.ts') routes.push(`/${path.relative('app', dir).split(path.sep).join('/').replace(/\[[^\]]+\]/g, 'warm')}`);
+    }
+  };
+  for (const root of ['app/api/solana', 'app/api/setup', 'app/api/auth']) walkDir(root);
+  const started = Date.now();
+  // One at a time, the pages first: compiling several at once can leave a page pointing at a chunk
+  // the dev server is still rebuilding.
+  const hit = (r) => fetch(`${BASE}${r}`, { redirect: 'manual' }).then(async (res) => ({ status: res.status, html: (res.headers.get('content-type') ?? '').includes('text/html'), body: await res.arrayBuffer() })).catch(() => null);
+  const unfound = [];
+  for (const r of ['/', '/login', ...routes]) {
+    let res = await hit(r);
+    // Next's own HTML "not found" for a route file that exists (no [id] in it) is the dev server
+    // racing its compile, not an answer from the route: one Phase 2 run kept /treasury/fund at 404
+    // for the rest of the walk. Ask again until the route answers for itself.
+    for (let tries = 0; res && res.status === 404 && res.html && !r.includes('/warm') && tries < 5; tries++) {
+      await new Promise((ok) => setTimeout(ok, 2000));
+      res = await hit(r);
+    }
+    if (res && res.status === 404 && res.html && !r.includes('/warm')) unfound.push(r);
+  }
+  await new Promise((r) => setTimeout(r, 3000));
+  console.log(`[walk] compiled ${routes.length} API routes and the first pages in ${Math.round((Date.now() - started) / 1000)}s`);
+  if (unfound.length) console.log(`[walk] the dev server still says "not found" for: ${unfound.join(', ')}`);
+}
+
 async function walk(email) {
   mkdirSync(OUT, { recursive: true });
+  await warmRoutes();
   const browser = await launch();
   try {
     const page = await browser.newPage({ width: DESKTOP[0], height: DESKTOP[1] });
-    return await run(page, email);
+    try {
+      return await run(page, email);
+    } catch (e) {
+      // Leave evidence of where it stopped: the screen, and any error it shows.
+      await page.screenshot(path.join(OUT, 'FAILED.webp')).catch(() => {});
+      const shown = await page.evaluate(() => [...document.querySelectorAll('[role=alert], .sx-notice-error, .iso-note--danger')].map((el) => el.innerText.trim()).filter(Boolean)).catch(() => []);
+      console.log(`[walk] stopped at ${await page.evaluate(() => location.pathname + location.search).catch(() => '?')}; on screen: ${JSON.stringify(shown)}; page errors: ${JSON.stringify(page.errors.slice(-5))}`);
+      throw e;
+    }
   } finally {
     await browser.close();
   }
@@ -60,12 +106,22 @@ async function run(page, email) {
   let n = 0;
   /** The current step at both widths: desktop-NN-name.webp and mobile-NN-name.webp. */
   const shot = async (name) => {
+    console.log(`[walk] ${new Date().toISOString().slice(11, 19)} ${name}`);
     n += 1;
     const nn = String(n).padStart(2, '0');
     await page.screenshot(path.join(OUT, `desktop-${nn}-${name}.webp`));
     await page.setViewport(...PHONE);
     await page.screenshot(path.join(OUT, `mobile-${nn}-${name}.webp`));
     await page.setViewport(...DESKTOP);
+  };
+  /** One width only: a state that exists only on a desktop (the collapsed rail) or on a phone (its menu). */
+  const shotOne = async (name, width) => {
+    console.log(`[walk] ${new Date().toISOString().slice(11, 19)} ${name} (${width})`);
+    n += 1;
+    const nn = String(n).padStart(2, '0');
+    if (width === 'mobile') await page.setViewport(...PHONE);
+    await page.screenshot(path.join(OUT, `${width}-${nn}-${name}.webp`));
+    if (width === 'mobile') await page.setViewport(...DESKTOP);
   };
 
   // Landing, signed out.
@@ -105,6 +161,45 @@ async function run(page, email) {
   assert.match((await page.text('.sx-kv')).join('\n'), /Config authority: none/);
   await shot('vault-ready');
 
+  // The shell (prompt 10 Phase 1): Overview, then Pay, Money, Contacts and Control; the setup card;
+  // the top row; Zeke floating, quiet while nothing waits.
+  await page.goto(`${BASE}/dashboard`);
+  await page.waitFor(() => !!document.querySelector('.iso-zk__launch') && !!document.querySelector('.iso-ratestrip'), [], { what: 'the shell' });
+  const groups = await page.evaluate(() => [...document.querySelectorAll('aside .iso-navgroup')].map((g) => [...g.querySelectorAll('.iso-navgroup__title, .iso-navitem__label')].map((e) => e.textContent.trim()).join('|')));
+  assert.deepEqual(groups, ['Overview', 'Pay|Transfer|Invoices|Batch payout', 'Money|Balance|Treasury|History', 'Contacts|Recipients', 'Control|Rules|Zeke']);
+  assert.match((await page.text('.iso-ratestrip')).join(' '), /USD → PHP 57\.40\s*test rate/);
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-zk__nudge')), null, 'no nudge while nothing waits');
+  // Overview, before any money or payment (prompt 10 Phase 2): the money position says so, and the
+  // only thing that needs you is setup (the optional second approver ranks last, §4.2.4). The
+  // "Nothing needs you." state is rendered from a fixture in tests/overview-honesty.test.mjs.
+  await page.find('heading', 'Your money, all accounts');
+  await page.find('text', 'No money in your accounts yet.');
+  await page.find('text', 'Add a second approver');
+  await page.find('text', 'No payments yet.');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
+  await shot('overview-empty');
+  await shot('shell-sidebar');
+  await page.click('button', 'Collapse navigation');
+  await page.evaluate(() => document.querySelector('a.iso-navitem[href="/dashboard/zeke"]')?.focus());
+  await page.sleep(400);
+  await shotOne('shell-collapsed', 'desktop');
+  await page.click('button', 'Expand navigation');
+  await page.setViewport(...PHONE);
+  await page.click('button', 'Open navigation');
+  await page.find('text', 'Contacts');
+  await page.screenshot(path.join(OUT, `mobile-${String(++n).padStart(2, '0')}-shell-phone-menu.webp`));
+  await page.click('button', 'Close navigation');
+  await page.setViewport(...DESKTOP);
+  // Zeke opens on the page it's on, and has no approve control.
+  await page.click('button', 'Open Zeke');
+  await page.find('text', /Looking at:\s*Overview/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-zk__panel button')].filter((b) => /approve/i.test(b.textContent)).length), 0, 'no approve button in the floating panel');
+  await shot('zeke-open');
+  await page.click('button', 'Close Zeke');
+  await page.goto(`${BASE}/dashboard/zeke`);
+  await page.waitIdle();
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-zk')), null, 'the floating Zeke steps aside on the Zeke page');
+
   // Treasury: operating cash in vault #1, then a move that funds the payments vault (#0).
   await page.goto(`${BASE}/dashboard/treasury`);
   await page.click('button', 'Add 100,000 test USDC (simulated)');
@@ -139,6 +234,10 @@ async function run(page, email) {
   await shot('choose-route');
   await page.click('button', /^Review /);
   await page.waitFor(() => !!document.querySelector('.sx-approve'), [], { what: 'the approval card' });
+  // The payment now waits for approval: Zeke's one nudge and the Overview badge, from the server's count.
+  await page.waitFor(() => /1 draft needs your approval/.test(document.querySelector('.iso-zk__nudge')?.textContent ?? ''), [], { what: "Zeke's nudge" });
+  assert.equal(await page.evaluate(() => document.querySelector('a.iso-navitem[href="/dashboard"] .iso-navbadge')?.textContent.trim()), '1');
+  await shotOne('zeke-nudge', 'desktop');
   const approve = (await page.text('.sx-approve')).join('\n');
   assert.match(approve, /₱560,000\.00/);
   assert.match(approve, /Manila Freight Services Inc\./);
@@ -259,7 +358,15 @@ async function run(page, email) {
   await page.waitIdle();
   await shot('policy');
   await page.goto(`${BASE}/dashboard`);
-  await page.find('heading', 'Your vault');
+  await page.find('heading', 'Your money, all accounts');
+  await page.waitFor(() => document.querySelectorAll('.iso-table tbody tr').length >= 1, [], { what: 'recent payments on the overview' });
+  const ov = (await page.text('main')).join('\n');
+  assert.match(ov, /Paid · proof recorded/);
+  assert.match(ov, /Payments this month/);
+  assert.match(ov, /Where you can pay/);
+  assert.match(ov, /Checks and limits/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('[aria-label="Payments this month, by where they are"] .iso-station').length), 6, 'six stations in the pipeline');
   await shot('overview');
 
   // A second invoice, clicked through on a phone from start to paid.
@@ -432,7 +539,7 @@ async function run(page, email) {
 
 const skip = (!chrome && 'no Chrome, Edge or Chromium found (set CHROME_PATH)') || (!DEMO_PASSWORD && 'no seeded demo password in scripts/dev-db.mjs');
 
-test('dashboard, 1440 px and 390 px: setup to verified receipt, a paid batch, a phone payment; recovery words never sent', { skip, timeout: 600_000 }, async () => {
+test('dashboard, 1440 px and 390 px: setup to verified receipt, a paid batch, a phone payment; recovery words never sent', { skip, timeout: 900_000 }, async () => {
   const r = await walk('demo@acme.test');
   assert.ok(r.shots >= 20, `${r.shots} screenshots per width`);
 });

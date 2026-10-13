@@ -99,7 +99,8 @@ test('renaming cannot hide that this is an AI', async () => {
     new URL('../components/FloatingCopilot.tsx', import.meta.url),
     'utf8',
   );
-  assert.match(floating, /<Sparkles size=\{9\} \/> AI/);
+  // Look 9 (prompt 10 §3.5): "Zeke" with an "AI" tag, a separate element not driven by the name.
+  assert.match(floating, /<span className="iso-zk__ai">AI<\/span>/);
 
   const page = await readFile(
     new URL('../app/dashboard/zeke/ZekeDesk.tsx', import.meta.url),

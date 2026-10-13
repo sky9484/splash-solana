@@ -26,6 +26,7 @@ import { chain, resetChain, type ChainClient } from '../solana/simulator.ts';
 import { createMockPartner, type MockPayoutPartner } from '../solana-partner/mock-partner.ts';
 import { InMemoryEvidenceStore } from '../solana-evidence/store.ts';
 import { getDb } from '../db/client.ts';
+import { createMemorySecretStore, createPostgresSecretStore, type SecretStore } from './bank-secret-store.ts';
 import { createMemoryDocStore, createPostgresDocStore, type DocStore } from './doc-store.ts';
 import { createMemoryPaymentRepo, createPostgresPaymentRepo, type PaymentRepo } from './payment-repo.ts';
 import { createMemorySponsorLedger, createPostgresSponsorLedger, type SponsorLedger } from './sponsor-ledger.ts';
@@ -51,6 +52,8 @@ export interface SolanaAppRuntime {
   sponsors: SponsorLedger;
   /** Companies, invoices, evidence and share links (solana_documents). Same store as payments. */
   docs: DocStore;
+  /** Full bank account numbers, sealed, and the log of every attempt to see one (prompt 10 Phase S). Same store as payments. */
+  secrets: SecretStore;
 }
 
 function wantsPostgres(source: NodeJS.ProcessEnv): boolean {
@@ -64,6 +67,11 @@ function wantsPostgres(source: NodeJS.ProcessEnv): boolean {
 export function paymentRepoFor(source: NodeJS.ProcessEnv): PaymentRepo {
   // getDb opens the pool on first use only, so the offline demo never connects.
   return wantsPostgres(source) ? createPostgresPaymentRepo(getDb()) : createMemoryPaymentRepo();
+}
+
+/** Bank numbers live where payments do: Postgres with a database, memory for the offline demo (nothing on disk). */
+export function secretStoreFor(source: NodeJS.ProcessEnv): SecretStore {
+  return wantsPostgres(source) ? createPostgresSecretStore(getDb()) : createMemorySecretStore();
 }
 
 export function sponsorLedgerFor(source: NodeJS.ProcessEnv): SponsorLedger {
@@ -135,6 +143,7 @@ export function runtime(source: NodeJS.ProcessEnv = process.env): SolanaAppRunti
     sealKey: globalThis.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']) as Promise<CryptoKey>,
     payments: paymentRepoFor(source),
     sponsors: sponsorLedgerFor(source),
+    secrets: secretStoreFor(source),
     docs: docStoreFor(source),
   };
   G.__splashSolanaRuntime = rt;

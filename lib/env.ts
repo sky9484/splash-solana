@@ -201,6 +201,23 @@ export const envSchema = z.object({
   SPLASH_TOTP_SECRET: optional,
   KILLED_ENTITY_DOMAINS: optional,
   CRON_SECRET: optional,
+
+  /* Full bank account numbers (prompt 10 Phase S, decision 15; docs/security/PII-STORAGE.md). The key
+     service that wraps each number's data key: 'local' now (the two keys below, server only, never in
+     git), 'aws' (AWS KMS in ap-southeast-1) before any real customer's number is stored. Production
+     refuses 'local' unless PII_ALLOW_LOCAL_IN_PROD=1, which is logged. Offline with no keys: throwaway
+     keys, logged once. */
+  PII_KMS: withDefault(z.enum(['local', 'aws']), 'local'),
+  /** base64, 32 bytes (openssl rand -base64 32). Wraps data keys. */
+  PII_LOCAL_WRAP_KEY: optional,
+  /** base64, 32 bytes, different from the wrap key. Makes fingerprints (HMAC-SHA256). */
+  PII_LOCAL_HMAC_KEY: optional,
+  /** '1' only for a deliberate, logged exception: the local key in production. */
+  PII_ALLOW_LOCAL_IN_PROD: opt(z.enum(['1'])),
+  /** arn:aws:kms:ap-southeast-1:<account>:key/<id>, a symmetric key. */
+  PII_AWS_KMS_KEY_ARN: optional,
+  /** An HMAC_256 key in the same region. */
+  PII_AWS_HMAC_KEY_ARN: optional,
   ALLOWED_ORIGINS: optional,
   NEXT_PUBLIC_APP_URL: withDefault(str.url(), 'http://localhost:3000'),
   NEXT_PUBLIC_SUPPORT_EMAIL: opt(str.email()),
@@ -367,6 +384,17 @@ function productionIssues(env: Env): Issue[] {
   need('CUSTOMER_SESSION_SECRET', 'sessions would be signed with nothing');
   need('ADMIN_SESSION_SECRET', 'staff sessions would be signed with nothing, and lib/evidence-sui/seal.ts falls back to a hard-coded dev key');
   need('CRON_SECRET', 'every /api/cron route would accept any caller');
+
+  /* Bank numbers (decision 15): AWS KMS in ap-southeast-1 before any real customer's number is stored. */
+  if (env.PII_KMS === 'aws') {
+    need('PII_AWS_KMS_KEY_ARN', 'PII_KMS=aws wraps bank numbers with this key');
+    need('PII_AWS_HMAC_KEY_ARN', 'PII_KMS=aws fingerprints bank numbers with this key');
+  } else if (env.PII_ALLOW_LOCAL_IN_PROD !== '1') {
+    issues.push({ key: 'PII_KMS', message: 'the local key is refused in production — set PII_KMS=aws (ap-southeast-1), or PII_ALLOW_LOCAL_IN_PROD=1 as a deliberate, logged exception' });
+  } else {
+    need('PII_LOCAL_WRAP_KEY', 'PII_ALLOW_LOCAL_IN_PROD=1 wraps bank numbers with the local key');
+    need('PII_LOCAL_HMAC_KEY', 'PII_ALLOW_LOCAL_IN_PROD=1 fingerprints bank numbers with the local key');
+  }
   need('DATABASE_URL', 'authority and persistence require Postgres');
   notDemo('ADMIN_PASSWORD');
   if (!env.NEXT_PUBLIC_APP_URL.startsWith('https://')) {
