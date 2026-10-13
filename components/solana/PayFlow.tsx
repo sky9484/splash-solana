@@ -738,7 +738,7 @@ function RouteScreen({
       <div className="sx-row">
         {card && left > 0 ? (
           <button type="button" className="sx-btn" disabled={busy || !card} onClick={() => onChoose(selected, rehearsal)}>
-            {busy ? 'Checking your rules…' : `Review ${card.label.toLowerCase()} route`}
+            {busy ? 'Checking your rules…' : 'Review this route'}
           </button>
         ) : (
           <button type="button" className="sx-btn" onClick={onRefresh} disabled={busy}>

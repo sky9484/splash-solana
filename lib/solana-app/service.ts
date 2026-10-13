@@ -96,7 +96,8 @@ export const DEMO_LIMITS = { perPaymentUsdcMinor: 20_000_000_000n, dailyUsdcMino
 export const OFFLINE_FUND_MINOR = 25_000_000_000n;
 export const CIRCLE_FAUCET_URL = 'https://faucet.circle.com/';
 
-const POLICY_LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Fastest', safest: 'Safest' };
+/** What a person reads. The 'fastest' policy keeps its key, but is shown as the shortest route: no speed is claimed. */
+const POLICY_LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Shortest route', safest: 'Safest' };
 
 export const CHECK_LABELS: Record<string, string> = {
   tier: 'Business tier verified',
@@ -1867,7 +1868,7 @@ export async function paymentView(paymentId: string) {
     return {
       policy: q.policy,
       policies,
-      label: names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]!.toLowerCase()}`,
+      label: names.length === 1 ? names[0]! : `${[names[0]!, ...names.slice(1, -1).map((n) => n.toLowerCase())].join(', ')} and ${names[names.length - 1]!.toLowerCase()}`,
       quoteId: q.id,
       kind,
       receivePhpMinor: q.netLocal.amountMinor,
