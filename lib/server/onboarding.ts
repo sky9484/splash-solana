@@ -5,7 +5,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { CustomerSession } from '@/lib/auth/customer-session';
 import { resolveAuthorityForSession } from '@/lib/auth/authority';
 import { canMoveMoney, kybGateReason, type KybLifecycleState } from '@/lib/compliance/kyb-state';
-import { organizations, orgSettings, suppliers, termsAcceptances } from '@/lib/db/schema';
+import { organizations, orgSettings, orgVaults, suppliers, termsAcceptances } from '@/lib/db/schema';
 import { TERMS_VERSION } from '@/content/legal';
 
 /**
@@ -27,7 +27,7 @@ export const INTENTS = ['pay', 'collect', 'treasury'] as const;
 export type OnboardingIntent = (typeof INTENTS)[number];
 
 export interface OnboardingStep {
-  id: 'terms' | 'profile' | 'verify' | 'approvals' | 'recipient';
+  id: 'terms' | 'profile' | 'verify' | 'approvals' | 'recipient' | 'second_approver';
   title: string;
   detail: string;
   done: boolean;
@@ -103,6 +103,14 @@ export async function readOnboardingStateForOrg(d: Db, orgId: string): Promise<O
     .select({ n: sql<number>`count(*)::int` })
     .from(suppliers)
     .where(eq(suppliers.orgId, ctx.orgId));
+  // A second approver: another person's device on the company's vault, or a threshold above one.
+  const vaultRows = await d
+    .select({ threshold: orgVaults.threshold, members: orgVaults.members })
+    .from(orgVaults)
+    .where(eq(orgVaults.orgId, ctx.orgId))
+    .limit(1);
+  const vaultRow = vaultRows[0] as { threshold: number; members: Array<{ role: string }> } | undefined;
+  const secondApprover = Boolean(vaultRow && (vaultRow.threshold > 1 || vaultRow.members.some((m) => m.role === 'approver_device')));
 
   const profileDone = Boolean(org.legalName && org.registrationNumber && org.addressCountry);
   const verifyDone = state !== 'REGISTERED' && state !== 'REJECTED';
@@ -152,6 +160,15 @@ export async function readOnboardingStateForOrg(d: Db, orgId: string): Promise<O
           : 'Save the supplier you will pay first. You can skip this.',
       done: (supplierRows[0]?.n ?? 0) > 0,
       href: '/dashboard/recipients',
+    },
+    {
+      id: 'second_approver',
+      title: 'Second approver (optional)',
+      detail: secondApprover
+        ? 'A second person can approve payments too.'
+        : 'Add a colleague who can approve on their own device. You can skip this.',
+      done: secondApprover,
+      href: '/dashboard/settings/devices',
     },
   ];
 

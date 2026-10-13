@@ -1,11 +1,16 @@
 {
   "baseline": 366,
-  "current": 366,
+  "current": 353,
   "targetMax": 54,
   "history": [
     {
       "phase": "baseline-9e43012",
       "count": 366,
+      "date": "2026-10-13"
+    },
+    {
+      "phase": "1-shell",
+      "count": 353,
       "date": "2026-10-13"
     }
   ],

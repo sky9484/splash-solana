@@ -6,10 +6,12 @@ import clsx from 'clsx';
 
 /**
  * The extruded number (§2.2): weight 900, paper fill, an ink-deep stroke and a stepped teal
- * extrusion. One per visible state; scripts/check-iso-ui.mjs counts them.
+ * extrusion. One per visible state; scripts/check-iso-ui.mjs counts them. The prompt calls the class
+ * `.iso-display`; it is `.iso-extrude` here because the landing already owns `.iso-display` (an
+ * unscoped rule that would leak its size, colour and uppercase into the dashboard's number).
  */
 export function IsoDisplay({ size = 'lg', className, children }: { size?: 'xl' | 'lg' | 'md'; className?: string; children: ReactNode }) {
-  return <span className={clsx('iso-display', `iso-display--${size}`, className)}>{children}</span>;
+  return <span className={clsx('iso-extrude', `iso-extrude--${size}`, className)}>{children}</span>;
 }
 
 /**

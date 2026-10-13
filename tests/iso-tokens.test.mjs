@@ -97,6 +97,17 @@ test('check-iso-ui catches blurred shadows, native selects, stray colours and a 
   assert.equal(f('.a { box-shadow: var(--ledge-1); }', 'styles/z.css').length, 0);
 });
 
+test('no Iso UI class shares a name with the landing CSS, so neither leaks into the other', () => {
+  // Rules only: a comment may name a class to explain why it isn't used.
+  const classes = (file) => new Set([...readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(iso-[a-z0-9_-]+)/g)].map((m) => m[1]));
+  const mine = classes('styles/iso-ui.css');
+  const clash = [];
+  for (const file of ['app/globals.css', 'styles/cinematic.css', 'styles/landing.css', 'styles/mobile-landing.css']) {
+    for (const c of classes(file)) if (mine.has(c)) clash.push(`${c} (also in ${file})`);
+  }
+  assert.deepEqual(clash, []);
+});
+
 test('the living style sheet is dev only: production answers 404', () => {
   const page = readFileSync('app/dashboard/concept/page.tsx', 'utf8');
   assert.match(page, /if \(process\.env\.NODE_ENV === 'production'\) notFound\(\);/);
