@@ -3,8 +3,12 @@
  * sending is the chain layer's job (lib/solana/*), through Kora or not.
  *
  * (a) SAS attestation (program 22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG)
- *     schema  splash.evidence.root.v1
- *             { root: bytes32, count: u32, period_start: i64, period_end: i64, sui_digest: string }
+ *     schema  splash.evidence.root.v2
+ *             { root: bytes32, count: u32, period_start: i64, period_end: i64, walrus_blob_ids_root: string }
+ *     walrus_blob_ids_root is 64 lowercase hex: sha256 over the batch's sorted
+ *     Walrus blob ids (bundle.ts walrusBlobIdsRoot). v1 carried a digest from
+ *     the earlier build in that slot; SAS schemas are immutable, so the field
+ *     change is a new schema name, and v1 was never created on devnet.
  *     SAS has no fixed-size byte array type, so `root` uses VecU8 (layout 13)
  *     holding exactly 32 bytes; this module and verify.ts enforce the length.
  *     Signed by a Splash ATTESTER key that is the credential's authority and
@@ -57,12 +61,12 @@ import { EvidenceError } from './bundle.ts';
 export const SAS_PROGRAM_ID = '22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG';
 export const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 export const DEFAULT_CREDENTIAL_NAME = 'splash-evidence';
-export const ROOT_SCHEMA_NAME = 'splash.evidence.root.v1';
+export const ROOT_SCHEMA_NAME = 'splash.evidence.root.v2';
 export const ROOT_SCHEMA_VERSION = 1;
-export const ROOT_SCHEMA_DESCRIPTION = 'Splash evidence batch root: sha256 Merkle root over kind-3 bundles for a period';
+export const ROOT_SCHEMA_DESCRIPTION = 'Splash evidence batch root over kind-3 bundles for a period, bound to its Walrus blobs';
 /** SAS compact layout: VecU8, U32, I64, I64, String. */
 export const ROOT_SCHEMA_LAYOUT = Uint8Array.from([13, 2, 8, 8, 12]);
-export const ROOT_SCHEMA_FIELDS = ['root', 'count', 'period_start', 'period_end', 'sui_digest'] as const;
+export const ROOT_SCHEMA_FIELDS = ['root', 'count', 'period_start', 'period_end', 'walrus_blob_ids_root'] as const;
 export const NONCE_DOMAIN = 'splash.evidence.nonce.v1';
 
 if (SOLANA_ATTESTATION_SERVICE_PROGRAM_ADDRESS !== SAS_PROGRAM_ID) {
@@ -74,7 +78,8 @@ export interface RootAttestationData {
   count: number;
   periodStart: bigint;
   periodEnd: bigint;
-  suiDigest: string;
+  /** sha256 over the batch's sorted Walrus blob ids, lowercase hex. */
+  walrusBlobIdsRoot: string;
 }
 
 function assertRootData(d: RootAttestationData): void {
@@ -83,7 +88,7 @@ function assertRootData(d: RootAttestationData): void {
   const I64 = 2n ** 63n;
   for (const v of [d.periodStart, d.periodEnd]) if (v < -I64 || v >= I64) throw new EvidenceError('period out of i64 range');
   if (d.periodEnd <= d.periodStart) throw new EvidenceError('period end must be after start');
-  if (utf8ToBytes(d.suiDigest).length > 128) throw new EvidenceError('sui digest too long');
+  if (!/^[0-9a-f]{64}$/.test(d.walrusBlobIdsRoot)) throw new EvidenceError('walrus_blob_ids_root must be 32-byte lowercase hex');
 }
 
 function joinedVecs(items: readonly string[]): Uint8Array {
@@ -119,7 +124,7 @@ export function encodeRootAttestationData(d: RootAttestationData, credential = '
     count: d.count,
     period_start: d.periodStart,
     period_end: d.periodEnd,
-    sui_digest: d.suiDigest,
+    walrus_blob_ids_root: d.walrusBlobIdsRoot,
   });
 }
 
@@ -162,8 +167,8 @@ export interface SasAnchorParams {
   payer?: string;
   credentialName?: string;
   batch: Pick<EvidenceBatch, 'rootHex' | 'count' | 'periodStart' | 'periodEnd'>;
-  /** Sui anchor digest when the root is dual-anchored; '' otherwise. */
-  suiDigest?: string;
+  /** walrusBlobIdsRoot(...) over the batch's stored blobs (bundle.ts). Required: an anchor binds its blobs. */
+  walrusBlobIdsRoot: string;
   /** Which one-time setup instructions to include. The chain layer decides after checking accounts over RPC. */
   setup?: { createCredential?: boolean; createSchema?: boolean };
   /** Unix seconds; 0 = never expires. */
@@ -196,7 +201,7 @@ export async function buildSasAnchor(params: SasAnchorParams): Promise<SasAnchor
     count: params.batch.count,
     periodStart: params.batch.periodStart,
     periodEnd: params.batch.periodEnd,
-    suiDigest: params.suiDigest ?? '',
+    walrusBlobIdsRoot: params.walrusBlobIdsRoot,
   };
   assertRootData(data);
   const expiry = params.expiry ?? 0n;

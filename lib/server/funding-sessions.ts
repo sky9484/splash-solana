@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { formatMinor } from '@/lib/money';
 
 import {
   fundingMethodForSelection,
@@ -41,11 +41,12 @@ export type FundingSession = {
   kytPolicy?: 'STANDARD' | 'ENHANCED';
   kytReasons?: string[];
   sourceTxDigest?: string;
-  receivedCoinType?: string;
+  receivedMint?: string;
   receivedAmountMicro?: number;
-  nativeSuiUsdc?: boolean;
+  /** True when the deposit arrived as native Circle USDC on Solana (directly or minted by CCTP). */
+  nativeUsdc?: boolean;
   normalizedAmountUsdcMicro?: number;
-  normalizeVenue?: 'CETUS' | 'AFTERMATH' | 'BLUEFIN' | 'PASSTHROUGH';
+  normalizeVenue?: 'PASSTHROUGH';
   effectiveSlippageBps?: number;
   transferIntentId?: string;
   adminFlag?: string;
@@ -71,17 +72,6 @@ function isDemoMode(env: NodeJS.ProcessEnv) {
   return env.NODE_ENV !== 'production' || env.USE_MOCK_APIS === 'true' || env.NEXT_PUBLIC_DEMO_MODE === 'true';
 }
 
-function deriveSuiAddress(businessAccountId: string, selection: FundingSelection, env: NodeJS.ProcessEnv) {
-  const derivationSecret = env.FUNDING_DEPOSIT_DERIVATION_SECRET
-    ?? (isDemoMode(env) ? 'splash-demo-deposit-derivation-only' : '');
-  if (!derivationSecret) {
-    throw new Error('FUNDING_DEPOSIT_DERIVATION_SECRET is required for per-business Sui deposit addresses');
-  }
-  const context = JSON.stringify({ businessAccountId, selection });
-  const secretKey = createHmac('sha256', derivationSecret).update(context).digest();
-  return Ed25519Keypair.fromSecretKey(secretKey).toSuiAddress();
-}
-
 function readConfiguredCctpAddress(
   businessAccountId: string,
   sourceChain: CctpSourceChain,
@@ -97,30 +87,44 @@ function readConfiguredCctpAddress(
   }
 
   const digest = createHash('sha256').update(`${businessAccountId}:${sourceChain}:demo`).digest('hex');
-  return sourceChain === 'SOLANA' ? `DEMO_SOL_${digest.slice(0, 40)}` : `0x${digest.slice(0, 40)}`;
+  return `0x${digest.slice(0, 40)}`;
 }
 
+/**
+ * Where a deposit goes. Native USDC on Solana goes straight to the org's own
+ * Squads vault: Splash derives no deposit key and holds nothing in between.
+ * CCTP deposits start on the source chain at the configured address.
+ */
 function stablecoinDepositAddress(
   businessAccountId: string,
   selection: Extract<FundingSelection, { type: 'stablecoin' }>,
+  vaultAddress: string | null,
   env: NodeJS.ProcessEnv,
 ) {
-  if (selection.rail === 'SUI_NATIVE') return deriveSuiAddress(businessAccountId, selection, env);
+  if (selection.rail === 'SOLANA') {
+    if (!vaultAddress) throw new Error('This workspace has no vault yet. Finish setup to get a deposit address.');
+    return vaultAddress;
+  }
   return readConfiguredCctpAddress(businessAccountId, selection.sourceChain!, env);
 }
 
+/** A Solana Pay request for a vault deposit; a plain address URI for a CCTP source chain. */
 function depositUri(
   address: string,
   selection: Extract<FundingSelection, { type: 'stablecoin' }>,
   amountExpectedMicro: number,
+  mint: string | undefined,
 ) {
-  const amount = (amountExpectedMicro / 1_000_000).toFixed(6);
+  const amount = formatMinor(BigInt(amountExpectedMicro), 6);
+  if (selection.rail === 'SOLANA') {
+    const params = new URLSearchParams({ amount });
+    if (mint) params.set('spl-token', mint);
+    params.set('label', 'Splash vault deposit');
+    return `solana:${address}?${params.toString()}`;
+  }
   const params = new URLSearchParams({ asset: selection.asset, amount });
   if (selection.sourceChain) params.set('sourceChain', selection.sourceChain);
-  const scheme = selection.rail === 'SUI_NATIVE'
-    ? 'sui'
-    : selection.sourceChain === 'SOLANA' ? 'solana' : 'ethereum';
-  return `${scheme}:${address}?${params.toString()}`;
+  return `ethereum:${address}?${params.toString()}`;
 }
 
 export function createFundingSession(input: {
@@ -128,10 +132,12 @@ export function createFundingSession(input: {
   businessAccountId: string;
   selection: FundingSelection;
   amountExpectedMicro: number;
+  /** The org's Squads vault (org_vaults.vault_pda), or null before setup. */
+  vaultAddress?: string | null;
 }, env: NodeJS.ProcessEnv = process.env) {
-  resolveFundingSelection(input.selection, env);
+  const { asset } = resolveFundingSelection(input.selection, env);
   if (input.selection.type === 'held') {
-    throw new Error('Splash balance funding settles without a funding session');
+    throw new Error('Vault balance funding settles without a funding session');
   }
   if (!Number.isSafeInteger(input.amountExpectedMicro) || input.amountExpectedMicro <= 0) {
     throw new Error('Funding amount must be a positive integer in micro units');
@@ -140,7 +146,7 @@ export function createFundingSession(input: {
   const now = new Date().toISOString();
   const stablecoinSelection = input.selection.type === 'stablecoin' ? input.selection : null;
   const address = stablecoinSelection
-    ? stablecoinDepositAddress(input.businessAccountId, stablecoinSelection, env)
+    ? stablecoinDepositAddress(input.businessAccountId, stablecoinSelection, input.vaultAddress ?? null, env)
     : undefined;
   const session: FundingSession = {
     id: `fund_${randomUUID()}`,
@@ -151,7 +157,7 @@ export function createFundingSession(input: {
     amountExpectedMicro: input.amountExpectedMicro,
     depositAddress: address,
     depositUri: address && stablecoinSelection
-      ? depositUri(address, stablecoinSelection, input.amountExpectedMicro)
+      ? depositUri(address, stablecoinSelection, input.amountExpectedMicro, asset?.mint)
       : undefined,
     status: 'AWAITING_DEPOSIT',
     createdAt: now,

@@ -46,7 +46,8 @@ export type BatchRunRow = {
   targetCurrency?: string;
   idempotencyKey: string;
   digest: string | null;
-  packageId: string | null;
+  /** The settling contract recorded by the earlier build; nothing on Solana sets it. */
+  legacyContract: string | null;
   proposalId?: string;
   demo?: boolean;
   createdAt: string;
@@ -89,7 +90,7 @@ function toRow(row: BatchSelect): BatchRunRow {
     targetCurrency: row.targetCurrency ?? undefined,
     idempotencyKey: row.idempotencyKey,
     digest: row.digest,
-    packageId: row.packageId,
+    legacyContract: row.legacyContract,
     proposalId: row.proposalId ?? undefined,
     demo: row.demo,
     createdAt: row.createdAt.toISOString(),
@@ -97,9 +98,9 @@ function toRow(row: BatchSelect): BatchRunRow {
   };
 }
 
-export type NewBatchRun = Omit<BatchRunRow, 'createdAt' | 'updatedAt' | 'digest' | 'packageId'> & {
+export type NewBatchRun = Omit<BatchRunRow, 'createdAt' | 'updatedAt' | 'digest' | 'legacyContract'> & {
   digest?: string | null;
-  packageId?: string | null;
+  legacyContract?: string | null;
 };
 
 /**
@@ -127,7 +128,7 @@ export async function claimBatchRun(
       targetCurrency: input.targetCurrency ?? null,
       idempotencyKey: input.idempotencyKey,
       digest: input.digest ?? null,
-      packageId: input.packageId ?? null,
+      legacyContract: input.legacyContract ?? null,
       proposalId: input.proposalId ?? null,
       demo: input.demo ?? false,
     })
@@ -212,7 +213,7 @@ export async function patchBatchRun(
   const update: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.state !== undefined) update.state = patch.state;
   if (patch.digest !== undefined) update.digest = patch.digest;
-  if (patch.packageId !== undefined) update.packageId = patch.packageId;
+  if (patch.legacyContract !== undefined) update.legacyContract = patch.legacyContract;
   if (patch.proposalId !== undefined) update.proposalId = patch.proposalId;
   if (patch.demo !== undefined) update.demo = patch.demo;
 

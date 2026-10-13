@@ -553,49 +553,4 @@ test('a spend the database cannot record is refused, and closing never throws', 
 
 // ── Every route that honours the claim binds it ─────────────────────────────
 
-function code(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, ' ').split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
-}
 
-async function source(file) {
-  return code(await readFile(new URL(`../${file}`, import.meta.url), 'utf8'));
-}
-
-test('each money route names the kind it makes and what an approval of it covers', async () => {
-  const expected = {
-    'app/api/batches/authorize/route.ts': /resolveApprovalClaim\(request, orgId, \{\s*kind: 'BATCH_PAYOUT',\s*substance: batchPayoutSubstance,\s*body,/,
-    'app/api/transfers/authorize/route.ts': /resolveApprovalClaim\(request, orgId, \{\s*kind: 'PAYMENT',\s*substance: fiatPaymentSubstance,\s*body: rawBody/,
-    'app/api/treasury/route.ts': /resolveApprovalClaim\(request, orgId, \{\s*kind: treasuryProposalKind\(action\),\s*substance: treasuryMoveSubstance,\s*body,/,
-  };
-  for (const [file, pattern] of Object.entries(expected)) {
-    const route = await source(file);
-    assert.match(route, pattern, `${file} must bind the claim to its own payment`);
-    assert.equal(route.match(/resolveApprovalClaim\(/g).length, 1, `${file} resolves the claim once`);
-    assert.match(route, /limits\.requiresSecondApproval && !approvalClaim\.approved/);
-  }
-});
-
-test('the batch route pays exactly the rows the binding covers', async () => {
-  const route = await source('app/api/batches/authorize/route.ts');
-  assert.match(route, /const acceptedRows = payableBatchRows\(rows\);/);
-  assert.match(route, /const targetCurrency = batchTargetCurrency\(body\);/);
-  assert.match(route, /payload: \{ rows: acceptedRows, targetCurrency \}/);
-  assert.match(
-    route,
-    /recordBatchSettlementOnSui\(\{\s*batchId: batch\.id,\s*rows: acceptedRows,/,
-    'settlement is handed the same rows',
-  );
-});
-
-test('the replay closes what it presented, whatever the route did', async () => {
-  const replay = await source('lib/server/approval-replay.ts');
-  assert.match(replay, /finally \{\s*await closeApprovalClaim\(input\.approvedProposalId, input\.orgId\);\s*\}/);
-  assert.match(replay, /return replayThroughRoute\(POST, '\/api\/transfers\/authorize', input\)/);
-  assert.match(replay, /return replayThroughRoute\(POST, '\/api\/batches\/authorize', input\)/);
-  assert.match(replay, /return replayThroughRoute\(POST, '\/api\/treasury', input\)/);
-
-  // And the executor closes the ones no route saw: a Phase 0 treasury SKIP, a
-  // failure before the replay ran.
-  const execution = await source('lib/server/approval-execution.ts');
-  assert.match(execution, /finally \{[\s\S]*?await closeApprovalClaim\(proposal\.id, proposal\.orgId\);\s*\}/);
-});

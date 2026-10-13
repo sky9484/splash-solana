@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Fingerprint, Inbox, KeyRound, Loader2 } from 'lucide-react';
 
-import { describeSignError, signApprovalWithPasskey } from '@/lib/wallet/sui-signers';
+import { describePasskeyError, myPasskey, signWithPasskey } from '@/lib/auth/webauthn-client';
 
 /**
  * WhatsApp approvals waiting on the signed-in person: a code was sent to
@@ -114,10 +114,9 @@ function InboxItem({ item, onDone }: { item: Pending; onDone: () => void }) {
     setBusy('passkey');
     setError('');
     try {
-      const walletRes = await fetch('/api/stablecoin/wallet', { cache: 'no-store' });
-      const wallet = (await walletRes.json()) as { passkey?: { publicKey: string; rpId: string } | null; reason?: string };
-      if (!wallet.passkey) throw new Error(wallet.reason ?? 'Create a passkey in Settings → Security first.');
-      const signature = await signApprovalWithPasskey(wallet.passkey, message);
+      const mine = await myPasskey();
+      if (!mine.passkey) throw new Error(mine.reason ?? 'Add a passkey in Settings → Security first.');
+      const signature = await signWithPasskey(mine.passkey, message);
       const res = await fetch('/api/step-up/passkey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,7 +126,7 @@ function InboxItem({ item, onDone }: { item: Pending; onDone: () => void }) {
       if (!res.ok) throw new Error(body.error ?? 'The passkey confirmation did not verify.');
       onDone();
     } catch (err) {
-      setError(describeSignError(err));
+      setError(describePasskeyError(err));
     } finally {
       setBusy(null);
     }

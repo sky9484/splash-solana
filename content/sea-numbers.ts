@@ -38,16 +38,6 @@ export type SeaNumber = {
 
 export const SEA_NUMBERS: SeaNumber[] = [
   {
-    id: 'sui-finality',
-    value: 'under a second',
-    meaning: 'How long the settlement step takes to become final on Sui, the network Splash settles on.',
-    source: 'Sui documentation, consensus and finality',
-    sourceUrl: 'https://docs.sui.io/concepts/sui-architecture/consensus',
-    asOf: '2026-07-18',
-    label: 'Third-party estimate',
-    status: 'verified',
-  },
-  {
     id: 'splash-fee-usd-php',
     value: '0.70%',
     meaning: 'What Splash charges to pay out in local currency, USD to PHP and every other corridor, before the exchange rate. No fixed fee.',
@@ -60,7 +50,7 @@ export const SEA_NUMBERS: SeaNumber[] = [
   {
     id: 'live-corridor',
     value: '1',
-    meaning: 'Corridor live today, on the Sui testnet: USD to PHP. Others are added only when their rail and controls are ready.',
+    meaning: 'Corridor modelled today, on Solana devnet: USD to PHP. Others are added only when their rail and controls are ready.',
     source: 'This deployment',
     sourceUrl: 'https://github.com/mega-ideas/latest-splash',
     asOf: '2026-09-23',

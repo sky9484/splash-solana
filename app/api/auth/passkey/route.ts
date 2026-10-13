@@ -11,6 +11,7 @@ import {
   relyingPartyId,
   revokePasskey,
 } from '@/lib/auth/passkey';
+import { spkiToCompressedP256 } from '@/lib/auth/webauthn';
 import { requireCustomerSession } from '@/lib/server/customer-auth';
 import { readJsonBody } from '@/lib/server/http';
 
@@ -28,9 +29,9 @@ import { readJsonBody } from '@/lib/server/http';
  * twice so the key can be recovered by intersection.
  *
  * Enrolment requires an authenticated session, so a credential is always bound
- * to a known identity. It grants nothing on its own — a passkey is how an
- * approval is signed, not permission to approve. Authority is still a
- * membership row, read per request.
+ * to a known identity. It grants nothing on its own: a passkey is a second
+ * check at sign-in and on step-up, never a vault signer and never permission
+ * to approve. Authority is still a membership row, read per request.
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,8 +39,8 @@ export const dynamic = 'force-dynamic';
 const enrolSchema = z.object({
   /** WebAuthn credential id, base64url, as returned by the authenticator. */
   credentialId: z.string().trim().min(1).max(512),
-  /** 33-byte compressed secp256r1 point, base64. Validated in lib/auth/passkey. */
-  publicKey: z.string().trim().min(1).max(256),
+  /** The SPKI public key from PublicKeyCredential.getPublicKey(), base64url. Stored as a compressed P-256 point. */
+  spkiPublicKey: z.string().trim().min(1).max(512),
 });
 
 async function db() {
@@ -83,7 +84,8 @@ export async function GET() {
       credential: credential
         ? {
             id: credential.id,
-            suiAddress: credential.suiAddress,
+            // What the browser needs to ask for this passkey (lib/auth/webauthn-client.ts).
+            credentialId: credential.credentialId,
             // The public key is not returned. Nothing client-side needs it —
             // verification happens here — and it is the value the design
             // depends on retaining.
@@ -111,14 +113,20 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: 'No account found for this session.' }, { status: 404 });
 
   try {
+    let publicKey: string;
+    try {
+      publicKey = spkiToCompressedP256(Buffer.from(parsed.data.spkiPublicKey, 'base64url'));
+    } catch {
+      return NextResponse.json({ error: 'That passkey is not a P-256 key.', code: 'bad_public_key' }, { status: 400 });
+    }
     const credential = await enrolPasskey(await db(), {
       userId,
       credentialId: parsed.data.credentialId,
-      publicKey: parsed.data.publicKey,
+      publicKey,
       rpId: relyingPartyId(),
     });
     return NextResponse.json(
-      { enrolled: true, suiAddress: credential.suiAddress, rpId: credential.rpId },
+      { enrolled: true, rpId: credential.rpId },
       { status: 201 },
     );
   } catch (error) {

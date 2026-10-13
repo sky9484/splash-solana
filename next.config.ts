@@ -4,6 +4,9 @@ import { SECURITY_HEADERS } from "./lib/security/headers.ts";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // A second dev server (the browser walkthrough's, on its own port and database) needs its own
+  // output folder so it never touches the one a person is using. Unset: the usual .next.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   async headers() {
     // The five static headers, on every response — API routes included. The
     // Content-Security-Policy is per request (it carries the nonce) and is
@@ -13,6 +16,13 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   turbopack: {
     root: process.cwd(),
+  },
+  experimental: {
+    // Off for `next dev`: twice on 13 Oct the dev server aborted with a Turbopack panic ("Restore of
+    // Data/All for task … failed in another thread: restoring failed") right after it finished writing
+    // this cache, while a second dev server compiled beside it. A cold compile after each restart is
+    // slower, but the server stays up. Builds keep their cache (turbopackFileSystemCacheForBuild).
+    turbopackFileSystemCacheForDev: false,
   },
   // lib/server/seal-config.ts reads config/seal.<NODE_ENV>.json at a path it
   // picks at run time, so its reads are marked turbopackIgnore (untraced, they
@@ -41,7 +51,6 @@ const nextConfig: NextConfig = {
       { pathname: "/splash-main-icon.png", search: "" },
       { pathname: "/airwallex-logo.png", search: "" },
       { pathname: "/sumsub-logo.png", search: "" },
-      { pathname: "/deepbook-mark.png", search: "" },
     ],
     // A redirect is followed without re-checking remotePatterns (16.3 follows
     // 3 by default), so follow none. dangerouslyAllowLocalIP is already false

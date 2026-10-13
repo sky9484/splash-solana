@@ -1,208 +1,62 @@
-# Splash — mainnet cutover status
+# Splash on Solana — status
 
-**Target:** Sui mainnet, week 2 September 2026
-**Governing constraint:** Splash **cannot hold client funds** — self-imposed, enforced by the type system and by CI, and a precondition for operating before an e-money licence exists. No licence is held today.
-E-money tier (RM 1.5M, Labuan money broking paras 6.1 + 6.2) is Phase 2, the name the code uses
-(`PHASE_2_CUSTODY` in `lib/server/custody-phase.ts`). The build phases 0–7 below are a separate numbering.
+**Build:** the Solana build for Colosseum (prompt 07, "Solana everywhere, proof on Walrus"), on devnet and the offline simulator.
+**Governing constraint:** Splash **never holds the money.** Each business's USDC sits in its own Squads V4 multisig on Solana, with no config authority and no Splash key among its members. Only the business's own approvers can move it. This is enforced by code and checked by tests and CI (the `splash-never-holds-client-funds` job); see the invariants below.
+**Licence:** Splash is not yet a licensed money-services business. Payout partners carry out the regulated payout; none is signed, and the partner in this build is a labelled mock.
 
-**Build phases 0–7** (env contract, claims, money arithmetic, real users,
-zkLogin, passkeys, Move authority, break-glass) are tracked separately in
-[`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md) — including what is still
-outstanding and the deploy-order items that will cause an outage if done
-singly.
+The Sui build's mainnet cutover status, which this file used to hold, is kept in [`docs/prior-work/STATUS-sui-build.md`](docs/prior-work/STATUS-sui-build.md). The Sui build continues separately in `sky9484/phase1`.
 
 ---
 
-## The design thesis
+## Phases (prompt 07)
 
-Non-custody is not a runtime flag. It is a property of the type system.
+Each phase is one PR into `sol/b0-solana-everywhere`. Sky or Sebastian merges; nothing is self-merged.
 
-`splash_core` — the package that publishes to mainnet — contains **no struct
-that holds a `Balance<T>`**. Not gated; absent. Client value exists only as a
-`Coin<T>` parameter that enters and exits `payment_intent::confirm_payment_intent`
-inside a single PTB. There is no object to accumulate into.
+| Phase | What | PR | State |
+|---|---|---|---|
+| 0 | Sui removal inventory, route map | #1 | Open, for review |
+| — | Devnet proof run 2 (CCTP V2 burn from a vault, attested) | #2 | Open, for review |
+| 1 | Sign-in (email/password, Google), device key, recovery kit, vault setup | #3 | Open, for review |
+| 2 | Evidence layer isolated (Seal + Walrus in `lib/evidence-sui/`), Sui settlement deleted | #4 | Open; **needs Sebastian: G1, G2** |
+| 3 | The money path: durable state machine, controls, Kora cap, batch chunking, LiteSVM suite | #5 | Open, for review |
+| 4 | Every screen on Solana: dashboard, Solscan trace, batch, landing, Invoices / Transfer / Treasury | #6 | Open, for review; **D-P4-4 needs Sebastian** |
+| 5 | Staff console: orgs and vaults, payments, fee payer, evidence, refuse service, webhooks | #7 | Open, for review |
+| 6 | /trust, README, STATUS, CHANGES | #8 | Open, for review |
+| 6b | Transfer in five steps: the payout partner's questions, pay from the vaults or fund another way (Sky, 13 Oct) | this branch (`sol/b0-p7-transfer`) | In progress; **D-P6-1 needs Sebastian** |
 
-> *"How do I know Splash cannot hold my money?"*
->
-> Runtime-gate answer: "There's a `LicenceState` object and every custodial
-> function asserts against it — let me show you the call sites." Twelve minutes,
-> trust required.
->
-> Package-split answer: `npm run check:core`. Twelve seconds, no trust required.
+When all are merged: one PR to the default branch with before/after screenshots, the full test output and the "Not verified yet" list (prompt 07 §10). Sky reads it before merge.
 
-`splash_custody` — every `Balance<T>` in the system — publishes **only when the
-e-money licence is granted**. Under Phase 0 the bytecode does not exist on chain,
-so there is no flag to flip and no assert to forget.
+## Gates (Sebastian answers in writing, in the PR, before the related code merges)
 
----
+| Gate | Question | State |
+|---|---|---|
+| **G1** | Seal allowlist package: approve the Move code, publish to Sui testnet, paste the package and policy ids | Waiting. The Move package is written and tested, not published; no Move package is changed or published without written confirmation. |
+| **G2** | One Ed25519 device key for the Solana signer and the Seal identity? (D-P2-1) | Waiting. If no, a second evidence key ships, and the recovery kit holds both. |
+| **G3** | Vault config: `configAuthority` none, threshold 1 by default / 2 with joint control, recovery member weight, rotation | Waiting. Built as 1-of-N with no config authority. |
+| **G4** | Kora: version, config format, the program allowlist, the per-company cap | Waiting. Built against Kora's source: allowlist in `lib/solana/kora.ts` and `kora.toml`, a cap of 50 a day. |
+| D-P3-2 | Fee: 0.10% per payout, US$2 minimum | Waiting; the landing and the approval card already use it. |
+| D-P4-4 | Treasury as vault #1 of the company's own multisig (no yield, no ledger) | Waiting, against Amendment 01. |
+| D-P6-1 | Funding from outside the vaults through Stripe and Airwallex (sandbox), named in the product before an agreement | Waiting. Built as labelled sandbox stand-ins, refused on devnet. |
 
-## Package layout
+## The invariants (each has a test)
 
-```
-move/
-  splash_core/        ← mainnet, September. NO third-party dependencies.
-    business_account.move  payment_intent.move  audit_anchor.move
-    receipt_v2.move        compliance_config.move  peg_monitor.move
-    tests/core_invariants_tests.move        (10 tests, all passing)
+| Invariant | Where it is held |
+|---|---|
+| **I-1** No Splash key is a vault member; `configAuthority` is null | `lib/solana/squads.ts`; the staff console reads it from the chain |
+| **I-2** A payout goes only to the partner's deposit address; a move only to the company's other vault | `lib/solana/payout.ts`, `lib/solana-app/treasury-service.ts` |
+| **I-3** The fee payer never sends SOL or tokens; it pays fees and account rent only | `lib/solana/kora.ts` (validated before Kora is asked) |
+| **I-4** No execute without the device key's signature on every prepared transaction | `lib/solana-app/service.ts`, `batch-service.ts`, `treasury-service.ts` |
+| **I-5** A memo carries only a Splash id (`splash:pay:v1:`, `splash:move:v1:`) | `lib/solana/payout.ts` |
+| **I-6** The approval card renders deterministic fields only, never model text | `lib/solana-app/service.ts` |
+| **I-7** Simulated is always labelled | every receipt, screen and the staff console |
+| Refuse service | A suspended company gets no fee-payer signature from any code path (`lib/solana-app/runtime.ts`) |
+| Integer money | No float on an amount: `tests/money-integers.test.mjs` |
 
-  splash_meter/       ← velocity bounds. UPGRADEABLE, no dependencies.
-    spend_meter.move       guardian.move
-    tests/spend_meter_tests.move            (22 tests, all passing)
+## What runs where
 
-  splash_custody/     ← publishes ONLY on the e-money licence
-    settlement.move   smart_treasury.move   dual_treasury.move
-    liquidity_guard.move   delegation.move
-    tests/custody_tests.move  delegation_tests.move   (16 tests, all passing)
-```
+- **Offline (default):** a chain simulator checks every signature, Squads threshold and sponsorship rule. The payout partner is the mock. Evidence is sealed with a stand-in key into a stand-in store. Every screen says "Simulated · devnet-ready".
+- **Devnet:** the same code with `SPLASH_SOLANA_MODE=devnet`, a Solana RPC and a Kora endpoint. Not yet run from the build machine; see "Not verified yet" in the [README](README.md).
 
-**Why `liquidity_guard` sits in custody.** It exists to protect *pooled* funds,
-and pools only exist in custody. Keeping it in core also forced a DeepBook
-dependency on the mainnet package — which mattered more than it looked: the
-pinned DeepBook rev ships test files that fail to compile against this
-toolchain, aborting the whole test build before our modules were reached. That
-is why this repo had 93 lines of Move tests. Removing the dependency unblocked
-the core suite, which now runs.
+## Checks
 
-**Core has no third-party dependencies at all.** Cetus was drained through a bug
-in a third-party math library ([BlockSec](https://blocksec.com/blog/cetus-incident-one-unchecked-shift-drains-223m-largest));
-the strongest defence against that class is not auditing the dependency, it is
-not having one.
-
----
-
-## Mainnet gate
-
-Do not publish `splash_core` until every line is checked.
-
-- [x] `sui move build` clean for both packages
-- [x] `sui move test` green for `splash_core` — **14 tests** (was 0 runnable)
-- [x] `sui move test` green for `splash_custody` — **16 tests** (was blocked).
-      DeepBook pin is `daa5a951`; see the CLI item below for how it got there.
-- [x] **Sui CLI upgraded to 1.77.2 and the DeepBook pin moved forward** to
-      `daa5a951` (2026-08-18). The toolchain floor was 1.61.1:
-      `std::unit_test::destroy` arrived in sui `d95572e1c1` (#24078) and first
-      shipped in `testnet-v1.61.1`, while DeepBook's tests began using it in
-      `53d34351` — so on 1.59.1 the pin was too NEW, not too old. Suites were
-      re-run on the new CLI BEFORE the pin moved (52/52, no change), then again
-      after. Re-verified at the new rev rather than assumed: `FLOAT_SCALING ==
-      1_000_000_000` matching `DEEPBOOK_PRICE_SCALING`, the three view
-      signatures byte-identical, and no `published-at`.
-      **Minimum CLI for this repo is now 1.61.1.**
-      **2026-09-05: re-verified.** The dev machine had drifted to 1.75.1, on
-      which `splash_custody` fails 0/16 with `MISSING_DEPENDENCY` in
-      `0x2::object` — a whole-package linkage failure, not a code failure
-      (`splash_core` and `splash_meter` have no dependencies and stayed
-      green). 1.77.2 was reinstalled and all three suites re-run: **14 + 22 +
-      16 = 52, no failures.** The checkboxes above hold, on 1.77.2 and not
-      below it.
-      Note the committed `Move.lock` still records `compiler-version =
-      "1.59.1"` and pins framework `494fa6ed`. Any `sui move build` rewrites
-      it to lock format 4 with that CLI's own framework rev (1.75.1 →
-      `b9149cbf`, 1.77.2 → `06734f6f`); those rewrites have been reverted, so
-      the pin on record is not the framework these tests ran against.
-- [x] No value-bearing field in `splash_core` — `scripts/check-core-no-balance.mjs`,
-      run by `.github/workflows/core-invariant.yml` on every push and PR, and by
-      `npm run lint` locally. The checker parses struct BODIES out of
-      comment-stripped source, so it catches nested containers
-      (`Table<address, Balance<SUI>>`, `vector<Coin<SUI>>`, `Option<..>`),
-      aliased imports (`Balance as Ledger`), multi-line fields, single-line
-      structs and modules in subdirectories — every bypass an adversarial review
-      found in the first version, each pinned in
-      `tests/core-invariant-check.test.mjs` (12 tests). It also cross-checks the
-      scanned module count against the compiler's bytecode output.
-- [x] `npx tsc --noEmit` exits 0 · all TS suites green (165 tests)
-- [x] M1 closed — `create` returns `PaymentIntent` only; no `SettleReceipt`
-      without a consumed `Coin`; `AnchorWitness` enforces a single consumer
-- [x] M-07 `revoke_verification` and M-08 `admin_set_paused` shipped — both are
-      impossible to add after the UpgradeCap burns
-- [x] M-09 `confirm_payment_intent` is generic over the coin, with the settlement
-      asset bound at creation (abort 414)
-- [x] **`settle_batch` replaced by `settle_batch_delegated`** — the old form
-      needed owned objects from two different addresses and was unsignable by
-      anyone. A tenant-granted `PayoutDelegation` carries the identity instead,
-      so one signer suffices and attribution stays chain-enforced.
-- [x] **A-11 built**: `move/splash_meter` (spend meters + guardian, **22 tests
-      passing**), per-tenant credit segregation, tenant delegations with a
-      30-day TTL, fixed fee recipient. Publishes with custody in Phase 2.
-- [x] **Both treasuries metered.** `allocate` and `redeem` deleted; the
-      operating floor, the withdrawal allowlist, the USDT sweep destination and
-      the KYC threshold are all STORED rather than caller-supplied. Every value
-      path charges a meter and can be paused by a guardian.
-- [x] M3 closed in `splash_custody` — `deposit` is AdminCap-gated and emits
-      `PoolFunded`; batch paths carry the owner binding
-- [x] `'splash-my'` absent from settlement paths
-- [x] `money-path.ts` free of Hata; `splashIsParty` on every step, asserted
-- [x] The `AttestationCap` -> `AdminCap` fallback is DELETED (A-12). A missing
-      `SPLASH_ATTESTATION_CAP_ID` now throws instead of silently re-arming the
-      hot server with money authority.
-- [ ] **`AdminCap` and `AttestationCap` at different addresses on chain** —
-      cannot be verified from the repo. Run against the live wallet before
-      publish; if they share an address this is **blocking**. The ruling is
-      unambiguous: they may never share, because `update_peg` signs ~2,880 times
-      a day from an internet-facing host.
-- [ ] **Rotate `ComplianceCap` to a third address (C).**
-      `compliance_config::create` transfers it to `ctx.sender()` — the multisig.
-      `transfer_cap(cap, C)` is a required ceremony step missing from the runbook.
-- [x] `UpgradeCap` decision made: **immutable core** (below)
-- [ ] Independent Move review commissioned — deck slide 6 commits to this
-- [ ] `splash_core` published; package ID + object IDs here and in `.env`
-- [ ] One end-to-end mainnet settlement executed; digest recorded
-- [x] `SECURITY.md` updated
-
----
-
-## Upgrade policy — `splash_core` publishes IMMUTABLE
-
-The `UpgradeCap` is burned at publish. No upgrade path exists.
-
-**Why.** A settlement contract whose logic *cannot* change is a stronger
-regulatory position than one under multisig: with multisig the question becomes
-"who controls the keys, and what stops them rewriting the contract?", and the
-answer is a custody procedure an auditor has to take on trust. Immutable makes
-the question disappear. The package split is what makes this affordable — core
-is six modules with no third-party dependencies, small enough to review
-exhaustively.
-
-**What this costs, stated plainly.** A bug found after publish cannot be
-patched. It requires a fresh publish and a re-bootstrap of every shared object,
-and the old package keeps running until clients are repointed. That is the
-trade, accepted deliberately. It raises the stakes on the independent review,
-which is why that gate above is not optional.
-
-The precedent is good: the current testnet package `0xec3b063e…` was published
-immutable on 2026-07-19 and the re-bootstrap path is exercised
-(`docs/KEY-CEREMONY-RUNBOOK.md`).
-
----
-
-## Phase 0 vs Phase 2 — what the server does
-
-`SPLASH_CORE_PACKAGE_ID` names the core package and falls back to
-`SPLASH_PACKAGE_ID`, which production requires at boot. Set both: with only
-`SPLASH_PACKAGE_ID`, the app treats it as a pre-split package that also holds
-custody, and the refusal below does not fire (`custodyPackageIdOrThrow` in
-`lib/server/sui-settlement.ts`). `SPLASH_CUSTODY_PACKAGE_ID` is
-**absent in Phase 0**, and any code path needing custody fails with:
-
-> Batch settlement requires the splash_custody package, which publishes when the
-> Labuan e-money licence is granted. Phase 0 settles through payment_intent,
-> which holds no balance. See STATUS.md.
-
-The error names the licence rather than reporting a missing environment
-variable, because "not configured" reads as a deployment mistake when it is
-actually the regulatory posture working correctly.
-
----
-
-## Out of scope for mainnet, scheduled immediately after
-
-**Event privacy.** Every event publishes sender, recipient, amount, corridor and
-fee in cleartext, and B2B counterparties use stable addresses. This does not
-block mainnet. It **does** block the anchor buyer — no exporter puts their
-supplier list on a public chain.
-
-**Open items from the 2026-08-13 adversarial pass** (`SECURITY.md`, A-11..A-19)
-— chiefly A-11 (no amount cap or velocity limit on any `AdminCap` function) and
-A-12 (the S-10 cap split is written but not yet in effect at runtime). Both are
-custody-side and land with the Phase 2 publish, but A-12 is an operational
-change that should happen at the September ceremony regardless.
+`npm test` (1,145 tests, 2 skipped loudly), `npm run test:solana` (233), `npm run test:claims`, `npm run lint`, `tsc --noEmit`, and the browser walkthrough `tests/solana-ui.e2e.mjs`. Decisions are recorded in [`docs/solana-build/DECISIONS.md`](docs/solana-build/DECISIONS.md).

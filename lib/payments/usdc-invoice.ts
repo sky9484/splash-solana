@@ -1,17 +1,17 @@
 import { createHash } from 'node:crypto';
 
 /**
- * Paying an invoice in USDC on Sui, straight to the issuer's own wallet.
+ * Paying an invoice in USDC on Solana, straight to the issuer's own vault.
  *
- * A Sui transfer carries no memo, so a payment is matched by its amount. The
+ * A payer's wallet may not attach a memo, so a payment is matched by its amount. The
  * amount asked for is the invoice amount plus a suffix of 1–997 millionths of
  * a dollar, fixed per invoice: 1,250.00 becomes 1,250.000417. Two open
  * invoices for the same amount are then (almost always) asked for different
  * amounts, and a transfer of exactly one of them identifies it. The rare tie
  * is settled by the database: a transaction can pay one invoice only.
  *
- * Splash never holds the money — it goes to the issuer's Splash wallet, the
- * address of their passkey — so this is not collecting on anyone's behalf.
+ * Splash never holds the money — it goes to the issuer's own Squads vault —
+ * so this is not collecting on anyone's behalf.
  * Splash only reads the chain to see that it arrived.
  */
 

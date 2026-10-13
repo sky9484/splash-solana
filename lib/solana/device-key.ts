@@ -13,6 +13,8 @@
  *   - Losing the browser profile loses the key; that is what the recovery kit is for.
  */
 import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
+
+import { isVersionedTransaction } from './tx-kind.ts';
 import bs58 from 'bs58';
 
 /** Where CryptoKeyPairs are kept. IndexedDB in the browser, a Map in tests. */
@@ -144,7 +146,7 @@ export async function deviceKeySigner(store: DeviceKeyStore, id: string, subtle?
  * message's required signers; the fee payer slot is left for Kora.
  */
 export async function signTransactionWith<T extends Transaction | VersionedTransaction>(signer: MessageSigner, tx: T): Promise<T> {
-  if (tx instanceof VersionedTransaction) {
+  if (isVersionedTransaction(tx)) {
     const required = tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures);
     if (!required.some((k) => k.equals(signer.publicKey))) throw new Error('Device key is not a required signer of this transaction');
     tx.addSignature(signer.publicKey, await signer.signMessage(tx.message.serialize()));
@@ -154,4 +156,9 @@ export async function signTransactionWith<T extends Transaction | VersionedTrans
   const message = legacy.serializeMessage();
   legacy.addSignature(signer.publicKey, Buffer.from(await signer.signMessage(message)));
   return tx;
+}
+
+/** Where a member's device key sits in the browser (IndexedDB): one key per member per company, the id account setup makes it under. */
+export function deviceKeyIdFor(orgId: string, userId: string): string {
+  return `acct:${orgId}:${userId}`;
 }

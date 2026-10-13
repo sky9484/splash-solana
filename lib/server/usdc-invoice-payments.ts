@@ -1,19 +1,22 @@
 import { and, asc, eq, gt, isNull, notInArray } from 'drizzle-orm';
 
-import { findCredential } from '../auth/passkey.ts';
+import { findOrgVault } from '../auth/devices.ts';
 import { invoices } from '../db/schema.ts';
-import { explorerTxUrl, normaliseSuiAddress } from '../payments/stablecoin-lane.ts';
+import { explorerTxUrl } from '../payments/stablecoin-lane.ts';
 import { findInvoicePayment, invoiceUsdcAmountMinor, PAYMENT_CLOCK_TOLERANCE_MS, type IncomingMovement } from '../payments/usdc-invoice.ts';
-import { mainAdmin } from './step-up.ts';
-import { readUsdcActivity, type ActivityPage } from './wallet-activity.ts';
+
+/** One page of incoming USDC movements to the issuer's address. */
+type ActivityPage =
+  | { available: true; movements: IncomingMovement[]; olderCursor: string | null }
+  | { available: false; reason: string };
 
 /**
- * Invoices paid in USDC on Sui, to the issuer's own Splash wallet.
+ * Invoices paid in USDC on Solana, to the issuer's own vault.
  *
- * The issuer's receiving address is its main admin's Splash wallet — the Sui
- * address of their passkey, the same person who approves payments. Splash
+ * The issuer's receiving address is its Squads vault (org_vaults.vault_pda),
+ * which no Splash key can move. Splash
  * shows it to the payer with the exact amount (lib/payments/usdc-invoice.ts),
- * and when asked, reads that wallet's USDC activity from chain to find the
+ * and when asked, reads the vault's USDC activity from chain to find the
  * transfer. It never holds the money and never moves any.
  *
  * Recording a payment is one conditional UPDATE: it only lands on an invoice
@@ -58,7 +61,14 @@ async function readSince(address: string, since: Date, read: ReadActivity): Prom
   return { available: true, movements, olderCursor: null };
 }
 
-const liveRead: ReadActivity = (address, before) => readUsdcActivity(address, { limit: 50, before });
+// Reading a vault's incoming USDC from Solana arrives with the payment flow
+// (prompt 07 Phase 3, decision D-1). Until then the check says so plainly
+// rather than guessing; a payer's transfer is not lost, only not yet matched.
+const liveRead: ReadActivity = async (address, before) => {
+  void address;
+  void before;
+  return { available: false, reason: 'Matching USDC payments to your vault is not switched on yet. Check the vault on Solana Explorer.' };
+};
 
 export type UsdcCheck =
   | { status: 'PAID'; digest: string; payer: string | null; paidAt: string; explorerUrl: string }
@@ -88,10 +98,10 @@ export async function invoiceUsdcBySlug(db: Db, slug: string): Promise<InvoiceUs
 
 /** Where this issuer receives USDC, or null when its main admin has no Splash wallet yet. */
 export async function issuerUsdcAddress(db: Db, orgId: string, rpId: string): Promise<string | null> {
-  const admin = await mainAdmin(db, orgId);
-  if (!admin) return null;
-  const credential = await findCredential(db, { userId: admin.userId, rpId });
-  return credential ? normaliseSuiAddress(credential.suiAddress) : null;
+  // On Solana the issuer is paid into its own Squads vault. Splash never holds it.
+  void rpId;
+  const vault = await findOrgVault(db, orgId);
+  return vault?.vaultPda ?? null;
 }
 
 /**
@@ -126,7 +136,7 @@ function paid(row: { usdcTxDigest: string; usdcPayerAddress: string | null; usdc
     digest: row.usdcTxDigest,
     payer: row.usdcPayerAddress,
     paidAt: (row.usdcPaidAt ?? new Date()).toISOString(),
-    explorerUrl: explorerTxUrl('mainnet', row.usdcTxDigest),
+    explorerUrl: explorerTxUrl(row.usdcTxDigest),
   };
 }
 
@@ -215,7 +225,7 @@ export async function publicUsdcForSlug(slug: string) {
   if (!row) return null;
   if (row.usdcTxDigest) {
     return {
-      paid: { digest: row.usdcTxDigest, explorerUrl: explorerTxUrl('mainnet', row.usdcTxDigest), paidAt: row.usdcPaidAt?.toISOString() ?? null },
+      paid: { digest: row.usdcTxDigest, explorerUrl: explorerTxUrl(row.usdcTxDigest), paidAt: row.usdcPaidAt?.toISOString() ?? null },
       terms: null,
     };
   }

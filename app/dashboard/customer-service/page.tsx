@@ -34,9 +34,9 @@ const issueTypes = [
 ];
 
 const faqs = [
-  { question: 'How long until my transfer settles?', answer: 'Most corridors clear within 3–5 minutes. The SLA target is under 10 minutes.' },
+  { question: 'How long until my transfer settles?', answer: 'It depends on the payout route. The transfer’s status page shows each step as it happens.' },
   { question: 'How do I authorize a batch payout?', answer: 'Upload a CSV in Batch Payout, review preflight, then confirm with your TOTP.' },
-  { question: 'Where are receipts stored?', answer: 'Receipts are sealed on Sui and downloadable as PDF for your records.' },
+  { question: 'Where are receipts stored?', answer: 'Receipt evidence is encrypted with Seal, stored on Walrus and anchored on Solana. You can download a PDF for your records.' },
 ];
 
 const channels = [
@@ -324,7 +324,7 @@ export default function CustomerServicePage() {
           <div className="rounded-2xl border border-[#E39774]/30 bg-[#E39774]/10 p-4 text-[13px] text-[#1F4452]">
             <div className="font-semibold uppercase tracking-[0.16em] text-[#1F4452]">Priority support</div>
             <p className="mt-2 leading-5">
-              Tier 1 KYB-approved customers get priority response. Mention your Splash organization ID in the message for fastest routing.
+              Tier 1 KYB-approved customers get priority response. Mention your Splash organization ID in the message so it reaches the right team.
             </p>
           </div>
         </aside>

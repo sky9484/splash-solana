@@ -6,7 +6,8 @@ import FloatingCopilot from '@/components/FloatingCopilot';
 import DashboardHeader from '@/components/DashboardHeader';
 import { CustodyPhaseContext, LaunchScopeContext, SweepSwitchContext } from '@/components/dashboard/CustodyPhaseContext';
 import type { CustomerSession } from '@/lib/auth/customer-session';
-import { LAUNCH_SCOPE_REASON, type LaunchScope } from '@/lib/launch-scope-rules';
+import type { LaunchScope } from '@/lib/launch-scope-rules';
+import SolanaRail from '@/components/dashboard/SolanaRail';
 import {
   Bot,
   FileText,
@@ -20,8 +21,7 @@ import {
   Phone,
   Send,
   Settings,
-  Timer,
-  TrendingUp,
+  Vault,
   UserCircle,
   Wallet,
   X,
@@ -44,26 +44,25 @@ const navGroups: NavGroup[] = [
   {
     title: 'Payments',
     items: [
-      { label: 'Zeke',        href: '/dashboard',          icon: Bot, badge: 'AI' },
+      { label: 'Overview',     href: '/dashboard',          icon: LayoutDashboard },
+      { label: 'Invoices',     href: '/dashboard/invoices', icon: FileText },
       { label: 'Transfer',     href: '/dashboard/transfer', icon: Send },
-      { label: 'Send USDC',    href: '/dashboard/send-usdc', icon: Wallet },
-      { label: 'Rate holds',   href: '/dashboard/transfers', icon: Timer },
-      { label: 'Batch Payout', href: '/dashboard/batch',    icon: Layers },
+      { label: 'Batch payout', href: '/dashboard/batch',    icon: Layers },
+      { label: 'Zeke',         href: '/dashboard/zeke',     icon: Bot, badge: 'AI' },
     ],
   },
   {
-    title: 'Finance',
+    title: 'Money',
     items: [
-      { label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
-      { label: 'Treasury', href: '/dashboard/treasury', icon: TrendingUp },
-      { label: 'Invoices', href: '/dashboard/invoices', icon: FileText },
+      { label: 'Treasury', href: '/dashboard/treasury', icon: Vault },
+      { label: 'Balance',  href: '/dashboard/fund',     icon: Wallet },
+      { label: 'History',  href: '/dashboard/history',  icon: History },
     ],
   },
   {
     title: 'Contacts',
     items: [
       { label: 'Recipients', href: '/dashboard/recipients', icon: UserCircle },
-      { label: 'History',    href: '/dashboard/history',    icon: History },
     ],
   },
 ];
@@ -88,10 +87,16 @@ type DashboardShellProps = {
   /** The launch scope (lib/server/launch-scope.ts), resolved by the same
    *  layout. Needs no database, so it locks even when `locks` is absent. */
   launchScope?: LaunchScope;
+  /** The Solana rail, resolved by the same layout: the network, the run mode, and this company's
+   *  vault (address and its Solscan page) once account setup has made it. */
+  solana?: { mode: 'offline' | 'devnet'; cluster: 'devnet' | 'mainnet-beta'; vault: { address: string; solscanUrl: string | null } | null };
 };
 
-/** The pages a USDC-only launch does not open; their routes answer 403. */
-const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/transfer', '/dashboard/transfers', '/dashboard/batch', '/dashboard/treasury'];
+/** The pages a USDC-only launch does not open: paying an invoice, a transfer or a batch is a payout to
+ *  a bank in local currency (the payout partner's leg), which that scope leaves closed, and a move
+ *  between vaults goes through the same gates. Their routes answer 403. */
+const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/invoices', '/dashboard/transfer', '/dashboard/batch', '/dashboard/treasury'];
+const SCOPE_REASON = 'Payouts to a supplier’s bank are not open on this launch yet. Your vault and its balance are.';
 
 /** Why a page is closed, and where to go instead. The launch scope answers
  *  first: no verification or setup step opens what this launch leaves out. */
@@ -101,7 +106,7 @@ function pageLock(
   scope: LaunchScope | undefined,
 ): { reason: string; href: string; action: string } | null {
   if (scope === 'stablecoin' && OUT_OF_STABLECOIN_SCOPE.includes(href)) {
-    return { reason: LAUNCH_SCOPE_REASON, href: '/dashboard/send-usdc', action: 'Send USDC' };
+    return { reason: SCOPE_REASON, href: '/dashboard', action: 'Back to overview' };
   }
   const reason = locks ? lockReasonFor(href, locks) : null;
   return reason ? { reason, href: '/dashboard/setup', action: 'Finish account setup' } : null;
@@ -110,9 +115,9 @@ function pageLock(
 /**
  * The Stablecorp-pattern lock table. Zeke and Overview stay open at every
  * state: Zeke cannot move money regardless (three independent gates prove
- * it) and Overview is a read. Everything that spends follows the KYB gate;
- * Invoices and Recipients only need the terms; Treasury also needs the
- * custody phase.
+ * it) and Overview is a read. Everything that spends follows the KYB gate:
+ * paying an invoice, a transfer, a batch, and a move between the company's
+ * own vaults (Treasury). Recipients only need the terms.
  */
 function lockReasonFor(
   href: string,
@@ -121,17 +126,10 @@ function lockReasonFor(
   // Parity with the routes, or the padlock lies: the spend routes require
   // BOTH the KYB gate and the terms (requireTermsAccepted), so a nav item
   // that only checked KYB would read as open and then answer 412 on submit.
-  const spend = ['/dashboard/transfer', '/dashboard/transfers', '/dashboard/batch'];
-  // Send USDC is the lane an unverified business may use (lib/payments/
-  // stablecoin-lane.ts): terms, not KYB. Its page states any lane lock itself.
-  const termsOnly = ['/dashboard/invoices', '/dashboard/recipients', '/dashboard/send-usdc'];
+  const spend = ['/dashboard/invoices', '/dashboard/transfer', '/dashboard/batch', '/dashboard/treasury'];
+  const termsOnly = ['/dashboard/recipients'];
   const termsReason = 'Accept the terms in Account setup to start here.';
-  if (href === '/dashboard/treasury') {
-    if (locks.moneyBlocked) return locks.reason;
-    if (!locks.termsDone) return termsReason;
-    if (!locks.custodyOn) return 'Treasury arrives with our licence. Nothing is held for you today.';
-    return null;
-  }
+  // Treasury is the company's own second vault, not a custody product: it follows the same gates as a payment.
   if (spend.includes(href)) {
     if (locks.moneyBlocked) return locks.reason;
     return locks.termsDone ? null : termsReason;
@@ -143,7 +141,7 @@ function lockReasonFor(
   return null;
 }
 
-export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope }: DashboardShellProps) {
+export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope, solana }: DashboardShellProps) {
   const [collapsed,  setCollapsed]  = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const router   = useRouter();
@@ -171,7 +169,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          className={`mb-8 flex items-center rounded-xl transition-colors hover:bg-white/10 ${
+          className={`mb-6 flex items-center rounded-xl transition-colors hover:bg-white/10 ${
             collapsed ? 'mx-auto justify-center p-2' : 'gap-3 px-2 py-2'
           }`}
           aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
@@ -197,7 +195,8 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         </button>
 
         {/* Nav groups */}
-        <nav className="flex-1 space-y-5 overflow-y-auto">
+        {/* min-h-0: the nav scrolls inside the sidebar instead of running under the Solana card on a short screen. */}
+        <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           {navGroups.map((group) => (
             <div key={group.title}>
               {!collapsed && (
@@ -207,7 +206,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
               )}
               <div className="space-y-0.5">
                 {group.items.map(({ label, href, icon: Icon, badge }) => {
-                  const active = pathname === href;
+                  const active = href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
                   const lock = pageLock(href, locks, launchScope);
                   const lockReason = lock?.reason ?? null;
                   return (
@@ -216,7 +215,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
                       href={lock ? lock.href : href}
                       aria-disabled={lockReason ? true : undefined}
                       title={lockReason ?? (collapsed ? label : undefined)}
-                      className={`relative flex items-center rounded-lg px-2 py-2 text-sm transition-colors ${
+                      className={`relative flex items-center rounded-lg px-2 py-[7px] text-sm transition-colors ${
                         collapsed ? 'justify-center' : 'gap-3'
                       } ${
                         active
@@ -255,16 +254,8 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
           ))}
         </nav>
 
-        {/* Bottom items */}
-        {!collapsed && (
-          <div className="fintech-sidebar-signal">
-            <Image src="/isometric/sui-logo-clean.svg" alt="" width={32} height={42} />
-            <span>
-              <small>Settlement rail</small>
-              <strong><i /> Sui testnet ready</strong>
-            </span>
-          </div>
-        )}
+        {/* Bottom items: the network, and this company's vault on it */}
+        {!collapsed && solana ? <SolanaRail {...solana} /> : null}
 
         <div className="space-y-0.5 border-t border-white/10 pt-4">
           <Link
@@ -365,12 +356,23 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
       )}
 
       {/* ── Main content ──────────────────────────────────────── */}
-      {/* Mobile top pad = 60 px (mobile header); desktop = 76 px (desktop header + gap) */}
+      {/* Mobile top pad = 60 px (mobile header); desktop = 76 px (desktop header + gap).
+          Bottom pad = 112 px everywhere: Zeke's floating button covers the bottom 80 px (64 px, 16 px up),
+          so the last row of every page can scroll clear of it, hover lift and shadow included. */}
       <main
-        className={`fintech-dashboard-main relative z-0 min-w-0 flex-1 overflow-x-hidden transition-all duration-300 p-4 pt-[60px] pb-16 md:px-8 md:pb-8 md:pt-[76px] ${
+        className={`fintech-dashboard-main relative z-0 min-w-0 flex-1 overflow-x-hidden transition-all duration-300 p-4 pt-[60px] pb-28 md:px-8 md:pb-28 md:pt-[76px] ${
           collapsed ? 'md:ml-20' : 'md:ml-60'
         }`}
       >
+        {solana ? (
+          <p role="note" className="mb-4 rounded-lg border border-[#5C9EAD]/30 bg-[#5C9EAD]/10 px-4 py-2 text-[13px] font-medium text-[#1F4452]">
+            {solana.mode === 'offline' ? (
+              <><strong>Simulated · devnet-ready.</strong> Every transaction runs in a local simulator, and the payout partner is a mock that pays no real bank.</>
+            ) : (
+              <><strong>{solana.cluster === 'mainnet-beta' ? 'Solana' : 'Solana devnet'} · Mock partner.</strong> Test USDC only; the payout partner is a mock that pays no real bank.</>
+            )}
+          </p>
+        ) : null}
         {kyb?.blocked ? (
           <div
             role="status"

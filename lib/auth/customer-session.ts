@@ -23,9 +23,6 @@ export type CustomerSession = {
    * on every money route; this field only lets the UI say "Approver".
    */
   userRole?: CustomerWorkspaceRole;
-  /** zkLogin signer address for this human (wallet spec §2.3). Display/lookup
-   *  only — the authority resolver re-derives org and role from the DB. */
-  suiAddress?: string;
   orgId?: string;
   /**
    * The account's credential version at mint time (users.credential_version).
@@ -98,7 +95,6 @@ export function createCustomerSessionFromIdentity(input: {
   ttlSeconds?: number;
   fallbackOrganization?: string;
   userRole?: CustomerWorkspaceRole;
-  suiAddress?: string;
   orgId?: string;
   credentialVersion?: number;
   lastSeenAt?: Date;
@@ -114,7 +110,6 @@ export function createCustomerSessionFromIdentity(input: {
     organization: input.organization?.trim() || input.fallbackOrganization || FALLBACK_CUSTOMER_ORGANIZATION,
     role: 'business_admin',
     ...(input.userRole ? { userRole: input.userRole } : {}),
-    ...(input.suiAddress ? { suiAddress: input.suiAddress } : {}),
     ...(input.orgId ? { orgId: input.orgId } : {}),
     ...(typeof input.credentialVersion === 'number' ? { credentialVersion: input.credentialVersion } : {}),
     lastSeenAt: (input.lastSeenAt ?? now).toISOString(),
@@ -172,7 +167,6 @@ export function readCustomerSessionToken(
       organization: payload.organization,
       role: payload.role,
       ...(isCustomerWorkspaceRole(payload.userRole) ? { userRole: payload.userRole } : {}),
-      ...(typeof payload.suiAddress === 'string' && payload.suiAddress ? { suiAddress: payload.suiAddress } : {}),
       ...(typeof payload.orgId === 'string' && payload.orgId ? { orgId: payload.orgId } : {}),
       ...(Number.isInteger(payload.credentialVersion) ? { credentialVersion: payload.credentialVersion as number } : {}),
       // The idle clock. It was missing from this list, which meant every read

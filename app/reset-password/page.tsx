@@ -27,8 +27,8 @@ function Shell(props: { title: string; description: string; children?: ReactNode
       eyebrow="Account recovery"
       title={props.title}
       description={props.description}
-      art="/isometric/treasury.svg"
-      artAlt="Isometric smart treasury"
+      art="/cinematic/treasury-island.png"
+      artAlt="Isometric vault holding the business’s money"
       visualTitle="Secure by default"
       visualCopy="A new password ends every session that was open before it."
     >

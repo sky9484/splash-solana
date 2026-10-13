@@ -9,11 +9,12 @@ import { workspaceForEmail } from '../lib/auth/signup-org.ts';
 const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
 
 /**
- * Signing up with zkLogin lands you in your own workspace, awaiting KYB.
+ * Signing in with Google lands you in your own workspace, awaiting KYB.
  *
- * Two defects sat behind this, and the second is the one that mattered:
+ * Two defects sat behind this in the earlier build, and the second is the one
+ * that mattered:
  *
- *   Every zkLogin identity was written with `orgId: DEFAULT_ORG_ID` — the
+ *   Every Google identity was written with `orgId: DEFAULT_ORG_ID` — the
  *   literal 'demo-business'. Every person who signed in with Google was filed
  *   under one shared organisation.
  *
@@ -63,27 +64,22 @@ test('a new workspace is created inert', async () => {
   assert.doesNotMatch(source, /grantMembership|memberships/);
 });
 
-test('zkLogin files the identity under that workspace, not the demo org', async () => {
-  const route = await readFile(
-    new URL('../app/api/auth/zklogin/route.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(route, /ensureWorkspaceForEmail\(email\)/);
-  assert.match(route, /orgId: workspace\.orgId/);
-  assert.match(route, /orgId: sessionWorkspace\.orgId/);
-  // The pin is gone entirely.
-  assert.doesNotMatch(code(route), /DEFAULT_ORG_ID/);
+test('Google sign-in files the person under their own workspace, not the demo org', async () => {
+  const route = code(await readFile(new URL('../app/api/auth/google/callback/route.ts', import.meta.url), 'utf8'));
+  assert.match(route, /ensureWorkspaceForEmail\(account\.email\)/);
+  // The pin is gone entirely, and sign-in grants no membership.
+  assert.doesNotMatch(route, /DEFAULT_ORG_ID/);
+  assert.doesNotMatch(route, /grantMembership|memberships/);
 });
 
-test('sign-in lands on business verification, not a dashboard with a banner', async () => {
-  const callback = await readFile(
-    new URL('../app/login/zklogin/callback/page.tsx', import.meta.url),
-    'utf8',
-  );
-  // A banner is not an onboarding step: it says something is wrong and leaves
-  // the person to find the screen that fixes it.
-  assert.match(callback, /router\.replace\('\/settings\/kyb\?from=signin'\)/);
-  assert.doesNotMatch(callback, /router\.replace\('\/dashboard'\)/);
+test('Google sign-in only ever lands on a same-origin path', async () => {
+  const route = code(await readFile(new URL('../app/api/auth/google/callback/route.ts', import.meta.url), 'utf8'));
+  // Success goes to the flow's returnTo, which openFlowState passes through
+  // safeReturnTo; failure goes to /login. Nothing else is a redirect target.
+  assert.match(route, /new URL\(flow\.returnTo, url\.origin\)/);
+  assert.match(route, /new URL\('\/login', url\.origin\)/);
+  const oidc = code(await readFile(new URL('../lib/auth/google-oidc.ts', import.meta.url), 'utf8'));
+  assert.match(oidc, /returnTo: safeReturnTo\(raw\.returnTo\)/);
 });
 
 test('the KYB gate fails closed', async () => {

@@ -38,8 +38,8 @@ export async function handle(fn: () => Promise<unknown> | unknown, status = 200)
 }
 
 /** A payment belongs to one org; refuse requests that name another. */
-export function paymentFor(paymentId: string, orgId: string) {
-  const p = getPayment(paymentId);
+export async function paymentFor(paymentId: string, orgId: string) {
+  const p = await getPayment(paymentId);
   if (p.orgId !== orgId) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
   return p;
 }
@@ -47,28 +47,14 @@ export function paymentFor(paymentId: string, orgId: string) {
 const base58 = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,88}$/);
 const id = (prefix: string) => z.string().regex(new RegExp(`^${prefix}_[0-9a-f]{16}$`));
 
+/**
+ * Request bodies. None carries an orgId: which company a request acts for comes from the session and
+ * the membership row (lib/server/solana-company.ts), never from what the browser sends.
+ */
 export const schemas = {
-  orgId: id('org'),
-  createOrg: z.object({ companyName: z.string().min(2).max(120), personName: z.string().max(80).optional() }).strict(),
-  challenge: z
-    .object({
-      orgId: id('org'),
-      keys: z.array(z.object({ role: z.enum(['device', 'kit']), publicKey: base58 }).strict()).min(1).max(2),
-    })
-    .strict(),
-  keys: z
-    .object({
-      orgId: id('org'),
-      proofs: z
-        .array(z.object({ role: z.enum(['device', 'kit']), publicKey: base58, nonce: z.string().regex(/^[0-9a-f]{64}$/), signature: base58 }).strict())
-        .min(1)
-        .max(2),
-    })
-    .strict(),
-  orgOnly: z.object({ orgId: id('org') }).strict(),
+  empty: z.object({}).strict(),
   invoice: z
     .object({
-      orgId: id('org'),
       sample: z.boolean().optional(),
       text: z.string().max(20_000).optional(),
       source: z.enum(['paste', 'upload']).optional(),
@@ -77,7 +63,6 @@ export const schemas = {
     .refine((v) => v.sample === true || (typeof v.text === 'string' && v.text.trim().length > 0), { message: 'text or sample required' }),
   verifyBank: z
     .object({
-      orgId: id('org'),
       by: z.string().min(1).max(80),
       method: z.enum(['call-back', 'supplier-account']),
       bank: z.string().min(2).max(120),
@@ -86,7 +71,6 @@ export const schemas = {
     .strict(),
   confirm: z
     .object({
-      orgId: id('org'),
       fields: z
         .object({
           invoiceNumber: z.string().max(64),
@@ -99,16 +83,28 @@ export const schemas = {
         })
         .strict(),
       confirmed: z.array(z.enum(['invoiceNumber', 'supplierName', 'supplierBank', 'supplierAccountLast4', 'amountPhpMinor', 'dueDate', 'einvoiceRef'])).max(7),
-      confirmedBy: z.string().max(80).optional(),
     })
     .strict(),
-  quote: z.object({ orgId: id('org'), invoiceId: id('inv') }).strict(),
+  quote: z.object({ invoiceId: id('inv'), allowShort: z.boolean().optional() }).strict(),
+  requote: z.object({ allowShort: z.boolean().optional() }).strict(),
+  fundingId: id('fnd'),
+  /** Step 3 of a transfer: bring the route's USDC into the payments vault from outside the vaults. */
+  fund: z
+    .object({
+      method: z.enum(['wallet_usdc', 'wallet_swap', 'stripe', 'airwallex']),
+      quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80),
+      asset: z.enum(['USDC', 'USDT', 'PYUSD', 'USD']).optional(),
+      fromAddress: z.string().max(64).nullable().optional(),
+      sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
+      declared: z.literal(true),
+      rehearsal: z.enum(['none', 'kyt_flag']).optional(),
+    })
+    .strict(),
   select: z
-    .object({ orgId: id('org'), quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80), rehearsal: z.enum(['none', 'kyt_flag', 'partner_return']).optional() })
+    .object({ quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80), rehearsal: z.enum(['none', 'kyt_flag', 'partner_return']).optional() })
     .strict(),
   approve: z
     .object({
-      orgId: id('org'),
       signatures: z.array(z.object({ id: z.string().regex(/^m\d{1,2}$/), signature: base58 }).strict()).max(8).optional(),
     })
     .strict(),
@@ -122,5 +118,65 @@ export const schemas = {
       at: z.string().max(40),
       signature: z.string().regex(/^[0-9a-f]{64}$/),
     })
+    .strict(),
+  receiptId: id('rcpt'),
+  batchId: id('bat'),
+  batchCreate: z
+    .object({ csv: z.string().max(100_000).optional(), sample: z.boolean().optional() })
+    .strict()
+    .refine((v) => v.sample === true || (typeof v.csv === 'string' && v.csv.trim().length > 0), { message: 'csv or sample required' }),
+  batchPrepare: z.object({ chunk: z.number().int().min(0).max(99).optional(), rehearsal: z.enum(['none', 'drop_chunk']).optional() }).strict(),
+  batchApprove: z
+    .object({ signatures: z.array(z.object({ id: z.string().regex(/^c\d{1,2}(p\d|x)$/), signature: base58 }).strict()).min(1).max(40) })
+    .strict(),
+  shareToken: z.string().regex(/^shr_[0-9a-f]{32}$/),
+  /** A transfer with no invoice: who, how much (centavos), an optional reference, and the call-back for a new recipient. */
+  transfer: z
+    .object({
+      recipient: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().max(4) }).strict(),
+      amountPhpMinor: z.string().regex(/^\d{1,15}$/),
+      reference: z.string().max(64).nullable().optional(),
+      verification: z.object({ by: z.string().min(1).max(80), method: z.enum(['call-back', 'supplier-account']) }).strict().nullable().optional(),
+    })
+    .strict(),
+  invoiceId: id('inv'),
+  /** A saved recipient to take off the verified list, named exactly as the list shows it. */
+  supplierRemove: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().regex(/^\d{4}$/) }).strict(),
+  /** Step 3 of a transfer: the same details as last time for this recipient, or every answer given again. */
+  transferDetails: z.union([
+    z.object({ reuse: z.literal(true) }).strict(),
+    z
+      .object({
+        details: z
+          .object({
+            purpose: z.enum(['goods', 'services']),
+            description: z.string().max(140),
+            relationship: z.enum(['supplier', 'related_company', 'contractor']),
+            sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
+            recipient: z
+              .object({
+                type: z.enum(['business', 'individual']),
+                registrationNumber: z.string().max(40).nullable(),
+                idNumber: z.string().max(40).nullable(),
+                dateOfBirth: z.string().max(10).nullable(),
+                addressLine1: z.string().max(160),
+                addressCity: z.string().max(80),
+                addressCountry: z.literal('PH'),
+                accountName: z.string().max(140),
+              })
+              .strict(),
+          })
+          .strict(),
+      })
+      .strict(),
+  ]),
+  moveId: id('mov'),
+  /** A move between the company's own vaults; amountMinor in USDC minor units. A retry names the failed move instead. */
+  movePrepare: z.union([
+    z.object({ from: z.enum(['treasury', 'payments']), amountMinor: z.string().regex(/^\d{1,15}$/) }).strict(),
+    z.object({ retryMoveId: id('mov') }).strict(),
+  ]),
+  moveApprove: z
+    .object({ signatures: z.array(z.object({ id: z.string().regex(/^(p\d|x)$/), signature: base58 }).strict()).min(1).max(4) })
     .strict(),
 };

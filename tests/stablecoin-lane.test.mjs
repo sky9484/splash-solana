@@ -5,7 +5,8 @@ import {
   checkStablecoinAllowance,
   laneAccess,
   MIN_STABLECOIN_TRANSFER_MINOR,
-  normaliseSuiAddress,
+  normaliseSolanaAddress,
+  NETWORK_FEE_LINE,
   parseUsdcMinor,
   quoteStablecoinTransfer,
   stablecoinFeeMinor,
@@ -16,9 +17,9 @@ import {
   ANCHOR_FEE_CAP_MINOR,
   stablecoinLimitsFor,
   STABLECOIN_WINDOW_MS,
-  SUI_USDC_COIN_TYPE,
   UNVERIFIED_STABLECOIN_CAP_MINOR,
 } from '../lib/payments/stablecoin-lane.ts';
+import { SOLANA_CONFIG } from '../lib/solana/config.ts';
 
 /**
  * The stablecoin lane's rules and arithmetic. Real money runs through these
@@ -29,15 +30,11 @@ const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 24, 12, 0, 0);
 const usdc = (s) => parseUsdcMinor(s);
 
-test('settlement is Circle native USDC on Sui, with the verified coin types', () => {
-  assert.equal(
-    SUI_USDC_COIN_TYPE.mainnet,
-    '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
-  );
-  assert.equal(
-    SUI_USDC_COIN_TYPE.testnet,
-    '0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC',
-  );
+test('settlement is Circle native USDC on Solana, with the published mints, and nobody needs SOL', () => {
+  assert.equal(SOLANA_CONFIG['mainnet-beta'].usdcMint, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+  assert.equal(SOLANA_CONFIG.devnet.usdcMint, '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+  assert.match(NETWORK_FEE_LINE, /You don't need SOL/);
+  assert.doesNotMatch(NETWORK_FEE_LINE, /gasless|free gas|no gas/i);
 });
 
 const OFF = { destination: 'EXTERNAL', anchorFeeOn: false };
@@ -159,13 +156,18 @@ test('verified businesses get the on-chain Tier 3 defaults on this lane', () => 
   assert.match(tooBig.reason, /at most 20000\.000000 USDC/);
 });
 
-test('a Sui address is accepted and lower-cased; an Ethereum address is refused, never padded', () => {
-  const sui = '0x' + 'AB'.repeat(32);
-  assert.equal(normaliseSuiAddress(`  ${sui} `), sui.toLowerCase());
+test('a Solana address is accepted exactly as typed; another chain’s address is refused, never converted', () => {
+  // Real addresses: the devnet vault from the proof run and the USDC mint.
+  const vault = '9fZ34EK7nfX5f3aR8yfXq9oQb8Dqv2Km2h1T4mQ7bKGx';
+  for (const address of [vault, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr']) {
+    assert.equal(normaliseSolanaAddress(`  ${address} `), address, 'trimmed, never re-cased: base58 is case-sensitive');
+  }
 
   const evm = '0x209693Bc6afc0C5328bA36FaF03C514EF312287C';
-  assert.throws(() => normaliseSuiAddress(evm), /That is an Ethereum address/);
-  assert.throws(() => normaliseSuiAddress('0x' + '0'.repeat(64)), /zero address/);
-  assert.throws(() => normaliseSuiAddress('0x1234'), /64 hexadecimal/);
-  assert.throws(() => normaliseSuiAddress('ab'.repeat(32)), /64 hexadecimal/, 'no 0x prefix is refused too');
+  assert.throws(() => normaliseSolanaAddress(evm), /That is an Ethereum address/);
+  assert.throws(() => normaliseSolanaAddress('0x' + 'ab'.repeat(32)), /another network/);
+  assert.throws(() => normaliseSolanaAddress('11111111111111111111111111111111'), /system address/);
+  assert.throws(() => normaliseSolanaAddress('9fZ34EK7'), /base58/, 'too short to be 32 bytes');
+  assert.throws(() => normaliseSolanaAddress('9fZ34EK7nfX5f3aR8yfXq9oQb8Dqv2Km2h1T4mQ7bKG0'), /base58/, '0 is not a base58 character');
+  assert.throws(() => normaliseSolanaAddress('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1vEPjF'), /base58/, 'decodes to more than 32 bytes');
 });

@@ -8,7 +8,7 @@
  * `process.env.X` and found 111 keys. The real number was 147: seal-config.ts
  * reads through an aliased `env.X`; contract-config.ts reads
  * `process.env[FIELD_TO_ENV[field]]` with the names in a lookup table;
- * zklogin.ts builds the key from a string literal and indexes with it; and
+ * one module built the key from a string literal and indexed with it; and
  * funding/registry.ts passes the key to a helper, `envFlag(env, 'KEY', …)`.
  * A guard that saw only the first pattern declared the repo clean while
  * Seal — the subsystem that actually broke between two machines — went

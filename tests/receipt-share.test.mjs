@@ -38,7 +38,7 @@ test('receipt business face keeps chain vocabulary inside the verify section onl
   assert.match(source, /Settlement record/);
   assert.match(source, /Tamper-evident archive/);
   // Network line is profile-driven with the sandbox default.
-  assert.match(source, /Sui · sandbox, no customer funds/);
+  assert.match(source, /Solana devnet · sandbox, no customer funds/);
   // Raw chain terms stay out of the business face labels.
   assert.doesNotMatch(source, /Transaction digest/);
   assert.doesNotMatch(source, /On-chain proof/);
@@ -57,9 +57,9 @@ test('receipt step ships the accountant PDF and supplier share actions', async (
 
 test('network line flips to mainnet from the runtime profile', async () => {
   const helper = await readFile(new URL('../lib/network-label.ts', import.meta.url), 'utf8');
-  assert.match(helper, /SUI_NETWORK === 'mainnet'/);
-  assert.match(helper, /Sui mainnet/);
-  assert.match(helper, /Sui · sandbox, no customer funds/);
+  assert.match(helper, /explorerCluster\(\) === 'mainnet-beta'/);
+  assert.match(helper, /'Solana'/);
+  assert.match(helper, /Solana devnet · sandbox, no customer funds/);
 });
 
 test('the customer never reads a digest, a blob id or a URL', async () => {

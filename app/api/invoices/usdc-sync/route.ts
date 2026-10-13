@@ -8,7 +8,7 @@ import { syncOrgInvoiceUsdcPayments } from '@/lib/server/usdc-invoice-payments';
 
 /**
  * "Check USDC payments": every open invoice of the session's workspace,
- * matched against one read of its main admin's Splash wallet on Sui
+ * matched against one read of its vault on Solana
  * (lib/server/usdc-invoice-payments.ts). Records what it finds, once; moves
  * nothing.
  */

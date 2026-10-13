@@ -14,10 +14,12 @@ type IsometricAuthShellProps = {
   visualCopy: string;
 };
 
+/* No chain names on the sign-in screens: the business doesn't need to know
+   which network settles, only what it gets. */
 const proofPoints = [
-  'Atomic settlement on Sui',
-  'Access-controlled records on Walrus',
-  'Built-in KYB and audit trail',
+  'Your vault, your keys',
+  'A person approves every payment',
+  'One record per payment, ready for the auditor',
 ];
 
 export default function IsometricAuthShell({
