@@ -95,7 +95,7 @@ for (const reviewFirst of [true, false]) {
 
   test(`a Sumsub link that overlaps a resubmission keeps both (${order})`, async () => {
     const { id, resubmit } = await filed();
-    const link = () => kyb.attachSumsubApplicant(id, 'sumsub_applicant_1');
+    const link = () => kyb.attachSumsubApplicant(ORG, id, 'sumsub_applicant_1');
     const again = () => resubmit('director-id.pdf');
     await Promise.all(reviewFirst ? [link(), again()] : [again(), link()]);
 
@@ -155,7 +155,7 @@ test('a review changes only what it decides', async () => {
 
 test('a review of a case that does not exist writes nothing', async () => {
   assert.equal(await kyb.reviewKybCase('kyb_nobody', { state: 'APPROVED', actor: 'compliance@splash.finance' }), null);
-  assert.equal(await kyb.attachSumsubApplicant('kyb_nobody', 'sumsub_applicant_1'), null);
+  assert.equal(await kyb.attachSumsubApplicant(ORG, 'kyb_nobody', 'sumsub_applicant_1'), null);
   const { rows } = await client.query(`SELECT 1 FROM kyb_cases WHERE id = 'kyb_nobody'`);
   assert.equal(rows.length, 0);
 });
@@ -167,7 +167,7 @@ test('without a database, an overlapping review and resubmission keep both too',
     for (const reviewFirst of [true, false]) {
       const { id, resubmit } = await filed('memory-org');
       const review = () => kyb.reviewKybCase(id, { state: 'IN_REVIEW', actor: 'compliance@splash.finance' });
-      const link = () => kyb.attachSumsubApplicant(id, 'sumsub_memory');
+      const link = () => kyb.attachSumsubApplicant('memory-org', id, 'sumsub_memory');
       const again = () => resubmit('ubo-chart.pdf');
       await Promise.all(reviewFirst ? [review(), link(), again()] : [again(), link(), review()]);
 
