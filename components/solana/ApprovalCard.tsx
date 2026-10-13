@@ -85,7 +85,7 @@ export function ApprovalCard({
             (route {pctFine(card.costs.routeBps)} · partner {pctFine(card.costs.partnerBps)} · Splash {pctFine(card.costs.splashBps)})
           </span>
         </dd>
-        <dt>Arrives</dt>
+        <dt>Delivered by</dt>
         <dd>{card.arrives}</dd>
         <dt>Route</dt>
         <dd>

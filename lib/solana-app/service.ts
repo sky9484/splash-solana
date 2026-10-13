@@ -215,12 +215,15 @@ export function requireVault(org: OrgRecord) {
   return org.vault;
 }
 
+/**
+ * How the partner reaches the recipient's bank: the rail's name, never a time. A promised arrival
+ * time is a speed claim, and Splash makes none (prompt 07 §0.6); the bank and the rail set it.
+ */
 function arrivalOf(q: RouteQuote): { words: string; rail: string } {
   const partner = q.steps.find((s) => s.kind === 'partner');
   const rail = partner?.provider.split('·').pop()?.trim() ?? '';
-  if (rail === 'PESONet') return { words: 'Same banking day, PESONet', rail };
-  if (rail === 'InstaPay') return { words: 'Within minutes, InstaPay', rail };
-  return { words: 'Arrival depends on the bank', rail };
+  if (rail === 'PESONet' || rail === 'InstaPay') return { words: `${rail}, to the recipient’s bank`, rail };
+  return { words: 'The partner’s bank transfer', rail };
 }
 
 function laneOf(kind: RouteKind): { line: string; solNote: string; routeLabel: string } {
