@@ -9,7 +9,8 @@ import { drizzle } from 'drizzle-orm/pglite';
 import * as schema from '../lib/db/schema.ts';
 
 /**
- * POST /api/kyb/sumsub works on the caller's own KYB case and nobody else's.
+ * POST /api/kyb/sumsub works on the caller's own KYB case and nobody else's,
+ * and GET /api/kyb/cases/[id] reaches exactly the same cases.
  *
  * The route took `kybCaseId` from the request body and did two things with it
  * for any signed-in customer: asked Sumsub for an access token as that case's
@@ -67,6 +68,8 @@ const STRANGER = { email: 'someone@nowhere.test' };
 
 let client;
 let route;
+let caseRoute;
+let latestRoute;
 let kyb;
 let session;
 let acmeCaseId;
@@ -106,6 +109,8 @@ before(async () => {
   kyb = await import('@/lib/server/kyb');
   session = await import('@/lib/auth/customer-session');
   route = await import('@/app/api/kyb/sumsub/route');
+  caseRoute = await import('@/app/api/kyb/cases/[id]/route');
+  latestRoute = await import('@/app/api/kyb/cases/latest/route');
 
   const document = { name: 'form-9.pdf', kind: 'COMPANY_DOCUMENT', type: 'application/pdf', size: 1, sha256: '0'.repeat(64), storageKey: 'kyb/form-9.pdf', virusScanResult: 'PENDING', uploadedAt: new Date().toISOString() };
   acmeCaseId = (await kyb.recordKybSubmission({
@@ -144,12 +149,17 @@ beforeEach(() => {
   sumsubCalls.length = 0;
 });
 
-/** POST /api/kyb/sumsub as `person`, with the body KybSettings sends. */
-function requestSession(person, body) {
+/** Make `person` the one whose session the next request carries. */
+function signIn(person) {
   const signedIn = session.createCustomerSessionFromIdentity({ email: person.email, credentialVersion: 1 });
   scope.cookies = new Map([
     [session.CUSTOMER_SESSION_COOKIE, session.createCustomerSessionToken(signedIn, process.env.CUSTOMER_SESSION_SECRET)],
   ]);
+}
+
+/** POST /api/kyb/sumsub as `person`, with the body KybSettings sends. */
+function requestSession(person, body) {
+  signIn(person);
   return route.POST(
     new Request(`${ORIGIN}/api/kyb/sumsub`, {
       method: 'POST',
@@ -157,6 +167,12 @@ function requestSession(person, body) {
       body: JSON.stringify(body),
     }),
   );
+}
+
+/** GET /api/kyb/cases/[id] as `person`: what KybSettings polls after an upload. */
+function readCase(person, id) {
+  signIn(person);
+  return caseRoute.GET(new Request(`${ORIGIN}/api/kyb/cases/${id}`), { params: Promise.resolve({ id }) });
 }
 
 async function caseRow(id) {
@@ -223,6 +239,33 @@ test('a session with no workspace finds no case, and none is created for it', as
   assert.equal(sumsubCalls.length, 0);
   const { rows } = await client.query('SELECT id FROM organizations ORDER BY id');
   assert.deepEqual(rows.map((r) => r.id), [ACME.orgId, NORTHWIND.orgId, NEWCOMER.orgId].sort());
+});
+
+test('a new sign-up can read the case it filed, as it can start Sumsub on it', async () => {
+  // It used to get 403 no_membership here, so the status of its own case was
+  // unreadable while the case itself accepted documents and a Sumsub session.
+  const own = await readCase(NEWCOMER, newcomerCaseId);
+  assert.equal(own.status, 200);
+  assert.equal((await own.json()).case.id, newcomerCaseId);
+
+  // And only that one: the same 404 every other caller gets for a case not theirs.
+  assert.equal((await readCase(NEWCOMER, acmeCaseId)).status, 404);
+  assert.equal((await readCase(NORTHWIND, acmeCaseId)).status, 404);
+  assert.equal((await readCase(ACME, acmeCaseId)).status, 200);
+});
+
+test('a session with no workspace reads nothing by id, and none is created for it', async () => {
+  assert.equal((await readCase(STRANGER, acmeCaseId)).status, 404);
+  const { rows } = await client.query('SELECT id FROM organizations ORDER BY id');
+  assert.deepEqual(rows.map((r) => r.id), [ACME.orgId, NORTHWIND.orgId, NEWCOMER.orgId].sort());
+});
+
+test('the latest-case read stays membership-only, because it takes no id', async () => {
+  // Resolving a membership-less session to its email's workspace here would
+  // show that workspace's KYB file to anyone signing up with the domain.
+  signIn(NEWCOMER);
+  const response = await latestRoute.GET(new Request(`${ORIGIN}/api/kyb/cases/latest`));
+  assert.deepEqual(await response.json(), { case: null });
 });
 
 test('a case id is required', async () => {

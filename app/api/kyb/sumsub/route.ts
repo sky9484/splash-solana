@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { resolveAuthorityForSession, UnauthorizedError } from '@/lib/auth/authority';
-import { workspaceForEmail } from '@/lib/auth/signup-org';
 import { createSumsubKybSession, getSumsubConfig } from '@/lib/compliance/sumsub';
 import { requireCustomerRequest } from '@/lib/server/customer-auth';
 import { readJsonBody } from '@/lib/server/http';
 import { attachSumsubApplicant, readKybCase } from '@/lib/server/kyb';
+import { kybOrgIdForSession } from '@/lib/server/kyb-org';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,20 +23,8 @@ export async function POST(request: Request) {
   // case. It used to be any case: a signed-in customer could open a Sumsub
   // session — an access token to act as that applicant in the WebSDK — on
   // another company's KYB case, and write the applicant id and an audit event
-  // onto it.
-  //
-  // The org is resolved as the upload route resolves it. A brand-new sign-up
-  // has no membership, and its documents were filed under the workspace its
-  // email maps to; it is looked up here, never created, so a session with no
-  // case finds none.
-  let orgId: string;
-  try {
-    orgId = (await resolveAuthorityForSession(auth.session)).orgId;
-  } catch (error) {
-    if (!(error instanceof UnauthorizedError)) throw error;
-    orgId = workspaceForEmail(auth.session.email).orgId;
-  }
-
+  // onto it. A new sign-up reaches the case its upload filed: see kyb-org.ts.
+  const orgId = await kybOrgIdForSession(auth.session);
   const kybCase = await readKybCase(orgId, kybCaseId);
 
   // 404 rather than 403 for someone else's case, as GET /api/kyb/cases/[id]
