@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 
 import { kybCases } from '@/lib/db/schema';
 
@@ -140,11 +140,31 @@ export type KybCaseAmendment = Partial<
  * here reads `audit_trail` as it is when the row is updated, not as it was when
  * someone opened the case. No row, no write: returns null.
  *
- * Cross-tenant by id, like `findForStaff`.
+ * Cross-tenant by id, like `findForStaff`; `amendForOrg` is the customer form.
  */
 export async function amendForStaff(
   db: Db,
   id: string,
+  changes: KybCaseAmendment,
+  auditEvent: unknown,
+): Promise<KybCaseRow | null> {
+  return amendWhere(db, eq(kybCases.id, id), changes, auditEvent);
+}
+
+/** The same write, only if the case belongs to this org. */
+export async function amendForOrg(
+  db: Db,
+  orgId: string,
+  id: string,
+  changes: KybCaseAmendment,
+  auditEvent: unknown,
+): Promise<KybCaseRow | null> {
+  return amendWhere(db, and(eq(kybCases.id, id), eq(kybCases.orgId, orgId)), changes, auditEvent);
+}
+
+async function amendWhere(
+  db: Db,
+  where: SQL | undefined,
   changes: KybCaseAmendment,
   auditEvent: unknown,
 ): Promise<KybCaseRow | null> {
@@ -154,7 +174,7 @@ export async function amendForStaff(
       ...changes,
       auditTrail: sql`${kybCases.auditTrail} || ${JSON.stringify([auditEvent])}::jsonb`,
     })
-    .where(eq(kybCases.id, id))
+    .where(where)
     .returning();
   return (rows[0] as KybCaseRow) ?? null;
 }

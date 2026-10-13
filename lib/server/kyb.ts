@@ -254,16 +254,20 @@ type KybCaseAmendment = Partial<
  * reviewer had the case open. Postgres does it in one UPDATE; the memory path
  * reads and writes with no await in between, so nothing in this process can
  * interleave either.
+ *
+ * `ownerOrgId` limits the write to that org's case; null is a staff write,
+ * and only `amendForStaff` passes it.
  */
-async function amendForStaff(
+async function amendCase(
   caseId: string,
+  ownerOrgId: string | null,
   changes: KybCaseAmendment,
   audit: KybAuditEvent,
 ): Promise<KybCaseRecord | null> {
   const updatedAt = new Date();
   if (!usingPostgres()) {
     const record = memory.cases.get(caseId);
-    if (!record) return null;
+    if (!record || (ownerOrgId !== null && record.orgId !== ownerOrgId)) return null;
     const amended: KybCaseRecord = {
       ...record,
       ...changes,
@@ -273,8 +277,19 @@ async function amendForStaff(
     memory.cases.set(caseId, amended);
     return amended;
   }
-  const row = await repo.amendForStaff(await db(), caseId, { ...changes, updatedAt }, audit);
+  const row =
+    ownerOrgId === null
+      ? await repo.amendForStaff(await db(), caseId, { ...changes, updatedAt }, audit)
+      : await repo.amendForOrg(await db(), ownerOrgId, caseId, { ...changes, updatedAt }, audit);
   return row ? toRecord(row) : null;
+}
+
+function amendForStaff(caseId: string, changes: KybCaseAmendment, audit: KybAuditEvent) {
+  return amendCase(caseId, null, changes, audit);
+}
+
+function amendForOrg(orgId: string, caseId: string, changes: KybCaseAmendment, audit: KybAuditEvent) {
+  return amendCase(caseId, orgId, changes, audit);
 }
 
 // ── Customer-facing reads. `orgId` is required, every time. ─────────────────
@@ -406,12 +421,21 @@ export async function recordKybSubmission(input: {
   return record;
 }
 
+/**
+ * Record the Sumsub applicant for this organisation's case.
+ *
+ * Customer-facing, so `orgId` is required: the route takes the case id from
+ * the request body, and this used to write to whatever case that id named.
+ * Another org's case is not found, and nothing is written to it.
+ */
 export async function attachSumsubApplicant(
+  orgId: string,
   caseId: string,
   applicantId: string | null,
 ): Promise<KybCaseRecord | null> {
-  if (!applicantId) return readKybCaseForStaff(caseId);
-  return amendForStaff(
+  if (!applicantId) return readKybCase(orgId, caseId);
+  return amendForOrg(
+    orgId,
     caseId,
     { sumsubApplicantId: applicantId },
     event('system', 'kyb.sumsub_linked', `Applicant ${applicantId}`),

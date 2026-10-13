@@ -47,8 +47,11 @@ export async function GET(request: Request) {
     orgId = (await resolveAuthorityForSession(auth.session)).orgId;
   } catch (error) {
     if (error instanceof UnauthorizedError) {
-      // A brand-new sign-up with no membership has no case yet. That is an
-      // answer, not a failure.
+      // No membership, no case to show. A new sign-up may have filed one into
+      // the workspace its email maps to, but this read takes no case id, so
+      // resolving to that workspace would show its KYB file to anyone who
+      // signs up with the same email domain. The [id] route can, because only
+      // the uploader holds the id (kyb-org.ts).
       return NextResponse.json({ case: null });
     }
     throw error;
