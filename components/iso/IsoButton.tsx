@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useId, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useId, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react';
 import clsx from 'clsx';
 
 export type IsoButtonVariant = 'primary' | 'approve' | 'quiet' | 'link' | 'paper' | 'onink';
@@ -18,7 +18,7 @@ type Common = {
   children: ReactNode;
 };
 
-type ButtonProps = Common & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'> & { href?: undefined };
+type ButtonProps = Common & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'> & { href?: undefined; /** React 19 passes a ref as a prop: the approval moment focuses its main button. */ ref?: Ref<HTMLButtonElement> };
 type LinkProps = Common & { href: string; onClick?: () => void; 'aria-label'?: string };
 
 function classes({ variant = 'quiet', size = 'md', block, busy, className }: Common) {

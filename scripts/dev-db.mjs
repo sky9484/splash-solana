@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { drizzle } from 'drizzle-orm/pglite';
+import { Keypair } from '@solana/web3.js';
 
 import * as schema from '../lib/db/schema.ts';
 import { createAccount, markEmailVerified } from '../lib/auth/accounts.ts';
@@ -200,6 +201,31 @@ for (const d of firstBoot ? demos : []) {
     await client.query(`INSERT INTO org_settings (org_id, updated_by) VALUES ($1, $2)`, [d.orgId, userId]);
   }
 }
+
+// -- A business other Splash businesses can find and pay (prompt 10 §5.4) ---
+// Kuching Marine Supply: verified, "Let other Splash businesses find us" on, with a simulated account
+// on Splash (the offline demo pays into it). Transfer → "A business on Splash" finds it by name,
+// @kuchingmarine or its registration number. Fictional details, like the others.
+const PEER = { email: 'peer@acme.test', name: 'Peer Operator', orgId: 'peer-business', org: 'Kuching Marine Supply' };
+if (firstBoot) {
+  await client.query(
+    `INSERT INTO organizations (id, name, kyb_lifecycle, legal_name, registration_number,
+       address_line1, address_city, address_state, address_postal_code, address_country, discoverable, splash_handle)
+     VALUES ($1, $2, 'ACTIVE', $3, '202301099887', '12 Jalan Pelabuhan', 'Kuching', 'Sarawak', '93450', 'MY', true, 'kuchingmarine')
+     ON CONFLICT (id) DO NOTHING`,
+    [PEER.orgId, PEER.org, `${PEER.org} Sdn Bhd`],
+  );
+  await createAccount(db, { email: PEER.email, password: DEMO_PASSWORD, name: PEER.name });
+  await markEmailVerified(db, PEER.email);
+  await grantMembership(db, { email: PEER.email, orgId: PEER.orgId, role: 'admin', grantedBy: 'staff@splash.finance' });
+  const { rows } = await client.query('SELECT id FROM users WHERE email = $1', [PEER.email]);
+  await client.query(
+    `INSERT INTO org_vaults (org_id, cluster, simulated, multisig_pda, vault_pda, threshold, members, config_authority_null, create_signature, created_by)
+     VALUES ($1, 'devnet', true, $2, $3, 1, '[]'::jsonb, true, 'seeded-offline', $4) ON CONFLICT (org_id) DO NOTHING`,
+    [PEER.orgId, Keypair.generate().publicKey.toBase58(), Keypair.generate().publicKey.toBase58(), rows[0].id],
+  );
+}
+demos.push({ ...PEER, blurb: 'verified and findable on Splash: pay it from Transfer → A business on Splash' });
 
 // -- Optional: pre-verified WhatsApp numbers for the demo admins ------------
 // In memory, a restart would mean re-verifying a number every time. Local

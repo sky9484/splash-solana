@@ -21,7 +21,7 @@ const beneficiary = { bank: 'BDO Unibank, Inc.', accountLast4: '4471' };
 test('registry entry is exactly the labelled mock', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(MOCK_PARTNER_ENTRY)), {
     id: 'mock-partner',
-    name: 'Mock partner · devnet',
+    name: 'Test payout partner',
     signed: false,
     sandbox: true,
     acceptedTargets: [

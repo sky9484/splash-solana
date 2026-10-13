@@ -1,6 +1,6 @@
 {
   "baseline": 366,
-  "current": 333,
+  "current": 233,
   "targetMax": 54,
   "history": [
     {
@@ -16,6 +16,11 @@
     {
       "phase": "2-overview",
       "count": 333,
+      "date": "2026-10-13"
+    },
+    {
+      "phase": "3-transfer",
+      "count": 233,
       "date": "2026-10-13"
     }
   ],

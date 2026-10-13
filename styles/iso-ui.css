@@ -338,7 +338,7 @@
 .iso .iso-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; }
 .iso .iso-lane {
   position: relative;
-  display: block;
+  display: flex; flex-direction: column;
   width: 100%;
   min-height: 112px;
   padding: 14px 18px 16px;
@@ -358,14 +358,15 @@
   transform: translate(-2px, -2px);
   box-shadow: var(--ledge-2);
 }
+/* The road sits under the head in the flow, so a head that wraps on a phone pushes it down, never over it. */
 .iso .iso-lane__road {
-  position: absolute; left: 22px; right: 22px; top: 46px; height: 18px;
+  position: relative; order: 1; margin: 12px 4px 0; height: 18px;
   transform: skewX(-35deg);
   background: var(--road); border: 1.5px solid rgb(12 62 72 / .3);
   transition: background-color 250ms, border-color 250ms;
 }
 .iso .iso-lane__edge {
-  position: absolute; left: 22px; right: 22px; top: 64px; height: 8px;
+  position: relative; order: 2; margin: 0 4px; height: 8px;
   transform: skewX(-35deg);
   background: var(--road-edge); border: 1.5px solid rgb(12 62 72 / .3); border-top: 0;
   transition: background-color 250ms;
@@ -376,7 +377,7 @@
 .iso .iso-lane__name { font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
 .iso .iso-lane__labels { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .iso .iso-lane__price { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.iso .iso-lane__sub { position: relative; display: block; margin-top: 50px; font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-lane__sub { position: relative; order: 3; display: block; margin-top: 12px; font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
 
 /* Destination and option cards (Transfer step 1, the Invoices chooser). */
 .iso .iso-choice {
@@ -526,7 +527,7 @@
   background: var(--ink-deep); color: var(--paper-warm);
   font-size: var(--iso-14);
 }
-.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; }
+.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; background: var(--paper); }
 .iso .iso-ticket__foot { padding: 16px 26px 24px; display: flex; flex-direction: column; gap: 10px; }
 .iso .iso-ticket__perf {
   display: flex; flex-direction: column; gap: 6px;
@@ -613,6 +614,9 @@
 .iso .iso-ring--warn { color: var(--amber-ink); }
 .iso .iso-ring--warn .iso-ring__run { stroke: var(--amber-mark); }
 .iso .iso-ring--coral .iso-ring__run { stroke: var(--coral-ring); }
+/* On the ink band of a ticket the clock reads in paper. */
+.iso .iso-ticket__band .iso-ring { color: var(--paper-warm); }
+.iso .iso-ticket__band .iso-ring__track { stroke: rgb(255 250 244 / .3); }
 .iso .iso-ring--expired { color: var(--amber-ink); }
 .iso .iso-ring--expired .iso-ring__run { stroke: rgb(12 62 72 / .16); }
 .iso .iso-stale { opacity: .45; transition: opacity var(--t-ui); }
@@ -999,6 +1003,10 @@
 /* ── The floating Zeke (§3.5) ─────────────────────────────────────────── */
 .iso.iso-zk { position: fixed; right: 28px; bottom: 28px; z-index: 55; display: flex; flex-direction: column; align-items: flex-end; }
 .iso.iso-zk.iso-zk--raised { bottom: 104px; }
+/* Above a pinned action bar, by the bar's own height (components/iso/ActionBar.tsx publishes it). */
+html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px) + 24px); }
+/* A page with an action bar ends with it: at the end of the page it rests on the bottom edge. */
+.iso-app .iso-main:has(.iso-actionbar) { padding-bottom: 16px; }
 .iso .iso-zk__launch { display: inline-flex; align-items: center; gap: 10px; padding: 0; background: none; border: 0; cursor: pointer; font: inherit; }
 .iso .iso-zk__launch:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
 .iso .iso-zk__tile {
@@ -1081,6 +1089,8 @@
 @media (max-width: 720px) {
   .iso.iso-zk { right: 16px; bottom: 16px; }
   .iso.iso-zk.iso-zk--raised { bottom: 96px; }
+  html[data-iso-actionbar] .iso.iso-zk:not(:has(.iso-zk__panel)) { bottom: calc(var(--iso-actionbar-h, 140px) + 12px); }
+  html[data-iso-actionbar] .iso.iso-zk:has(.iso-zk__panel) { bottom: 0; }
   .iso.iso-zk:has(.iso-zk__panel) { left: 0; right: 0; bottom: 0; align-items: stretch; }
   .iso .iso-zk__panel { width: 100%; max-width: 100%; max-height: 88dvh; border-bottom: 0; box-shadow: 0 -6px 0 var(--ink-deep); translate: none !important; }
   .iso .iso-zk__grab { display: block; position: absolute; left: 50%; top: 6px; z-index: 1; width: 44px; height: 5px; margin-left: -22px; background: rgb(255 250 241 / .5); }
@@ -1139,3 +1149,123 @@
 .iso .iso-paylist li.is-open { border-color: var(--teal); background: var(--white); }
 .iso .iso-paylist li > div { display: flex; flex-direction: column; gap: 2px; }
 .iso .iso-paylist strong { color: var(--ink-deep); }
+
+/* ── Transfer (prompt 10 Phase 3) ────────────────────────────────────────
+   Recipient, Amount, Quote & send, Approve, Track. Built from the parts above;
+   these rules only arrange them. */
+.iso .iso-stack-lg { display: flex; flex-direction: column; gap: 22px; }
+/* A title focused by the page on a step change (for screen readers) shows no ring: nothing to act on. */
+.iso .iso-title[tabindex="-1"]:focus { outline: none; }
+
+/* Step 1: where the money goes, two big cards. */
+.iso .iso-dest { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; }
+.iso .iso-dest__card { flex-direction: row; align-items: center; gap: 18px; padding: 20px 22px; }
+.iso .iso-dest__card > span { display: flex; flex-direction: column; gap: 4px; }
+.iso .iso-dest__card[aria-checked="true"] { border: 2px solid var(--ink-deep); background: var(--white); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
+.iso .iso-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.iso .iso-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.iso .iso-field__icon { flex: 0 0 auto; margin-right: 14px; color: var(--text-2); }
+
+/* Saved recipients and directory results: one row each, the action on the right. */
+.iso .iso-recips { border: 1.5px solid var(--line-soft); }
+.iso .iso-recips > li { padding: 0; }
+.iso .iso-recips > li.iso-recips__row,
+.iso .iso-recips__row { display: flex; gap: 14px; align-items: center; width: 100%; padding: 14px 18px; }
+.iso .iso-recips__row--on { background: var(--white); box-shadow: inset 4px 0 0 var(--teal); }
+.iso .iso-recips__name {
+  padding: 0; border: 0; background: none; font: inherit; cursor: pointer; text-align: left;
+  font-weight: 700; color: var(--ink-deep);
+  text-decoration: underline; text-decoration-color: rgb(12 62 72 / .3); text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+.iso .iso-recips__name:hover { text-decoration-color: var(--ink-deep); }
+.iso .iso-recips__meta { margin-top: 6px; gap: 8px 12px; }
+.iso .iso-recips__chosen { flex: 0 0 auto; font-size: var(--iso-13); font-weight: 800; color: var(--teal); }
+
+/* "Pay again": templates as small tickets in a row. */
+.iso .iso-templates { display: flex; flex-direction: column; gap: 8px; }
+.iso .iso-templates__list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px; }
+.iso .iso-templates__item { display: flex; align-items: stretch; border: 1.5px solid var(--ink-deep); background: var(--paper); box-shadow: var(--ledge-1); }
+.iso .iso-templates__use {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px;
+  padding: 8px 14px; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; color: var(--ink);
+}
+.iso .iso-templates__use strong { color: var(--ink-deep); }
+.iso .iso-templates__use span { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-templates__item .iso-iconbtn { border-width: 0 0 0 1.5px; border-color: var(--line-soft); }
+
+/* Step 2: the two amounts, the rate under them, and what they receive. */
+.iso .iso-pair .iso-field__input { font-size: var(--iso-22); font-weight: 800; font-variant-numeric: tabular-nums; }
+.iso .iso-rate { display: flex; align-items: center; gap: 8px; margin: 0; }
+.iso .iso-receives { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.iso .iso-receives__rail { margin-top: 6px; }
+
+/* Step 3. */
+.iso .iso-howto { display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-rules { margin: 0; color: var(--ink); }
+.iso .iso-rules svg { color: var(--teal); }
+.iso .iso-from { border: 1.5px solid var(--line-soft); }
+.iso .iso-from > li { padding: 12px 16px; }
+.iso .iso-ways { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); line-height: 1.5; color: var(--text-2); }
+.iso .iso-ways strong { color: var(--ink-deep); }
+.iso .iso-steps-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-fundsteps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: var(--iso-14); }
+.iso .iso-fundsteps li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1.5px solid var(--line-soft); color: var(--text-2); }
+.iso .iso-fundsteps li[data-state="done"] { color: var(--ok-ink); border-color: var(--mint); background: var(--ok-fill); }
+.iso .iso-fundsteps li[data-state="now"] { color: var(--ink-deep); border-color: var(--ink-deep); background: var(--white); }
+.iso .iso-fundsteps li[data-state="stop"] { color: var(--danger-ink); border-color: var(--danger-line); background: var(--danger-fill); }
+
+/* Step 4: the approval card's rules, and the approve → tick moment (coral to teal, 320 ms, once). */
+.iso .iso-checklist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); }
+.iso .iso-checklist li { display: flex; gap: 8px; align-items: flex-start; color: var(--danger-ink); }
+.iso .iso-checklist li[data-ok] { color: var(--ink); }
+.iso .iso-checklist li[data-ok] svg { color: var(--teal); }
+.iso .iso-approved { display: flex; gap: 12px; align-items: center; margin: 0; font-size: var(--iso-15); }
+.iso .iso-tick {
+  display: inline-flex; flex: 0 0 34px; width: 34px; height: 34px; align-items: center; justify-content: center;
+  border-radius: 50%; border: 2px solid var(--ink-deep); color: var(--paper-warm); background: var(--teal);
+  animation: iso-tick var(--t-sheet) var(--ease-iso) both;
+}
+@keyframes iso-tick { 0% { background: var(--coral); transform: scale(.7); } 60% { background: var(--coral); } 100% { background: var(--teal); transform: none; } }
+
+/* Step 5: stations not reached yet are quieter; the gold coin lands on the bank station. */
+.iso .iso-station--later { opacity: .55; }
+.iso .iso-station--landing { position: relative; }
+.iso .iso-track__foot { justify-content: space-between; gap: 8px 18px; }
+.iso .iso-track__foot .iso-label { display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.iso .iso-proofline { align-items: flex-start; flex-wrap: nowrap; font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-proofline svg { flex: 0 0 auto; margin-top: 2px; color: var(--teal); }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-tick { animation-name: iso-fade !important; }
+  .iso .iso-dest__card[aria-checked="true"] { transform: none; }
+}
+@media (max-width: 640px) {
+  .iso .iso-dest__card { padding: 16px; gap: 14px; }
+  .iso .iso-recips__row { flex-wrap: wrap; }
+  .iso .iso-recips__row > .iso-btn { margin-left: auto; }
+}
+/* Download PDF prints the page: only the receipt and its map, never the shell around them. */
+@media print {
+  .iso-app .iso-side,
+  .iso .iso-actionbar,
+  .iso .iso-steprail,
+  .iso .iso-toprow,
+  .iso .iso-zk { display: none !important; }
+}
+
+/* ── Balance (prompt 10 §5.10) ─────────────────────────────────────────── */
+/* The figure and its sentence take their own height; the bar and the links follow straight after. */
+.iso .iso-balance .iso-money__lead { flex: 0 0 auto; }
+.iso .iso-balance__links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.iso .iso-balance__link {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;
+  padding: 12px 14px; min-height: 48px;
+  border: 1.5px solid rgb(12 62 72 / .2); background: var(--paper);
+  color: var(--ink); text-decoration: none; font-size: var(--iso-14);
+}
+.iso .iso-balance__link:hover { border-color: var(--ink-deep); color: var(--ink-deep); }
+.iso .iso-balance__link strong { color: var(--ink-deep); }
+.iso .iso-addcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 18px; }
+.iso .iso-addcard { display: flex; flex-direction: column; align-items: flex-start; }
+.iso .iso-addcard__act { margin-top: auto; padding-top: 6px; }
+.iso .iso-swatch--inline { display: inline-block; vertical-align: -2px; margin: 0 4px 0 0; }

@@ -7,6 +7,8 @@ import { useState } from 'react';
 import { IsoSurface, Tag } from '@/components/iso';
 import { useCompany } from '@/components/solana/useCompany';
 
+import { DirectoryCard } from './DirectoryCard';
+
 /**
  * Settings › Account details, the one place the dashboard shows account IDs and how approval is set
  * up (prompt 10 §0.6: the allowed zone for these words). The IDs moved here from the sidebar.
@@ -102,6 +104,8 @@ export function AccountDetails() {
           </dl>
         </IsoSurface>
       ) : null}
+
+      <DirectoryCard isOwner={c.me.isOwner} />
     </div>
   );
 }

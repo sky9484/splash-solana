@@ -1,6 +1,6 @@
 /**
  * Mock payout partner for devnet and offline runs. Labelled everywhere as
- * "Mock partner · devnet"; its rate is a fixed reference, not a market rate.
+ * "Test payout partner"; its rate is a fixed reference, not a market rate.
  *
  * It has the same surface a real partner adapter has (`PayoutPartner`):
  *   quote()        a priced quote for one size on one delivery network
@@ -24,6 +24,7 @@ import { bytesToHex, concatBytes, hexToBytes, utf8ToBytes } from '@noble/hashes/
 import { applyBps, applyRate, divideByRate, parseRate, MICRO_DECIMALS } from '../money.ts';
 import type { DeliveryNetwork, PartnerPayoutEvent } from '../solana/types.ts';
 import { canonicalJson } from '../solana-evidence/canonical.ts';
+import { bankByCode, INSTAPAY_MAX_PHP_MINOR, railFor as railForBank } from './banks.ts';
 import {
   MOCK_PARTNER_ENTRY,
   partnerAccepts,
@@ -43,8 +44,8 @@ export const MOCK_RATE = '57.40';
 export const MOCK_RATE_REFERENCE = 'MOCK · not a live rate';
 /** 0.20%: the partner-cost assumption in the canon's worked example. */
 export const MOCK_FEE_BPS = 20;
-/** InstaPay's per-transfer ceiling, PHP 50,000.00. Above it the mock uses PESONet. */
-export const INSTAPAY_MAX_PHP_MINOR = 5_000_000n;
+/** InstaPay's per-transfer ceiling, PHP 50,000.00 (banks.ts, so the browser can show the rail too). */
+export { INSTAPAY_MAX_PHP_MINOR };
 export const MOCK_QUOTE_TTL_SEC = 60;
 const ETA: Record<PayoutRail, { sec: number; arrival: string }> = {
   InstaPay: { sec: 900, arrival: 'within minutes' },
@@ -212,7 +213,8 @@ export function createMockPartner(options: MockPartnerOptions): MockPayoutPartne
     const fee = feeFor(gross);
     if (fee >= gross) throw new MockPartnerError('amount does not cover the partner fee');
     const netPhp = phpFor(gross);
-    const rail = railFor(netPhp);
+    const bank = req.bankCode ? bankByCode(req.bankCode) : null;
+    const rail = bank ? railForBank(bank, netPhp) : railFor(netPhp);
     return {
       partnerId: entry.id,
       network,
@@ -241,6 +243,10 @@ export function createMockPartner(options: MockPartnerOptions): MockPayoutPartne
     if (!req.paymentId) throw new MockPartnerError('paymentId required');
     if (req.amountPhpMinor <= 0n || req.expectedUsdcMinor <= 0n) throw new MockPartnerError('amounts must be positive');
     if (!/^\d{4}$/.test(req.beneficiary.accountLast4)) throw new MockPartnerError('accountLast4 must be 4 digits');
+    // The full number is checked against last4 and dropped: the payout record keeps bank and last4 only.
+    if (req.beneficiary.accountNumber !== undefined && !req.beneficiary.accountNumber.endsWith(req.beneficiary.accountLast4)) {
+      throw new MockPartnerError('the account number does not end in its last 4 digits');
+    }
     const payoutId = payoutIdFor(req.paymentId);
     const existing = payouts.get(payoutId);
     if (existing) {

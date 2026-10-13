@@ -4,6 +4,8 @@
  *   draft → quoted → checked → proposed → approved → executed → confirmed
  *         → partner_paid → evidenced → anchored
  *
+ * A payment to another business on Splash ('peer') skips partner_paid: confirmed → evidenced.
+ *
  * with an explicit failure state for each way out:
  *
  *   quote_expired        the quote ran out before the device prompt or the send
@@ -58,8 +60,20 @@ const TRANSITIONS: Readonly<Record<PaymentState, readonly PaymentState[]>> = Obj
   discarded: [],
 });
 
-export function canTransition(from: PaymentState, to: PaymentState): boolean {
-  return TRANSITIONS[from]?.includes(to) ?? false;
+/**
+ * A payment into another business's Splash account ('peer', prompt 10 §5.2) has no partner: once
+ * confirmed it is in their account, so its proof is next. Everything else is the bank payout's table.
+ */
+export type MachineKind = 'bank' | 'peer';
+const PEER_OVERRIDES: Readonly<Partial<Record<PaymentState, readonly PaymentState[]>>> = Object.freeze({
+  confirmed: ['evidenced'],
+  partner_paid: [],
+  partner_failed: [],
+});
+
+export function canTransition(from: PaymentState, to: PaymentState, kind: MachineKind = 'bank'): boolean {
+  const next = kind === 'peer' ? (PEER_OVERRIDES[from] ?? TRANSITIONS[from]) : TRANSITIONS[from];
+  return next?.includes(to) ?? false;
 }
 
 export class IllegalTransitionError extends Error {
@@ -73,8 +87,8 @@ export class IllegalTransitionError extends Error {
   }
 }
 
-export function assertTransition(from: PaymentState, to: PaymentState): void {
-  if (!canTransition(from, to)) throw new IllegalTransitionError(from, to);
+export function assertTransition(from: PaymentState, to: PaymentState, kind: MachineKind = 'bank'): void {
+  if (!canTransition(from, to, kind)) throw new IllegalTransitionError(from, to);
 }
 
 export function nextStates(from: PaymentState): readonly PaymentState[] {

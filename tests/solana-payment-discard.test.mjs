@@ -89,7 +89,7 @@ test('a quoted or checked transfer can be discarded: it leaves the lists, keeps 
   await assert.rejects(svc.selectRoute(a.p.id, { quoteId: a.card.quoteId }), (e) => e.code === 'wrong_state');
   await assert.rejects(svc.requote(a.p.id), () => true);
   await assert.rejects(
-    funding.startFunding(env.org.id, a.p.id, { method: 'stripe', quoteId: a.card.quoteId, sourceOfFunds: 'business_revenue', declared: true, by: 'Aisyah' }),
+    funding.startFunding(env.org.id, a.p.id, { source: 'bank_card', quoteId: a.card.quoteId, sourceOfFunds: 'business_revenue', declared: true, by: 'Aisyah' }),
     (e) => e.code === 'wrong_state' && /discarded/.test(e.message),
   );
 });

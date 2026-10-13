@@ -5,6 +5,7 @@ import bs58 from 'bs58';
 
 import { CHALLENGE_PREFIX } from '@/lib/solana/recovery-kit';
 import { ServiceError } from '@/lib/solana-app/errors';
+import { openForPayout } from '@/lib/solana-app/payout-number';
 import { runtime } from '@/lib/solana-app/runtime';
 import { getOrg } from '@/lib/solana-app/service';
 import { store, type SupplierRecord } from '@/lib/solana-app/store';
@@ -76,16 +77,7 @@ export function markBankDetailsVerified(orgId: string, supplierId: string, by: s
  * payment. Refused while changed details wait for their call-back.
  */
 export async function bankNumberForPayout(orgId: string, supplierId: string): Promise<{ accountNumber: string; last4: string }> {
-  const supplier = findSupplier(orgId, supplierId);
-  if (supplier.pendingCallBack) throw new ServiceError('bank_details_unverified', 'This recipient’s bank details changed. Call them on a number you already have to confirm, then pay.', 409);
-  const secret = await runtime().secrets.current(orgId, supplierId);
-  if (!secret) throw new ServiceError('bank_number_unavailable', 'This recipient has no full account number on file.', 409);
-  try {
-    return { accountNumber: await openNumber(kms(), secret, { orgId, beneficiaryId: supplierId }), last4: secret.last4 };
-  } catch (e) {
-    if (e instanceof VaultError) throw new ServiceError('bank_number_unavailable', e.message, 409);
-    throw e;
-  }
+  return openForPayout(orgId, findSupplier(orgId, supplierId));
 }
 
 /* ── Reveal ───────────────────────────────────────────────────────────── */

@@ -39,11 +39,35 @@ export const SOLANA_PROGRAMS = {
   sas: '22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG',
 } as const;
 
-/** CCTP domain ids. source: Circle CCTP docs (developers.circle.com/cctp) + unverified by Splash. Testnets reuse the mainnet domain (Polygon Amoy = 7). */
+/**
+ * CCTP domain ids. Testnets reuse the mainnet domain (Polygon Amoy = 7).
+ * source: https://developers.circle.com/cctp/concepts/supported-chains-and-domains, read 14 Oct 2026
+ * (docs/solana-build/FUNDING-AUDIT.md §5). A network Circle does not confirm CCTP V2 for is not listed;
+ * the crypto-wallet card shows it as "Not available yet" (lib/solana-app/funding-router.ts).
+ */
 export const CCTP_DOMAINS = {
+  ethereum: 0,
+  avalanche: 1,
+  arbitrum: 3,
   solana: 5,
+  base: 6,
   polygon: 7,
 } as const;
+
+/**
+ * The tokens the Payments account accepts, pinned per cluster (FUNDING-AUDIT.md §8 step 4). Only
+ * native USDC reaches the account today; USDT is pinned to Tether's own mint (CRIT-3: the canon's value
+ * was wrong) and off until a payout partner accepts it, so a USDT holder swaps to USDC first.
+ * source (USDC): https://developers.circle.com/stablecoins/usdc-contract-addresses
+ * source (USDT): https://tether.to/en/supported-protocols/ ("Solana Token via Solana Blockchain")
+ */
+export const ALLOWED_DEPOSIT_MINTS: Record<Cluster, ReadonlyArray<{ symbol: 'USDC' | 'USDT'; mint: string; enabled: boolean }>> = {
+  'mainnet-beta': [
+    { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', enabled: true },
+    { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', enabled: false },
+  ],
+  devnet: [{ symbol: 'USDC', mint: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', enabled: true }],
+};
 
 /** CCTP V2 minFinalityThreshold values. source: message-transmitter-v2 receive_message.rs (FINALIZED = 2000), Circle docs (fast = 1000). */
 export const CCTP_FINALITY = {

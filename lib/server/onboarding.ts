@@ -7,6 +7,8 @@ import { resolveAuthorityForSession } from '@/lib/auth/authority';
 import { canMoveMoney, kybGateReason, type KybLifecycleState } from '@/lib/compliance/kyb-state';
 import { organizations, orgSettings, orgVaults, suppliers, termsAcceptances } from '@/lib/db/schema';
 import { TERMS_VERSION } from '@/content/legal';
+import { loadCompany } from '@/lib/solana-app/company';
+import { store } from '@/lib/solana-app/store';
 
 /**
  * Onboarding — the derived setup state, and the one new gate.
@@ -109,6 +111,16 @@ export async function readOnboardingStateForOrg(d: Db, orgId: string): Promise<O
     .from(orgVaults)
     .where(eq(orgVaults.orgId, ctx.orgId))
     .limit(1);
+  // Recipients saved in Transfer live in the company's own record (prompt 10 §5.3); the older
+  // supplier table still counts. Without the payment app's store (a test, a bare database) only the table.
+  let companyRecipients = 0;
+  try {
+    await loadCompany(ctx.orgId);
+    companyRecipients = store().orgs.get(ctx.orgId)?.suppliers.length ?? 0;
+  } catch {
+    companyRecipients = 0;
+  }
+  const savedRecipients = (supplierRows[0]?.n ?? 0) + companyRecipients;
   const vaultRow = vaultRows[0] as { threshold: number; members: Array<{ role: string }> } | undefined;
   const secondApprover = Boolean(vaultRow && (vaultRow.threshold > 1 || vaultRow.members.some((m) => m.role === 'approver_device')));
 
@@ -155,10 +167,10 @@ export async function readOnboardingStateForOrg(d: Db, orgId: string): Promise<O
       id: 'recipient',
       title: 'First recipient (optional)',
       detail:
-        (supplierRows[0]?.n ?? 0) > 0
+        savedRecipients > 0
           ? 'At least one recipient is saved.'
           : 'Save the supplier you will pay first. You can skip this.',
-      done: (supplierRows[0]?.n ?? 0) > 0,
+      done: savedRecipients > 0,
       href: '/dashboard/recipients',
     },
     {

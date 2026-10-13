@@ -4,12 +4,13 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { Keypair, VersionedMessage } from '@solana/web3.js';
+import { Keypair, PublicKey, VersionedMessage } from '@solana/web3.js';
 import * as multisig from '@sqds/multisig';
 import bs58 from 'bs58';
 
 import { createDeviceKey, createMemoryDeviceKeyStore, signWithDeviceKey } from '../lib/solana/device-key.ts';
 import { deriveRecoveryKey, generateRecoveryWords, signPossessionChallenge } from '../lib/solana/recovery-kit.ts';
+import { getAssociatedTokenAddress } from '../lib/solana/payout.ts';
 import { buildCreateVaultInstruction, buildSponsoredTransaction } from '../lib/solana/squads.ts';
 import { resetRuntime, runtime, splashKeys } from '../lib/solana-app/runtime.ts';
 import { resetStore, store } from '../lib/solana-app/store.ts';
@@ -177,12 +178,22 @@ test('simulate before every send: an execute that would fail is refused unsigned
     const sent = await svc.submitApproval(p.id, { signatures: await sign(keys, org.id, await svc.prepareApproval(p.id)) });
     assert.equal(sent.state, 'confirmed');
   }
-  const third = await svc.submitApproval(c.id, { signatures: await sign(keys, org.id, await svc.prepareApproval(c.id)) });
+  // Prompt 10 §5.6: the third is refused before any device is asked, because the Payments account no
+  // longer holds it (a planned move from the reserve lands first; here there is none).
+  await assert.rejects(svc.prepareApproval(c.id), (e) => e.code === 'insufficient_balance');
+  // Money can still leave by another path between the approval and the send: simulation catches that.
+  await svc.fund(org.id);
+  const prepared = await svc.prepareApproval(c.id);
+  const sim = runtime().chain;
+  sim.state.balances.set(getAssociatedTokenAddress(sim.mint, new PublicKey(store().orgs.get(org.id).vault.vaultPda)).toBase58(), 0n);
+  const third = await svc.submitApproval(c.id, { signatures: await sign(keys, org.id, prepared) });
   assert.equal(third.state, 'execute_failed');
   assert.match(third.problem.message, /insufficient USDC/);
   assert.ok(third.execution.lastLogs?.some((l) => /insufficient USDC/.test(l)), 'the simulation logs are kept');
   const calls = await runtime().payments.listCalls(c.id);
-  assert.ok(calls.some((x) => x.step === 'proposal:0'));
+  // Prompt 10 Phase 3 keys proposal steps by the on-chain index (was: 'proposal:0'), so a re-proposal
+  // after a re-quote is a new call while a resend of the same one is still refused.
+  assert.ok(calls.some((x) => /^proposal:tx\d+\.0$/.test(x.step)));
   assert.ok(!calls.some((x) => x.step.startsWith('execute')), 'the failing execute was never signed by the fee payer');
 });
 

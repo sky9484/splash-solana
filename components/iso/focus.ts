@@ -23,6 +23,9 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
     first.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // An open list (a Combobox) closes first; the next Esc closes the sheet or card.
+        const at = e.target as HTMLElement | null;
+        if (at?.getAttribute?.('role') === 'combobox' && at.getAttribute('aria-expanded') === 'true') return;
         e.stopPropagation();
         escape.current();
         return;
