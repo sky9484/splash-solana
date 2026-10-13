@@ -176,6 +176,61 @@ test('resubmitting after review reopens the case and keeps what the reviewer wro
   );
 });
 
+// ── The org lifecycle on a resubmission ─────────────────────────────────────
+
+async function setLifecycle(state) {
+  await client.query('UPDATE organizations SET kyb_lifecycle = $1 WHERE id = $2', [state, ORG]);
+}
+
+async function lifecycleNow() {
+  const { rows } = await client.query('SELECT kyb_lifecycle FROM organizations WHERE id = $1', [ORG]);
+  return rows[0].kyb_lifecycle;
+}
+
+/** How many times the route reported that the org did not advance. */
+const notAdvancedReports = (errorMock) =>
+  errorMock.mock.calls.filter((call) => String(call.arguments[0]).includes('org state did not advance')).length;
+
+test('a resubmission while the org is already submitted is quiet', async (t) => {
+  await setLifecycle('KYB_SUBMITTED');
+  const errors = t.mock.method(console, 'error', () => {});
+
+  // KYB_SUBMITTED → KYB_SUBMITTED is not a transition, so the machine refuses
+  // it; that used to be logged as an error on every resubmission.
+  for (const name of ['form-9.pdf', 'director-id.pdf']) {
+    const response = await upload('202401033333', [name, name]);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).lifecycle, 'KYB_SUBMITTED', 'the org is reported where it is');
+  }
+  assert.equal(notAdvancedReports(errors), 0);
+  assert.equal(await lifecycleNow(), 'KYB_SUBMITTED');
+});
+
+test('a resubmission after a rejection still moves the org back to KYB_SUBMITTED', async (t) => {
+  await setLifecycle('REJECTED');
+  const errors = t.mock.method(console, 'error', () => {});
+
+  const response = await upload('202401044444', ['form-9.pdf', 'form 9 again']);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).lifecycle, 'KYB_SUBMITTED');
+  assert.equal(await lifecycleNow(), 'KYB_SUBMITTED', 'REJECTED → KYB_SUBMITTED is re-KYB, a real transition');
+  assert.equal(notAdvancedReports(errors), 0);
+});
+
+test('documents from an org past review are recorded, and the org staying put is still reported', async (t) => {
+  await setLifecycle('ACTIVE');
+  const errors = t.mock.method(console, 'error', () => {});
+
+  // Only the already-submitted case is quiet. An ACTIVE business uploading
+  // KYB documents does not go back into review, and that stays visible.
+  const response = await upload('202401066666', ['form-9.pdf', 'new form 9']);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).lifecycle, null);
+  assert.equal(await lifecycleNow(), 'ACTIVE');
+  assert.equal(notAdvancedReports(errors), 1);
+  await setLifecycle('KYB_SUBMITTED');
+});
+
 test('two first submissions racing each other make one case with both uploads', async () => {
   // Neither sees the other's row before writing; the upsert on (org,
   // registration number) is what makes the second one a merge, not a 500.

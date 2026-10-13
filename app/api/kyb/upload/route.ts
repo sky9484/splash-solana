@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { resolveAuthorityForSession, UnauthorizedError } from '@/lib/auth/authority';
 import { ensureWorkspaceForEmail } from '@/lib/auth/signup-org';
+import { KybTransitionError } from '@/lib/compliance/kyb-state';
 import { setOrgKybState } from '@/lib/compliance/org-kyb';
 import { requireCustomerRequest } from '@/lib/server/customer-auth';
 import { findKybCaseByRegistration, recordKybSubmission, type KybDocumentRecord } from '@/lib/server/kyb';
@@ -108,7 +109,15 @@ export async function POST(request: Request) {
     const moved = await setOrgKybState(orgId, 'KYB_SUBMITTED', 'SYSTEM');
     lifecycle = moved.to;
   } catch (error) {
-    console.error('[kyb] documents recorded but the org state did not advance', error);
+    if (error instanceof KybTransitionError && error.from === 'KYB_SUBMITTED') {
+      // A resubmission while the org is already submitted: the documents went
+      // onto its case above and the org is where it should be. The machine
+      // refuses KYB_SUBMITTED → KYB_SUBMITTED because it is not a transition,
+      // not because anything is wrong, so this is not worth an error log.
+      lifecycle = error.from;
+    } else {
+      console.error('[kyb] documents recorded but the org state did not advance', error);
+    }
   }
 
   // The id the case has, not the one minted above: if another submission for
