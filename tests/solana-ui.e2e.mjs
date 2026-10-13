@@ -64,9 +64,22 @@ async function warmRoutes() {
   const started = Date.now();
   // One at a time, the pages first: compiling several at once can leave a page pointing at a chunk
   // the dev server is still rebuilding.
-  for (const r of ['/', '/login', ...routes]) await fetch(`${BASE}${r}`, { redirect: 'manual' }).then((res) => res.arrayBuffer()).catch(() => null);
+  const hit = (r) => fetch(`${BASE}${r}`, { redirect: 'manual' }).then(async (res) => ({ status: res.status, html: (res.headers.get('content-type') ?? '').includes('text/html'), body: await res.arrayBuffer() })).catch(() => null);
+  const unfound = [];
+  for (const r of ['/', '/login', ...routes]) {
+    let res = await hit(r);
+    // Next's own HTML "not found" for a route file that exists (no [id] in it) is the dev server
+    // racing its compile, not an answer from the route: one Phase 2 run kept /treasury/fund at 404
+    // for the rest of the walk. Ask again until the route answers for itself.
+    for (let tries = 0; res && res.status === 404 && res.html && !r.includes('/warm') && tries < 5; tries++) {
+      await new Promise((ok) => setTimeout(ok, 2000));
+      res = await hit(r);
+    }
+    if (res && res.status === 404 && res.html && !r.includes('/warm')) unfound.push(r);
+  }
   await new Promise((r) => setTimeout(r, 3000));
   console.log(`[walk] compiled ${routes.length} API routes and the first pages in ${Math.round((Date.now() - started) / 1000)}s`);
+  if (unfound.length) console.log(`[walk] the dev server still says "not found" for: ${unfound.join(', ')}`);
 }
 
 async function walk(email) {
@@ -156,6 +169,15 @@ async function run(page, email) {
   assert.deepEqual(groups, ['Overview', 'Pay|Transfer|Invoices|Batch payout', 'Money|Balance|Treasury|History', 'Contacts|Recipients', 'Control|Rules|Zeke']);
   assert.match((await page.text('.iso-ratestrip')).join(' '), /USD → PHP 57\.40\s*test rate/);
   assert.equal(await page.evaluate(() => document.querySelector('.iso-zk__nudge')), null, 'no nudge while nothing waits');
+  // Overview, before any money or payment (prompt 10 Phase 2): the money position says so, and the
+  // only thing that needs you is setup (the optional second approver ranks last, §4.2.4). The
+  // "Nothing needs you." state is rendered from a fixture in tests/overview-honesty.test.mjs.
+  await page.find('heading', 'Your money, all accounts');
+  await page.find('text', 'No money in your accounts yet.');
+  await page.find('text', 'Add a second approver');
+  await page.find('text', 'No payments yet.');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
+  await shot('overview-empty');
   await shot('shell-sidebar');
   await page.click('button', 'Collapse navigation');
   await page.evaluate(() => document.querySelector('a.iso-navitem[href="/dashboard/zeke"]')?.focus());
@@ -336,7 +358,15 @@ async function run(page, email) {
   await page.waitIdle();
   await shot('policy');
   await page.goto(`${BASE}/dashboard`);
-  await page.find('heading', 'Your vault');
+  await page.find('heading', 'Your money, all accounts');
+  await page.waitFor(() => document.querySelectorAll('.iso-table tbody tr').length >= 1, [], { what: 'recent payments on the overview' });
+  const ov = (await page.text('main')).join('\n');
+  assert.match(ov, /Paid · proof recorded/);
+  assert.match(ov, /Payments this month/);
+  assert.match(ov, /Where you can pay/);
+  assert.match(ov, /Checks and limits/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('[aria-label="Payments this month, by where they are"] .iso-station').length), 6, 'six stations in the pipeline');
   await shot('overview');
 
   // A second invoice, clicked through on a phone from start to paid.
