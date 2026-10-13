@@ -40,6 +40,14 @@ type Db = {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyDb = any;
 
+/**
+ * Write a whole row, documents and audit trail included.
+ *
+ * For seeding a case in one go (the tests do). The store does not call it: a
+ * whole-row write built from an earlier read puts back the documents and the
+ * trail as they were at that read, erasing anything appended in between.
+ * Changes to a live case go through `upsertSubmission` and `amendForStaff`.
+ */
 export async function insertOrUpdate(db: Db, row: {
   id: string;
   orgId: string;
@@ -114,6 +122,41 @@ export async function upsertSubmission(db: Db, row: KybCaseRow): Promise<KybCase
     })
     .returning();
   return rows[0] as KybCaseRow;
+}
+
+/** What a staff-side write may change. Never the documents, and never the
+ *  audit trail except by appending one event. */
+export type KybCaseAmendment = Partial<
+  Pick<KybCaseRow, 'state' | 'riskTier' | 'corridorAccess' | 'assignedTo' | 'sumsubApplicantId' | 'reviewNotes' | 'decisionReason'>
+> & { updatedAt: Date };
+
+/**
+ * A reviewer's decision or a provider link: set these fields on one case and
+ * append one audit event, in one statement.
+ *
+ * Only the named columns are written. A review used to read the case, rebuild
+ * the whole record and write it back, so a resubmission that landed between
+ * the read and the write lost its documents and its audit event. The append
+ * here reads `audit_trail` as it is when the row is updated, not as it was when
+ * someone opened the case. No row, no write: returns null.
+ *
+ * Cross-tenant by id, like `findForStaff`.
+ */
+export async function amendForStaff(
+  db: Db,
+  id: string,
+  changes: KybCaseAmendment,
+  auditEvent: unknown,
+): Promise<KybCaseRow | null> {
+  const rows = await (db as AnyDb)
+    .update(kybCases)
+    .set({
+      ...changes,
+      auditTrail: sql`${kybCases.auditTrail} || ${JSON.stringify([auditEvent])}::jsonb`,
+    })
+    .where(eq(kybCases.id, id))
+    .returning();
+  return (rows[0] as KybCaseRow) ?? null;
 }
 
 /** This org's case for one registration number, if it has filed one. */

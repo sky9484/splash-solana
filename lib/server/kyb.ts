@@ -232,13 +232,49 @@ function toRow(record: KybCaseRecord): repo.KybCaseRow {
   };
 }
 
-async function persist(record: KybCaseRecord): Promise<KybCaseRecord> {
+function memoryCaseByRegistration(orgId: string, registrationNumber: string): KybCaseRecord | null {
+  return (
+    Array.from(memory.cases.values()).find(
+      (record) => record.orgId === orgId && record.registrationNumber === registrationNumber,
+    ) ?? null
+  );
+}
+
+/** What a staff-side write may change: see repo.KybCaseAmendment. */
+type KybCaseAmendment = Partial<
+  Pick<KybCaseRecord, 'state' | 'riskTier' | 'corridorAccess' | 'assignedTo' | 'sumsubApplicantId' | 'reviewNotes' | 'decisionReason'>
+>;
+
+/**
+ * Set these fields on an existing case and append one audit event.
+ *
+ * Every write to a live case changes only what it means to change and appends
+ * to the trail where the trail is, never a copy of the case read earlier. That
+ * copy is how a review used to erase a resubmission that landed while the
+ * reviewer had the case open. Postgres does it in one UPDATE; the memory path
+ * reads and writes with no await in between, so nothing in this process can
+ * interleave either.
+ */
+async function amendForStaff(
+  caseId: string,
+  changes: KybCaseAmendment,
+  audit: KybAuditEvent,
+): Promise<KybCaseRecord | null> {
+  const updatedAt = new Date();
   if (!usingPostgres()) {
-    memory.cases.set(record.id, record);
-    return record;
+    const record = memory.cases.get(caseId);
+    if (!record) return null;
+    const amended: KybCaseRecord = {
+      ...record,
+      ...changes,
+      updatedAt: updatedAt.toISOString(),
+      auditTrail: [...record.auditTrail, audit],
+    };
+    memory.cases.set(caseId, amended);
+    return amended;
   }
-  await repo.insertOrUpdate(await db(), toRow(record));
-  return record;
+  const row = await repo.amendForStaff(await db(), caseId, { ...changes, updatedAt }, audit);
+  return row ? toRecord(row) : null;
 }
 
 // ── Customer-facing reads. `orgId` is required, every time. ─────────────────
@@ -286,13 +322,7 @@ export async function findKybCaseByRegistration(
   orgId: string,
   registrationNumber: string,
 ): Promise<KybCaseRecord | null> {
-  if (!usingPostgres()) {
-    return (
-      Array.from(memory.cases.values()).find(
-        (record) => record.orgId === orgId && record.registrationNumber === registrationNumber,
-      ) ?? null
-    );
-  }
+  if (!usingPostgres()) return memoryCaseByRegistration(orgId, registrationNumber);
   const row = await repo.findByRegistrationForOrg(await db(), orgId, registrationNumber);
   return row ? toRecord(row) : null;
 }
@@ -356,7 +386,9 @@ export async function recordKybSubmission(input: {
     return toRecord(await repo.upsertSubmission(await db(), toRow(submission)));
   }
 
-  const existing = await findKybCaseByRegistration(input.orgId, input.registrationNumber);
+  // No await between this read and the write below, for the reason given on
+  // amendForStaff.
+  const existing = memoryCaseByRegistration(input.orgId, input.registrationNumber);
   const record: KybCaseRecord = existing
     ? {
         ...existing,
@@ -370,46 +402,46 @@ export async function recordKybSubmission(input: {
         auditTrail: [...existing.auditTrail, ...submission.auditTrail],
       }
     : submission;
-  return persist(record);
+  memory.cases.set(record.id, record);
+  return record;
 }
 
 export async function attachSumsubApplicant(
   caseId: string,
   applicantId: string | null,
 ): Promise<KybCaseRecord | null> {
-  const record = await readKybCaseForStaff(caseId);
-  if (!record || !applicantId) return record ?? null;
-
-  return persist({
-    ...record,
-    sumsubApplicantId: applicantId,
-    updatedAt: new Date().toISOString(),
-    auditTrail: [...record.auditTrail, event('system', 'kyb.sumsub_linked', `Applicant ${applicantId}`)],
-  });
+  if (!applicantId) return readKybCaseForStaff(caseId);
+  return amendForStaff(
+    caseId,
+    { sumsubApplicantId: applicantId },
+    event('system', 'kyb.sumsub_linked', `Applicant ${applicantId}`),
+  );
 }
 
 export async function reviewKybCase(
   caseId: string,
   input: { state: KybReviewState; actor: string; note?: string; assignedTo?: string | null },
 ): Promise<KybCaseRecord | null> {
-  const record = await readKybCaseForStaff(caseId);
-  if (!record) return null;
-
   const note = input.note?.trim() || null;
-  return persist({
-    ...record,
-    state: input.state,
-    updatedAt: new Date().toISOString(),
-    assignedTo: input.assignedTo === undefined ? record.assignedTo : input.assignedTo,
-    reviewNotes: note ?? record.reviewNotes,
-    decisionReason: input.state === 'APPROVED' ? null : note ?? record.decisionReason,
-    riskTier:
-      input.state === 'APPROVED' ? 'TIER_1' : input.state === 'REJECTED' ? 'RESTRICTED' : record.riskTier,
-    corridorAccess:
-      input.state === 'APPROVED' ? 'FULL' : input.state === 'REJECTED' ? 'LOCKED' : record.corridorAccess,
-    auditTrail: [
-      ...record.auditTrail,
-      event(input.actor, `kyb.${String(input.state ?? 'unknown').toLowerCase()}`, note),
-    ],
-  });
+
+  // Only what this decision changes. A field left out keeps whatever the case
+  // holds when the write lands, not what it held when the reviewer opened it.
+  const changes: KybCaseAmendment = { state: input.state };
+  if (input.assignedTo !== undefined) changes.assignedTo = input.assignedTo;
+  if (note) changes.reviewNotes = note;
+  if (input.state === 'APPROVED') changes.decisionReason = null;
+  else if (note) changes.decisionReason = note;
+  if (input.state === 'APPROVED') {
+    changes.riskTier = 'TIER_1';
+    changes.corridorAccess = 'FULL';
+  } else if (input.state === 'REJECTED') {
+    changes.riskTier = 'RESTRICTED';
+    changes.corridorAccess = 'LOCKED';
+  }
+
+  return amendForStaff(
+    caseId,
+    changes,
+    event(input.actor, `kyb.${String(input.state ?? 'unknown').toLowerCase()}`, note),
+  );
 }
