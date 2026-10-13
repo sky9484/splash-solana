@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { dateShort, payHref, php, shortKey, timeShort, usd } from './client';
+import { DiscardButton } from './DiscardButton';
 import { StatusPill } from './StatusPill';
 import type { CompanyDTO } from './types';
 import { useCompany } from './useCompany';
@@ -157,6 +158,11 @@ export function History() {
                         <span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                       </Link>
                     )}
+                    {p.discardable ? (
+                      <span style={{ display: 'block', marginTop: 4 }}>
+                        <DiscardButton paymentId={p.id} name={p.supplierName || 'the supplier'} />
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))}
