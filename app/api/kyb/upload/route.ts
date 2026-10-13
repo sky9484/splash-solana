@@ -5,7 +5,7 @@ import { resolveAuthorityForSession, UnauthorizedError } from '@/lib/auth/author
 import { ensureWorkspaceForEmail } from '@/lib/auth/signup-org';
 import { setOrgKybState } from '@/lib/compliance/org-kyb';
 import { requireCustomerRequest } from '@/lib/server/customer-auth';
-import { recordKybSubmission, type KybDocumentRecord } from '@/lib/server/kyb';
+import { findKybCaseByRegistration, recordKybSubmission, type KybDocumentRecord } from '@/lib/server/kyb';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,9 +32,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Business name and registration number are required' }, { status: 400 });
   }
 
-  // Unguessable case id: do NOT derive it from public business attributes
-  // (legal name / SSM number), which would let anyone recompute it.
-  const kybCaseId = `kyb_${Date.now().toString(36)}_${randomBytes(12).toString('hex')}`;
+  // Which organisation this case belongs to — resolved BEFORE the case is
+  // written, because it is now stored on the row.
+  //
+  // A membership-less session is what a brand-new sign-up IS: password sign-up
+  // deliberately grants no membership, and refusing their documents would make
+  // onboarding impossible for the only people who need it. Previously that case
+  // was filed under `orgId: 'demo-business'` — the literal demo workspace — so
+  // every new business's KYB documents landed in a namespace shared with the
+  // sample data and with each other.
+  //
+  // They get their own workspace instead, created in REGISTERED, which is the
+  // state that can do nothing. Submitting KYB documents is precisely the moment
+  // a business declares itself, so it is the right moment to create one.
+  let orgId: string;
+  try {
+    orgId = (await resolveAuthorityForSession(auth.session)).orgId;
+  } catch (error) {
+    if (!(error instanceof UnauthorizedError)) throw error;
+    orgId = (await ensureWorkspaceForEmail(auth.session.email)).orgId;
+  }
+
+  // A resubmission files into the case this org already has for this
+  // registration number, so its documents are stored under that case's id.
+  // A first filing gets an unguessable id: do NOT derive it from public
+  // business attributes (legal name / SSM number), which would let anyone
+  // recompute it.
+  const existingCase = await findKybCaseByRegistration(orgId, registrationNumber);
+  const kybCaseId = existingCase?.id ?? `kyb_${Date.now().toString(36)}_${randomBytes(12).toString('hex')}`;
   const documents: KybDocumentRecord[] = await Promise.all(
     files.map(async (file, index) => {
       const bytes = Buffer.from(await file.arrayBuffer());
@@ -59,26 +84,6 @@ export async function POST(request: Request) {
       };
     }),
   );
-  // Which organisation this case belongs to — resolved BEFORE the case is
-  // written, because it is now stored on the row.
-  //
-  // A membership-less session is what a brand-new sign-up IS: password sign-up
-  // deliberately grants no membership, and refusing their documents would make
-  // onboarding impossible for the only people who need it. Previously that case
-  // was filed under `orgId: 'demo-business'` — the literal demo workspace — so
-  // every new business's KYB documents landed in a namespace shared with the
-  // sample data and with each other.
-  //
-  // They get their own workspace instead, created in REGISTERED, which is the
-  // state that can do nothing. Submitting KYB documents is precisely the moment
-  // a business declares itself, so it is the right moment to create one.
-  let orgId: string;
-  try {
-    orgId = (await resolveAuthorityForSession(auth.session)).orgId;
-  } catch (error) {
-    if (!(error instanceof UnauthorizedError)) throw error;
-    orgId = (await ensureWorkspaceForEmail(auth.session.email)).orgId;
-  }
 
   const kybCase = await recordKybSubmission({
     caseId: kybCaseId,
@@ -106,8 +111,10 @@ export async function POST(request: Request) {
     console.error('[kyb] documents recorded but the org state did not advance', error);
   }
 
+  // The id the case has, not the one minted above: if another submission for
+  // this registration number created the case first, this one merged into it.
   return NextResponse.json({
-    kybCaseId,
+    kybCaseId: kybCase.id,
     state: kybCase.state,
     lifecycle,
     documents,

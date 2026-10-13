@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { kybCases } from '@/lib/db/schema';
 
@@ -77,6 +77,57 @@ export async function insertOrUpdate(db: Db, row: {
         updatedAt: row.updatedAt,
       },
     });
+}
+
+/**
+ * A business submitting documents: the first time, a new case; every time
+ * after, the same case.
+ *
+ * Keyed on (org, registration number), which is what makes it one company's
+ * case, rather than on the id. The upload route mints a fresh id per request,
+ * so an id-keyed upsert inserted a second row on resubmission and
+ * `kyb_cases_org_registration_unique` turned it into a 500.
+ *
+ * On conflict the existing row keeps its id, its first `submitted_at`, its
+ * reviewer and their notes. The new documents and the new audit event are
+ * appended in SQL, not read-modified-written, so two submissions racing each
+ * other both land, and nothing already in the trail can be dropped by this
+ * write. State goes back to SUBMITTED with risk and corridor access reset:
+ * new documents are a new review.
+ */
+export async function upsertSubmission(db: Db, row: KybCaseRow): Promise<KybCaseRow> {
+  const rows = await (db as AnyDb)
+    .insert(kybCases)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [kybCases.orgId, kybCases.registrationNumber],
+      set: {
+        businessName: row.businessName,
+        state: row.state,
+        riskTier: row.riskTier,
+        corridorAccess: row.corridorAccess,
+        sumsubApplicantId: sql`coalesce(excluded.sumsub_applicant_id, ${kybCases.sumsubApplicantId})`,
+        documents: sql`${kybCases.documents} || excluded.documents`,
+        auditTrail: sql`${kybCases.auditTrail} || excluded.audit_trail`,
+        updatedAt: row.updatedAt,
+      },
+    })
+    .returning();
+  return rows[0] as KybCaseRow;
+}
+
+/** This org's case for one registration number, if it has filed one. */
+export async function findByRegistrationForOrg(
+  db: Db,
+  orgId: string,
+  registrationNumber: string,
+): Promise<KybCaseRow | null> {
+  const rows = await (db as AnyDb)
+    .select()
+    .from(kybCases)
+    .where(and(eq(kybCases.orgId, orgId), eq(kybCases.registrationNumber, registrationNumber)))
+    .limit(1);
+  return (rows[0] as KybCaseRow) ?? null;
 }
 
 /** One case, only if it belongs to this org. */
