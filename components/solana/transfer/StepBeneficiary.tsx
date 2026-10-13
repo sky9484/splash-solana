@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 
-import { dateShort } from '../client';
+import { api, ApiError, dateShort } from '../client';
 import type { CompanyDTO } from '../types';
+import { notifyCompanyChanged } from '../useCompany';
 
 export type Beneficiary = {
   name: string;
@@ -32,6 +33,27 @@ export function StepBeneficiary({ org, value, onNext }: { org: CompanyDTO; value
   const [method, setMethod] = useState<'call-back' | 'supplier-account'>(value?.verification?.method ?? 'call-back');
   const [called, setCalled] = useState(!!value?.verification);
   const [tried, setTried] = useState(false);
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  /** Take a saved recipient off the verified list: an owner's decision, confirmed first. */
+  async function remove(i: number) {
+    const s = saved[i];
+    if (!s) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      await api('/suppliers', { method: 'DELETE', body: { name: s.name, bank: s.bank, accountLast4: s.accountLast4 } });
+      setConfirming(null);
+      setPick(0);
+      notifyCompanyChanged();
+    } catch (e) {
+      setRemoveError(e instanceof ApiError ? e.message : 'The recipient could not be removed. Try again.');
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   const chosen = who === 'saved' ? saved[pick] : null;
   const fresh = { name: name.trim(), bank: bank.trim(), accountLast4: last4.trim() };
@@ -61,19 +83,48 @@ export function StepBeneficiary({ org, value, onNext }: { org: CompanyDTO; value
       ) : null}
 
       {who === 'saved' && saved.length > 0 ? (
-        <div className="sx-tpick" role="radiogroup" aria-label="Saved recipients">
-          {saved.map((s, i) => (
-            <button key={`${s.name}-${s.accountLast4}`} type="button" role="radio" aria-checked={pick === i} className="sx-tpick-row" onClick={() => setPick(i)}>
-              <span className="sx-radio" aria-hidden="true" />
-              <span className="sx-tpick-who">
-                <strong>{s.name}</strong>
-                <span className="sx-muted sx-small">
-                  {s.bank} <span className="sx-mono">•••• {s.accountLast4}</span>
-                </span>
-              </span>
-              <span className="sx-pill sx-pill-ok">Verified {dateShort(s.verifiedAt)} by {HOW[s.method] ?? s.method}</span>
-            </button>
-          ))}
+        <div className="sx-stack">
+          <div className="sx-tpick" role="radiogroup" aria-label="Saved recipients">
+            {saved.map((s, i) => (
+              <div key={`${s.name}-${s.bank}-${s.accountLast4}`} className="sx-tpick-item">
+                <button type="button" role="radio" aria-checked={pick === i} className="sx-tpick-row" onClick={() => setPick(i)}>
+                  <span className="sx-radio" aria-hidden="true" />
+                  <span className="sx-tpick-who">
+                    <strong>{s.name}</strong>
+                    <span className="sx-muted sx-small">
+                      {s.bank} <span className="sx-mono">•••• {s.accountLast4}</span>
+                    </span>
+                  </span>
+                  <span className="sx-pill sx-pill-ok">Verified {dateShort(s.verifiedAt)} by {HOW[s.method] ?? s.method}</span>
+                </button>
+                {org.me.isOwner ? (
+                  confirming === i ? (
+                    <span className="sx-tpick-confirm" role="group" aria-label={`Remove ${s.name}?`}>
+                      <span className="sx-small">Remove {s.name}?</span>
+                      <button type="button" className="sx-btn sx-btn-sm" disabled={removing} onClick={() => void remove(i)}>
+                        {removing ? 'Removing…' : 'Yes, remove'}
+                      </button>
+                      <button type="button" className="sx-btn-link sx-small" disabled={removing} onClick={() => setConfirming(null)}>
+                        Keep
+                      </button>
+                    </span>
+                  ) : (
+                    <button type="button" className="sx-btn-link sx-small" onClick={() => { setConfirming(i); setRemoveError(null); }} aria-label={`Remove ${s.name} from saved recipients`}>
+                      Remove
+                    </button>
+                  )
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {confirming !== null ? (
+            <p className="sx-hint">Past payments keep their records. Paying this recipient again needs a new call-back, and the payout partner’s questions are asked again.</p>
+          ) : null}
+          {removeError ? (
+            <p className="sx-small" role="alert">
+              {removeError}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="sx-stack">

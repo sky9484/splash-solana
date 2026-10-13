@@ -65,7 +65,7 @@ import { explainRoutes } from '../solana-zeke/router.ts';
 import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 
 import { awaitCommitment } from './confirm.ts';
-import { detailsView, missingDetails, purposeLine } from './transfer-details.ts';
+import { detailsView, missingDetails, purposeLine, recipientKey } from './transfer-details.ts';
 import { ServiceError } from './errors.ts';
 import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
@@ -527,6 +527,20 @@ function bankStatusFor(org: OrgRecord, fields: InvoiceFields): { status: Invoice
   const exact = sameName.find((s) => s.bank === fields.supplierBank && s.accountLast4 === fields.supplierAccountLast4);
   if (exact) return { status: 'known', known: exact.verified };
   return { status: sameName.length > 0 ? 'changed' : 'new', known: null };
+}
+
+/**
+ * Take a recipient off the company's saved, verified list (Transfer, step 1). Payments already made
+ * keep their records untouched. Paying this recipient again needs a new call-back, and the payout
+ * partner's questions are asked again, because the saved answers go with it.
+ */
+export function removeSupplier(orgId: string, who: { name: string; bank: string; accountLast4: string }): number {
+  const org = getOrg(orgId);
+  const before = org.suppliers.length;
+  org.suppliers = org.suppliers.filter((s) => !(s.name === who.name && s.bank === who.bank && s.accountLast4 === who.accountLast4));
+  if (org.suppliers.length === before) throw new ServiceError('bad_request', 'That recipient is not on your saved list.', 404);
+  if (org.recipientDetails) delete org.recipientDetails[recipientKey({ supplierName: who.name, supplierBank: who.bank, supplierAccountLast4: who.accountLast4 })];
+  return org.suppliers.length;
 }
 
 export async function readInvoiceDraft(orgId: string, input: { text?: string; sample?: boolean; source?: 'paste' | 'upload' }) {

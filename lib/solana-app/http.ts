@@ -140,6 +140,8 @@ export const schemas = {
     })
     .strict(),
   invoiceId: id('inv'),
+  /** A saved recipient to take off the verified list, named exactly as the list shows it. */
+  supplierRemove: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().regex(/^\d{4}$/) }).strict(),
   /** Step 3 of a transfer: the same details as last time for this recipient, or every answer given again. */
   transferDetails: z.union([
     z.object({ reuse: z.literal(true) }).strict(),
