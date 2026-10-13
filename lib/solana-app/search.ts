@@ -97,7 +97,7 @@ export async function searchCompany(orgId: string, rawQuery: string): Promise<{ 
   for (const s of org.suppliers) {
     // Searched by name and bank only; the account shows as its last four digits and is never matched.
     if (!matches(q, [s.name, s.bank], [])) continue;
-    found.recipient.push({ kind: 'recipient', id: `${s.name}|${s.bank}|${s.accountLast4}`, title: s.name, detail: `${s.bank} •••• ${s.accountLast4}`, href: '/dashboard/recipients' });
+    found.recipient.push({ kind: 'recipient', id: s.id, title: s.name, detail: `${s.bank} •••• ${s.accountLast4}`, href: '/dashboard/recipients' });
   }
 
   // At most 8, shared fairly across the groups (one from each in turn), then shown grouped.

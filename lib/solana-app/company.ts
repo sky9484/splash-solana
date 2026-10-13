@@ -12,7 +12,7 @@
  */
 import { encodeRecord } from './payment-repo.ts';
 import { runtime } from './runtime.ts';
-import { store } from './store.ts';
+import { ensureSupplierIds, store } from './store.ts';
 import type { Doc, DocKind } from './doc-store.ts';
 
 const keyOf = (kind: DocKind, id: string) => `${kind}:${id}`;
@@ -26,6 +26,8 @@ export async function loadCompany(orgId: string): Promise<void> {
   if (docs.org && !s.orgs.has(orgId)) {
     s.orgs.set(orgId, docs.org);
     remember('org', orgId, docs.org);
+    // After the snapshot, so saveCompany sees the change and writes the new ids back (prompt 10 §S.1.0).
+    ensureSupplierIds(docs.org);
   }
   for (const inv of docs.invoices) {
     if (inv.orgId !== orgId || s.invoices.has(inv.id)) continue;

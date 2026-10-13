@@ -20,6 +20,10 @@ const PROD_OK = {
   DATABASE_URL: 'postgresql://user:pw@db.example/splash?sslmode=require',
   NEXT_PUBLIC_APP_URL: 'https://v1.splashz.xyz',
   ADMIN_PASSWORD: 'not-the-demo-value-either',
+  // Bank numbers on AWS KMS in ap-southeast-1 (prompt 10 Phase S): production refuses the local key.
+  PII_KMS: 'aws',
+  PII_AWS_KMS_KEY_ARN: 'arn:aws:kms:ap-southeast-1:123456789012:key/0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b',
+  PII_AWS_HMAC_KEY_ARN: 'arn:aws:kms:ap-southeast-1:123456789012:key/1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809',
   // Sandbox posture: mocks on, demo on, so no vendor key is demanded.
   USE_MOCK_APIS: 'true',
   NEXT_PUBLIC_DEMO_MODE: 'true',
@@ -63,6 +67,17 @@ test('production: an empty environment refuses to start and names every missing 
   for (const k of ['CUSTOMER_SESSION_SECRET', 'ADMIN_SESSION_SECRET', 'CRON_SECRET', 'DATABASE_URL', 'NEXT_PUBLIC_APP_URL']) {
     assert.ok(keys.includes(k), `${k} should be named; got ${keys.join(', ')}`);
   }
+});
+
+test('production: bank numbers need AWS KMS, or the local key as a deliberate exception with both keys', () => {
+  const { PII_KMS, PII_AWS_KMS_KEY_ARN, PII_AWS_HMAC_KEY_ARN, ...rest } = PROD_OK;
+  assert.deepEqual(keysOf(() => parseEnv(rest)), ['PII_KMS'], 'the local key (the default) is refused');
+  assert.deepEqual(keysOf(() => parseEnv({ ...rest, PII_KMS: 'aws' })), ['PII_AWS_KMS_KEY_ARN', 'PII_AWS_HMAC_KEY_ARN']);
+  assert.deepEqual(keysOf(() => parseEnv({ ...rest, PII_ALLOW_LOCAL_IN_PROD: '1' })), ['PII_LOCAL_WRAP_KEY', 'PII_LOCAL_HMAC_KEY']);
+  assert.doesNotThrow(() => parseEnv({ ...rest, PII_ALLOW_LOCAL_IN_PROD: '1', PII_LOCAL_WRAP_KEY: 'w'.repeat(44), PII_LOCAL_HMAC_KEY: 'h'.repeat(44) }));
+  assert.deepEqual(keysOf(() => parseEnv({ ...rest, PII_ALLOW_LOCAL_IN_PROD: 'yes' })), ['PII_ALLOW_LOCAL_IN_PROD'], 'the override is exactly 1');
+  assert.equal(parseEnv({ NODE_ENV: 'development' }).PII_KMS, 'local', 'development: the local key, by default');
+  void PII_KMS; void PII_AWS_KMS_KEY_ARN; void PII_AWS_HMAC_KEY_ARN;
 });
 
 test('a credential key removed with the single-credential login is refused if still set', () => {

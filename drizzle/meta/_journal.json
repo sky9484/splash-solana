@@ -239,6 +239,13 @@
       "when": 1791417600000,
       "tag": "0033_payment_discarded",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791504000000,
+      "tag": "0034_bank_account_secrets",
+      "breakpoints": true
     }
   ]
 }

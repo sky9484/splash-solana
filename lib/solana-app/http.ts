@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 
+import { scrubText } from '../server/log-scrub.ts';
 import { ServiceError } from './errors.ts';
 import { jsonResponse } from './json.ts';
 import { getPayment } from './service.ts';
@@ -31,7 +32,8 @@ export async function handle(fn: () => Promise<unknown> | unknown, status = 200)
     if (e instanceof ServiceError) {
       return jsonResponse({ error: { code: e.code, message: e.message, ...(e.detail ? { detail: e.detail } : {}) } }, { status: e.status });
     }
-    const message = e instanceof Error ? e.message : String(e);
+    // Scrubbed: an unexpected error must not carry a bank number to the browser (prompt 10 §S.1.6).
+    const message = scrubText(e instanceof Error ? e.message : String(e));
     console.error('[api/solana]', e);
     return jsonResponse({ error: { code: 'server_error', message: `Something went wrong on the server: ${message}` } }, { status: 500 });
   }
@@ -140,8 +142,13 @@ export const schemas = {
     })
     .strict(),
   invoiceId: id('inv'),
-  /** A saved recipient to take off the verified list, named exactly as the list shows it. */
-  supplierRemove: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().regex(/^\d{4}$/) }).strict(),
+  /** A saved recipient to take off the verified list, by its id (prompt 10 §S.1.0). */
+  supplierRemove: z.object({ id: z.string().regex(/^sup_[0-9a-f-]{36}$/) }).strict(),
+  /** See a full bank number (prompt 10 §S.1.5): ask for a device challenge, then answer it. */
+  reveal: z.discriminatedUnion('step', [
+    z.object({ step: z.literal('challenge') }).strict(),
+    z.object({ step: z.literal('reveal'), nonce: z.string().regex(/^[0-9a-f]{64}$/), signature: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{64,90}$/) }).strict(),
+  ]),
   /** Step 3 of a transfer: the same details as last time for this recipient, or every answer given again. */
   transferDetails: z.union([
     z.object({ reuse: z.literal(true) }).strict(),

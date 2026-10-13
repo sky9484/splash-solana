@@ -110,18 +110,19 @@ test('no means every answer again: an individual needs a date of birth or ID num
 test('an owner can take a recipient off the saved list: its saved answers go too, and the next transfer starts with a call-back', async () => {
   const env = await company();
   const org = svc.getOrg(env.org.id);
-  org.suppliers.push({ name: recipient.name, bank: recipient.bank, accountLast4: recipient.accountLast4, verified: { by: 'Aisyah', method: 'call-back', at: new Date().toISOString() } });
-  org.suppliers.push({ name: 'Cebu Logistics Inc.', bank: 'BDO', accountLast4: '7781', verified: { by: 'Aisyah', method: 'call-back', at: new Date().toISOString() } });
+  org.suppliers.push({ id: 'sup_00000000-0000-4000-8000-000000000001', name: recipient.name, bank: recipient.bank, accountLast4: recipient.accountLast4, verified: { by: 'Aisyah', method: 'call-back', at: new Date().toISOString() } });
+  org.suppliers.push({ id: 'sup_00000000-0000-4000-8000-000000000002', name: 'Cebu Logistics Inc.', bank: 'BDO', accountLast4: '7781', verified: { by: 'Aisyah', method: 'call-back', at: new Date().toISOString() } });
   const first = await quoted(env);
   assert.equal(first.inv.bankStatus, 'known', 'a saved recipient is known');
   details.setTransferDetails(env.org.id, first.inv.id, { details: SAMPLE_DETAILS }, 'Aisyah');
 
-  assert.equal(svc.removeSupplier(env.org.id, recipient), 1, 'one recipient left');
+  // By id since prompt 10 Phase S (was: by name, bank and last4).
+  assert.equal(svc.removeSupplier(env.org.id, 'sup_00000000-0000-4000-8000-000000000001').remaining, 1, 'one recipient left');
   assert.deepEqual(org.suppliers.map((s) => s.name), ['Cebu Logistics Inc.'], 'only that recipient is removed');
   assert.equal(first.inv.paymentDetails.purpose, 'goods', 'a transfer already made keeps what went with it');
 
   const again = svc.startTransfer(env.org.id, { recipient, amountPhpMinor: '5000000', by: 'Aisyah' });
   assert.equal(again.bankStatus, 'new', 'paying them again needs a new call-back');
   assert.equal(details.previousDetails(env.org.id, again.id), null, 'the partner’s questions are asked again');
-  assert.throws(() => svc.removeSupplier(env.org.id, recipient), (e) => e.code === 'bad_request' && /not on your saved list/.test(e.message));
+  assert.throws(() => svc.removeSupplier(env.org.id, 'sup_00000000-0000-4000-8000-000000000001'), (e) => e.code === 'recipient_not_found' && e.status === 404 && /not on your saved list/.test(e.message));
 });
