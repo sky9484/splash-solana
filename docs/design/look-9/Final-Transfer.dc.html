@@ -18,6 +18,7 @@ a{color:#0d6370}a:hover{color:#083640}
 .mono{font-family:'Geist Mono',ui-monospace,monospace}
 .num{font-variant-numeric:tabular-nums}
 .paper-grid{background-color:#f6f0ed;background-image:linear-gradient(rgba(12,62,72,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(12,62,72,.05) 1px,transparent 1px);background-size:24px 24px}
+.hero-wash{background-color:#fffaf4;background-image:linear-gradient(rgba(12,62,72,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(12,62,72,.06) 1px,transparent 1px),linear-gradient(135deg,#ddefea 0%,#eaf4ef 40%,#fffaf4 74%);background-size:24px 24px,24px 24px,100% 100%;border:2px solid #083640;box-shadow:6px 6px 0 #083640}
 .x-display{font-weight:900;letter-spacing:-.05em;line-height:.95;color:#fffaf1;-webkit-text-stroke:1.5px #083640;text-shadow:2px 2px 0 #0d6370,4px 4px 0 #0d6370,6px 6px 0 #083640}
 .side{position:relative;overflow:hidden;background:linear-gradient(165deg,#245563 0%,#143c47 55%,#0c3039 100%);color:#fffaf1}
 .side::before,.side::after{content:"";position:absolute;right:-90px;bottom:-90px;border-radius:50%;border:1px solid rgba(159,207,199,.14);pointer-events:none}
@@ -70,7 +71,7 @@ a{color:#0d6370}a:hover{color:#083640}
 
   <aside class="side" style="flex: 1 1 252px; max-width: 100%; display: flex; flex-direction: column; gap: 22px; padding: 22px 16px 18px">
     <div style="position: relative; display: flex; align-items: center; gap: 12px; padding: 4px 8px 0">
-      <img src="/cinematic/brand-mark.png" alt="" style="width: 26px; height: 38px; object-fit: contain">
+      <span style="display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center; background: #fffaf4; box-shadow: 3px 3px 0 #041c22"><img src="/splash-main-icon.png" alt="Splash" style="width: 34px; height: 34px; object-fit: contain"></span>
       <div><div style="font-size: 22px; font-weight: 900; letter-spacing: -.03em">Splash<span style="color: #9fcfc7">.</span></div><div style="font-size: 12px; font-weight: 600; color: rgba(255,250,241,.72)">Global settlement engine</div></div>
     </div>
     <a href="#setup" style="position: relative; display: block; padding: 14px; background: rgba(255,250,241,.07); border: 1.5px solid rgba(255,250,241,.18); color: #fffaf1; text-decoration: none">
@@ -99,7 +100,7 @@ a{color:#0d6370}a:hover{color:#083640}
       <div>
         <p class="s-grp">Control</p>
         <a class="s-a" href="#rules"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>Rules</a>
-        <a class="s-a" href="#zeke"><img src="/cinematic/brand-mark.png" alt="" style="width: 12px; height: 18px; object-fit: contain; margin: 0 3px">Zeke<span class="s-badge">AI</span></a>
+        <a class="s-a" href="#zeke"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path><path d="M12 7.6l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9-1.9-.9 1.9-.9z"></path></svg>Zeke<span class="s-badge">AI</span></a>
       </div>
     </nav>
     <div style="position: relative; margin-top: auto; display: flex; flex-direction: column; gap: 14px">
@@ -138,7 +139,7 @@ a{color:#0d6370}a:hover{color:#083640}
         <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: rgba(12,62,72,.86)"><svg class="ring" width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="rgba(12,62,72,.16)" stroke-width="3"></circle><circle class="run" cx="11" cy="11" r="9" fill="none" stroke="#0d6370" stroke-width="3" stroke-dasharray="56.55" stroke-dashoffset="{{ ringOffset }}" transform="rotate(-90 11 11)"></circle></svg><span class="num">{{ quoteLabel }}</span></span>
       </div>
 
-      <section aria-label="How the money moves" style="background: #fffaf4; border: 2px solid #083640; box-shadow: 6px 6px 0 #083640; padding: 30px 30px 22px; display: flex; flex-direction: column; gap: 22px">
+      <section class="hero-wash" aria-label="How the money moves" style="padding: 30px 30px 22px; display: flex; flex-direction: column; gap: 22px">
         <div style="display: flex; align-items: flex-start; overflow-x: auto; padding: 4px 0 6px">
           <div class="station" style="flex-basis: 170px">
             <img class="bob" src="/cinematic/token-usd.png" alt="" style="width: 92px; height: 108px; object-fit: contain">
@@ -179,13 +180,13 @@ a{color:#0d6370}a:hover{color:#083640}
           </button>
           <button type="button" class="lane {{ fewOn }}" aria-pressed="{{ isFew }}" onClick="{{ pickFew }}">
             <span class="road" aria-hidden="true"></span><span class="edge" aria-hidden="true"></span>
-            <span class="lbl"><strong style="font-size: 17px; color: #083640">Fewest steps</strong><span class="num" style="font-size: 18px; font-weight: 800">US$5,015.00</span></span>
+            <span class="lbl"><strong style="font-size: 17px; color: #083640">Fastest</strong><span class="num" style="font-size: 18px; font-weight: 800">US$5,015.00</span></span>
             <span class="sub">2 steps · partner fee 0.20% · straight to the partner</span>
           </button>
         </div>
         <div>
           <button type="button" class="tip" aria-expanded="{{ infoOpen }}" onClick="{{ toggleInfo }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg>How it moves</button>
-          <sc-if value="{{ infoOpen }}" hint-placeholder-val="{{ false }}"><p class="drop" style="margin: 4px 0 0; max-width: 720px; font-size: 14px; line-height: 1.6; color: rgba(12,62,72,.9)">Both routes pay Manila Freight the full ₱287,000. The cheapest one first moves your dollars to the partner's lower-cost lane (Circle's own transfer, to Polygon), where the partner charges 0.15% instead of 0.20%. It's one more step for a lower fee.</p></sc-if>
+          <sc-if value="{{ infoOpen }}" hint-placeholder-val="{{ false }}"><p class="drop" style="margin: 4px 0 0; max-width: 720px; font-size: 14px; line-height: 1.6; color: rgba(12,62,72,.9)">Both routes pay Manila Freight the full ₱287,000. The cheapest one first moves your dollars to the partner's lower-cost lane (Circle's own transfer, to Polygon), where the partner charges 0.15% instead of 0.20%. It's one more step for a lower fee. Fastest is the route our engine expects to finish first, going by the partner's and the network's own estimates. It's an estimate, not a promise.</p></sc-if>
         </div>
       </section>
 
@@ -253,7 +254,7 @@ class Component extends DCLogic {
     const left = s.left == null ? 48 : s.left;
     const sec = left % 60;
     return {
-      r: cheap ? { name: 'Cheapest', fee: '7.50', total: '5,012.50', allin: '0.25%', after: '19,987.50', partnerFee: 'fee 0.15%' } : { name: 'Fewest steps', fee: '10.00', total: '5,015.00', allin: '0.30%', after: '19,985.00', partnerFee: 'fee 0.20%' },
+      r: cheap ? { name: 'Cheapest', fee: '7.50', total: '5,012.50', allin: '0.25%', after: '19,987.50', partnerFee: 'fee 0.15%' } : { name: 'Fastest', fee: '10.00', total: '5,015.00', allin: '0.30%', after: '19,985.00', partnerFee: 'fee 0.20%' },
       isCheap: cheap,
       isFew: !cheap,
       cheapOn: cheap ? 'is-on' : '',
