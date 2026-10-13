@@ -356,9 +356,11 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
       )}
 
       {/* ── Main content ──────────────────────────────────────── */}
-      {/* Mobile top pad = 60 px (mobile header); desktop = 76 px (desktop header + gap) */}
+      {/* Mobile top pad = 60 px (mobile header); desktop = 76 px (desktop header + gap).
+          Bottom pad = 112 px everywhere: Zeke's floating button covers the bottom 80 px (64 px, 16 px up),
+          so the last row of every page can scroll clear of it, hover lift and shadow included. */}
       <main
-        className={`fintech-dashboard-main relative z-0 min-w-0 flex-1 overflow-x-hidden transition-all duration-300 p-4 pt-[60px] pb-16 md:px-8 md:pb-8 md:pt-[76px] ${
+        className={`fintech-dashboard-main relative z-0 min-w-0 flex-1 overflow-x-hidden transition-all duration-300 p-4 pt-[60px] pb-28 md:px-8 md:pb-28 md:pt-[76px] ${
           collapsed ? 'md:ml-20' : 'md:ml-60'
         }`}
       >

@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { BalanceHeader } from './BalanceHeader';
 import { copyText, dateShort, payHref, php, shortKey, usd } from './client';
+import { DiscardButton } from './DiscardButton';
 import { StatusPill } from './StatusPill';
 import { useCompany } from './useCompany';
 
@@ -169,6 +170,7 @@ export function Overview() {
                       Open<span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                     </Link>
                   )}
+                  {p.discardable ? <DiscardButton paymentId={p.id} name={p.supplierName || 'the supplier'} /> : null}
                 </span>
               </li>
             ))}

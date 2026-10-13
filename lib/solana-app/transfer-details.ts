@@ -15,6 +15,8 @@
  * payment already sent (the travel rule is about what accompanied THIS payment).
  */
 import { ServiceError } from './errors.ts';
+import { isCommitted } from './payment-machine.ts';
+import { runtime } from './runtime.ts';
 import { SOURCE_OF_FUNDS } from './source-of-funds.ts';
 import { getInvoice, getOrg } from './service.ts';
 import type { InvoiceRecord, OrgRecord, TransferDetails } from './store.ts';
@@ -71,6 +73,21 @@ function savedFor(org: OrgRecord, inv: InvoiceRecord): TransferDetails | null {
 export function previousDetails(orgId: string, invoiceId: string): TransferDetails | null {
   const inv = transferOf(orgId, invoiceId);
   return savedFor(getOrg(orgId), inv);
+}
+
+/**
+ * The answers went with the payment once it was sent: they are part of its record and can no longer
+ * change (and a discarded transfer takes no new answers). Checked before every change.
+ */
+export async function assertDetailsEditable(orgId: string, invoiceId: string): Promise<void> {
+  transferOf(orgId, invoiceId);
+  const payments = (await runtime().payments.listByOrg(orgId)).filter((p) => p.invoiceId === invoiceId);
+  if (payments.some((p) => isCommitted(p.state))) {
+    throw new ServiceError('wrong_state', 'This transfer has been sent. The details that went with it are part of its record and can no longer change.', 409);
+  }
+  if (payments.length > 0 && payments.every((p) => p.state === 'discarded')) {
+    throw new ServiceError('wrong_state', 'This transfer was discarded. Start a new transfer to give its details.', 409);
+  }
 }
 
 /** Record the answers for this transfer, either the same as last time or given again in full. */
