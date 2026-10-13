@@ -235,6 +235,8 @@ export function PayFlow({ resumePaymentId, quoteInvoiceId, mode = 'invoice' }: {
     try {
       const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/select`, { body: { quoteId, rehearsal } });
       setPayment(res.payment);
+      // It now waits for approval: the shell's badge and Zeke's nudge read the new count.
+      notifyCompanyChanged();
       go('approve');
     } catch (e) {
       fail(e);

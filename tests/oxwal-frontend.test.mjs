@@ -102,8 +102,11 @@ test('the Zeke desk is the streaming surface and avoids browser money storage', 
   // prop (e.g. the KYB gate state) does not fail a test about the desk surface.
   assert.match(layout, /<DashboardShell[^>]*session=\{session\}/);
   assert.match(layout, /\{children\}<\/DashboardShell>/);
-  assert.match(shell, /label: 'Zeke',\s+href: '\/dashboard\/zeke'/);
-  assert.match(shell, /label: 'Overview',\s+href: '\/dashboard'/);
+  // Prompt 10 Phase 1: the sidebar's items moved into lib/dashboard/nav.ts, which the shell renders.
+  const nav = await readFile(new URL('../lib/dashboard/nav.ts', import.meta.url), 'utf8');
+  assert.match(shell, /NAV_GROUPS/);
+  assert.match(nav, /label: 'Zeke',\s+href: '\/dashboard\/zeke'/);
+  assert.match(nav, /label: 'Overview',\s+href: '\/dashboard'/);
   assert.match(queue, /export const dynamic = 'force-dynamic'/);
   assert.match(queue, /getCustomerSession/);
   assert.match(queue, /redirect\('\/login'\)/);
@@ -174,7 +177,9 @@ test('landing is the v1 cinematic: hero district, five steps with manual entry, 
   assert.match(composer, /Prepare batch/);
   assert.match(composer, /onFilePrepared/);
   assert.doesNotMatch(composer, /priorityLabel|bg-black/);
-  assert.match(floating, /OxWalComposer/);
+  // The floating Zeke's own composer (look 9): it still takes an attached payout sheet for Batch payout.
+  assert.match(floating, /parseBatchFile/);
+  assert.match(floating, /stashBatchDraft/);
   assert.match(invoiceLoop, /What should Zeke inspect\?/);
   assert.match(claims, /footerLegal/);
   assert.match(copyCheck, /8 corridors/);

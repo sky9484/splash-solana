@@ -34,7 +34,7 @@ export default async function SetupPage() {
         Finish setting up this workspace
       </h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]">
-        Five steps; the last one is optional. Money movement unlocks when verification completes —
+        Six steps; the last two are optional. Money movement unlocks when verification completes —
         everything else here is yours to finish at your own pace.
       </p>
 

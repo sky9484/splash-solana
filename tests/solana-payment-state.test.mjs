@@ -33,7 +33,8 @@ import {
 test('the happy path is exactly the ten states of §5.1, each a legal step from the last', () => {
   assert.deepEqual([...HAPPY_PATH], ['draft', 'quoted', 'checked', 'proposed', 'approved', 'executed', 'confirmed', 'partner_paid', 'evidenced', 'anchored']);
   for (let i = 1; i < HAPPY_PATH.length; i++) assert.ok(canTransition(HAPPY_PATH[i - 1], HAPPY_PATH[i]), `${HAPPY_PATH[i - 1]} → ${HAPPY_PATH[i]}`);
-  assert.deepEqual([...FAILURE_STATES], ['quote_expired', 'rejected_by_policy', 'proposal_failed', 'execute_failed', 'partner_failed', 'evidence_failed']);
+  // §5.1's six ways out, and discarded (Sky, 14 Oct): a person dropped it before anything was sent.
+  assert.deepEqual([...FAILURE_STATES], ['quote_expired', 'rejected_by_policy', 'proposal_failed', 'execute_failed', 'partner_failed', 'evidence_failed', 'discarded']);
   for (const s of PAYMENT_STATES) assert.ok(STATE_LABEL[s], `${s} has words for the UI`);
 });
 

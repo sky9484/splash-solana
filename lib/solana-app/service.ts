@@ -67,7 +67,7 @@ import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 import { awaitCommitment } from './confirm.ts';
 import { detailsView, missingDetails, purposeLine, recipientKey } from './transfer-details.ts';
 import { ServiceError } from './errors.ts';
-import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
+import { chainCallKey, DISCARDABLE_STATES, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
@@ -452,7 +452,9 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
+  // A discarded payment leaves the company's lists (nothing moved); the staff console still shows it.
   const payments = (await rt.payments.listByOrg(org.id))
+    .filter((p) => p.state !== 'discarded')
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .map((p) => {
       const inv = store().invoices.get(p.invoiceId);
@@ -463,6 +465,8 @@ export async function orgSummary(orgId: string) {
         kind: inv?.source === 'transfer' ? ('transfer' as const) : ('invoice' as const),
         state: p.state,
         stateLabel: STATE_LABEL[p.state],
+        /** Nothing has been sent yet, so a person may drop it (payments only; a batch is not dropped here). */
+        discardable: p.id.startsWith('pay_') && DISCARDABLE_STATES.includes(p.state),
         supplierName: inv?.confirmed?.supplierName ?? '',
         invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
         dueDate: inv?.confirmed?.dueDate ?? null,
@@ -922,6 +926,24 @@ export async function requote(paymentId: string, now = new Date(), opts: { allow
   const p = await getPayment(paymentId);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
   return quote(p.orgId, p.invoiceId, { now, paymentId: p.id, allowShort: opts.allowShort });
+}
+
+/**
+ * Drop a payment nobody has sent: it was quoted, checked, blocked, expired, or its proposal never
+ * reached the vault. It moves to the terminal state "discarded" with who and when on its
+ * transition row; nothing on chain is touched, and USDC already brought into the payments vault
+ * for it stays there. Once anything was sent, it cannot be discarded.
+ */
+export async function discardPayment(paymentId: string, by: string, now = new Date()): Promise<PaymentRecord> {
+  const p = await getPayment(paymentId);
+  if (p.state === 'discarded') return p;
+  if (!DISCARDABLE_STATES.includes(p.state)) {
+    throw new ServiceError('wrong_state', `This payment is ${STATE_LABEL[p.state].toLowerCase()}. Only a payment nothing was sent for can be discarded.`, 409);
+  }
+  return cas(() => repo().transition(p.id, { from: p.state, version: p.version }, 'discarded', (d) => {
+    d.prepared = null;
+    d.problem = null;
+  }, `discarded by ${by.trim() || 'a member'}`, now));
 }
 
 /** The payments vault must hold the route's full cost before it can be chosen or approved. */
