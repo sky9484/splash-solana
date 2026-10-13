@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Transfer · 4 Approve · look 9</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..900&amp;family=Geist+Mono:wght@400..800&amp;display=swap">
+<style>
+body{margin:0;background:#f6f0ed}
+a{color:#0d6370}a:hover{color:#083640}
+.sp{font-family:'Geist',system-ui,sans-serif;color:#0c3e48;-webkit-font-smoothing:antialiased}
+.sp *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums}
+.paper-grid{background-color:#f6f0ed;background-image:linear-gradient(rgba(12,62,72,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(12,62,72,.05) 1px,transparent 1px);background-size:24px 24px}
+.hero-wash{background-color:#fffaf4;background-image:linear-gradient(rgba(12,62,72,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(12,62,72,.06) 1px,transparent 1px),linear-gradient(135deg,#ddefea 0%,#eaf4ef 40%,#fffaf4 74%);background-size:24px 24px,24px 24px,100% 100%;border:2px solid #083640;box-shadow:6px 6px 0 #083640}
+.x-display{font-weight:900;letter-spacing:-.05em;line-height:.95;color:#fffaf1;-webkit-text-stroke:1.5px #083640;text-shadow:2px 2px 0 #0d6370,4px 4px 0 #0d6370,6px 6px 0 #083640}
+.side{position:relative;overflow:hidden;background:linear-gradient(165deg,#245563 0%,#143c47 55%,#0c3039 100%);color:#fffaf1}
+.side::before,.side::after{content:"";position:absolute;right:-90px;bottom:-90px;border-radius:50%;border:1px solid rgba(159,207,199,.14);pointer-events:none}
+.side::before{width:260px;height:260px}.side::after{width:380px;height:380px}
+.s-grp{margin:0 0 6px;padding:0 12px;font-size:12px;font-weight:700;color:rgba(255,250,241,.72)}
+.s-a{position:relative;display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;color:rgba(255,250,241,.86);text-decoration:none;font-weight:600;font-size:14px;border:1.5px solid transparent;transition:background .18s,transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s}
+.s-a:hover{background:rgba(255,250,241,.08);color:#fffaf1}
+.s-a svg{flex:0 0 18px;color:rgba(159,207,199,.95)}
+.s-a.is-on{background:#fffaf4;color:#0c3e48;border-color:#fffaf4;box-shadow:3px 3px 0 #041c22;transform:translate(-1px,-1px)}
+.s-a.is-on svg{color:#0d6370}
+.s-badge{margin-left:auto;padding:2px 7px;font:700 12px/1.4 'Geist',sans-serif;border:1px solid rgba(255,250,241,.4);color:#fffaf1}
+.s-badge.coral{background:#e39774;border-color:#e39774;color:#083640}
+.s-a.is-on .s-badge{border-color:#0c3e48;color:#0c3e48}
+.s-a:focus-visible{outline:2.5px solid #9fcfc7;outline-offset:2px}
+.card{background:#fffaf4;border:1.5px solid rgba(12,62,72,.16)}
+.h2{margin:0;font-size:19px;font-weight:800;color:#083640}
+.muted{color:rgba(12,62,72,.86)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 20px;font:700 15px/1 'Geist',sans-serif;cursor:pointer;border:1.5px solid #083640;text-decoration:none;transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s;background:#fffaf4;color:#083640}
+.btn-lg{min-height:52px;padding:0 24px}
+.btn-primary{background:#0d6370;color:#fffaf1;box-shadow:3px 3px 0 #083640}
+.btn-primary:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #083640;color:#fffaf1}
+.btn-primary:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #083640}
+.btn-quiet{background:#fffaf4;color:#083640;border-color:rgba(12,62,72,.3)}
+.btn-quiet:hover{border-color:#083640;color:#083640}
+.btn-approve{background:#e39774;color:#083640;box-shadow:3px 3px 0 #083640}
+.btn-approve:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #083640;color:#083640}
+.btn-approve:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #083640}
+.btn-approve[disabled]{background:#f3d6c8;color:rgba(12,62,72,.6);box-shadow:none;cursor:not-allowed;transform:none}
+.btn-onink{background:transparent;color:#fffaf1;border-color:rgba(255,250,241,.45)}
+.btn-onink:hover{color:#fffaf1;border-color:#fffaf1}
+.btn-paper{background:#fffaf1;color:#083640;border-color:#fffaf1;box-shadow:3px 3px 0 #0d6370}
+.btn-paper:hover{color:#083640;transform:translate(-1px,-1px);box-shadow:4px 4px 0 #0d6370}
+.btn-sm{min-height:40px;padding:0 14px;font-size:14px}
+.tip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0;background:none;border:0;color:#0d6370;font:600 14px/1 'Geist',sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font:700 12px/1.4 'Geist',sans-serif;border:1.5px solid currentColor;white-space:nowrap}
+.tag-ok{color:#1f6152;background:#e4f1ed;border-color:#9fcfc7}
+.tag-gold{color:#6b4a0c;background:#fbefd6;border-color:#efc46f}
+.tag-ink{color:#083640;background:#fffaf4;border-color:rgba(12,62,72,.35)}
+.tag-coral{color:#9f4f2c;background:#fbe7dd;border-color:#e39774}
+.tag-amber{color:#8a5208;background:#fbefdd;border-color:#e8c48d}
+.tag-danger{color:#b3402f;background:#f9e7e3;border-color:#e2b0a6}
+.amber{background:#fbefdd;border:1.5px solid #e8c48d;color:#8a5208}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{padding:9px 10px;text-align:left;font-size:13px;font-weight:700;color:rgba(12,62,72,.86);border-bottom:2px solid #083640}
+.tbl td{padding:12px 10px;border-bottom:1px solid rgba(12,62,72,.14);vertical-align:middle}
+.tbl .r{text-align:right}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label,.fld .lb{font-size:13px;font-weight:700;color:#083640}
+.fld input,.fld .box{width:100%;min-height:56px;padding:0 14px;border:1.5px solid rgba(12,62,72,.35);background:#fff;font:500 17px 'Geist',sans-serif;color:#083640;display:flex;align-items:center;gap:10px}
+.fld input:focus{outline:2.5px solid #0d6370;outline-offset:1px;border-color:#083640}
+.sp input::placeholder{color:rgba(12,62,72,.75)}
+.fld .help{font-size:13px;line-height:1.45;color:rgba(12,62,72,.86)}
+.seg{display:inline-flex;border:1.5px solid #083640;background:#fffaf4}
+.seg button{min-height:44px;padding:0 16px;font:700 14px/1 'Geist',sans-serif;background:#fffaf4;color:#083640;border:0;cursor:pointer}
+.seg button+button{border-left:1.5px solid #083640}
+.seg button[aria-pressed="true"]{background:#0d6370;color:#fffaf1}
+.tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:2px solid #083640}
+.tabs button{min-height:44px;padding:0 16px;font:700 14px/1 'Geist',sans-serif;background:transparent;color:rgba(12,62,72,.86);border:0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer}
+.tabs button[aria-pressed="true"]{color:#083640;border-bottom-color:#0d6370;background:#fffaf4}
+.choice{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;padding:18px 20px;text-align:left;font:inherit;color:#0c3e48;background:#fffaf4;border:1.5px solid rgba(12,62,72,.22);cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,border-color .2s;text-decoration:none}
+.choice:hover{border-color:#083640;color:#0c3e48}
+.choice.is-on{border:2px solid #083640;background:#fff;transform:translate(-2px,-2px);box-shadow:5px 5px 0 #083640}
+.row-btn{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1.5px solid rgba(12,62,72,.3);background:#fffaf4;color:#083640;font:700 14px/1 'Geist',sans-serif;text-decoration:none;cursor:pointer}
+.row-btn:hover{border-color:#083640;color:#083640}
+.station{display:flex;flex-direction:column;align-items:center;gap:8px;flex:0 0 140px;text-align:center}
+.wire{position:relative;flex:1 1 44px;min-width:32px;height:30px;align-self:flex-start;margin-top:40px}
+.wire svg{position:absolute;inset:0;width:100%;height:100%}
+.wire line{stroke:rgba(12,62,72,.3)}
+.wire.on line{stroke:#083640;stroke-dasharray:6 8;animation:flow 1.1s linear infinite}
+.wire.done line{stroke:#0d6370}
+@keyframes flow{to{stroke-dashoffset:-28}}
+.wire .coin{display:none;position:absolute;top:8px;left:0;width:14px;height:14px;border-radius:50%;background:#efc46f;border:1.5px solid #083640}
+.wire.on .coin{display:block;animation:travel 2.2s cubic-bezier(.45,.05,.55,.95) infinite}
+.wire.on .coin.c2{animation-delay:1.1s}
+@keyframes travel{0%{left:0;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:calc(100% - 14px);opacity:0}}
+.dot{display:inline-flex;width:56px;height:56px;align-items:center;justify-content:center;font-size:22px;font-weight:900;border:2px solid rgba(12,62,72,.3);background:#fffaf4;color:rgba(12,62,72,.5)}
+.dot.done{background:#0d6370;border-color:#083640;color:#fffaf1}
+.dot.now{background:#fffaf4;border-color:#083640;color:#083640;box-shadow:3px 3px 0 #083640}
+.btn:focus-visible,.choice:focus-visible,.row-btn:focus-visible,.tip:focus-visible,.seg button:focus-visible,.tabs button:focus-visible,.zk-launch:focus-visible,.zk-x:focus-visible{outline:2.5px solid #0d6370;outline-offset:3px}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.rise{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+.r2{animation-delay:.08s}.r3{animation-delay:.16s}.r4{animation-delay:.24s}
+@keyframes pop{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:none}}
+.pop{animation:pop .32s cubic-bezier(.2,.8,.2,1) both}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.sheet{animation:slidein .32s cubic-bezier(.2,.8,.2,1) both}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.bob{animation:bob 5s ease-in-out infinite}.bob-2{animation-delay:-2.5s}
+.zk-launch{position:fixed;right:28px;z-index:30;display:inline-flex;align-items:center;gap:10px;padding:0;background:none;border:0;cursor:pointer;font:inherit}
+.zk-tile{position:relative;display:inline-flex;width:64px;height:64px;align-items:center;justify-content:center;background:#fffaf4;border:2px solid #083640;box-shadow:3px 3px 0 #083640;transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s}
+.zk-launch:hover .zk-tile{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #083640}
+.zk-launch:active .zk-tile{transform:translate(2px,2px);box-shadow:1px 1px 0 #083640}
+.zk-count{position:absolute;top:-9px;right:-9px;min-width:22px;height:22px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;background:#e39774;border:1.5px solid #083640;color:#083640;font:800 12px/1 'Geist',sans-serif}
+.zk-nudge{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;background:#083640;color:#fffaf1;font:600 13px/1.2 'Geist',sans-serif;box-shadow:2px 2px 0 #0d6370}
+.zk-panel{position:fixed;right:28px;z-index:31;width:400px;max-width:calc(100vw - 32px);display:flex;flex-direction:column;background:#fffaf4;border:2px solid #083640;box-shadow:6px 6px 0 #083640}
+.zk-head{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;background:#083640;color:#fffaf1}
+.zk-x{display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;background:transparent;border:1.5px solid rgba(255,250,241,.35);color:#fffaf1;cursor:pointer;text-decoration:none}
+.zk-x:hover{border-color:#fffaf1;color:#fffaf1}
+.zk-ctx{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#ddefea;border-bottom:1.5px solid rgba(12,62,72,.2);font-size:13px;color:#083640}
+.zk-msg{max-width:88%;padding:10px 12px;font-size:14px;line-height:1.5}
+.zk-z{align-self:flex-start;background:#fff;border:1.5px solid rgba(12,62,72,.2);color:#0c3e48}
+.zk-u{align-self:flex-end;background:#0d6370;color:#fffaf1}
+.zk-chip{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1.5px solid rgba(12,62,72,.3);background:#fffaf4;color:#083640;font:600 13px/1 'Geist',sans-serif;white-space:nowrap;cursor:pointer}
+.zk-chip:hover{border-color:#083640}
+.zk-compose{display:flex;gap:8px;padding:12px;border-top:1.5px solid rgba(12,62,72,.2);background:#fffaf4}
+.zk-compose input{flex:1 1 auto;min-width:0;min-height:48px;padding:0 12px;border:1.5px solid rgba(12,62,72,.35);background:#fff;font:500 15px 'Geist',sans-serif;color:#083640}
+.zk-ico{display:inline-flex;flex:0 0 48px;width:48px;height:48px;align-items:center;justify-content:center;border:1.5px solid rgba(12,62,72,.35);background:#fffaf4;color:#083640;cursor:pointer}
+.zk-send{background:#0d6370;border-color:#083640;color:#fffaf1;box-shadow:2px 2px 0 #083640}
+.zk-draft{display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#fffaf4;border:1.5px dashed #083640}
+@media (prefers-reduced-motion:reduce){.sp *{animation:none!important;transition:none!important}.wire.on .coin{left:45%}}
+</style>
+</helmet>
+<div class="sp" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #f6f0ed">
+
+  <aside class="side" style="flex: 1 1 252px; max-width: 100%; display: flex; flex-direction: column; gap: 22px; padding: 22px 16px 18px">
+    <div style="position: relative; display: flex; align-items: center; gap: 12px; padding: 4px 8px 0">
+      <span style="display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center; background: #fffaf4; box-shadow: 3px 3px 0 #041c22"><img src="/splash-main-icon.png" alt="Splash" style="width: 34px; height: 34px; object-fit: contain"></span>
+      <div><div style="font-size: 22px; font-weight: 900; letter-spacing: -.03em">Splash<span style="color: #9fcfc7">.</span></div><div style="font-size: 12px; font-weight: 600; color: rgba(255,250,241,.72)">Global settlement engine</div></div>
+    </div>
+    <a href="#setup" style="position: relative; display: block; padding: 14px; background: rgba(255,250,241,.07); border: 1.5px solid rgba(255,250,241,.18); color: #fffaf1; text-decoration: none">
+      <span style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700"><span>Account setup</span><span class="num">4 of 5</span></span>
+      <span style="display: block; margin-top: 8px; height: 6px; background: rgba(255,250,241,.16)"><span style="display: block; width: 80%; height: 100%; background: #9fcfc7"></span></span>
+      <span style="display: block; margin-top: 8px; font-size: 13px; color: rgba(255,250,241,.8)">Next: add a second approver</span>
+    </a>
+    <nav aria-label="Main" style="position: relative; display: flex; flex-direction: column; gap: 18px">
+      <div>
+        <a class="s-a" href="Final-Overview.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>Overview<span class="s-badge coral" aria-label="1 needs your approval">1</span></a>
+      </div>
+      <div>
+        <p class="s-grp">Pay</p>
+        <a class="s-a is-on" href="Flow-T1-Recipient.dc.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4z"></path></svg>Transfer</a>
+        <a class="s-a" href="Flow-Inv-Choose.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"></path><path d="M14 3v5h5M10 13h6M10 17h6"></path></svg>Invoices<span class="s-badge">2 due</span></a>
+        <a class="s-a" href="#batch"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"></path><path d="M3 13l9 5 9-5"></path></svg>Batch payout</a>
+      </div>
+      <div>
+        <p class="s-grp">Money</p>
+        <a class="s-a" href="Flow-Balance.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13"></rect><path d="M3 10h18M16 15h2"></path></svg>Balance</a>
+        <a class="s-a" href="Final-Treasury.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-6 9 6"></path><path d="M5 10v9M19 10v9M9 10v9M15 10v9M3 21h18"></path></svg>Treasury</a>
+        <a class="s-a" href="#history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5M12 8v4l3 2"></path></svg>History</a>
+      </div>
+      <div>
+        <p class="s-grp">Contacts</p>
+        <a class="s-a" href="#recipients"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>Recipients<span class="s-badge" aria-label="1 not verified" style="padding: 0; width: 10px; height: 10px; background: #efc46f; border-color: #efc46f"></span></a>
+      </div>
+      <div>
+        <p class="s-grp">Control</p>
+        <a class="s-a" href="#rules"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>Rules</a>
+        <a class="s-a" href="Flow-Zeke.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path><path d="M12 7.6l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9-1.9-.9 1.9-.9z"></path></svg>Zeke<span class="s-badge">AI</span></a>
+      </div>
+    </nav>
+    <div style="position: relative; margin-top: auto; display: flex; flex-direction: column; gap: 14px">
+      <div style="padding: 12px 14px; border: 1.5px solid rgba(255,250,241,.18); background: rgba(255,250,241,.06); font-size: 13px; line-height: 1.5">
+        <span style="display: inline-block; padding: 2px 8px; background: #efc46f; color: #083640; font-weight: 800">Test mode</span>
+        <div style="margin-top: 8px; color: rgba(255,250,241,.86)">No real money moves. Only your team can approve a payment; Splash can't.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid rgba(255,250,241,.14)">
+        <a class="s-a" href="#settings">Settings</a>
+        <a class="s-a" href="#support">Support</a>
+        <a class="s-a" href="#logout">Log out</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="paper-grid" style="flex: 999 1 640px; min-width: 0; padding: 18px 36px 0; position: relative">
+    <div inert="true" aria-hidden="true" style="max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 40px; opacity: .4">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+        <span style="font-size: 14px; color: rgba(12,62,72,.86)">Transfer / Manila Freight Services</span>
+        <span style="display: inline-flex; align-items: center; gap: 12px"><span style="padding: 4px 10px; background: #efc46f; color: #083640; font-size: 13px; font-weight: 800; box-shadow: 2px 2px 0 #083640">Test mode</span><span aria-hidden="true" style="display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; background: #083640; color: #fffaf1; font-weight: 800">AR</span></span>
+      </div>
+      <ol aria-label="Steps" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px">
+        <li style="flex: 1 1 140px"><a href="Flow-T1-Recipient.dc.html" style="display: block; padding: 10px 12px; border-top: 3px solid #0d6370; font-size: 14px; font-weight: 600; color: #0d6370; text-decoration: none">✓ Recipient</a></li>
+        <li style="flex: 1 1 140px"><a href="Flow-T2-Amount.dc.html" style="display: block; padding: 10px 12px; border-top: 3px solid #0d6370; font-size: 14px; font-weight: 600; color: #0d6370; text-decoration: none">✓ Amount</a></li>
+        <li style="flex: 1 1 140px"><a href="Final-Transfer.dc.html" style="display: block; padding: 10px 12px; border-top: 3px solid #0d6370; font-size: 14px; font-weight: 600; color: #0d6370; text-decoration: none">✓ Quote &amp; send</a></li>
+        <li aria-current="step" style="flex: 1 1 140px; padding: 10px 12px; border-top: 3px solid #083640; background: #fffaf4; box-shadow: 3px 3px 0 #083640; font-size: 14px; font-weight: 800; color: #083640">4 · Approve</li>
+        <li style="flex: 1 1 140px; padding: 10px 12px; border-top: 3px solid rgba(12,62,72,.18); font-size: 14px; font-weight: 600; color: rgba(12,62,72,.78)">5 · Track</li>
+      </ol>
+      <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -.03em; color: #083640">How ₱287,000 reaches Manila Freight</h1>
+      <div class="hero-wash" style="height: 420px"></div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px"><div class="card" style="height: 260px"></div><div class="card" style="height: 260px"></div></div>
+    </div>
+    <div style="position: fixed; inset: 0; z-index: 35; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; background: rgba(8,54,64,.28)">
+      <section role="dialog" aria-modal="true" aria-labelledby="ap-title" class="pop" style="width: 640px; max-width: 100%; background: #fffaf4; border: 2px solid #083640; box-shadow: 8px 8px 0 #083640">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 22px; background: #083640; color: #fffaf1">
+          <span style="display: inline-flex; align-items: center; gap: 10px; font-size: 14px"><img src="/cinematic/agent-bot-cut.png" alt="" style="width: 26px; height: 26px; object-fit: contain; background: #fffaf4"><span>Drafted by Zeke · <strong>a person approves</strong></span></span>
+          <span class="num" style="font-size: 14px">{{ quoteLabel }}</span>
+        </div>
+        <div style="padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <h2 id="ap-title" style="margin: 0; font-size: 22px; font-weight: 800; color: #083640">Approve this payment</h2>
+              <span style="font-size: 15px"><strong>Manila Freight Services</strong> · BDO Unibank <span class="mono">•••• 4471</span></span>
+            </div>
+            <span class="tag tag-ok" style="align-self: flex-start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg> Checked by call-back</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 18px 0; border-top: 1.5px dashed rgba(12,62,72,.3); border-bottom: 1.5px dashed rgba(12,62,72,.3)">
+            <span class="muted" style="font-size: 14px">They receive</span>
+            <span class="x-display num" aria-label="287,000 pesos" style="font-size: 64px">₱287,000.00</span>
+          </div>
+          <dl class="num" style="margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 11px 16px; font-size: 15px">
+            <dt class="muted">You pay</dt><dd style="margin: 0; font-size: 22px; font-weight: 900; color: #083640">US$5,012.50</dd>
+            <dt class="muted">All-in cost</dt><dd style="margin: 0; font-weight: 700; text-align: right">0.25% · partner US$7.50 · Splash US$5.00 · processing included</dd>
+            <dt class="muted">Route</dt><dd style="margin: 0; font-weight: 700; text-align: right">Cheapest · paid out by PESONet</dd>
+            <dt class="muted">Reference</dt><dd class="mono" style="margin: 0; font-weight: 600; text-align: right">INV-0415</dd>
+            <dt class="muted">Purpose</dt><dd style="margin: 0; font-weight: 700; text-align: right">Services · sea freight</dd>
+            <dt class="muted">Paid from</dt><dd style="margin: 0; font-weight: 700; text-align: right">Payments account · US$25,000.00 → US$19,987.50</dd>
+          </dl>
+          <div>
+            <button type="button" class="tip" aria-expanded="{{ rulesOpen }}" onClick="{{ toggleRules }}"><span class="tag tag-ok" style="text-decoration: none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg> Rules checked: 8 of 8</span><span>{{ rulesLabel }}</span></button>
+            <sc-if value="{{ rulesOpen }}" hint-placeholder-val="{{ false }}"><ul class="pop" style="list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 16px; font-size: 14px"><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Manila Freight checked by call-back (2 Sep)</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Within your per-payment limit</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Within today's limit</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>INV-0415 has not been paid before</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Recipient screened: no match</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Amount matches the invoice</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Quote is fresh</li><li style="display: flex; gap: 8px; align-items: center"><span style="color: #1f6152"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>You are an approver, on a known device</li></ul></sc-if>
+          </div>
+          <sc-if value="{{ joint }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; background: #fff; border: 1.5px solid rgba(12,62,72,.2)">
+              <span style="font-size: 14px"><strong>1 of 2 approved</strong> · waiting for <strong>Daniel Lim</strong> (finance admin)</span>
+              <button type="button" class="row-btn">Remind Daniel</button>
+            </div>
+          </sc-if>
+        </div>
+        <div style="padding: 16px 26px 24px; display: flex; flex-direction: column; gap: 10px">
+          <sc-if value="{{ idle }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; gap: 10px">
+              <button type="button" class="btn btn-approve btn-lg" style="flex: 1 1 260px" onClick="{{ approve }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20"></rect><path d="M11 18h2"></path></svg> Approve on this device</button>
+              <a class="btn btn-quiet btn-lg" href="Final-Transfer.dc.html">Cancel</a>
+            </div>
+            <span class="muted" style="font-size: 13px">Your device asks you to confirm. Before it does, we check the rules and the quote again; if anything changed, you'll see what and why.</span>
+          </sc-if>
+          <sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}">
+            <div class="btn btn-lg" aria-live="polite" style="width: 100%; background: #f3d6c8; border-color: #083640; transform: translate(2px,2px); cursor: progress">Approving on this device…</div>
+          </sc-if>
+          <sc-if value="{{ done }}" hint-placeholder-val="{{ false }}">
+            <div class="pop" aria-live="polite" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #e4f1ed; border: 2px solid #083640">
+              <span style="display: inline-flex; align-items: center; gap: 12px; color: #1f6152"><span style="display: inline-flex; width: 48px; height: 48px; align-items: center; justify-content: center; background: #0d6370; color: #fffaf1"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span><span><strong style="color: #083640; font-size: 16px">Approved by you</strong><br><span style="font-size: 14px">Sending now. Nothing else needs you.</span></span></span>
+              <a class="btn btn-primary" href="Flow-T5-Track.dc.html">Track it</a>
+            </div>
+          </sc-if>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"joint": {"editor": "boolean", "default": false, "section": "States"}, "$preview": {"width": 1440, "height": 1320}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this._t = setInterval(() => {
+      const s = this.state || {};
+      const left = (s.left == null ? 41 : s.left) - 1;
+      this.setState({ left: left <= 0 ? 60 : left });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._t); clearTimeout(this._a); }
+  renderVals() {
+    const s = this.state || {};
+    return {
+      quoteLabel: (s.phase === 'done') ? 'Quote used' : 'New quote in 0:' + ((s.left == null ? 41 : s.left) < 10 ? '0' : '') + (s.left == null ? 41 : s.left),
+      rulesOpen: !!s.rules,
+      rulesLabel: s.rules ? 'Hide' : 'See them',
+      toggleRules: () => this.setState({ rules: !s.rules }),
+      joint: !!this.props.joint,
+      idle: !s.phase,
+      busy: s.phase === 'busy',
+      done: s.phase === 'done',
+      approve: () => { this.setState({ phase: 'busy' }); this._a = setTimeout(() => this.setState({ phase: 'done' }), 1100); },
+    };
+  }
+}
+</script>
+</body>
+</html>
