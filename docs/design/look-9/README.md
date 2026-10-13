@@ -32,7 +32,7 @@ All of them are on the canvas page "Look 9 · final" and link to each other (sid
 - Images point at the repo's own art: the real Splash logo `/splash-main-icon.png` (the S mark, on a small paper tile in the sidebar so its teal reads on the dark gradient), `/cinematic/token-usd.png`, `/cinematic/token-php.png`, `/cinematic/vault-transparent.png`. The isometric droplet (`/cinematic/brand-mark.png`) is illustration, never the logo.
 - The numbers are the agreed demo scenario (INV-0415, ₱287,000 at 57.40 = US$5,000.00; accounts US$25,000 / US$31,460 / US$40,000). In the app every number comes from server state; none is hard-coded.
 
-## Colours used (all in prompt 09 §2.1)
+## Colours used (all in prompt 10 §2.1)
 | Role | Value |
 |---|---|
 | Paper (surfaces) | `#FFFAF4` |
@@ -52,7 +52,7 @@ All of them are on the canvas page "Look 9 · final" and link to each other (sid
 - One extruded number per screen (`.x-display` here, `.iso-display` in the build).
 - Solid offset ledges only (`3px 3px 0`, `5px 5px 0`, `6px 6px 0`), square corners, no blurred shadows.
 - Coins move along a wire only while money really moves there. On the Overview frame nothing is in flight, so every wire is quiet.
-- Plain language (prompt 09 §0.6): "US$", "Payments account", "Reserve", "Investments", "Approve on this device", "Test mode", "proof recorded". Crypto words only inside "How it moves" and "Technical details".
+- Plain language (prompt 10 §0.6): "US$", "Payments account", "Reserve", "Investments", "Approve on this device", "Test mode", "proof recorded". Crypto words only inside "How it moves" and "Technical details".
 - Route labels are "Cheapest" and "Fastest" only (Sky, 13 Oct). "Fastest" is a ranking label from the engine's estimates; no times, durations or other speed words anywhere.
 - The payout partner is "your payout partner" until signed. Ondo is the issuer of USDY, never "our partner".
 - Treasury bills: "Subscribe" and "Redeem", with "Hold" or "Sweep" for idle cash (Zeke drafts each sweep from the owner's rule; a person approves it). Stocks and ETFs: "Buy" and "Sell".

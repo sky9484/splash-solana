@@ -1,6 +1,6 @@
 # Memo for Sebastian: storing full bank account numbers
 
-**Written:** 13 Oct 2026. **Status:** decided by Sky on 13 Oct (gate G2 is closed). Built in prompt 09, Phase S (branch `sol/b0-p8-s-pii`).
+**Written:** 13 Oct 2026. **Status:** decided by Sky on 13 Oct (gate G2 is closed). Built in prompt 10, Phase S (branch `sol/b0-p8-s-pii`).
 **What Sebastian does:** review the build after it's done, using `docs/security/PII-STORAGE.md` (written in Phase S) and this memo. Nothing to decide before the build.
 **Why:** customers now type the full bank account number, not only the last 4. A payout needs the full number, so we have to keep it. Once we keep it, a leak is our problem, not the partner's.
 
@@ -38,7 +38,7 @@
 | When a removed supplier's number is destroyed | Right away, or 30 or 90 days after its last payment settles | 30 days after its last payment settles |
 
 ## Tests
-The full list is prompt 09, Phase S, section S.2 (the build's acceptance boxes). In short: round trip; wrong-company AAD fails; a changed byte fails; the fingerprint matches duplicates only; reveal without a fresh device approval, or by anyone other than the owner or an admin, is refused and logged; no full number in logs, analytics, receipts, evidence or Zeke's context; changed details block payment until the call-back; a shredded record can't be read while history still shows the last 4.
+The full list is prompt 10, Phase S, section S.2 (the build's acceptance boxes). In short: round trip; wrong-company AAD fails; a changed byte fails; the fingerprint matches duplicates only; reveal without a fresh device approval, or by anyone other than the owner or an admin, is refused and logged; no full number in logs, analytics, receipts, evidence or Zeke's context; changed details block payment until the call-back; a shredded record can't be read while history still shows the last 4.
 
 ## Before the first real customer
 1. Create the two AWS KMS keys in `ap-southeast-1` (an encryption key and an HMAC key).
