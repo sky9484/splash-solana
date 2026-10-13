@@ -279,8 +279,8 @@ const loopCards = [
     label: 'Keep',
     title: 'Keep it in your vault.',
     copy: "Money waits in your business's own Squads vault. No Splash key can move it, and a person approves every payment out.",
-    image: '/isometric/loop-save-v3.png',
-    imageAlt: 'Isometric treasury tiers of USD held behind an approve control',
+    image: '/cinematic/liquidity-pools.png',
+    imageAlt: 'Isometric vault holding USDC in tiers',
     meta: 'Your vault · human-approved',
     roadmap: false,
   },
@@ -793,10 +793,10 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
 
           <div className="iso-final-art">
             <Image
-              src="/isometric/payments.svg"
-              alt="Isometric local currency payment receipt"
-              width={1448}
-              height={1086}
+              src="/cinematic/corridor-bridge-v3.png"
+              alt="Two isometric city platforms, Kuala Lumpur and Manila, connected by a bridge"
+              width={2752}
+              height={1536}
             />
           </div>
         </div>

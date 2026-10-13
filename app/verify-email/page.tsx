@@ -33,8 +33,8 @@ function Shell(props: { title: string; description: string; children?: ReactNode
       eyebrow="Confirm your email"
       title={props.title}
       description={props.description}
-      art="/isometric/payment-intent.svg"
-      artAlt="Isometric atomic payment intent"
+      art="/cinematic/treasury-island.png"
+      artAlt="Isometric vault holding the business’s money"
       visualTitle="One address, one owner"
       visualCopy="Only the person who reads the mailbox can finish creating the account."
     >

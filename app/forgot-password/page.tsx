@@ -54,8 +54,8 @@ export default function ForgotPasswordPage() {
       description={recovery
         ? 'If that address has an account, a reset link is on its way. It expires in 30 minutes, and opening it ends every session that is signed in now.'
         : 'Enter your business email and we will send a link to choose a new password.'}
-      art="/isometric/treasury.svg"
-      artAlt="Isometric smart treasury"
+      art="/cinematic/treasury-island.png"
+      artAlt="Isometric vault holding the business’s money"
       visualTitle="Secure by default"
       visualCopy="Recover access without compromising your treasury."
     >

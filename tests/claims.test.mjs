@@ -73,3 +73,34 @@ test('the rules catch what they claim to, and let the negations through', () => 
   assert.equal(violations('x.tsx', '<p>It carries no availability guarantee from anyone.</p>').length, 0);
   assert.equal(violations('x.tsx', '// an autonomous vault, in a comment').length, 0, 'comments are engineering notes');
 });
+
+// The rules above read text; they cannot read a picture. These images carry a claim in their own
+// pixels, so no screen may show them. They stay in public/ as prior work.
+const BANNED_ART = [
+  { file: 'isometric/payment-intent.svg', why: '"Atomic settlement on Sui", and invented balances' },
+  { file: 'isometric/treasury.svg', why: '"Smart Treasury 4.8% APY": a yield' },
+  { file: 'isometric/payments.svg', why: '"2 min 34 sec" (a speed number) and a 0.8% fee Splash does not charge' },
+  { file: 'isometric/loop-save-v3.png', why: 'idle USD growing at a "variable" rate: a yield' },
+  { file: 'isometric/supply-settlement-v3.png', why: 'settlement on Sui' },
+];
+
+test('no screen shows an image whose own pixels make a banned claim', () => {
+  const found = [];
+  for (const root of ROOTS) {
+    for (const f of [...files(root), ...filesWith(root, '.css')]) {
+      const text = readFileSync(f, 'utf8');
+      for (const art of BANNED_ART) if (text.includes(art.file)) found.push(`${f} shows ${art.file}: ${art.why}`);
+    }
+  }
+  assert.deepEqual(found, [], `\n  ${found.join('\n  ')}\n`);
+});
+
+function filesWith(dir, ext) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...filesWith(full, ext));
+    else if (extname(name) === ext) out.push(full.replaceAll('\\', '/'));
+  }
+  return out;
+}
