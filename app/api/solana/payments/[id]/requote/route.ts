@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return companyRoute(request, async (ctx) => {
     const { id } = await params;
-    await readBody(request, schemas.empty);
+    const body = await readBody(request, schemas.requote);
     await paymentFor(id, ctx.orgId);
-    await requote(id);
+    await requote(id, new Date(), { allowShort: body.allowShort === true });
     return { payment: await paymentView(id) };
   });
 }

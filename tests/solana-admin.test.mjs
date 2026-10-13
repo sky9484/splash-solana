@@ -20,6 +20,7 @@ import * as admin from '../lib/solana-app/admin-service.ts';
 import { resetRuntime, runtime } from '../lib/solana-app/runtime.ts';
 import { resetStore, store } from '../lib/solana-app/store.ts';
 import * as svc from '../lib/solana-app/service.ts';
+import { giveDetails } from './helpers/transfer-details.mjs';
 import * as treasury from '../lib/solana-app/treasury-service.ts';
 
 beforeEach(() => {
@@ -54,6 +55,7 @@ async function sign(env, prepared) {
 
 async function pay(env, { amount = '12000000', reference } = {}) {
   const inv = svc.startTransfer(env.org.id, { recipient: { name: 'Davao Packaging Corp.', bank: 'BPI', accountLast4: '0910' }, amountPhpMinor: amount, reference, verification: { by: 'Aisyah', method: 'call-back' } });
+  giveDetails(env.org.id, inv.id);
   const p = await svc.quote(env.org.id, inv.id);
   const card = (await svc.paymentView(p.id)).cards.find((c) => c.kind === 'solana_direct');
   await svc.selectRoute(p.id, { quoteId: card.quoteId });
@@ -101,6 +103,7 @@ test('suspend: no proposal, no move, and no fee-payer signature from any path; b
   await admin.adminSuspend(env.org.id, 'compliance@splash.test', 'KYB documents expired');
 
   const inv = svc.startTransfer(env.org.id, { recipient: { name: 'Davao Packaging Corp.', bank: 'BPI', accountLast4: '0910' }, amountPhpMinor: '500000', verification: { by: 'Aisyah', method: 'call-back' } });
+  giveDetails(env.org.id, inv.id);
   const p = await svc.quote(env.org.id, inv.id);
   const card = (await svc.paymentView(p.id)).cards.find((c) => c.kind === 'solana_direct');
   await svc.selectRoute(p.id, { quoteId: card.quoteId });

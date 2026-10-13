@@ -268,3 +268,25 @@ Sky asked for three changes to the Payments and Money sections. Prompt 07 §4.2 
 - **Refusing service has a last word in front of Kora.** The services already refused a suspended company. The same wrapper now refuses any sponsored send for one, from any code path, before Kora is asked. Suspend and unsuspend each need a reason, and are appended to the company's audit log with the staff member's email. Only compliance and operations staff can change service; support can see it.
 - **Webhooks are logged with their signature check**, accepted, replayed or refused. A webhook naming a payment this server does not have used to be refused with a 404 before its signature was checked, and was never logged. It now goes through the same check, so a forgery is never silent. The log is in process memory (the last 200, since the server started).
 - **Not in this build:** the Kora fee payer alert line is fixed at 0.5 SOL, not configurable. Moves and batches are counted in the per-company spend, but they are not listed on the Payments page.
+
+## D-P6-1 · Transfer in five steps; Step 3 asks the partner's questions and how you pay (Sky, 13 Oct)
+
+Sky asked for the earlier "Send a payout" flow back on Transfer, with one step changed.
+
+- **The five steps.** Beneficiary, Delivery, Quote & Send, Status, Receipt. The deep header returns, with the transfer's state and four facts. Beside the step, a ticket of the transfer. The settlement engine diagram shows only when its button (after the state chip) is pressed. It fades in, and fades out on the next press.
+- **Step 3 asks what the payout partner needs** (`lib/solana-app/transfer-details.ts`):
+  - **every transfer:** purchase of goods or of services, and what was bought; the relationship to the recipient; where the money comes from;
+  - **the first transfer to a recipient:** business or individual, a registration number (or a date of birth or ID number), an address, and the account holder's name as the bank has it.
+
+  The Philippines asks a purpose on inbound payments (BSP), and partner banks ask the rest (`lib/compliance/travel-rule.ts`). The next transfer to the same recipient asks "Same details as before?": yes copies them; no asks every question again on an empty form. The answers are frozen on the transfer they went with. No route can be chosen for a transfer until they are given. The purpose is printed on the approval card.
+- **Step 3 asks how you pay** (`lib/solana-app/funding-service.ts`):
+  - **Pay from your vaults** is ready now: that money was checked when it arrived. If the payments vault is short, the treasury tops it up in place, with one approval on the device.
+  - **Fund it another way** brings in USD (Stripe, Airwallex) or a stablecoin from another wallet. The route's full cost lands in the company's own payments vault, never with Splash, and only after a funds check:
+    - the source (the sending wallet, or the provider account) is screened;
+    - a person ticks a declaration naming where the money comes from;
+    - a flagged source is held, and nothing reaches the vault.
+
+    The provider's or swap venue's charge is shown before anything is sent (integer minor units, rounded up). Splash adds nothing to funding.
+- **The quote prices a short vault** for a transfer (`allowShort`), so the cost is known before funding. Choosing a route still needs the payments vault to hold the full cost. The execute is simulated before it is sent, as for every payment. Invoices are unchanged: their quote still refuses a vault that cannot pay.
+- **D-7 holds:** only USDC reaches the vault. USDT or PYUSD is swapped before it lands.
+- **Stripe, Airwallex and the swap are sandbox stand-ins.** They are labelled so on every screen and refused on devnet, and their charges are sandbox estimates. No agreement with either provider is signed. **Sebastian to confirm** the funding providers, and whether naming them in the product is acceptable before an agreement.

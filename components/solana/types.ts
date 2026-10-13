@@ -21,3 +21,11 @@ export type InvoiceDTO = Wire<ReturnType<typeof invoiceView>>;
 export type ReceiptDTO = Wire<Awaited<ReturnType<typeof receiptView>>>;
 export type RouteCardDTO = PaymentDTO['cards'][number];
 export type ApprovalDTO = NonNullable<PaymentDTO['approval']>;
+
+/* A transfer's Step 3: the partner's details, and how the USDC reaches the payments vault. */
+import type { fundingOptions, fundingView } from '@/lib/solana-app/funding-service';
+import type { DETAILS_OPTIONS, detailsView } from '@/lib/solana-app/transfer-details';
+export type FundingOptionsDTO = Wire<Awaited<ReturnType<typeof fundingOptions>>>;
+export type FundingDTO = Wire<ReturnType<typeof fundingView>>;
+export type DetailsDTO = Wire<NonNullable<ReturnType<typeof detailsView>>>;
+export type DetailsOptionsDTO = typeof DETAILS_OPTIONS;

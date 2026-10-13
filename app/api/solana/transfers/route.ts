@@ -1,5 +1,6 @@
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { invoiceView, startTransfer } from '@/lib/solana-app/service';
+import { DETAILS_OPTIONS, detailsView, previousDetails } from '@/lib/solana-app/transfer-details';
 import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
@@ -18,7 +19,8 @@ export async function POST(request: Request) {
       requireReadyToApprove(ctx);
       await requireMoneyGates(ctx);
       const inv = startTransfer(ctx.orgId, { ...body, by: ctx.personName });
-      return { invoice: invoiceView(inv) };
+      // What Step 3 offers back: the details given last time for this recipient, if any.
+      return { invoice: invoiceView(inv), previousDetails: detailsView(previousDetails(ctx.orgId, inv.id)), detailsOptions: DETAILS_OPTIONS };
     },
     201,
   );

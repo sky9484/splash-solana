@@ -65,6 +65,7 @@ import { explainRoutes } from '../solana-zeke/router.ts';
 import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 
 import { awaitCommitment } from './confirm.ts';
+import { detailsView, missingDetails, purposeLine } from './transfer-details.ts';
 import { ServiceError } from './errors.ts';
 import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
@@ -144,7 +145,7 @@ export function getOrg(orgId: string): OrgRecord {
   return org;
 }
 
-function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
+export function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
   const inv = store().invoices.get(invoiceId);
   if (!inv || inv.orgId !== orgId) throw new ServiceError('invoice_not_found', 'That invoice is not on the server. Start the payment again.', 404);
   return inv;
@@ -228,7 +229,7 @@ function laneOf(kind: RouteKind): { line: string; solNote: string; routeLabel: s
   return { line: 'From Solana balance · CCTP V2 to Polygon', solNote: 'Needs 0.01 SOL in the vault (test pending)', routeLabel: 'CCTP V2 to Polygon' };
 }
 
-function findQuote(p: PaymentRecord, quoteId: string): RouteQuote | null {
+export function findQuote(p: PaymentRecord, quoteId: string): RouteQuote | null {
   for (const policy of POLICIES) {
     const hit = p.engine.ranked[policy].find((q) => q.id === quoteId);
     if (hit) return hit;
@@ -782,7 +783,13 @@ function release(p: PaymentRecord, q: RouteQuote, day: string) {
 
 /* ------------------------------------------------------------------ quote and route */
 
-export async function quote(orgId: string, invoiceId: string, opts: { now?: Date; paymentId?: string } = {}): Promise<PaymentRecord> {
+/**
+ * `allowShort` (a transfer's Step 3): when the payments vault cannot cover any route yet, quote every
+ * route anyway, so the person sees what it costs and chooses how to fund it. No route can be chosen
+ * for approval until the vault holds the money (selectRoute checks the balance again), and the
+ * execute is simulated before it is sent, as for every payment.
+ */
+export async function quote(orgId: string, invoiceId: string, opts: { now?: Date; paymentId?: string; allowShort?: boolean } = {}): Promise<PaymentRecord> {
   const org = getOrg(orgId);
   const vault = requireVault(org);
   const inv = getInvoice(orgId, invoiceId);
@@ -801,17 +808,24 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   });
   const deposits = Object.fromEntries(payout.deposits.map((d) => [d.network, d.address]));
   const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
-  const engine = quoteRoutes({
-    paymentId,
-    amount: { amountPhpMinor },
-    senderBalanceUsdcMinor: balance,
-    partner: rt.partner.entry,
-    partnerQuotes,
-    deposits,
-    // No Fast Transfer fee is read offline (it comes from Circle's API), so no Fast candidate.
-    now,
-    homeChain: 'solana',
-  });
+  const engineFor = (senderBalanceUsdcMinor: bigint) =>
+    quoteRoutes({
+      paymentId,
+      amount: { amountPhpMinor },
+      senderBalanceUsdcMinor,
+      partner: rt.partner.entry,
+      partnerQuotes,
+      deposits,
+      // No Fast Transfer fee is read offline (it comes from Circle's API), so no Fast candidate.
+      now,
+      homeChain: 'solana',
+    });
+  let engine = engineFor(balance);
+  if (opts.allowShort && !POLICIES.some((p) => engine.picks[p])) {
+    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
+    // Priced as if the vault held enough for every route; funding comes before any approval.
+    if (needs.length) engine = engineFor(needs.reduce((a, b) => (b > a ? b : a)));
+  }
   if (!POLICIES.some((p) => engine.picks[p])) {
     const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
     if (needs.length) {
@@ -886,10 +900,26 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   return cas(() => repo().transition(drafted.id, { from: 'draft', version: drafted.version }, 'quoted', undefined, 'quoted', now));
 }
 
-export async function requote(paymentId: string, now = new Date()) {
+export async function requote(paymentId: string, now = new Date(), opts: { allowShort?: boolean } = {}) {
   const p = await getPayment(paymentId);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
-  return quote(p.orgId, p.invoiceId, { now, paymentId: p.id });
+  return quote(p.orgId, p.invoiceId, { now, paymentId: p.id, allowShort: opts.allowShort });
+}
+
+/** The payments vault must hold the route's full cost before it can be chosen or approved. */
+async function assertVaultCovers(p: PaymentRecord, q: RouteQuote): Promise<void> {
+  const vault = requireVault(getOrg(p.orgId));
+  const rt = runtime();
+  const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
+  if (balance >= q.source.amountMinor) return;
+  const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+  throw new ServiceError('insufficient_balance', 'Your payments vault does not hold this payment yet. Pay from your vaults or fund it another way first.', 409, {
+    invoiceId: p.invoiceId,
+    balanceUsdcMinor: balance.toString(),
+    neededUsdcMinor: q.source.amountMinor.toString(),
+    shortUsdcMinor: (q.source.amountMinor - balance).toString(),
+    treasuryUsdcMinor: treasuryMinor.toString(),
+  });
 }
 
 function runPolicy(p: PaymentRecord, q: RouteQuote, now: Date): EnginePolicyResult {
@@ -951,6 +981,7 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     depositAddress: q.target.depositAddress,
     draftedBy: transfer ? c.confirmedBy : 'Zeke',
     kind: transfer ? 'transfer' : 'invoice',
+    purpose: transfer ? purposeLine(inv.paymentDetails) : null,
     simulated: runtime().env.mode === 'offline',
   };
 }
@@ -963,6 +994,12 @@ export async function selectRoute(paymentId: string, input: { quoteId: string; r
   }
   const q = findQuote(p, input.quoteId);
   if (!q) throw new ServiceError('bad_request', 'That route is not one of this payment’s quotes. Get a new quote.', 400);
+  const inv = getInvoice(p.orgId, p.invoiceId);
+  if (inv.source === 'transfer') {
+    const missing = missingDetails(inv.paymentDetails);
+    if (missing.length) throw new ServiceError('details_required', `The payout partner needs these first: ${missing.join(', ')}.`, 422, { missing });
+  }
+  await assertVaultCovers(p, q);
   const rt = runtime();
   const rehearsal = rt.env.mode === 'offline' ? (input.rehearsal ?? 'none') : 'none';
   const policy = runPolicy({ ...p, rehearsal }, q, now);
@@ -1866,7 +1903,7 @@ export async function paymentView(paymentId: string) {
     stateLabel: STATE_LABEL[p.state],
     createdAt: p.createdAt,
     simulated: rt.env.mode === 'offline',
-    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed },
+    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed, details: detailsView(inv.paymentDetails) },
     cards,
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,

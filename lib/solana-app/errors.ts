@@ -39,7 +39,11 @@ export type ServiceErrorCode =
   | 'payee_changed'
   | 'sponsor_cap'
   | 'not_authorized'
-  | 'device_exists';
+  | 'device_exists'
+  | 'declaration_required'
+  | 'sandbox_only'
+  | 'funding_not_found'
+  | 'details_required';
 
 export class ServiceError extends Error {
   readonly code: ServiceErrorCode;

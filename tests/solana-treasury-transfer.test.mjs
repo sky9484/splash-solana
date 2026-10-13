@@ -16,6 +16,7 @@ import { TREASURY_VAULT_INDEX, vaultPdaAt } from '../lib/solana/squads.ts';
 import { resetRuntime, runtime } from '../lib/solana-app/runtime.ts';
 import { resetStore } from '../lib/solana-app/store.ts';
 import * as svc from '../lib/solana-app/service.ts';
+import { giveDetails } from './helpers/transfer-details.mjs';
 import * as treasury from '../lib/solana-app/treasury-service.ts';
 
 beforeEach(() => {
@@ -56,6 +57,7 @@ const callBack = { by: 'Aisyah', method: 'call-back' };
 test('a transfer with no invoice: typed in, confirmed, quoted, approved on the device, paid with proof', async () => {
   const env = await company();
   const inv = svc.startTransfer(env.org.id, { recipient, amountPhpMinor: '12000000', reference: 'PO-1182', verification: callBack, by: 'Aisyah' });
+  giveDetails(env.org.id, inv.id);
   assert.equal(inv.source, 'transfer');
   assert.equal(inv.draft.extractor, 'none', 'nothing was read');
   assert.equal(inv.confirmed.invoiceNumber, 'PO-1182', 'the reference stands where an invoice number would');
@@ -88,6 +90,7 @@ test('a transfer with no invoice: typed in, confirmed, quoted, approved on the d
 test('a transfer to a new recipient without a call-back is blocked by the rules, not sent', async () => {
   const env = await company();
   const inv = svc.startTransfer(env.org.id, { recipient, amountPhpMinor: '500000', by: 'Aisyah' });
+  giveDetails(env.org.id, inv.id);
   assert.match(inv.confirmed.invoiceNumber, /^TRF-\d{8}-[0-9A-F]{4}$/, 'a reference is made when none is given');
   assert.equal(inv.confirmed.bankDetailsVerified, null);
   const p = await svc.quote(env.org.id, inv.id);
@@ -102,6 +105,7 @@ test('a transfer the payments vault cannot cover is refused at the quote, with t
   const env = await company({ fund: false });
   await treasury.fundTreasury(env.org.id);
   const inv = svc.startTransfer(env.org.id, { recipient, amountPhpMinor: '5740000', verification: callBack });
+  giveDetails(env.org.id, inv.id);
   await assert.rejects(svc.quote(env.org.id, inv.id), (e) => {
     assert.equal(e.code, 'insufficient_balance');
     assert.equal(e.detail.invoiceId, inv.id);
@@ -194,6 +198,7 @@ test('a move back to the treasury, and a payment funded by a move', async () => 
   await treasury.submitMove(env.org.id, p1.move.id, { signatures: await sign(env, p1), who: 'Aisyah' });
 
   const inv = svc.startTransfer(env.org.id, { recipient, amountPhpMinor: '57400000', verification: callBack });
+  giveDetails(env.org.id, inv.id);
   const p = await svc.quote(env.org.id, inv.id);
   const card = (await svc.paymentView(p.id)).cards.find((c) => c.kind === 'solana_direct');
   await svc.selectRoute(p.id, { quoteId: card.quoteId });
