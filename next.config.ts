@@ -17,6 +17,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  experimental: {
+    // Off for `next dev`: twice on 13 Oct the dev server aborted with a Turbopack panic ("Restore of
+    // Data/All for task … failed in another thread: restoring failed") right after it finished writing
+    // this cache, while a second dev server compiled beside it. A cold compile after each restart is
+    // slower, but the server stays up. Builds keep their cache (turbopackFileSystemCacheForBuild).
+    turbopackFileSystemCacheForDev: false,
+  },
   // lib/server/seal-config.ts reads config/seal.<NODE_ENV>.json at a path it
   // picks at run time, so its reads are marked turbopackIgnore (untraced, they
   // pulled the whole project into every server output). The committed files

@@ -55,7 +55,8 @@ test('a fresh org has nothing done, and the state says so honestly', async () =>
   assert.equal(state.intent, null);
   assert.deepEqual(
     state.steps.map((s) => [s.id, s.done]),
-    [['terms', false], ['profile', false], ['verify', false], ['approvals', false], ['recipient', false]],
+    // Prompt 10 Phase 1: a sixth step, last and optional, the second approver.
+    [['terms', false], ['profile', false], ['verify', false], ['approvals', false], ['recipient', false], ['second_approver', false]],
   );
   assert.equal(state.complete, false);
   assert.equal(state.kyb.blocked, true, 'REGISTERED cannot move money');

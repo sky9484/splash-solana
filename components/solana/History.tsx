@@ -1,9 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { stationLabel, stationOf, STATIONS, type StationId } from '@/lib/solana-app/stations';
+
 import { dateShort, payHref, php, shortKey, timeShort, usd } from './client';
+import { DiscardButton } from './DiscardButton';
 import { StatusPill } from './StatusPill';
 import type { CompanyDTO } from './types';
 import { useCompany } from './useCompany';
@@ -36,8 +40,11 @@ function toCsv(rows: Row[]): string {
 export function History() {
   const { state } = useCompany();
   const [filter, setFilter] = useState<Filter>('all');
+  // Overview's pipeline opens History at one station (?station=sent): where those payments are now.
+  const param = useSearchParams()?.get('station') ?? null;
+  const station = STATIONS.some((s) => s.id === param) ? (param as StationId) : null;
   const rows = useMemo(() => (state.status === 'ready' ? state.company.payments : []), [state]);
-  const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test);
+  const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test).filter((p) => !station || stationOf(p.state) === station);
 
   if (state.status === 'loading') return <p className="sx-muted">Loading payments…</p>;
   if (state.status !== 'ready') {
@@ -60,6 +67,12 @@ export function History() {
 
   return (
     <div className="sx-stack-lg">
+      {station ? (
+        <p className="sx-notice" role="status">
+          Showing payments at <strong>{stationLabel(station)}</strong>.{' '}
+          <Link href="/dashboard/history">Show all payments</Link>
+        </p>
+      ) : null}
       <div className="sx-row" style={{ justifyContent: 'space-between' }}>
         <div className="sx-segmented" role="group" aria-label="Show payments">
           {FILTERS.map((f) => {
@@ -157,6 +170,11 @@ export function History() {
                         <span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                       </Link>
                     )}
+                    {p.discardable ? (
+                      <span style={{ display: 'block', marginTop: 4 }}>
+                        <DiscardButton paymentId={p.id} name={p.supplierName || 'the supplier'} />
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))}

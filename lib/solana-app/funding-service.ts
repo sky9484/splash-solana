@@ -187,6 +187,7 @@ export async function startFunding(
   const p = await getPayment(paymentId);
   if (p.orgId !== orgId) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. Nothing more to fund.', 409);
+  if (p.state === 'discarded') throw new ServiceError('wrong_state', 'This payment was discarded. Start a new one to fund it.', 409);
   const org = getOrg(orgId);
   const vault = requireVault(org);
   const m = FUNDING_METHODS[input.method];

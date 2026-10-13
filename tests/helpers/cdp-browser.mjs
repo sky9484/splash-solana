@@ -27,9 +27,10 @@ export function findChrome() {
   return CANDIDATES.find((p) => p && existsSync(p)) ?? null;
 }
 
-export async function launch({ executable = findChrome(), timeoutMs = 30_000 } = {}) {
+/** `profileDir`: keep the browser profile (cookies, IndexedDB with the device key) between runs. */
+export async function launch({ executable = findChrome(), timeoutMs = 30_000, profileDir = null } = {}) {
   if (!executable) throw new Error('No Chrome, Edge or Chromium found; set CHROME_PATH');
-  const profile = mkdtempSync(path.join(tmpdir(), 'splash-e2e-'));
+  const profile = profileDir ?? mkdtempSync(path.join(tmpdir(), 'splash-e2e-'));
   const proc = spawn(
     executable,
     ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars', 'about:blank'],
@@ -68,10 +69,17 @@ export async function launch({ executable = findChrome(), timeoutMs = 30_000 } =
       for (const l of listeners) l(msg);
     }
   };
+  // A command Chrome never answers (a page whose main thread is stuck) fails with its name after
+  // 90 s, so a walkthrough reports where it stopped instead of waiting out its whole time limit.
   const send = (method, params = {}, sessionId) =>
     new Promise((resolve, reject) => {
       const id = ++nextId;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!pending.has(id)) return;
+        pending.delete(id);
+        reject(new Error(`Chrome did not answer ${method} within 90 s (the page may be stuck)`));
+      }, 90_000);
+      pending.set(id, { resolve: (v) => (clearTimeout(timer), resolve(v)), reject: (e) => (clearTimeout(timer), reject(e)) });
       ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
 
@@ -94,7 +102,7 @@ export async function launch({ executable = findChrome(), timeoutMs = 30_000 } =
     }
     await new Promise((r) => (proc.exitCode !== null ? r() : proc.on('exit', r)));
     ws.close();
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    if (!profileDir) rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 
   return { newPage, close };
@@ -269,5 +277,10 @@ async function createPage(call, subscribe, viewport) {
     writeFileSync(file, Buffer.from(data, 'base64'));
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, requests, errors, sleep };
+  /** Emulate CSS media features, e.g. [{ name: 'prefers-reduced-motion', value: 'reduce' }]. */
+  async function emulateMedia(features) {
+    await call('Emulation.setEmulatedMedia', { features });
+  }
+
+  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, requests, errors, sleep };
 }

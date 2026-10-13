@@ -167,7 +167,7 @@ export default function ApprovalChannelCard({
             disabled={!whatsappEnabled}
             onSelect={() => onChange({ approvalChannel: 'reply' })}
             title="Reply APPROVE or REJECT"
-            body="Faster, and it proves possession of the handset rather than the identity of a person: whoever is holding the phone can approve for its owner. Sending the payment still needs an approver signed in to Splash."
+            body="One step fewer, and it proves possession of the handset rather than the identity of a person: whoever is holding the phone can approve for its owner. Sending the payment still needs an approver signed in to Splash."
             caution
           />
         </div>
