@@ -1,10 +1,7 @@
-import { suiScanTxUrl, suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { listTransactions } from '@/lib/server/operations';
 import { listBatchesForStaff } from '@/lib/server/batches-store';
 import { listTransfersForStaff } from '@/lib/server/transfers-store';
-import { getPegStatus } from '@/lib/server/peg';
-import { readComplianceControls } from '@/lib/server/sui-settlement';
-import ComplianceControlForm from '@/components/admin/ComplianceControlForm';
 import { Activity, CheckCircle2, Circle, ExternalLink, Loader2, ReceiptText, XCircle } from 'lucide-react';
 import { listFundingSessions } from '@/lib/server/funding-sessions';
 import { describeFundingSelection } from '@/lib/funding/registry';
@@ -16,13 +13,6 @@ export default async function AdminTransactionsPage() {
   const transfers = await listTransfersForStaff();
   const transactions = await listTransactions();
   const fundingSessions = listFundingSessions();
-  const pegStatus = await getPegStatus();
-  const complianceControls = await readComplianceControls();
-  // DeepBook is the only peg source; no reading is red, never a guess.
-  const zone = !pegStatus.pegged || !pegStatus.deepbook ? 'red' : pegStatus.deepbook.deviationBps > 30 ? 'yellow' : 'green';
-  const pegDetail = pegStatus.deepbook
-    ? `DeepBook ${pegStatus.deepbook.pair} ${pegStatus.deepbook.midPrice.toFixed(4)} (${pegStatus.deepbook.deviationBps.toFixed(1)} bps)`
-    : 'DeepBook did not answer: settlement is paused';
   const volume = transfers.reduce((sum, transfer) => sum + Number.parseFloat(transfer.sourceAmountUsd || '0'), 0);
   const fees = volume * 0.015;
 
@@ -31,16 +21,13 @@ export default async function AdminTransactionsPage() {
       <header className="dash-surface p-6 md:p-8">
         <span className="dash-kicker">Settlement monitor</span>
         <h1 className="dash-title mt-2 text-4xl">Live transfer feed</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-[#326273]/90">Monitor peg health, cross-border volume, fee capture, and Sui settlement transactions linked to the active package.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-[#326273]/90">Monitor cross-border volume, fee capture and settlement activity.</p>
       </header>
 
       <section className="grid gap-5 md:grid-cols-3">
-        <MonitorCard icon={Circle} label="Peg Status" value={`${zone === 'green' ? '🟢' : zone === 'yellow' ? '🟡' : '🔴'} ${zone[0].toUpperCase()}${zone.slice(1)}`} detail={pegDetail} />
         <MonitorCard icon={Activity} label="24h Volume" value={`RM ${volume.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} detail={`${transfers.length} transfer intents`} />
         <MonitorCard icon={ReceiptText} label="Fees" value={`RM ${fees.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} detail="Estimated at 1.5% headline" />
       </section>
-
-      <ComplianceControlForm initial={complianceControls} />
 
       <div className="dash-surface">
         <div className="border-b border-[#326273]/10 p-5">
@@ -116,7 +103,7 @@ export default async function AdminTransactionsPage() {
                   <th>Source</th>
                   <th>Fee tier</th>
                   <th className="text-right">Amount</th>
-                  <th>Digest</th>
+                  <th>Signature</th>
                   <th>Explorer</th>
                   <th>Time</th>
                 </tr>
@@ -142,13 +129,9 @@ export default async function AdminTransactionsPage() {
                     <td>
                       {transfer.verificationReference && (
                         <div className="flex gap-1">
-                          <a href={suiVisionTxUrl(transfer.verificationReference)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
+                          <a href={solanaTxUrl(transfer.verificationReference)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
                             <ExternalLink size={10} />
-                            SuiVision
-                          </a>
-                          <a href={suiScanTxUrl(transfer.verificationReference)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
-                            <ExternalLink size={10} />
-                            SuiScan
+                            Solana Explorer
                           </a>
                         </div>
                       )}
@@ -177,8 +160,7 @@ export default async function AdminTransactionsPage() {
                   <th>State</th>
                   <th className="text-right">Rows</th>
                   <th className="text-right">Amount</th>
-                  <th>Digest</th>
-                  <th>Package</th>
+                  <th>Signature</th>
                   <th>Explorer</th>
                   <th>Time</th>
                 </tr>
@@ -199,19 +181,12 @@ export default async function AdminTransactionsPage() {
                     <td className="text-right text-[#326273]">{batch.acceptedRows}</td>
                     <td className="text-right font-mono text-[#326273]">$ {batch.totalAmount}</td>
                     <td className="font-mono text-xs text-[#326273]/90">{batch.digest || '—'}</td>
-                    <td className="font-mono text-xs text-[#326273]/90">{batch.packageId || '—'}</td>
                     <td>
                       <div className="flex gap-1">
-                        {batch.explorer.suiVisionTxUrl && (
-                          <a href={batch.explorer.suiVisionTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
+                        {batch.explorer.txUrl && (
+                          <a href={batch.explorer.txUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
                             <ExternalLink size={10} />
-                            SuiVision
-                          </a>
-                        )}
-                        {batch.explorer.suiScanTxUrl && (
-                          <a href={batch.explorer.suiScanTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
-                            <ExternalLink size={10} />
-                            SuiScan
+                            Solana Explorer
                           </a>
                         )}
                       </div>
@@ -241,7 +216,7 @@ export default async function AdminTransactionsPage() {
                   <th>State</th>
                   <th>Module::function</th>
                   <th className="text-right">Amount</th>
-                  <th>Digest</th>
+                  <th>Signature</th>
                   <th>Package</th>
                   <th>Explorer</th>
                   <th>Time</th>
@@ -266,19 +241,12 @@ export default async function AdminTransactionsPage() {
                     </td>
                     <td className="text-right font-mono text-[#326273]">{tx.amount}</td>
                     <td className="font-mono text-xs text-[#326273]/90">{tx.digest || '—'}</td>
-                    <td className="font-mono text-xs text-[#326273]/90">{tx.packageId || '—'}</td>
                     <td>
                       <div className="flex gap-1">
-                        {tx.explorer.suiVisionTxUrl && (
-                          <a href={tx.explorer.suiVisionTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
+                        {tx.explorer.txUrl && (
+                          <a href={tx.explorer.txUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
                             <ExternalLink size={10} />
-                            SuiVision
-                          </a>
-                        )}
-                        {tx.explorer.suiScanTxUrl && (
-                          <a href={tx.explorer.suiScanTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded bg-[#5C9EAD]/10 px-2 py-1 text-xs font-semibold text-[#237284] hover:bg-[#5C9EAD]/20">
-                            <ExternalLink size={10} />
-                            SuiScan
+                            Solana Explorer
                           </a>
                         )}
                       </div>

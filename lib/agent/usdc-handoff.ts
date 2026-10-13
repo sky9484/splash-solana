@@ -2,9 +2,9 @@ import type { KybLifecycleState } from '../compliance/kyb-state.ts';
 import {
   anchorFeeEnabled,
   formatUsdc,
-  gaslessEnabled,
   laneAccess,
   MIN_STABLECOIN_TRANSFER_MINOR,
+  NETWORK_FEE_LINE,
   parseUsdcMinor,
   quoteStablecoinTransfer,
   StablecoinLaneError,
@@ -23,9 +23,9 @@ import type { RecipientLookup } from './recipient-tools.ts';
  * the amount filled in.
  *
  * What Zeke does NOT do, by construction: quote (a quote reserves allowance),
- * approve, or sign. The person checks the prepared transfer, it is approved
- * the workspace's way (WhatsApp code + passkey, or a click), and their own
- * wallet signs it — and the send screen re-checks everything this did. The
+ * approve, or sign. The person checks the prepared transfer, a person in the
+ * workspace approves it with their device key, and the business's own Squads
+ * vault sends it — and the send screen re-checks everything this did. The
  * link carries a recipient id Splash issued and an amount re-printed from
  * integer minor units: nothing typed in the chat reaches it verbatim.
  */
@@ -49,8 +49,6 @@ export interface HandoffDeps {
   destinationOf(orgId: string, recipientId: string): Promise<StablecoinDestination>;
   /** The audit-anchor fee on transfers out of Splash; off unless switched on. */
   anchorFeeOn(): boolean;
-  /** Wallet transfers carry no network fee while this is on (STABLECOIN_GASLESS). */
-  gaslessOn(): boolean;
 }
 
 // "send 500 USDC to Manila Parts", "pay 1,250.50 usdc to Cebu Traders",
@@ -65,9 +63,9 @@ const NAME_FIRST = /^\s*(?:please\s+)?(?:can you\s+)?(?:send|pay)\s+(.+?)\s+\$?(
 function cleanName(raw: string): string {
   return raw
     .replace(/[.!?]+$/, '')
-    .replace(/\s+(?:on|via)\s+sui(?:\s+mainnet)?$/i, '')
-    // "Maria's Slush wallet" → "Maria"
-    .replace(/(?:['’]s)?\s+(?:(?:slush|metamask|sui)\s+)?wallet$/i, '')
+    .replace(/\s+(?:on|via)\s+solana(?:\s+(?:devnet|mainnet))?$/i, '')
+    // "Maria's Phantom wallet" → "Maria"
+    .replace(/(?:['’]s)?\s+(?:(?:phantom|solflare|backpack|solana)\s+)?wallet$/i, '')
     .replace(/\s+please$/i, '')
     .replace(/^["'“‘]|["'”’]$/g, '')
     .trim();
@@ -130,7 +128,7 @@ export async function prepareUsdcHandoff(
   const lookup = await deps.findRecipient(orgId, intent.name);
   if (lookup.status === 'NOT_FOUND') {
     return {
-      text: `No saved wallet recipient matches "${intent.name}". I only prepare USDC for recipients you have saved yourself — add their Slush or MetaMask Sui address under Recipients.`,
+      text: `No saved wallet recipient matches "${intent.name}". I only prepare USDC for recipients you have saved yourself — add their Solana wallet address under Recipients.`,
       handoff: null,
     };
   }
@@ -140,7 +138,7 @@ export async function prepareUsdcHandoff(
   const match = lookup.match;
   if (match.payoutMethod !== 'WALLET') {
     return {
-      text: `${match.name} is saved as a bank recipient. USDC goes to a Sui wallet — save their Slush or MetaMask Sui address under Recipients to send them USDC.`,
+      text: `${match.name} is saved as a bank recipient. USDC goes to a Solana wallet — save their Solana address under Recipients to send them USDC.`,
       handoff: null,
     };
   }
@@ -155,7 +153,7 @@ export async function prepareUsdcHandoff(
     anchorFeeOn: deps.anchorFeeOn(),
   });
   if (quote.feeMinor > 0n && !deps.feeAddressConfigured()) {
-    return { text: 'Transfers out of Splash are not open yet: Splash’s mainnet fee address is not configured, so nothing can be sent until it is.', handoff: null };
+    return { text: 'Transfers out of Splash are not open yet: Splash’s fee address is not configured, so nothing can be sent until it is.', handoff: null };
   }
 
   const limits = stablecoinLimitsFor(state);
@@ -174,7 +172,7 @@ export async function prepareUsdcHandoff(
   return {
     text:
       `I've prepared it — ${formatUsdc(principal)} USDC to ${match.name}. I can't send it: open it in Send USDC, ` +
-      'check it, get it approved your workspace’s way, and sign it with your wallet.',
+      'check it, and a person in your workspace approves it with their device.',
     handoff: {
       title: 'Prepared, not sent',
       lines: [
@@ -183,9 +181,8 @@ export async function prepareUsdcHandoff(
         quote.feeMinor === 0n
           ? `Splash fee: free${quote.destination === 'SPLASH' ? ' (to another Splash user)' : ''}`
           : `Audit-anchor fee ${formatUsdc(quote.feeMinor)} USDC, added on top`,
-        deps.gaslessOn()
-          ? `Leaves your wallet ${formatUsdc(quote.totalDebitMinor)} USDC, with no network fee`
-          : `Leaves your wallet ${formatUsdc(quote.totalDebitMinor)} USDC, plus a little SUI for gas`,
+        `Leaves your vault ${formatUsdc(quote.totalDebitMinor)} USDC`,
+        NETWORK_FEE_LINE,
         ...(remaining !== null ? [`${formatUsdc(remaining - principal)} USDC of your 30-day allowance left after`] : []),
       ],
       href: `/dashboard/send-usdc?${params.toString()}`,
@@ -219,7 +216,7 @@ export function liveHandoffDeps(): HandoffDeps {
       }
     },
     feeAddressConfigured() {
-      return Boolean((process.env.SPLASH_FEE_ADDRESS_MAINNET ?? '').trim());
+      return Boolean((process.env.SPLASH_FEE_ADDRESS ?? '').trim());
     },
     async destinationOf(orgId, recipientId) {
       // Without the database there is no saved address to look up: out of
@@ -236,9 +233,6 @@ export function liveHandoffDeps(): HandoffDeps {
     },
     anchorFeeOn() {
       return anchorFeeEnabled();
-    },
-    gaslessOn() {
-      return gaslessEnabled();
     },
   };
 }

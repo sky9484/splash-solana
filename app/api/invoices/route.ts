@@ -9,8 +9,8 @@ import { RATE_LIMITS, enforceRateLimit } from '@/lib/server/rate-limit';
 import { buildInvoice } from '@/lib/server/operations';
 import { listInvoicesFor, persistInvoice } from '@/lib/server/invoices-store';
 import { requireSessionAccount } from '@/lib/server/session-account';
-import { sealAdapter } from '@/lib/server/seal';
-import { storeEncryptedInvoice, WalrusAdapterError } from '@/lib/server/walrus';
+import { sealAdapter } from '@/lib/evidence-sui/seal';
+import { storeEncryptedInvoice, WalrusAdapterError } from '@/lib/evidence-sui/walrus';
 import { requireTermsAccepted } from '@/lib/server/onboarding';
 
 const createInvoiceSchema = z.object({
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   // copy that would not survive. An invoice without one, paid in USDC, is open.
   if (input.documentBase64 && stablecoinOnly()) {
     return NextResponse.json(
-      { error: 'Attaching the invoice document is not open yet. Create the invoice without it; it can still be paid in USDC on Sui.', code: LAUNCH_SCOPE_CODE },
+      { error: 'Attaching the invoice document is not open yet. Create the invoice without it; it can still be paid in USDC.', code: LAUNCH_SCOPE_CODE },
       { status: 403, headers: { 'Cache-Control': 'no-store' } },
     );
   }

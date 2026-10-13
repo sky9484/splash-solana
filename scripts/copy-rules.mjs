@@ -70,15 +70,29 @@ export const CUSTOMER_RULES = [
   },
 ];
 
+/**
+ * The lines that may name the evidence layer on a marketing route, word for word:
+ *   - the two prompt 07 §6.1 puts on the landing (how-it-works step 4, the small footer tech line);
+ *   - the two §8 asks for in the /trust evidence paragraph (Seal, Walrus and the attestation service).
+ * Nothing else on a marketing route may: a customer buys a payment record, not a storage network.
+ */
+export const SANCTIONED_TECH_LINES = [
+  'Proof saved: encrypted on Walrus, anchored on Solana',
+  'Settlement on Solana · Evidence encrypted with Seal, stored on Walrus',
+  'Each payment record is encrypted with Seal and kept on a separate storage network that runs on Sui (Walrus), and its fingerprint is anchored on Solana',
+  'The anchor is an SPL Memo today, and a Solana Attestation Service record once its schema is live',
+];
+const SANCTIONED = new RegExp(SANCTIONED_TECH_LINES.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+
 /** @type {CopyRule[]} */
 export const MARKETING_JARGON = [
-  { pattern: /\bWalrus\b/, reason: 'protocol jargon on a marketing route: a customer buys a payment record, not a storage network' },
-  { pattern: /\bSeal\b/, reason: 'protocol jargon on a marketing route: say "encrypted", not the name of the key server' },
+  { pattern: /\bWalrus\b/, allow: SANCTIONED, reason: 'protocol jargon on a marketing route: a customer buys a payment record, not a storage network' },
+  { pattern: /\bSeal\b/, allow: SANCTIONED, reason: 'protocol jargon on a marketing route: say "encrypted", not the name of the key server' },
   { pattern: /\bPTBs?\b/, reason: 'protocol jargon on a marketing route: a programmable transaction block is our implementation, not their product' },
   { pattern: /payment intent/i, reason: 'protocol jargon on a marketing route: the customer sends a payment; the intent object is ours' },
   { pattern: /audit spine/i, reason: 'protocol jargon on a marketing route: say "the record" or "the receipt"' },
   { pattern: /on-chain/i, reason: 'protocol jargon on a marketing route: say what it does — settled, recorded, final' },
-  { pattern: /\battestation\b/i, reason: 'protocol jargon on a marketing route: say "record" or "proof"' },
+  { pattern: /\battestation\b/i, allow: SANCTIONED, reason: 'protocol jargon on a marketing route: say "record" or "proof"' },
 ];
 
 const MARKETING =

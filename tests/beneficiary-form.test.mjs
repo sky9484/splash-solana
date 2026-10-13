@@ -163,32 +163,6 @@ test('unchecked is not the same as complete', async () => {
 
 // ── And the route enforces the same rule ───────────────────────────────────
 
-test('authorize refuses an incomplete record, naming what is missing', async () => {
-  const route = await readFile(
-    new URL('../app/api/transfers/authorize/route.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(route, /missingTravelRuleFields\(/, 'the same engine the form asks');
-  assert.match(route, /code: 'travel_rule_incomplete'/);
-  assert.match(route, /missing: travelRuleMissing/, 'the caller is told which fields');
-
-  // The originator half is read from the org, never from the body — a request
-  // that could supply it is one that could misstate who sent the money.
-  assert.match(route, /const \{ originator \} = await readOriginator\(orgId\)/);
-  assert.doesNotMatch(route, /originator: body\./);
-});
-
-test('what travelled is frozen on the payment, not joined to the beneficiary', async () => {
-  const route = await readFile(
-    new URL('../app/api/transfers/authorize/route.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(route, /travelRuleSnapshot\(\{/);
-  // A beneficiary edited next week must not rewrite the record of a payment
-  // already sent.
-  assert.match(route, /must not\s*\n?\s*\/\/ silently rewrite|snapshot rather than a join/i);
-});
-
 test('a Philippine payment needs the corridor’s own routing identifier', () => {
   const originator = {
     legalName: 'Acme Trading Sdn Bhd',

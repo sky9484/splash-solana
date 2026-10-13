@@ -11,8 +11,8 @@ import { refuseOutsideLaunchScope } from '@/lib/server/launch-scope';
 const depositSchema = z.object({
   sessionId: z.string().trim().min(1),
   sourceTxDigest: z.string().trim().min(4),
-  receivedCoinType: z.string().trim().min(1),
-  destinationCoinType: z.string().trim().min(1).optional(),
+  receivedMint: z.string().trim().min(1),
+  destinationMint: z.string().trim().min(1).optional(),
   amountMicro: z.number().int().positive(),
   sourceType: z.enum(['regulated_vasp', 'self_custody']),
   riskScore: z.number().min(0).max(100),

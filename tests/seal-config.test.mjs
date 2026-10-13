@@ -11,7 +11,7 @@ import {
   parseSealConfigFile,
   resetSealConfigCache,
   sealConfigPath,
-} from '../lib/server/seal-config.ts';
+} from '../lib/evidence-sui/seal-config.ts';
 
 /* parseSealConfigFile is pure and getSealConfig takes an env object, so every
    case here is a literal file or a literal environment. SEAL_CONFIG_FILE
@@ -131,7 +131,7 @@ test('the committed development and test files load and are unconfigured', () =>
 
 test('the build traces the committed Seal files, not the whole project', async () => {
   const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../lib/server/seal-config.ts', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../lib/evidence-sui/seal-config.ts', import.meta.url), 'utf8');
   const fn = source.slice(source.indexOf('export function sealConfigPath('), source.indexOf('function readFile('));
   // Without the comment Turbopack traced the whole project, public/ included, into the server output.
   assert.match(fn, /path\.resolve\(\/\*turbopackIgnore: true\*\/ process\.cwd\(\), override\)/);

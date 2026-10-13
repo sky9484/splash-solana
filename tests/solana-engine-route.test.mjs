@@ -71,10 +71,10 @@ test('fastest: minimum ETA among quotes within 0.10% of the best value', () => {
   assert.ok(r2.picks.fastest.flags.includes('cctp_v2'));
   // The home-lane rule is a cost tie-break and is off for Fastest by default...
   assert.equal(r2.homeLane.fastest.reason, 'policy_not_in_scope');
-  // ...when switched on, equal capped costs (0.33% both) hand the win back to Solana direct.
+  // ...when switched on, Solana direct (no route fee, 0.10% Splash) costs no more, so it wins back.
   const r3 = quoteRoutes({ ...slow.input, homeLanePolicies: ['cheapest', 'fastest', 'safest'] });
   assert.equal(r3.homeLane.fastest.applied, true);
-  assert.equal(r3.homeLane.fastest.deltaUsdcMinor, 0n);
+  assert.ok(r3.homeLane.fastest.deltaUsdcMinor <= 0n, 'direct is not dearer than the fast route');
   assert.equal(kindOf(r3.picks.fastest), 'direct');
 });
 
@@ -90,21 +90,29 @@ test('safest: same-chain first, then CCTP V2 Standard, then Fast', () => {
   const { input } = tenThousandUsdPhpFixture();
   const r = quoteRoutes(input);
   assert.deepEqual(r.ranked.safest.map(kindOf), ['direct', 'standard', 'fast']);
-  // Splash fee 0.15% → 0.20% partner + 0.15% = 0.35% > 0.33%: cap rule cuts Splash to land on 0.33%
+  // Splash fee 0.10% on every route (D17): 0.20% partner + 0.10% stays within the 0.33% target
   const q = r.picks.safest;
-  assert.equal(q.costs.allInBps, 33);
+  assert.ok(q.costs.allInBps <= 33, `all-in ${q.costs.allInBps} bps`);
   assert.ok(!q.flags.includes('above_target'));
-  assert.ok(r.fees[q.id].capApplied);
+  assert.equal(r.fees[q.id].capApplied, false);
 });
 
-test('fee cap: canon worked example (route 0.03%, partner 0.20%, Fastest 0.15% → Splash 0.10%, all-in 0.33%)', () => {
+test('fee: 0.10% on every route; at the 0.33% target nothing is cut, above it Splash cuts its own fee first', () => {
   const t = USD(10_000);
-  const f = computeSplashFee({ policy: 'fastest', ticketUsdcMinor: t, routeMinor: USD(3), partnerMinor: USD(20) });
-  assert.equal(f.nominalMinor, USD(15));
-  assert.equal(f.splashMinor, USD(10));
-  assert.equal(f.allInMinor, USD(33));
-  assert.equal(f.capApplied, true);
-  assert.equal(f.aboveTarget, false);
+  for (const policy of ['cheapest', 'fastest', 'safest']) {
+    const f = computeSplashFee({ policy, ticketUsdcMinor: t, routeMinor: USD(3), partnerMinor: USD(20) });
+    assert.equal(f.nominalMinor, USD(10), `${policy}: 0.10% of US$10,000`);
+    assert.equal(f.splashMinor, USD(10));
+    assert.equal(f.allInMinor, USD(33), '0.03% + 0.20% + 0.10% = 0.33%, at the target');
+    assert.equal(f.capApplied, false);
+  }
+  // route 0.05% + partner 0.20% + 0.10% = 0.35%: Splash cut to 0.08% → 0.33%
+  const cut = computeSplashFee({ policy: 'fastest', ticketUsdcMinor: t, routeMinor: USD(5), partnerMinor: USD(20) });
+  assert.equal(cut.nominalMinor, USD(10));
+  assert.equal(cut.splashMinor, USD(8));
+  assert.equal(cut.allInMinor, USD(33));
+  assert.equal(cut.capApplied, true);
+  assert.equal(cut.aboveTarget, false);
   // Cheapest row: 0.01% + 0.20% + 0.10% = 0.31%, untouched
   const c = computeSplashFee({ policy: 'cheapest', ticketUsdcMinor: t, routeMinor: USD(1), partnerMinor: USD(20) });
   assert.equal(c.splashMinor, USD(10));
@@ -216,11 +224,14 @@ test('expiry: ≤ 60 s, clamped below a longer partner TTL, and expired partner 
 
 test('insufficient balance excludes a quote per policy; nothing affordable → no pick', () => {
   const { input } = tenThousandUsdPhpFixture();
-  const r = quoteRoutes({ ...input, senderBalanceUsdcMinor: 10_031_000_000n });
-  // cheapest direct debits 10,030.04; fastest/safest are capped at 0.33% → 10,033.00 > balance
+  // Direct debits 10,030.04 on every policy (0.10% everywhere); the CCTP routes cost more.
+  const r = quoteRoutes({ ...input, senderBalanceUsdcMinor: 10_030_040_081n });
   assert.equal(kindOf(r.picks.cheapest), 'direct');
-  assert.equal(r.picks.safest, null);
-  assert.ok(r.excluded.some((e) => e.reason === 'insufficient_balance' && e.policy === 'safest'));
+  assert.equal(kindOf(r.picks.safest), 'direct');
+  assert.ok(r.excluded.some((e) => e.reason === 'insufficient_balance' && e.kind !== 'solana_direct'), 'the dearer CCTP routes are excluded');
+  const broke = quoteRoutes({ ...input, senderBalanceUsdcMinor: 10_030_040_080n });
+  for (const policy of ['cheapest', 'fastest', 'safest']) assert.equal(broke.picks[policy], null, `${policy}: one micro-dollar short`);
+  assert.ok(broke.excluded.some((e) => e.reason === 'insufficient_balance' && e.policy === 'safest'));
 });
 
 test('no Fast candidate without a fee; registry filters networks; bad deposit addresses are refused', () => {

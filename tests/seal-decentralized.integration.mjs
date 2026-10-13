@@ -7,7 +7,7 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromHex, toHex } from '@mysten/sui/utils';
 
-import { getSealConfig } from '../lib/server/seal-config.ts';
+import { getSealConfig } from '../lib/evidence-sui/seal-config.ts';
 
 const config = getSealConfig();
 assert.equal(process.env.USE_MOCK_APIS, 'false', 'Set USE_MOCK_APIS=false for the live integration test.');

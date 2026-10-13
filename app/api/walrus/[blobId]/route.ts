@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireCustomerRequest } from '@/lib/server/customer-auth';
-import { retrieveBlob, WalrusAdapterError } from '@/lib/server/walrus';
+import { retrieveBlob, WalrusAdapterError } from '@/lib/evidence-sui/walrus';
 
 export async function GET(request: Request, { params }: { params: Promise<{ blobId: string }> }) {
   const auth = await requireCustomerRequest(request);

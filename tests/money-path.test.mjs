@@ -65,9 +65,11 @@ test('money path panel renders from config only — no hardcoded partner copy', 
   assert.match(source, /href="\/trust"/);
 });
 
-test('money path mounts: treasury page and funding flow render the panel', async () => {
-  const treasury = await readFile(new URL('../app/dashboard/treasury/page.tsx', import.meta.url), 'utf8');
+test('money path mounts: the funding flow renders the panel; the treasury says who holds the money itself', async () => {
+  // The treasury is now the company's own vault #1 (Sky, 13 Oct), so it states its own custody: both
+  // vaults are the company's multisig, and Splash holds no key to either.
+  const treasury = await readFile(new URL('../components/solana/TreasuryDesk.tsx', import.meta.url), 'utf8');
   const quote = await readFile(new URL('../components/transfer/StepQuote.tsx', import.meta.url), 'utf8');
-  assert.match(treasury, /<MoneyPathPanel \/>/);
+  assert.match(treasury, /Splash holds no key to either/);
   assert.match(quote, /<MoneyPathPanel compact \/>/);
 });

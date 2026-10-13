@@ -30,8 +30,8 @@ export default function TermsOfServicePage() {
 
       <h2>2. What this environment is</h2>
       <p>
-        <strong>v2.splashz.xyz is a demonstration environment.</strong> It runs against the Sui test
-        network. The tokens it moves are test tokens with no monetary value and cannot be exchanged
+        <strong>v2.splashz.xyz is a demonstration environment.</strong> It runs against Solana
+        devnet, a test network. The tokens it moves are test tokens with no monetary value and cannot be exchanged
         for anything. Some third-party integrations are simulated rather than live.
       </p>
       <p>

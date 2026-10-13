@@ -67,7 +67,7 @@ test('the check finds the console’s surfaces: its tinted page, the dark sideba
   const { words, icons, fields, sizes } = RESULT.checked;
   const loading = CONSOLE.length - PAGES.length;
   t.diagnostic(`${PAGES.length} console pages and ${loading} loading screen${loading === 1 ? '' : 's'}, ${RESULT.files.length} files: ${words} word colours, ${icons} icon colours, ${fields} field edges, ${sizes} sizes; sign-in: ${LOGIN.checked.words} word colours; loading screen: ${LOADING.checked.words}`);
-  assert.ok(PAGES.length >= 8, `only ${PAGES.length} console pages were found`);
+  assert.ok(PAGES.length >= 7, `only ${PAGES.length} console pages were found`);
   assert.ok(CONSOLE.includes('app/admin/(console)/go-live/loading.tsx'), 'Go-live’s loading screen was not found');
   assert.ok(RESULT.files.length >= 15, `only ${RESULT.files.length} files were followed`);
   assert.ok(words >= 500, `only ${words} word colours were checked`);

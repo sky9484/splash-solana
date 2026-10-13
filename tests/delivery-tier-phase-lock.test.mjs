@@ -25,7 +25,6 @@ import test from 'node:test';
 const rules = () => import('../lib/custody-phase-rules.ts');
 const gate = () => import('../lib/server/custody-phase.ts');
 
-const CUSTODY_PACKAGE = '0x' + 'cd'.repeat(32);
 const TIERS = ['PAYOUT_ONLY', 'SWEEP_ACCOUNT', 'STORED_BALANCE', 'anything-else'];
 
 async function raw(relative) {
@@ -47,8 +46,8 @@ test('the form and the gate decide a tier with the same function, in both phases
   const { deliveryTierAllowed } = await gate();
 
   for (const tier of TIERS) {
-    assert.equal(deliveryTierOpen(tier, false), deliveryTierAllowed(tier, { custodyPackageId: '' }), `${tier} in Phase 0`);
-    assert.equal(deliveryTierOpen(tier, true), deliveryTierAllowed(tier, { custodyPackageId: CUSTODY_PACKAGE }), `${tier} in Phase 2`);
+    assert.equal(deliveryTierOpen(tier, false), deliveryTierAllowed(tier, { custodyEnabled: false }), `${tier} in Phase 0`);
+    assert.equal(deliveryTierOpen(tier, true), deliveryTierAllowed(tier, { custodyEnabled: true }), `${tier} in Phase 2`);
   }
 
   // What that decision is.

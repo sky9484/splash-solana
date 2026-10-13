@@ -32,10 +32,8 @@ import test from 'node:test';
  * not exported, and the sources carry the floors and constants above.
  */
 
-// Phase 0, and MemWal unconfigured: recall returns [], nothing is fetched.
-delete process.env.SPLASH_CUSTODY_PACKAGE_ID;
-delete process.env.MEMWAL_PRIVATE_KEY;
-delete process.env.MEMWAL_ACCOUNT_ID;
+// Phase 0, and no behaviour-memory store on this build: nothing is recalled.
+delete process.env.SPLASH_CUSTODY_PHASE;
 
 const format = () => import('../lib/confidence.ts');
 const copilot = () => import('../lib/server/copilot.ts');
@@ -84,7 +82,7 @@ test('memory relevance is 1 - distance, clamped to 0..1, with no floor', async (
 
 test('each memory card carries its own measured relevance, and filler makes no card', async () => {
   const { suggestionsFromMemories, MIN_MEMORY_RELEVANCE } = await copilot();
-  assert.equal(MIN_MEMORY_RELEVANCE, 0.3, "the MemWal SDK's default minRelevance");
+  assert.equal(MIN_MEMORY_RELEVANCE, 0.3, "the earlier memory store's default minRelevance");
 
   const [batch] = suggestionsFromMemories([{ text: 'Monthly payroll batch to the Manila team', distance: 0.4 }]);
   assert.equal(batch.type, 'batch');
@@ -117,25 +115,18 @@ test('each memory card carries its own measured relevance, and filler makes no c
 
 /* ── The fallback card ─────────────────────────────────────────────────── */
 
-test('the Smart Treasury card waits for custody AND treasury execution, and claims no confidence', async () => {
+test('there is no treasury card on the Solana build, in any phase', async () => {
   const { idleCashSuggestion } = await copilot();
-  assert.equal(idleCashSuggestion(false, true), null, 'Phase 0: no fund-holding pitch');
-  assert.equal(idleCashSuggestion(true, false), null, '/api/treasury refuses to move anything: no "move some over?"');
-  assert.equal(idleCashSuggestion(false, false), null);
-  const card = idleCashSuggestion(true, true);
-  assert.equal(card.type, 'treasury');
-  assert.equal(card.confidence, null, 'a canned card has no confidence to state');
-  assert.equal(card.requiresAuth, true);
+  for (const [custody, execution] of [[false, false], [false, true], [true, false], [true, true]]) {
+    assert.equal(idleCashSuggestion(custody, execution), null);
+  }
 });
 
 test('with memory unavailable, Phase 0 suggests nothing rather than a treasury pitch', async () => {
   const { getCopilotSuggestions } = await copilot();
   assert.deepEqual(await getCopilotSuggestions('org-a'), [], 'the defaults read the phase: this file is Phase 0');
   assert.deepEqual(await getCopilotSuggestions('org-a', true, false), [], 'custody on, execution off');
-  const open = await getCopilotSuggestions('org-a', true, true);
-  assert.equal(open.length, 1);
-  assert.equal(open[0].type, 'treasury');
-  assert.equal(open[0].confidence, null);
+  assert.deepEqual(await getCopilotSuggestions('org-a', true, true), [], 'no treasury pitch even with custody on: treasury is not on this build');
 });
 
 /* ── The sources ───────────────────────────────────────────────────────── */
@@ -151,8 +142,6 @@ test('copilot.ts has no confidence floors, no invented constants on the cards, a
   assert.match(cards, /const relevance = memoryRelevance\(m\.distance\);/);
   assert.match(cards, /if \(relevance === null \|\| relevance < MIN_MEMORY_RELEVANCE\) continue;/);
   assert.match(cards, /confidence: relevance,/);
-  assert.match(cards, /confidence: null/);
-  assert.match(cards, /if \(!custodyOn \|\| !executionOn\) return null;/);
 });
 
 test('the invoice-batch card states the fact it follows and invents neither a score, a saving nor a process', async () => {
@@ -165,33 +154,13 @@ test('the invoice-batch card states the fact it follows and invents neither a sc
   assert.match(route, /confidence: null,/);
 });
 
-test('the copilot page labels the score for what it is, and its empty state claims nothing it did not check', async () => {
-  const page = await source('app/dashboard/copilot/page.tsx');
-  assert.doesNotMatch(page, /\?\?\s*0\.6/, 'no 60% for a missing score');
-  assert.match(page, /confidence: confidencePercent\(s\.confidence\)/);
-  assert.match(page, /\{suggestion\.confidence !== null && \(/, 'the label renders only with a score');
-  assert.match(page, /\{suggestion\.confidence\}% memory match/, 'it measures how closely a memory matched');
-  assert.doesNotMatch(page, /% confidence/);
-  // An empty list is not evidence of no unpaid invoices (a batch card needs
-  // two on one corridor) and no balance was ever read.
-  assert.doesNotMatch(page, /no unpaid invoices|idle balances worth/i);
-  assert.match(page, /Nothing to suggest right now\. Ask directly in the chat\./);
-  assert.doesNotMatch(page, /Read from your invoices and treasury/, 'nothing reads the treasury for these cards');
-  assert.match(page, /Drawn from your open invoices and MemWal memory\./);
-});
-
-test('the behaviour card on the same page shows the same score, under the same name, and none for demo memories', async () => {
-  const route = await source('app/api/memwal/behaviors/route.ts');
-  assert.doesNotMatch(route, /0\.94|index \* 0\.03/, 'no invented demo percentages');
-  assert.match(route, /const relevance = memoryRelevance\(memory\.distance\);/);
-  assert.match(route, /if \(relevance === null \|\| relevance < MIN_MEMORY_RELEVANCE\) return \[\];/);
-  assert.match(route, /\(\{ text, confidence: null, demo: true \}\)/);
-  assert.doesNotMatch(route, /confidence:\s*\d/);
-
-  const card = await source('components/MemWalBehaviorCard.tsx');
-  assert.doesNotMatch(card, /pattern confidence/);
-  assert.match(card, /% memory match/);
-  assert.match(card, /confidencePercent\(memory\.confidence\) !== null &&/);
+test('the copilot page merged into Zeke (prompt 07 §6.2): its old address answers 308 there', async () => {
+  await assert.rejects(source('app/dashboard/copilot/page.tsx'), /ENOENT/);
+  const { movedRoute } = await import('../lib/route-moves.ts');
+  assert.equal(movedRoute('/dashboard/copilot'), '/dashboard/zeke');
+  // The Zeke desk shows no score of its own: it states no percentage anywhere.
+  const desk = await source('app/dashboard/zeke/ZekeDesk.tsx');
+  assert.doesNotMatch(desk, /% confidence|\?\?\s*0\.6/);
 });
 
 test('the invoice loop shows a percentage only for a measured score', async () => {

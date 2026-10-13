@@ -1,21 +1,21 @@
 import { applyBps, formatMinor, MICRO_DECIMALS, parseMinor, sumMinor } from '../money.ts';
 import type { KybLifecycleState } from '../compliance/kyb-state.ts';
-import { suiScanTxUrlOn } from '../explorer.ts';
+import { explorerCluster, solanaTxUrl, type ExplorerCluster } from '../explorer.ts';
 
 /**
  * The stablecoin lane — what a business may send before, and after, it is
  * verified.
  *
  * ─── The asset ──────────────────────────────────────────────────────────────
- * Settlement is native USDC on Sui, and only that. Businesses may FUND from
- * USDC on other chains through Circle's CCTP (see lib/payments/cctp.ts), but
- * what moves between wallets here is Circle's native Sui USDC. There is no
- * native Tether USDT on Sui — only bridge-wrapped versions — and settling in a
- * bridge wrapper adds a bridge's failure modes to every payment for no gain.
+ * Settlement is native Circle USDC on Solana (the classic SPL Token mint in
+ * lib/solana/config.ts), and only that. Businesses may FUND from USDC on other
+ * chains through Circle's CCTP V2 (lib/solana/cctp-v2-solana.ts), but what moves here is
+ * native USDC. Settling in a bridge wrapper would add a bridge's failure modes
+ * to every payment for no gain.
  *
  * ─── Who may use it ─────────────────────────────────────────────────────────
  * A business still in onboarding (REGISTERED through KYB_ADMIN_APPROVED) may
- * send USDC on Sui to wallet recipients it has saved, up to a cap. USD in and
+ * send USDC to wallet recipients it has saved, up to a cap. USD in and
  * local-currency payouts stay locked until verification completes, because
  * those rails move value through regulated partners on the business's behalf.
  *
@@ -23,49 +23,29 @@ import { suiScanTxUrlOn } from '../explorer.ts';
  * a compliance action; an "unverified allowance" that survived it would be the
  * first thing a suspended actor reached for.
  *
- * ─── Why the business signs ─────────────────────────────────────────────────
- * The business signs every transfer itself — with its Splash wallet (the Sui
- * address of its own passkey), or in Slush, or MetaMask with the Sui Snap —
- * and the principal goes wallet to wallet in one transaction —
- * it never passes through an address Splash controls. Splash quotes, reserves
- * allowance, and verifies the executed transaction against the chain. That is
- * what lets an unverified business use it at all: Splash is not moving money
- * for a party it has not verified, it is recording what that party did itself.
- * (Whether that is enough for a given jurisdiction is counsel's call, not this
- * comment's — it describes the mechanism, not a regulatory status.)
+ * ─── Who signs ──────────────────────────────────────────────────────────────
+ * The money sits in the business's own Squads vault, which no Splash key can
+ * move (configAuthority is null, I-1). A person approves each transfer with
+ * their device key, and the principal goes vault to wallet in one
+ * transaction — it never passes through an address Splash controls. Splash
+ * quotes, reserves allowance, pays the network fee through Kora, and records
+ * what the vault did. (Whether that is enough for a given jurisdiction is
+ * counsel's call, not this comment's — it describes the mechanism, not a
+ * regulatory status.)
  */
 
 // ─── The asset ──────────────────────────────────────────────────────────────
 
-export type SuiNetwork = 'mainnet' | 'testnet';
-
-/**
- * The stablecoin lane settles on Sui MAINNET, always. There is no stablecoin
- * sandbox: the sandbox covers USD in and local-currency out, where the
- * partners offer one, and a testnet USDC transfer proves nothing a business
- * can rely on. The testnet coin type below stays as a verified fact (x402
- * challenges name networks), not as a lane.
- */
-export const STABLECOIN_NETWORK = 'mainnet' as const satisfies SuiNetwork;
-
-/** Circle native USDC. Mainnet type verified against Circle's own announcement;
- *  testnet against the same source. Six decimals on both. */
-export const SUI_USDC_COIN_TYPE: Record<SuiNetwork, string> = {
-  mainnet: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
-  testnet: '0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC',
-};
+/** The cluster the lane settles on: SOLANA_CLUSTER, devnet unless told otherwise. */
+export function stablecoinCluster(env: NodeJS.ProcessEnv = process.env): ExplorerCluster {
+  return explorerCluster(env);
+}
 
 export const USDC_DECIMALS = MICRO_DECIMALS;
 
-/** The wallet-standard chain id a wallet is asked to sign for. */
-export function suiChain(network: SuiNetwork): `sui:${SuiNetwork}` {
-  return `sui:${network}`;
-}
-
-/** Where a person can look a transaction up themselves — on the lane's own
- *  network, not the app's (lib/explorer.ts). */
-export function explorerTxUrl(network: SuiNetwork, digest: string): string {
-  return suiScanTxUrlOn(network, digest);
+/** Where a person can look a transaction up themselves (lib/explorer.ts). */
+export function explorerTxUrl(signature: string): string {
+  return solanaTxUrl(signature);
 }
 
 // ─── Price ──────────────────────────────────────────────────────────────────
@@ -121,69 +101,19 @@ export function stablecoinFeeMinor(
 }
 
 /** Below this a wallet transfer is refused: 1.00 USDC. It keeps test-sized
- *  sends and typos off a mainnet ledger, and sits far above Sui's 0.01 floor
- *  for gasless transfers. x402 is exempt — the seller sets the price, and
- *  cents are the point of it. */
+ *  sends and typos off the ledger. x402 is exempt — the seller sets the
+ *  price, and cents are the point of it. */
 export const MIN_STABLECOIN_TRANSFER_MINOR = 1_000_000n;
 
-// ─── Gas ────────────────────────────────────────────────────────────────────
+// ─── Network fee ────────────────────────────────────────────────────────────
 
 /**
- * A wallet transfer carries no network fee. Since protocol 137, Sui runs a
- * transfer of an allowlisted stablecoin — native USDC among them — without
- * gas, when the transaction does nothing but move that coin with
- * 0x2::balance::send_funds (docs.sui.io, "Gasless Stablecoin Transfers").
- * The sending wallet needs no SUI and Splash pays nothing: no sponsor wallet,
- * no key on the server. Checked on mainnet with dry runs on 2026-09-26,
- * from a wallet holding only coin objects and from one holding an address
- * balance.
- *
- *   GASLESS      balance::send_funds for every leg, gas price 0, no gas coins.
- *                The recipient's USDC lands in its address balance, which
- *                wallets and Sui's own balance queries count with its coins.
- *   SENDER_PAYS  a coin transfer; the sending wallet pays a little SUI. Used
- *                for x402 (the seller's facilitator broadcasts that payment,
- *                so it stays the coin transfer the x402 Sui scheme was
- *                written against, and its price may sit under the floor),
- *                when gasless is switched off, and as the fallback when the
- *                network will not accept a gasless transfer. The quote says
- *                which, before anything is signed.
- *
- * Under congestion Sui serves gas-paying transactions first, so a gasless
- * transfer can take longer to land.
+ * The business needs no SOL. Splash's fee payer (Kora, lib/solana/kora.ts)
+ * signs as fee payer for the vault's transactions and covers the network fee
+ * and rent; the plan fee recovers it. The vault itself only ever holds and
+ * moves USDC.
  */
-export type GasMode = 'GASLESS' | 'SENDER_PAYS';
-
-/** Sui refuses a gasless transfer under 0.01 of the coin (six decimals). */
-export const GASLESS_MIN_LEG_MINOR = 10_000n;
-
-/** The coins Splash sends gasless: the lane's own USDC. Sui's allowlist is
- *  longer (get_gasless_allowed_token_types); the lane only moves USDC. */
-export const GASLESS_COIN_TYPES: readonly string[] = [SUI_USDC_COIN_TYPE.mainnet];
-
-/** Gasless is on unless STABLECOIN_GASLESS=off — the switch for a protocol
- *  change or a wallet that mishandles it, without a deploy. */
-export function gaslessEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return (env.STABLECOIN_GASLESS ?? '').trim().toLowerCase() !== 'off';
-}
-
-/**
- * Does the sending wallet need SUI for this send? Only where gas is paid:
- * every x402 payment, a transfer sent as a coin, any transfer while gasless
- * is switched off, and a quote that says the wallet pays — the quote's word
- * is final, since it may have fallen back.
- */
-export function sendNeedsSui(input: { x402: boolean; gaslessOn: boolean; asCoin: boolean; quoteGas?: GasMode | null }): boolean {
-  return input.x402 || !input.gaslessOn || input.asCoin || input.quoteGas === 'SENDER_PAYS';
-}
-
-/** Can these legs go without gas? Every leg must clear Sui's floor. */
-export function gaslessEligible(coinType: string, legs: ReadonlyArray<{ amountMinor: bigint }>): boolean {
-  const paying = legs.filter((leg) => leg.amountMinor > 0n);
-  return GASLESS_COIN_TYPES.includes(coinType)
-    && paying.length > 0
-    && paying.every((leg) => leg.amountMinor >= GASLESS_MIN_LEG_MINOR);
-}
+export const NETWORK_FEE_LINE = "You don't need SOL: Splash's fee payer covers the network fee.";
 
 export interface StablecoinQuote {
   principalMinor: bigint;
@@ -228,14 +158,13 @@ export const UNVERIFIED_STABLECOIN_CAP_MINOR = 5_000_000_000n;
 /**
  * A ROLLING 30-day window, not a calendar month. A calendar month resets on
  * the 1st, so an unverified business could send 5,000 on the 31st and 5,000 on
- * the 1st — 10,000 in two days against a "5,000 a month" rule. The same reason
- * splash_meter's SpendMeter uses sliding buckets rather than a tumbling window.
+ * the 1st — 10,000 in two days against a "5,000 a month" rule.
  */
 export const STABLECOIN_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** A verified business on the stablecoin lane gets the on-chain Tier 3
- *  defaults from business_account.move: 20,000 per transfer, 500,000 over
- *  the window. Mirrored, not invented. */
+/** A verified business on the stablecoin lane: 20,000 per transfer, 500,000
+ *  over the window — the Tier 3 limits the earlier build enforced, kept as
+ *  Splash policy. */
 export const VERIFIED_PER_TRANSFER_MINOR = 20_000_000_000n;
 export const VERIFIED_WINDOW_CAP_MINOR = 500_000_000_000n;
 
@@ -267,7 +196,7 @@ const ONBOARDING_STATES: ReadonlySet<KybLifecycleState> = new Set([
 ]);
 
 export const FIAT_LOCKED_REASON =
-  'USD in and local-currency payouts unlock when your business is verified. Until then you can send USDC on Sui to a wallet recipient you have saved — up to 5,000 USDC in any 30 days.';
+  'USD in and local-currency payouts unlock when your business is verified. Until then you can send USDC to a wallet recipient you have saved — up to 5,000 USDC in any 30 days.';
 
 export function isOnboarding(state: KybLifecycleState): boolean {
   return ONBOARDING_STATES.has(state);
@@ -406,33 +335,56 @@ export function checkStablecoinAllowance(input: {
 
 // ─── Recipient wallets ──────────────────────────────────────────────────────
 
-/** The wallets Splash accepts for a Sui address. Phantom ended Sui support on
- *  24 September 2026; MetaMask reaches Sui only through the Sui Snap. */
-export const WALLET_PROVIDERS = ['SLUSH', 'METAMASK_SUI_SNAP'] as const;
+/** The wallets Splash names when it asks for a recipient's Solana address. */
+export const WALLET_PROVIDERS = ['PHANTOM', 'SOLFLARE', 'BACKPACK', 'OTHER'] as const;
 export type WalletProvider = (typeof WALLET_PROVIDERS)[number];
 
-const SUI_ADDRESS = /^0x[0-9a-fA-F]{64}$/;
+const BASE58 = /^[1-9A-HJ-NP-Za-km-z]+$/;
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const HEX_32 = /^0x[0-9a-fA-F]{64}$/;
+const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+/** Base58 → bytes, or null. Leading '1's are leading zero bytes. */
+function base58Bytes(text: string): Uint8Array | null {
+  if (!BASE58.test(text)) return null;
+  let value = 0n;
+  for (const char of text) value = value * 58n + BigInt(ALPHABET.indexOf(char));
+  const bytes: number[] = [];
+  while (value > 0n) {
+    bytes.unshift(Number(value & 0xffn));
+    value >>= 8n;
+  }
+  for (const char of text) {
+    if (char !== '1') break;
+    bytes.unshift(0);
+  }
+  return Uint8Array.from(bytes);
+}
 
 /**
- * Validate a recipient's Sui address, and refuse — never "fix" — an Ethereum
- * one. A 20-byte EVM address left-padded to 32 bytes IS a syntactically valid
- * Sui address; nobody holds its key, and USDC sent there is gone. MetaMask
- * shows an Ethereum address by default, so this is the likeliest paste error
- * in the whole lane.
+ * Validate a recipient's Solana address (base58, 32 bytes), and refuse —
+ * never "fix" — an address from another chain. An Ethereum address or a
+ * 32-byte hex address is the likeliest paste error: USDC sent to an address
+ * nobody on Solana holds is gone. Base58 is case-sensitive, so the address is
+ * kept exactly as typed (only trimmed). Program-derived addresses are
+ * allowed: a Squads vault is one.
  */
-export function normaliseSuiAddress(input: string): string {
+export function normaliseSolanaAddress(input: string): string {
   const raw = input.trim();
   if (EVM_ADDRESS.test(raw)) {
     throw new StablecoinLaneError(
-      'That is an Ethereum address. Splash settles in USDC on Sui — ask your recipient for their Sui address (from Slush, or MetaMask with the Sui Snap).',
+      'That is an Ethereum address. Splash settles in USDC on Solana — ask your recipient for their Solana address (from Phantom, Solflare or Backpack).',
     );
   }
-  if (!SUI_ADDRESS.test(raw)) {
-    throw new StablecoinLaneError('A Sui address is 0x followed by 64 hexadecimal characters.');
+  if (HEX_32.test(raw)) {
+    throw new StablecoinLaneError('That address is from another network. A Solana address is 32 to 44 letters and digits, with no 0x.');
   }
-  if (/^0x0{64}$/.test(raw)) throw new StablecoinLaneError('The zero address cannot receive a payment.');
-  return raw.toLowerCase();
+  const bytes = base58Bytes(raw);
+  if (!bytes || bytes.length !== 32) {
+    throw new StablecoinLaneError('A Solana address is 32 to 44 letters and digits (base58), with no 0x.');
+  }
+  if (bytes.every((b) => b === 0)) throw new StablecoinLaneError('The system address cannot receive a payment.');
+  return raw;
 }
 
 // ─── Display ────────────────────────────────────────────────────────────────
@@ -448,9 +400,9 @@ export function formatUsdc(minor: bigint): string {
   return `${negative ? '-' : ''}${whole}.${frac}`;
 }
 
-/** 0x1234…cdef — enough to confirm, not to copy. */
+/** 9fZ3…kQ7p — enough to confirm, not to copy. */
 export function shortAddress(address: string): string {
-  return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
+  return address.length > 12 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address;
 }
 
 // ─── Parsing ────────────────────────────────────────────────────────────────

@@ -24,14 +24,51 @@ import bs58 from 'bs58';
 
 import { PROGRAM_IDS, readSolanaEnv, usdcMint, type SolanaEnv } from './config.ts';
 import { decodeDepositForBurn, bytes32ToEvmAddress } from './cctp-v2-solana.ts';
-import { createKoraClient, createMemorySponsorUsage, defaultSponsorPolicy, serializeForKora, utcDay, validateSponsoredTransaction, type KoraClient, type SponsorPolicy, type SponsorUsage } from './kora.ts';
+import { createKoraClient, createMemorySponsorUsage, defaultSponsorPolicy, serializeForKora, sponsoredCreatedAccounts, sponsoredFeeLamports, sponsoredRentLamports, utcDay, validateSponsoredTransaction, type KoraClient, type SponsorPolicy, type SponsorUsage } from './kora.ts';
 import { decodeTransferChecked, getAssociatedTokenAddress, isSplashMemo } from './payout.ts';
+import { estimateFromRecentFees } from './compute-budget.ts';
 import { decodeMultisigAccount, MAX_TRANSACTION_BYTES, type MultisigSummary } from './squads.ts';
 import type { ChainReceipt, Cluster, RunMode } from './types.ts';
 
 export interface SendContext {
   orgId?: string;
   now?: Date;
+  /**
+   * Called with the transaction signature once the fee payer has signed and BEFORE the bytes are
+   * broadcast, so the caller can record it (prompt 07 §5.1: a crashed worker resumes by polling
+   * this signature, never by sending again). If it throws, nothing is sent.
+   */
+  onSigned?: (signature: string) => Promise<void> | void;
+}
+
+export interface BlockhashWithExpiry {
+  blockhash: string;
+  /** The last block height at which a transaction using this blockhash can still land. */
+  lastValidBlockHeight: number;
+}
+
+export type Commitment = 'processed' | 'confirmed' | 'finalized';
+
+export interface SignatureState {
+  /** null: the cluster does not know this signature (not landed, or dropped). */
+  confirmationStatus: Commitment | null;
+  /** The execution error when it landed and failed. */
+  err: string | null;
+}
+
+export interface SimulationResult {
+  ok: boolean;
+  logs: string[];
+  unitsConsumed: number | null;
+  error: string | null;
+}
+
+/**
+ * The offline simulator, decided by its mode rather than `instanceof`: the chain client is shared across
+ * route bundles (globalThis), and a class from another bundle's copy of this module is a different class.
+ */
+export function isSimulator(chain: ChainClient): chain is SolanaSimulator {
+  return chain.mode === 'offline';
 }
 
 export interface ChainClient {
@@ -46,9 +83,22 @@ export interface ChainClient {
   getNextTransactionIndex(multisigPda: PublicKey): Promise<bigint>;
   /** USDC minor units held in the owner's associated token account (0 if none). */
   getUsdcBalance(owner: PublicKey | string): Promise<bigint>;
+  /** Lamports held by an address (the fee payer's SOL, for the admin console). */
+  getSolBalance(address: PublicKey | string): Promise<bigint>;
   /** Validate (I-3), let Kora sign as fee payer, send. Throws on refusal or failure. */
   sendSponsored(tx: VersionedTransaction, ctx?: SendContext): Promise<ChainReceipt>;
+  /** A blockhash and the height after which it expires. */
+  getBlockhashWithExpiry(): Promise<BlockhashWithExpiry>;
+  getBlockHeight(): Promise<number>;
+  getSignatureStatus(signature: string): Promise<SignatureState>;
+  /** Dry-run without signature checks (prompt 07 §5.4: simulate before every send). */
+  simulate(tx: VersionedTransaction): Promise<SimulationResult>;
+  /** Recent priority fee, micro-lamports per unit, for the given writable accounts. */
+  getPriorityFeeEstimate(writableAccounts: PublicKey[]): Promise<number>;
 }
+
+/** Blocks a blockhash stays valid for (Solana: 150). */
+export const BLOCKHASH_VALIDITY_BLOCKS = 150;
 
 function keyOf(seed: string): PublicKey {
   // 32 bytes from a hash: a valid address that nobody holds a private key for.
@@ -58,6 +108,8 @@ function keyOf(seed: string): PublicKey {
 /** Fee payer the simulator pretends Kora uses. No private key exists for it. */
 export const SIMULATED_FEE_PAYER = keyOf('splash:simulator:kora-fee-payer:v1');
 export const SIMULATED_SQUADS_TREASURY = keyOf('splash:simulator:squads-treasury:v1');
+/** What the simulated fee payer starts with: 2 SOL. Every sponsored send takes its fee and rent from it. */
+export const SIMULATED_FEE_PAYER_START_LAMPORTS = 2_000_000_000n;
 
 export function simulatedSignature(serializedTx: Uint8Array): string {
   return bs58.encode(sha512(serializedTx));
@@ -135,7 +187,20 @@ export class SolanaSimulator implements ChainClient {
   readonly events: SimEvent[] = [];
   readonly burns: SimBurn[] = [];
   private state: SimState = { balances: new Map(), accounts: new Set(), multisigs: new Map(), vaultTxs: new Map(), proposals: new Map() };
+  /** The simulated fee payer's SOL, in lamports. */
+  private feePayerLamports = SIMULATED_FEE_PAYER_START_LAMPORTS;
   private blockhashCounter = 0;
+  /** Block height. Each send is one block; tests move it with advanceBlocks(). */
+  private height = 1_000;
+  private readonly blockhashes = new Map<string, number>();
+  private readonly landed = new Map<string, number>();
+  private dropCount = 0;
+  /** Blocks after landing before a signature reads as finalized. 0: at once. */
+  finalityDepth = 0;
+  /** What getPriorityFeeEstimate returns (micro-lamports per unit). */
+  priorityFeeMicroLamports = 0;
+  /** Tests: sends this matches are signed and accepted but never land. */
+  dropIf: ((tx: VersionedTransaction) => boolean) | null = null;
   private readonly mint: PublicKey;
   readonly policy: SponsorPolicy;
   readonly usage: SponsorUsage;
@@ -153,8 +218,59 @@ export class SolanaSimulator implements ChainClient {
     return SIMULATED_FEE_PAYER;
   }
 
+  /** Only the fee payer holds SOL in the simulator; every other address reads 0. */
+  async getSolBalance(address: PublicKey | string) {
+    return (typeof address === 'string' ? address : address.toBase58()) === SIMULATED_FEE_PAYER.toBase58() ? this.feePayerLamports : 0n;
+  }
+
+  /** Tests: add SOL to the simulated fee payer (or take it away, with a negative amount). */
+  topUpFeePayer(lamports: bigint) {
+    this.feePayerLamports += lamports;
+  }
+
   async getLatestBlockhash() {
-    return bs58.encode(sha256(new TextEncoder().encode(`splash:simulator:blockhash:${++this.blockhashCounter}`)));
+    return (await this.getBlockhashWithExpiry()).blockhash;
+  }
+
+  async getBlockhashWithExpiry(): Promise<BlockhashWithExpiry> {
+    const blockhash = bs58.encode(sha256(new TextEncoder().encode(`splash:simulator:blockhash:${++this.blockhashCounter}`)));
+    const lastValidBlockHeight = this.height + BLOCKHASH_VALIDITY_BLOCKS;
+    this.blockhashes.set(blockhash, lastValidBlockHeight);
+    return { blockhash, lastValidBlockHeight };
+  }
+
+  async getBlockHeight() {
+    return this.height;
+  }
+
+  async getSignatureStatus(signature: string): Promise<SignatureState> {
+    const at = this.landed.get(signature);
+    if (at === undefined) return { confirmationStatus: null, err: null };
+    return { confirmationStatus: this.height - at >= this.finalityDepth ? 'finalized' : 'confirmed', err: null };
+  }
+
+  async getPriorityFeeEstimate() {
+    return this.priorityFeeMicroLamports;
+  }
+
+  /** Tests: move the chain forward (expires blockhashes, finalizes signatures). */
+  advanceBlocks(n: number) {
+    this.height += n;
+  }
+
+  /** Tests: the next n sends are signed and accepted but never land (a dropped transaction). */
+  dropNext(n = 1) {
+    this.dropCount += n;
+  }
+
+  async simulate(tx: VersionedTransaction): Promise<SimulationResult> {
+    try {
+      const { events } = this.run(tx, {}, { commit: false, sigVerify: false });
+      const logs = events.map((e) => `Program log: ${e.kind} ${Object.entries(e.detail).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+      return { ok: true, logs, unitsConsumed: 6_000 * tx.message.compiledInstructions.length + 4_000 * events.length, error: null };
+    } catch (e) {
+      return { ok: false, logs: [`Program log: ${(e as Error).message}`], unitsConsumed: null, error: (e as Error).message };
+    }
   }
 
   async getSquadsTreasury() {
@@ -171,6 +287,23 @@ export class SolanaSimulator implements ChainClient {
       transactionIndex: m.transactionIndex,
       members: m.members.map((x) => ({ publicKey: x.key, mask: x.mask })),
     };
+  }
+
+  /**
+   * Offline only: put back a vault the database recorded but this process never saw (the dev server
+   * restarted; the simulator's ledger is in memory). Members get every permission, as at creation
+   * (squads.ts). The balance starts at zero: simulated money does not survive a restart, and the
+   * screen says "Add test USDC" again. Does nothing if the vault is already here.
+   */
+  restoreVault(input: { multisigPda: string; threshold: number; members: string[]; transactionIndex: bigint }): boolean {
+    if (this.state.multisigs.has(input.multisigPda)) return false;
+    this.state.multisigs.set(input.multisigPda, {
+      threshold: input.threshold,
+      members: input.members.map((key) => ({ key, mask: multisig.types.Permissions.all().mask })),
+      transactionIndex: input.transactionIndex,
+      configAuthority: null,
+    });
+    return true;
   }
 
   async getNextTransactionIndex(multisigPda: PublicKey) {
@@ -197,6 +330,40 @@ export class SolanaSimulator implements ChainClient {
 
   async sendSponsored(tx: VersionedTransaction, ctx: SendContext = {}): Promise<ChainReceipt> {
     const now = ctx.now ?? new Date();
+    const lastValid = this.blockhashes.get(tx.message.recentBlockhash);
+    if (lastValid === undefined || this.height > lastValid) {
+      throw new Error('Simulator: blockhash not found or expired. Rebuild the transaction with a fresh blockhash.');
+    }
+    const signature = simulatedSignature(tx.serialize());
+    if (this.landed.has(signature)) return { signature, cluster: this.cluster, simulated: true }; // a resend lands once
+    // Validate and dry-run first: a refusal throws before anything is signed or recorded.
+    this.run(tx, ctx, { commit: false, sigVerify: true });
+    await ctx.onSigned?.(signature);
+    this.height += 1;
+    if (this.dropCount > 0 || this.dropIf?.(tx)) {
+      if (this.dropCount > 0) this.dropCount -= 1;
+      return { signature, cluster: this.cluster, simulated: true };
+    }
+    // What the fee payer pays: the fee (exact) and the rent of every account this send creates, read
+    // against the ledger before it commits, so "new" is exact here.
+    const exists = (a: string) => this.state.accounts.has(a) || this.state.multisigs.has(a) || this.state.vaultTxs.has(a) || this.state.proposals.has(a);
+    const vaultOf = tx.message.staticAccountKeys.map((k) => this.state.multisigs.get(k.toBase58())).find(Boolean);
+    const cost = {
+      feeLamports: sponsoredFeeLamports(tx),
+      rentLamports: sponsoredRentLamports(tx, { isNew: (a) => !exists(a), members: vaultOf?.members.length ?? 2 }),
+      rentExact: true,
+    };
+    if (cost.feeLamports + cost.rentLamports > this.feePayerLamports) throw new Error('Simulator: the fee payer has too little SOL for this send. Top it up.');
+    this.run(tx, ctx, { commit: true, sigVerify: true });
+    this.feePayerLamports -= cost.feeLamports + cost.rentLamports;
+    this.landed.set(signature, this.height);
+    this.usage.record(ctx.orgId ?? 'offline-demo', utcDay(now));
+    return { signature, cluster: this.cluster, simulated: true, cost };
+  }
+
+  /** Validate and apply a transaction; commit only when asked. */
+  private run(tx: VersionedTransaction, ctx: SendContext, opts: { commit: boolean; sigVerify: boolean }): { events: SimEvent[]; burns: SimBurn[] } {
+    const now = ctx.now ?? new Date();
     const check = validateSponsoredTransaction(tx, SIMULATED_FEE_PAYER, this.policy, { orgId: ctx.orgId ?? 'offline-demo', usage: this.usage, now });
     if (!check.ok) throw new Error(`Sponsorship refused: ${check.reasons.join('; ')}`);
     const bytes = tx.serialize();
@@ -213,6 +380,10 @@ export class SolanaSimulator implements ChainClient {
         signed.add(key.toBase58()); // Kora's slot
         continue;
       }
+      if (!opts.sigVerify) {
+        signed.add(key.toBase58()); // simulateTransaction with sigVerify off
+        continue;
+      }
       const sig = tx.signatures[i]!;
       if (sig.every((b) => b === 0)) throw new Error(`Simulator: missing signature for ${key.toBase58()}`);
       if (!ed25519.verify(sig, msgBytes, key.toBytes())) throw new Error(`Simulator: bad signature for ${key.toBase58()}`);
@@ -227,11 +398,12 @@ export class SolanaSimulator implements ChainClient {
       const ix: SimInnerIx = { programId: keys[ci.programIdIndex]!, keys: ci.accountKeyIndexes.map((i) => keys[i]!), data: ci.data };
       this.applyTopLevel(next, ix, signed, signature, events, burns);
     }
-    this.state = next;
-    this.events.push(...events);
-    this.burns.push(...burns);
-    this.usage.record(ctx.orgId ?? 'offline-demo', utcDay(now));
-    return { signature, cluster: this.cluster, simulated: true };
+    if (opts.commit) {
+      this.state = next;
+      this.events.push(...events);
+      this.burns.push(...burns);
+    }
+    return { events, burns };
   }
 
   private memberOf(ms: SimMultisig, key: PublicKey, perm: number) {
@@ -338,7 +510,7 @@ export class SolanaSimulator implements ChainClient {
 
   private applyMemo(ix: SimInnerIx, sig: string, events: SimEvent[]) {
     const memo = Buffer.from(ix.data).toString('utf8');
-    if (!isSplashMemo(memo)) throw new Error('Simulator: memo is not a Splash commitment memo (I-5)');
+    if (!isSplashMemo(memo)) throw new Error('Simulator: memo is not a Splash memo (I-5)');
     events.push({ signature: sig, kind: 'memo', detail: { memo } });
   }
 
@@ -424,6 +596,37 @@ export class DevnetChain implements ChainClient {
     return (await this.connection.getLatestBlockhash('confirmed')).blockhash;
   }
 
+  async getBlockhashWithExpiry(): Promise<BlockhashWithExpiry> {
+    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
+    return { blockhash, lastValidBlockHeight };
+  }
+
+  async getBlockHeight() {
+    return this.connection.getBlockHeight('confirmed');
+  }
+
+  async getSignatureStatus(signature: string): Promise<SignatureState> {
+    const { value } = await this.connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+    const status = value[0];
+    if (!status) return { confirmationStatus: null, err: null };
+    return { confirmationStatus: status.confirmationStatus ?? null, err: status.err ? JSON.stringify(status.err) : null };
+  }
+
+  async simulate(tx: VersionedTransaction): Promise<SimulationResult> {
+    const { value } = await this.connection.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: false, commitment: 'confirmed' });
+    return {
+      ok: value.err === null,
+      logs: value.logs ?? [],
+      unitsConsumed: value.unitsConsumed ?? null,
+      error: value.err === null ? null : JSON.stringify(value.err),
+    };
+  }
+
+  async getPriorityFeeEstimate(writableAccounts: PublicKey[]) {
+    const samples = await this.connection.getRecentPrioritizationFees({ lockedWritableAccounts: writableAccounts.slice(0, 128) });
+    return estimateFromRecentFees(samples);
+  }
+
   async getSquadsTreasury() {
     const [pda] = multisig.getProgramConfigPda({});
     const cfg = await multisig.accounts.ProgramConfig.fromAccountAddress(this.connection, pda);
@@ -459,9 +662,34 @@ export class DevnetChain implements ChainClient {
     if (!orgId) throw new Error('orgId is required to send a sponsored transaction');
     const check = validateSponsoredTransaction(tx, feePayer, this.policy, { orgId, usage: this.usage, now });
     if (!check.ok) throw new Error(`Sponsorship refused: ${check.reasons.join('; ')}`);
-    const res = await this.requireKora().signAndSendTransaction({ transaction: serializeForKora(tx), user_id: orgId });
+    // Kora signs; Splash broadcasts. The signature is known (and recorded through onSigned) before
+    // any byte reaches the network, so a crash mid-send is resumed by polling, never by resending.
+    const res = await this.requireKora().signTransaction({ transaction: serializeForKora(tx), user_id: orgId });
+    const signed = VersionedTransaction.deserialize(Buffer.from(res.signed_transaction, 'base64'));
+    if (!Buffer.from(signed.message.serialize()).equals(Buffer.from(tx.message.serialize()))) {
+      throw new Error('Kora returned a different message than the one the approver signed. Nothing was sent.');
+    }
+    const signature = bs58.encode(signed.signatures[0]!);
+    // Which of the accounts this send creates are new, read before it lands (one RPC call); if that
+    // read fails, every one counts (an upper bound). Squads sizes make the rent an estimate here.
+    const created = sponsoredCreatedAccounts(tx);
+    let isNew: ((a: string) => boolean) | undefined;
+    try {
+      const infos = created.length ? await this.connection.getMultipleAccountsInfo(created.map((a) => new PublicKey(a))) : [];
+      const missing = new Set(created.filter((_, i) => infos[i] === null));
+      isNew = (a) => missing.has(a);
+    } catch {
+      isNew = undefined;
+    }
+    const cost = { feeLamports: sponsoredFeeLamports(tx), rentLamports: sponsoredRentLamports(tx, { isNew }), rentExact: false };
+    await ctx.onSigned?.(signature);
+    await this.connection.sendRawTransaction(signed.serialize(), { skipPreflight: true, maxRetries: 5 });
     this.usage.record(orgId, utcDay(now));
-    return { signature: res.signature, cluster: this.cluster, simulated: false };
+    return { signature, cluster: this.cluster, simulated: false, cost };
+  }
+
+  async getSolBalance(address: PublicKey | string) {
+    return BigInt(await this.connection.getBalance(typeof address === 'string' ? new PublicKey(address) : address, 'confirmed'));
   }
 }
 

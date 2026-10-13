@@ -3,76 +3,66 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import test from 'node:test';
 
-/* explorer.ts reads process.env at call time, so each case sets the network
+/* explorer.ts reads process.env at call time, so each case sets the cluster
    and imports fresh via a cache-busting query. */
-async function withNetwork(network, fn) {
-  const before = process.env.SUI_NETWORK;
-  process.env.SUI_NETWORK = network;
+async function withCluster(cluster, fn) {
+  const before = process.env.SOLANA_CLUSTER;
+  if (cluster === undefined) delete process.env.SOLANA_CLUSTER;
+  else process.env.SOLANA_CLUSTER = cluster;
   try {
-    const m = await import(`../lib/explorer.ts?n=${network}-${Math.random()}`);
+    const m = await import(`../lib/explorer.ts?c=${cluster}-${Math.random()}`);
     await fn(m);
   } finally {
-    if (before === undefined) delete process.env.SUI_NETWORK;
-    else process.env.SUI_NETWORK = before;
+    if (before === undefined) delete process.env.SOLANA_CLUSTER;
+    else process.env.SOLANA_CLUSTER = before;
   }
 }
 
-const DIGEST = '0x' + '1'.repeat(64);
-const ADDRESS = '0x' + '2'.repeat(64);
+const SIGNATURE = '55pHme5Q' + '1'.repeat(80);
+const ADDRESS = '9fZ34EK7' + '2'.repeat(36);
 
-test('mainnet SuiVision has no subdomain — the mistake this replaced', async () => {
-  await withNetwork('mainnet', (m) => {
-    // Four call sites built `https://${network}.suivision.xyz/…`, which on
-    // mainnet resolves to a host that does not exist. Every mainnet URL here
-    // is bare suivision.xyz.
-    assert.equal(m.suiVisionTxUrl(DIGEST), `https://suivision.xyz/txblock/${DIGEST}`);
-    assert.equal(m.suiVisionAccountUrl(ADDRESS), `https://suivision.xyz/account/${ADDRESS}`);
-    assert.equal(m.suiVisionObjectUrl(ADDRESS), `https://suivision.xyz/object/${ADDRESS}`);
-    for (const url of [m.suiVisionTxUrl(DIGEST), m.suiVisionAccountUrl(ADDRESS), m.suiVisionObjectUrl(ADDRESS)]) {
-      assert.doesNotMatch(url, /mainnet\.suivision/);
-    }
+test('devnet links carry the cluster; mainnet-beta links carry none', async () => {
+  await withCluster('devnet', (m) => {
+    assert.equal(m.solanaTxUrl(SIGNATURE), `https://explorer.solana.com/tx/${SIGNATURE}?cluster=devnet`);
+    assert.equal(m.solanaAddressUrl(ADDRESS), `https://explorer.solana.com/address/${ADDRESS}?cluster=devnet`);
+    assert.equal(m.solanaExplorerBaseUrl(), 'https://explorer.solana.com/?cluster=devnet');
+  });
+  await withCluster('mainnet-beta', (m) => {
+    assert.equal(m.solanaTxUrl(SIGNATURE), `https://explorer.solana.com/tx/${SIGNATURE}`);
+    assert.equal(m.solanaAddressUrl(ADDRESS), `https://explorer.solana.com/address/${ADDRESS}`);
   });
 });
 
-test('Suiscan keeps the network in the path, on both networks', async () => {
-  await withNetwork('mainnet', (m) => {
-    assert.equal(m.suiScanTxUrl(DIGEST), `https://suiscan.xyz/mainnet/tx/${DIGEST}`);
-    assert.equal(m.suiScanBaseUrl(), 'https://suiscan.xyz/mainnet');
+test('Solscan, the trace link shown first: devnet carries the cluster, mainnet-beta none', async () => {
+  await withCluster('devnet', (m) => {
+    assert.equal(m.solscanTxUrl(SIGNATURE), `https://solscan.io/tx/${SIGNATURE}?cluster=devnet`);
+    assert.equal(m.solscanAccountUrl(ADDRESS), `https://solscan.io/account/${ADDRESS}?cluster=devnet`);
+    assert.equal(m.solscanTxUrl('a/b?c'), 'https://solscan.io/tx/a%2Fb%3Fc?cluster=devnet');
   });
-  await withNetwork('testnet', (m) => {
-    assert.equal(m.suiScanTxUrl(DIGEST), `https://suiscan.xyz/testnet/tx/${DIGEST}`);
-    assert.equal(m.suiScanBaseUrl(), 'https://suiscan.xyz/testnet');
+  await withCluster('mainnet-beta', (m) => {
+    assert.equal(m.solscanTxUrl(SIGNATURE), `https://solscan.io/tx/${SIGNATURE}`);
+    assert.equal(m.solscanAccountUrl(ADDRESS), `https://solscan.io/account/${ADDRESS}`);
   });
 });
 
-test('testnet keeps its subdomain', async () => {
-  await withNetwork('testnet', (m) => {
-    assert.equal(m.suiVisionTxUrl(DIGEST), `https://testnet.suivision.xyz/txblock/${DIGEST}`);
+test('an unset cluster is devnet, never mainnet', async () => {
+  await withCluster(undefined, (m) => assert.equal(m.explorerCluster(), 'devnet'));
+});
+
+test('a value that is not a signature cannot break out of the path', async () => {
+  await withCluster('devnet', (m) => {
+    assert.equal(m.solanaTxUrl('a/b?c'), 'https://explorer.solana.com/tx/a%2Fb%3Fc?cluster=devnet');
   });
 });
 
 test('there is no mainnet faucet, and the helper says so rather than linking to one', async () => {
-  await withNetwork('mainnet', (m) => assert.equal(m.faucetUrl(ADDRESS), null));
-  await withNetwork('testnet', (m) => {
-    assert.equal(m.faucetUrl(ADDRESS), `https://faucet.testnet.sui.io/?address=${ADDRESS}`);
-  });
-});
-
-test('an unset network is testnet, never mainnet', async () => {
-  const before = process.env.SUI_NETWORK;
-  delete process.env.SUI_NETWORK;
-  try {
-    const m = await import(`../lib/explorer.ts?unset=${Math.random()}`);
-    assert.equal(m.explorerNetwork(), 'testnet');
-  } finally {
-    if (before !== undefined) process.env.SUI_NETWORK = before;
-  }
+  await withCluster('mainnet-beta', (m) => assert.equal(m.faucetUrl(), null));
+  await withCluster('devnet', (m) => assert.equal(m.faucetUrl(), 'https://faucet.circle.com/'));
 });
 
 test('no application file builds an explorer URL by hand', () => {
-  // The point of the module: one definition of which explorer. A receipt whose
-  // "verify this yourself" link points at the wrong chain proves nothing, and
-  // that is what four hardcoded testnet hosts would have done on mainnet.
+  // One definition of which explorer: a receipt whose "verify this yourself"
+  // link points at the wrong network proves nothing.
   const EXT = new Set(['.ts', '.tsx']);
   const offenders = [];
   const walk = (dir) => {
@@ -83,7 +73,7 @@ test('no application file builds an explorer URL by hand', () => {
         const rel = full.replaceAll('\\', '/');
         if (rel.endsWith('lib/explorer.ts')) continue;
         const text = readFileSync(full, 'utf8');
-        if (/suivision\.xyz|suiscan\.xyz|faucet\.testnet\.sui\.io/.test(text)) offenders.push(rel);
+        if (/explorer\.solana\.com|solscan\.io|suivision\.xyz|suiscan\.xyz/.test(text)) offenders.push(rel);
       }
     }
   };

@@ -14,9 +14,9 @@ type ContextMeta = {
 const dashboardMeta: Array<[string, ContextMeta]> = [
   ['/dashboard/transfer', { eyebrow: 'Payment intent', title: 'Move money with certainty', copy: 'Quote, authorize, settle, and verify in one operating flow.', icon: '/isometric/arrow-icon.svg', signal: 'Atomic settlement' }],
   ['/dashboard/batch', { eyebrow: 'Batch operations', title: 'Orchestrate payout windows', copy: 'Screen every row, authorize once, and monitor the complete batch.', icon: '/isometric/blocks-icon.svg', signal: 'Compliance pre-check' }],
-  ['/dashboard/treasury', { eyebrow: 'Smart treasury', title: 'Keep operating cash productive', copy: 'Manage liquidity, yield, and settlement availability from one view.', icon: '/isometric/stats-icon.svg', signal: 'Treasury active' }],
-  ['/dashboard/invoices', { eyebrow: 'Invoice vault', title: 'Receipts that remain verifiable', copy: 'Seal financial records on Walrus while keeping audit access ready.', icon: '/isometric/checklist-icon.svg', signal: 'Walrus retained' }],
-  ['/dashboard/copilot', { eyebrow: 'AI Copilot', title: 'Decisions with operating memory', copy: 'Surface patterns, explain movement, and prepare the next action.', icon: '/isometric/star-icon.svg', signal: 'MemWal online' }],
+  ['/dashboard/treasury', { eyebrow: 'Smart treasury', title: 'Know what is ready to pay', copy: 'See liquidity and settlement availability in your own vault, in one view.', icon: '/isometric/stats-icon.svg', signal: 'Your vault' }],
+  ['/dashboard/invoices', { eyebrow: 'Invoice vault', title: 'Receipts that remain verifiable', copy: 'Evidence encrypted with Seal, stored on Walrus, with audit access ready.', icon: '/isometric/checklist-icon.svg', signal: 'Evidence kept' }],
+  ['/dashboard/zeke', { eyebrow: 'AI Copilot', title: 'Zeke drafts, a person approves', copy: 'Surface patterns, explain movement, and draft the next payment. Zeke cannot sign or send.', icon: '/isometric/star-icon.svg', signal: 'Zeke drafts' }],
   ['/dashboard/recipients', { eyebrow: 'Global directory', title: 'Know every destination', copy: 'Manage verified beneficiaries across approved settlement corridors.', icon: '/isometric/global-icon.svg', signal: 'Live corridor + modeled routes' }],
   ['/dashboard/history', { eyebrow: 'Settlement history', title: 'Trace every money movement', copy: 'Follow authorization, settlement, delivery, and audit evidence.', icon: '/isometric/checklist-icon.svg', signal: 'Audit ready' }],
   ['/dashboard/settings', { eyebrow: 'Controls', title: 'Policy before payment', copy: 'Manage access, limits, verification, and security posture.', icon: '/isometric/secure-icon.svg', signal: 'Controls enforced' }],
@@ -28,7 +28,7 @@ const adminMeta: Array<[string, ContextMeta]> = [
   ['/admin/transactions', { eyebrow: 'Settlement monitor', title: 'Inspect live money movement', copy: 'Monitor peg health, transfer state, batches, and on-chain evidence.', icon: '/isometric/stats-icon.svg', signal: 'Live monitor' }],
   ['/admin/kyb', { eyebrow: 'Compliance review', title: 'Verify businesses with context', copy: 'Review identity evidence, risk posture, and corridor access.', icon: '/isometric/checklist-icon.svg', signal: 'Review controlled' }],
   ['/admin/support', { eyebrow: 'Service operations', title: 'Resolve cases with evidence', copy: 'Triage requests, assign ownership, and preserve the response trail.', icon: '/isometric/fast-icon.svg', signal: 'Queue monitored' }],
-  ['/admin/contracts', { eyebrow: 'Contract controls', title: 'Configure the settlement boundary', copy: 'Review package references and operator-controlled Sui objects.', icon: '/isometric/blocks-icon.svg', signal: 'Sui configuration' }],
+  ['/admin/contracts', { eyebrow: 'Contract controls', title: 'Configure the settlement boundary', copy: 'Review program addresses and operator-controlled Solana configuration.', icon: '/isometric/blocks-icon.svg', signal: 'Solana configuration' }],
   ['/admin', { eyebrow: 'Staff operations', title: 'Control room', copy: 'Compliance approvals, customer operations, and regulator-ready evidence.', icon: '/isometric/secure-icon.svg', signal: 'Restricted access' }],
 ];
 
@@ -52,8 +52,8 @@ export default function FintechContextBar({ variant = 'dashboard' }: { variant?:
       </div>
       <div className="fintech-context-signals" aria-label="Platform signals">
         <span><i /> {meta.signal}</span>
-        <span>Sui settled</span>
-        <span>Walrus verified</span>
+        <span>Settlement on Solana</span>
+        <span>Evidence on Walrus</span>
       </div>
     </section>
   );
