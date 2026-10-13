@@ -232,6 +232,27 @@
       "when": 1791331200000,
       "tag": "0032_sponsor_spend",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791417600000,
+      "tag": "0033_payment_discarded",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791504000000,
+      "tag": "0034_bank_account_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791590400000,
+      "tag": "0035_splash_directory",
+      "breakpoints": true
     }
   ]
 }

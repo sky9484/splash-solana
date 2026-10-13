@@ -64,6 +64,8 @@ export type OxwalAgentRequest = {
   /** The org's verification state, when the caller already holds it. Server-
    *  derived only — the route never takes it from a request body. */
   kybState?: KybLifecycleState;
+  /** The dashboard page the person is on (a name from lib/solana-zeke/context.ts, checked by the route). */
+  page?: string;
 };
 
 export type TrustedValue<T> = {
@@ -164,6 +166,11 @@ function systemPromptFor(assistantName: string): string {
   // verification unlocks (STABLECOIN_SCOPE_PROMPT, below).
   const prompt = namedPrompt(assistantName);
   return launchScope() === 'stablecoin' ? `${prompt}\n${STABLECOIN_SCOPE_PROMPT}` : prompt;
+}
+
+/** The page the person is on (a known page name; the route drops anything else), for "this page" questions. */
+function pageLine(page: string | undefined): string {
+  return page ? `\nThe person is on this dashboard page: ${page}. When they ask about "this" page, answer about it.` : '';
 }
 
 function namedPrompt(assistantName: string): string {
@@ -1746,7 +1753,7 @@ async function* runClaudeToolLoop(
     const response = await client.messages.create({
       model: copilotModel(),
       max_tokens: 1000,
-      system: systemPromptFor(assistantName),
+      system: systemPromptFor(assistantName) + pageLine(request.page),
       messages,
       tools: anthropicToolDefinitions(),
       tool_choice: { type: 'auto', disable_parallel_tool_use: true },

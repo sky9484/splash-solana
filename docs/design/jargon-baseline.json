@@ -1,0 +1,40 @@
+{
+  "baseline": 366,
+  "current": 233,
+  "targetMax": 54,
+  "history": [
+    {
+      "phase": "baseline-9e43012",
+      "count": 366,
+      "date": "2026-10-13"
+    },
+    {
+      "phase": "1-shell",
+      "count": 353,
+      "date": "2026-10-13"
+    },
+    {
+      "phase": "2-overview",
+      "count": 333,
+      "date": "2026-10-13"
+    },
+    {
+      "phase": "3-transfer",
+      "count": 233,
+      "date": "2026-10-13"
+    }
+  ],
+  "byTerm": {
+    "vault / Squads / multisig": 129,
+    "USDC / stablecoin": 68,
+    "Solana / devnet / mainnet / cluster": 62,
+    "on-chain / anchored / attestation / memo / hash / Merkle": 29,
+    "sign / signature / device key / keypair": 29,
+    "Solscan / explorer / transaction id": 18,
+    "token / mint / swap / DEX / price impact": 12,
+    "wallet address / deposit address / account address": 8,
+    "network fee / gas / SOL / fee payer / Kora": 4,
+    "CCTP / Polygon / bridge / hop": 4,
+    "SOL": 3
+  }
+}

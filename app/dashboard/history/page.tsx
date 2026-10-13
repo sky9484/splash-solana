@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+
 import { History } from '@/components/solana/History';
 import { SolanaDashPage } from '@/components/solana/SolanaDashPage';
 
@@ -7,7 +9,10 @@ export const metadata = { title: 'History · Splash' };
 export default function HistoryPage() {
   return (
     <SolanaDashPage kicker="Money" title="History" description="Every payment, where it stands, the transaction that moved the money, and its receipt." wide>
-      <History />
+      {/* History reads ?station= (a link from Overview's pipeline). */}
+      <Suspense fallback={<p className="sx-muted">Loading payments…</p>}>
+        <History />
+      </Suspense>
     </SolanaDashPage>
   );
 }

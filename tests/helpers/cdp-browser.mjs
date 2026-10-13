@@ -27,9 +27,10 @@ export function findChrome() {
   return CANDIDATES.find((p) => p && existsSync(p)) ?? null;
 }
 
-export async function launch({ executable = findChrome(), timeoutMs = 30_000 } = {}) {
+/** `profileDir`: keep the browser profile (cookies, IndexedDB with the device key) between runs. */
+export async function launch({ executable = findChrome(), timeoutMs = 30_000, profileDir = null } = {}) {
   if (!executable) throw new Error('No Chrome, Edge or Chromium found; set CHROME_PATH');
-  const profile = mkdtempSync(path.join(tmpdir(), 'splash-e2e-'));
+  const profile = profileDir ?? mkdtempSync(path.join(tmpdir(), 'splash-e2e-'));
   const proc = spawn(
     executable,
     ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars', 'about:blank'],
@@ -68,10 +69,17 @@ export async function launch({ executable = findChrome(), timeoutMs = 30_000 } =
       for (const l of listeners) l(msg);
     }
   };
+  // A command Chrome never answers (a page whose main thread is stuck) fails with its name after
+  // 90 s, so a walkthrough reports where it stopped instead of waiting out its whole time limit.
   const send = (method, params = {}, sessionId) =>
     new Promise((resolve, reject) => {
       const id = ++nextId;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!pending.has(id)) return;
+        pending.delete(id);
+        reject(new Error(`Chrome did not answer ${method} within 90 s (the page may be stuck)`));
+      }, 90_000);
+      pending.set(id, { resolve: (v) => (clearTimeout(timer), resolve(v)), reject: (e) => (clearTimeout(timer), reject(e)) });
       ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
 
@@ -94,7 +102,7 @@ export async function launch({ executable = findChrome(), timeoutMs = 30_000 } =
     }
     await new Promise((r) => (proc.exitCode !== null ? r() : proc.on('exit', r)));
     ws.close();
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    if (!profileDir) rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 
   return { newPage, close };
@@ -104,12 +112,15 @@ async function createPage(call, subscribe, viewport) {
   let { width, height } = viewport;
   const requests = [];
   const errors = [];
-  const inflight = new Set();
+  /** requestId → URL, so a request that never finishes can be named. */
+  const inflight = new Map();
+  /** Requests a waitIdle gave up on (still in flight at its timeout). */
+  const stuck = [];
   let lastActivity = Date.now();
   subscribe((msg) => {
     const p = msg.params;
     if (msg.method === 'Network.requestWillBeSent') {
-      inflight.add(p.requestId);
+      inflight.set(p.requestId, p.request.url);
       lastActivity = Date.now();
       requests.push({ url: p.request.url, method: p.request.method, body: p.request.postData ?? '', headers: JSON.stringify(p.request.headers) });
     } else if (msg.method === 'Network.loadingFinished' || msg.method === 'Network.loadingFailed') {
@@ -157,6 +168,7 @@ async function createPage(call, subscribe, viewport) {
       if (ready === 'complete' && inflight.size === 0 && Date.now() - lastActivity >= quietMs) return;
       await sleep(100);
     }
+    stuck.push(...inflight.values());
   }
 
   async function goto(url) {
@@ -259,6 +271,16 @@ async function createPage(call, subscribe, viewport) {
   async function screenshot(file) {
     await sleep(250);
     const { cssContentSize } = await call('Page.getLayoutMetrics');
+    // An open sheet or dialog is fixed to the viewport: a full-page capture stretches it over the page
+    // behind and composites the two, so it is shot as a person sees it, one viewport tall.
+    const overlay = await evaluate(() => !!document.querySelector('.iso-sheet-root, .iso-modal-root'));
+    if (overlay) {
+      // The visible viewport exactly as it is (scrolled where the person is), not a page-sized clip.
+      const format = file.endsWith('.webp') ? 'webp' : file.endsWith('.jpg') ? 'jpeg' : 'png';
+      const { data } = await call('Page.captureScreenshot', { format, ...(format === 'png' ? {} : { quality: 88 }), captureBeyondViewport: false });
+      writeFileSync(file, Buffer.from(data, 'base64'));
+      return;
+    }
     const h = Math.ceil(Math.max(cssContentSize.height, height));
     await call('Emulation.setDeviceMetricsOverride', { width, height: h, deviceScaleFactor: 1, mobile });
     await sleep(200);
@@ -269,5 +291,43 @@ async function createPage(call, subscribe, viewport) {
     writeFileSync(file, Buffer.from(data, 'base64'));
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, requests, errors, sleep };
+  /** Real key presses (CDP Input events, not DOM clicks): for the keyboard-only walk. */
+  const KEYS = {
+    Tab: { code: 'Tab', keyCode: 9 },
+    Enter: { code: 'Enter', keyCode: 13, text: String.fromCharCode(13) },
+    Escape: { code: 'Escape', keyCode: 27 },
+    ' ': { code: 'Space', keyCode: 32, text: ' ' },
+    ArrowRight: { code: 'ArrowRight', keyCode: 39 },
+    ArrowLeft: { code: 'ArrowLeft', keyCode: 37 },
+    ArrowDown: { code: 'ArrowDown', keyCode: 40 },
+    ArrowUp: { code: 'ArrowUp', keyCode: 38 },
+  };
+  async function press(key, { shift = false } = {}) {
+    const k = KEYS[key];
+    if (!k) throw new Error(`press: no key ${key}`);
+    const modifiers = shift ? 8 : 0;
+    await call('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, code: k.code, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode, modifiers, ...(k.text ? { text: k.text, unmodifiedText: k.text } : {}) });
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code: k.code, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode, modifiers });
+    await sleep(60);
+  }
+  /** Text typed into whatever has focus, as a keyboard would. */
+  async function type(text) {
+    await call('Input.insertText', { text });
+    await sleep(60);
+  }
+  /** Tab (or Shift+Tab) until the focused element passes `test` (run in the page), at most `max` presses. */
+  async function tabTo(test, { what = 'the control', max = 80, shift = false } = {}) {
+    for (let i = 0; i <= max; i++) {
+      if (await evaluate(test)) return i;
+      await press('Tab', { shift });
+    }
+    throw new Error(`Tabbed ${max} times without reaching ${what}`);
+  }
+
+  /** Emulate CSS media features, e.g. [{ name: 'prefers-reduced-motion', value: 'reduce' }]. */
+  async function emulateMedia(features) {
+    await call('Emulation.setEmulatedMedia', { features });
+  }
+
+  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, requests, errors, stuck, sleep };
 }

@@ -1,6 +1,6 @@
 import { ServiceError } from '@/lib/solana-app/errors';
 import { readBody, schemas } from '@/lib/solana-app/http';
-import { DETAILS_OPTIONS, detailsView, previousDetails, setTransferDetails } from '@/lib/solana-app/transfer-details';
+import { assertDetailsEditable, DETAILS_OPTIONS, detailsView, previousDetails, setTransferDetails } from '@/lib/solana-app/transfer-details';
 import { getInvoice } from '@/lib/solana-app/service';
 import { companyRoute } from '@/lib/server/solana-company';
 
@@ -25,6 +25,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   return companyRoute(request, async (ctx) => {
     const id = transferId((await params).id);
     const body = await readBody(request, schemas.transferDetails);
+    await assertDetailsEditable(ctx.orgId, id);
     return { details: detailsView(setTransferDetails(ctx.orgId, id, body, ctx.personName)) };
   });
 }

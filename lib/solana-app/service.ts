@@ -31,7 +31,7 @@ import { explorerAddressUrl, explorerTxUrl, solscanAccount, solscanTx, usdcMint 
 import { buildDepositForBurnInstruction } from '../solana/cctp-v2-solana.ts';
 import { defaultSponsorPolicy, utcDay, type SponsorPolicy } from '../solana/kora.ts';
 import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
-import { buildMemoInstruction, buildPaymentMemo, buildPayoutInstructions, buildSplashFeeInstructions, getAssociatedTokenAddress } from '../solana/payout.ts';
+import { buildMemoInstruction, buildPaymentMemo, buildPayoutInstructions, buildPeerMemo, buildSplashFeeInstructions, getAssociatedTokenAddress } from '../solana/payout.ts';
 import { createPossessionChallenge, verifyPossession } from '../solana/recovery-kit.ts';
 import { isSimulator, simulatedSignature } from '../solana/simulator.ts';
 import {
@@ -50,27 +50,31 @@ import {
 } from '../solana/squads.ts';
 import type { Cluster, ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote, VaultInfo } from '../solana/types.ts';
 import type { ShareRecord } from './doc-store.ts';
-import { quoteRoutes, POLICIES } from '../route-engine/index.ts';
+import { compareValue, quoteRoutes, stepCount, POLICIES, type EngineResult } from '../route-engine/index.ts';
 import { createKytStub, evaluatePolicy, TIER_LIMITS, type EnginePolicyResult } from '../route-engine/policy.ts';
-import { isQuoteExpired, routeKindOf, type RouteKind } from '../route-engine/quote.ts';
+import { DEFAULT_ASSUMPTIONS, isQuoteExpired, MAX_QUOTE_TTL_SEC, routeKindOf, type RouteKind } from '../route-engine/quote.ts';
+import { ALL_IN_TARGET_BPS } from '../route-engine/fees.ts';
 import { signWebhook } from '../solana-partner/mock-partner.ts';
+import type { PartnerPayout } from '../solana-partner/registry.ts';
 import { assertAttesterIsolated, buildMemoAnchor } from '../solana-evidence/anchor.ts';
-import { buildCorridorPayoutBundle, buildEvidenceBatch, bundleLeafHex, computeInvoiceCommitment, type ChainSignatureRecord } from '../solana-evidence/bundle.ts';
+import { buildCorridorPayoutBundle, buildEvidenceBatch, buildPeerTransferBundle, bundleLeafHex, computeInvoiceCommitment, type ChainSignatureRecord, type EvidenceBundle } from '../solana-evidence/bundle.ts';
 import { canonicalJson } from '../solana-evidence/canonical.ts';
 import { anchoredRootFromMemo, verifyBundle, type VerifyResult } from '../solana-evidence/verify.ts';
 import { assertDraftOnly, assertRouterRefersToEngineQuote } from '../solana-zeke/guard.ts';
 import { InvoiceFieldsSchema, readInvoice, ReaderError, type InvoiceFieldName } from '../solana-zeke/reader.ts';
 import { explainChecks } from '../solana-zeke/checker.ts';
-import { explainRoutes } from '../solana-zeke/router.ts';
+import { explainRoutes, formatUsd, type RouterOutput } from '../solana-zeke/router.ts';
 import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 
 import { awaitCommitment } from './confirm.ts';
 import { detailsView, missingDetails, purposeLine, recipientKey } from './transfer-details.ts';
 import { ServiceError } from './errors.ts';
-import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
+import { chainCallKey, DISCARDABLE_STATES, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
+import { openForPayout } from './payout-number.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
+  newSupplierId,
   store,
   type ApprovalCard,
   type BankVerification,
@@ -78,6 +82,7 @@ import {
   type InvoiceRecord,
   type MoveRecord,
   type OrgRecord,
+  type PeerDestination,
   type WebhookLogEntry,
   type PaymentRecord,
   type PreparedApproval,
@@ -85,6 +90,7 @@ import {
   type ProposalPurpose,
   type Rehearsal,
   type SerializedInstruction,
+  type SupplierRecord,
 } from './store.ts';
 
 /* ------------------------------------------------------------------ constants */
@@ -96,8 +102,14 @@ export const DEMO_LIMITS = { perPaymentUsdcMinor: 20_000_000_000n, dailyUsdcMino
 export const OFFLINE_FUND_MINOR = 25_000_000_000n;
 export const CIRCLE_FAUCET_URL = 'https://faucet.circle.com/';
 
-/** What a person reads. The 'fastest' policy keeps its key, but is shown as the shortest route: no speed is claimed. */
-const POLICY_LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Shortest route', safest: 'Safest' };
+/**
+ * What a person reads (prompt 10 §5.6, decision 8). "Fastest" is a route label only: the route the
+ * engine estimates finishes first. The estimate itself (seconds, minutes, "arrives by") is never shown.
+ * 'safest' still ranks in the engine, but has no card.
+ */
+const POLICY_LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Fastest', safest: 'Safest' };
+/** The two lanes Transfer shows, in order. */
+const LANE_POLICIES: readonly Policy[] = ['cheapest', 'fastest'];
 
 export const CHECK_LABELS: Record<string, string> = {
   tier: 'Business tier verified',
@@ -108,6 +120,14 @@ export const CHECK_LABELS: Record<string, string> = {
   quote_expiry: 'Quote still valid',
   bank_details_verified: 'Bank details verified',
   amount_covers_invoice: 'Supplier receives the full invoice amount',
+};
+
+/** The same rules, for a payment to another business on Splash (prompt 10 §5.4). */
+const PEER_CHECK_LABELS: Record<string, string> = {
+  kyt: 'Their account screened (stub, not a real screening)',
+  duplicate_invoice: 'Not sent before (same business and reference)',
+  bank_details_verified: 'A verified business on Splash',
+  amount_covers_invoice: 'They get exactly what you typed',
 };
 
 /** The same rules, in a transfer's words: there is no invoice, only a reference. */
@@ -183,7 +203,7 @@ function paymentTrace(p: PaymentRecord) {
   if (q && routeKindOf(q) === 'solana_direct') {
     accounts.push({ label: 'Payout partner deposit', address: q.target.depositAddress, ...traceLinks('account', q.target.depositAddress, vault?.simulated ?? true) });
   }
-  return { memo: buildPaymentMemo(p.id), accounts };
+  return { memo: p.kind === 'peer' ? buildPeerMemo(p.id) : buildPaymentMemo(p.id), accounts };
 }
 
 /** A move between the company's own vaults, as the screens show it. */
@@ -227,10 +247,13 @@ function arrivalOf(q: RouteQuote): { words: string; rail: string } {
   return { words: 'The partner’s bank transfer', rail };
 }
 
+/**
+ * How a route reaches the partner, in the Transfer map's words (prompt 10 §5.6): never the network's
+ * name. The lower-cost lane is Circle's own transfer to Polygon, said once in "How it moves".
+ */
 function laneOf(kind: RouteKind): { line: string; solNote: string; routeLabel: string } {
-  if (kind === 'solana_direct') return { line: 'From Solana balance · direct', solNote: "You don't need SOL", routeLabel: 'Direct on Solana' };
-  if (kind === 'cctp_v2_fast') return { line: 'From Solana balance · CCTP V2 Fast to Polygon', solNote: 'Needs 0.01 SOL in the vault (test pending)', routeLabel: 'CCTP V2 Fast Transfer to Polygon' };
-  return { line: 'From Solana balance · CCTP V2 to Polygon', solNote: 'Needs 0.01 SOL in the vault (test pending)', routeLabel: 'CCTP V2 to Polygon' };
+  if (kind === 'solana_direct') return { line: 'Straight to the partner', solNote: 'Splash pays the network fee', routeLabel: 'Straight to the partner' };
+  return { line: 'Through the partner’s lower-cost lane', solNote: 'Your account pays a small network fee (test mode)', routeLabel: 'Through the partner’s lower-cost lane' };
 }
 
 export function findQuote(p: PaymentRecord, quoteId: string): RouteQuote | null {
@@ -452,7 +475,9 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
+  // A discarded payment leaves the company's lists (nothing moved); the staff console still shows it.
   const payments = (await rt.payments.listByOrg(org.id))
+    .filter((p) => p.state !== 'discarded')
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .map((p) => {
       const inv = store().invoices.get(p.invoiceId);
@@ -460,9 +485,13 @@ export async function orgSummary(orgId: string) {
       return {
         id: p.id,
         /** An invoice Zeke read, or a transfer a person typed in (its "invoice number" is the reference). */
-        kind: inv?.source === 'transfer' ? ('transfer' as const) : ('invoice' as const),
+        kind: inv?.source === 'transfer' || inv?.source === 'peer' ? ('transfer' as const) : ('invoice' as const),
+        /** A bank payout, or a payment into a Splash business's account (its stations differ). */
+        paymentKind: p.kind ?? ('bank' as const),
         state: p.state,
         stateLabel: STATE_LABEL[p.state],
+        /** Nothing has been sent yet, so a person may drop it (payments only; a batch is not dropped here). */
+        discardable: p.id.startsWith('pay_') && DISCARDABLE_STATES.includes(p.state),
         supplierName: inv?.confirmed?.supplierName ?? '',
         invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
         dueDate: inv?.confirmed?.dueDate ?? null,
@@ -513,7 +542,7 @@ export async function orgSummary(orgId: string) {
           }
         : null,
     invoices: { read: read.length, confirmed: read.filter((i) => i.confirmed).length },
-    suppliers: org.suppliers.map((x) => ({ name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified.at, method: x.verified.method })),
+    suppliers: org.suppliers.map((x) => ({ id: x.id, name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified?.at ?? null, method: x.verified?.method ?? null, callBackPending: Boolean(x.pendingCallBack) })),
     limits: { perPaymentUsdcMinor: DEMO_LIMITS.perPaymentUsdcMinor, dailyUsdcMinor: DEMO_LIMITS.dailyUsdcMinor, usedTodayUsdcMinor: org.dailyDebits[utcDay(new Date())] ?? 0n },
     payments,
     faucetUrl: rt.env.mode === 'devnet' ? CIRCLE_FAUCET_URL : null,
@@ -525,22 +554,25 @@ export async function orgSummary(orgId: string) {
 function bankStatusFor(org: OrgRecord, fields: InvoiceFields): { status: InvoiceRecord['bankStatus']; known: BankVerification | null } {
   const sameName = org.suppliers.filter((s) => s.name.toLowerCase() === fields.supplierName.toLowerCase());
   const exact = sameName.find((s) => s.bank === fields.supplierBank && s.accountLast4 === fields.supplierAccountLast4);
-  if (exact) return { status: 'known', known: exact.verified };
+  // New details stored for a saved recipient wait for a call-back: until then they are "changed", and
+  // the rules refuse the payment (bank_details_verified), the same as a new supplier (prompt 10 §S.1.7).
+  if (exact && !exact.pendingCallBack && exact.verified) return { status: 'known', known: exact.verified };
   return { status: sameName.length > 0 ? 'changed' : 'new', known: null };
 }
 
 /**
- * Take a recipient off the company's saved, verified list (Transfer, step 1). Payments already made
- * keep their records untouched. Paying this recipient again needs a new call-back, and the payout
- * partner's questions are asked again, because the saved answers go with it.
+ * Take a recipient off the company's saved, verified list (Transfer, step 1), by its id. Payments
+ * already made keep their records untouched. Paying this recipient again needs a new call-back, and the
+ * payout partner's questions are asked again, because the saved answers go with it. Its full bank
+ * number is destroyed later (the route schedules it: lib/server/bank-details.ts).
  */
-export function removeSupplier(orgId: string, who: { name: string; bank: string; accountLast4: string }): number {
+export function removeSupplier(orgId: string, supplierId: string): { removed: SupplierRecord; remaining: number } {
   const org = getOrg(orgId);
-  const before = org.suppliers.length;
-  org.suppliers = org.suppliers.filter((s) => !(s.name === who.name && s.bank === who.bank && s.accountLast4 === who.accountLast4));
-  if (org.suppliers.length === before) throw new ServiceError('bad_request', 'That recipient is not on your saved list.', 404);
-  if (org.recipientDetails) delete org.recipientDetails[recipientKey({ supplierName: who.name, supplierBank: who.bank, supplierAccountLast4: who.accountLast4 })];
-  return org.suppliers.length;
+  const removed = org.suppliers.find((s) => s.id === supplierId);
+  if (!removed) throw new ServiceError('recipient_not_found', 'That recipient is not on your saved list.', 404);
+  org.suppliers = org.suppliers.filter((s) => s !== removed);
+  if (org.recipientDetails) delete org.recipientDetails[recipientKey({ supplierName: removed.name, supplierBank: removed.bank, supplierAccountLast4: removed.accountLast4 })];
+  return { removed, remaining: org.suppliers.length };
 }
 
 export async function readInvoiceDraft(orgId: string, input: { text?: string; sample?: boolean; source?: 'paste' | 'upload' }) {
@@ -616,7 +648,8 @@ export function confirmInvoice(
   const fields = parsed.data as InvoiceFields;
   const { status, known } = bankStatusFor(org, fields);
   let bankDetailsVerified: ConfirmedInvoice['bankDetailsVerified'] = null;
-  if (status === 'known' && known) bankDetailsVerified = { by: known.by, method: 'existing-record', at: known.at };
+  // A saved, unchanged recipient: the check that made it known ("by call-back, 2 Sep"), as it was done.
+  if (status === 'known' && known) bankDetailsVerified = { by: known.by, method: known.method, at: known.at };
   else if (inv.bankVerification && inv.bankVerification.bank === fields.supplierBank && inv.bankVerification.accountLast4 === fields.supplierAccountLast4) {
     bankDetailsVerified = { by: inv.bankVerification.by, method: inv.bankVerification.method, at: inv.bankVerification.at };
   }
@@ -647,7 +680,9 @@ const TRANSFER_FIELDS: InvoiceFieldName[] = ['supplierName', 'invoiceNumber', 'a
 export function startTransfer(
   orgId: string,
   input: {
-    recipient: { name: string; bank: string; accountLast4: string };
+    /** A saved recipient (prompt 10 §5.3): its details, and its call-back, come from the saved record. */
+    recipientId?: string;
+    recipient?: { name: string; bank: string; accountLast4: string };
     amountPhpMinor: string;
     reference?: string | null;
     verification?: { by: string; method: 'call-back' | 'supplier-account' } | null;
@@ -657,6 +692,13 @@ export function startTransfer(
 ): InvoiceRecord {
   const org = getOrg(orgId);
   requireVault(org);
+  if (input.recipientId) {
+    const saved = org.suppliers.find((s) => s.id === input.recipientId);
+    if (!saved) throw new ServiceError('recipient_not_found', 'That recipient is not on your saved list.', 404);
+    // Saved details are "known" only when checked and unchanged; otherwise the rules refuse the quote.
+    input = { ...input, recipient: { name: saved.name, bank: saved.bank, accountLast4: saved.accountLast4 }, verification: null };
+  }
+  if (!input.recipient) throw new ServiceError('bad_request', 'Choose who receives it.', 422);
   const day = utcDay(now);
   const reference = (input.reference ?? '').trim() || `TRF-${day.replaceAll('-', '')}-${randomHex(2).toUpperCase()}`;
   let amount: bigint;
@@ -709,6 +751,67 @@ export function startTransfer(
     confirmed: TRANSFER_FIELDS,
     confirmedBy: input.by,
   });
+  return inv;
+}
+
+/**
+ * A payment to another business on Splash (prompt 10 §5.1, "A business on Splash"): straight into its
+ * own account, in US dollars, with no conversion and no Splash fee. The payee comes from the server's
+ * directory (lib/server/splash-directory.ts, read again here by the route), never from the browser.
+ * The same path from here: quote, rules, the approval on a device, proof (kind 4).
+ */
+export function startPeerTransfer(
+  orgId: string,
+  input: { payee: Omit<PeerDestination, 'amountUsdMinor' | 'note'>; amountUsdMinor: string; note?: string | null; reference?: string | null; by?: string },
+  now = new Date(),
+): InvoiceRecord {
+  const org = getOrg(orgId);
+  requireVault(org);
+  if (input.payee.payeeOrgId === orgId) throw new ServiceError('bad_request', 'That is your own company. To move money between your accounts, use Treasury.', 422);
+  let amount: bigint;
+  try {
+    amount = BigInt(input.amountUsdMinor);
+  } catch {
+    throw new ServiceError('bad_request', 'The amount is not a valid number.', 422);
+  }
+  if (amount <= 0n) throw new ServiceError('bad_request', 'Enter an amount above zero.', 422);
+  const day = utcDay(now);
+  const reference = (input.reference ?? '').trim() || `SPL-${day.replaceAll('-', '')}-${randomHex(2).toUpperCase()}`;
+  if (!/^[A-Za-z0-9][A-Za-z0-9/.-]{0,63}$/.test(reference)) throw new ServiceError('bad_request', 'A reference is letters, digits and - / . only.', 422);
+  const note = (input.note ?? '').trim().slice(0, 140) || null;
+  const by = input.by?.trim() || org.personName;
+  const fields: InvoiceFields = { invoiceNumber: reference, supplierName: input.payee.payeeName, supplierBank: 'Splash', supplierAccountLast4: '', amountPhpMinor: 0n, dueDate: day };
+  const salt = invoiceSalt(org, { ...fields, einvoiceRef: `peer:${input.payee.payeeOrgId}:${amount}` });
+  const at = nowIso(now);
+  const inv: InvoiceRecord = {
+    id: `inv_${randomHex(8)}`,
+    orgId: org.id,
+    createdAt: at,
+    source: 'peer',
+    peer: { ...input.payee, amountUsdMinor: amount, note },
+    draft: {
+      draft: true,
+      extractor: 'none',
+      fields,
+      sources: {},
+      suspicious: false,
+      suspiciousReasons: [],
+      needsConfirmation: [],
+      notes: [`Typed in by ${by} for a payment to ${input.payee.payeeName} on Splash. Nothing was read.`],
+    },
+    bankStatus: 'known',
+    bankVerification: null,
+    confirmed: {
+      ...fields,
+      confirmedBy: by,
+      confirmedAt: at,
+      commitmentHex: computeInvoiceCommitment(fields, salt),
+      // The payee is a verified company the directory found: there are no bank details to call back.
+      bankDetailsVerified: { by: 'Splash directory', method: 'existing-record', at },
+    },
+    saltHex: bytesToHex(salt),
+  };
+  store().invoices.set(inv.id, inv);
   return inv;
 }
 
@@ -812,60 +915,24 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   const vault = requireVault(org);
   const inv = getInvoice(orgId, invoiceId);
   if (!inv.confirmed) throw new ServiceError('fields_unconfirmed', 'Confirm the invoice fields first.', 409);
-  const rt = runtime();
   const now = opts.now ?? new Date();
   const paymentId = opts.paymentId ?? `pay_${randomHex(8)}`;
-  const amountPhpMinor = inv.confirmed.amountPhpMinor;
-  const partnerQuotes = (['solana', 'polygon'] as const).map((network) => rt.partner.quote({ amountPhpMinor }, { network, now }));
-  const payout = rt.partner.createPayout({
-    paymentId,
-    amountPhpMinor,
-    expectedUsdcMinor: partnerQuotes[0]!.grossUsdcMinor,
-    beneficiary: { bank: inv.confirmed.supplierBank, accountLast4: inv.confirmed.supplierAccountLast4 },
-    now,
-  });
-  const deposits = Object.fromEntries(payout.deposits.map((d) => [d.network, d.address]));
-  const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
-  const engineFor = (senderBalanceUsdcMinor: bigint) =>
-    quoteRoutes({
-      paymentId,
-      amount: { amountPhpMinor },
-      senderBalanceUsdcMinor,
-      partner: rt.partner.entry,
-      partnerQuotes,
-      deposits,
-      // No Fast Transfer fee is read offline (it comes from Circle's API), so no Fast candidate.
-      now,
-      homeChain: 'solana',
-    });
-  let engine = engineFor(balance);
-  if (opts.allowShort && !POLICIES.some((p) => engine.picks[p])) {
-    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
-    // Priced as if the vault held enough for every route; funding comes before any approval.
-    if (needs.length) engine = engineFor(needs.reduce((a, b) => (b > a ? b : a)));
-  }
-  if (!POLICIES.some((p) => engine.picks[p])) {
-    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
-    if (needs.length) {
-      // The cheapest route's need, so the shortfall is the least that unblocks this payment.
-      const neededMinor = needs.reduce((a, b) => (b < a ? b : a));
-      const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
-      const what = inv.source === 'transfer' ? 'this transfer' : 'this invoice';
-      throw new ServiceError('insufficient_balance', `Your payments vault is short for ${what}. Move USDC in from your treasury or add USDC, then get a new quote.`, 409, {
-        invoiceId: inv.id,
-        balanceUsdcMinor: balance.toString(),
-        neededUsdcMinor: neededMinor.toString(),
-        shortUsdcMinor: (neededMinor - balance).toString(),
-        treasuryUsdcMinor: treasuryMinor.toString(),
-      });
-    }
-    throw new ServiceError('no_route', 'No route can pay this invoice right now. Try again in a minute.', 409);
-  }
-  const allQuotes = POLICIES.flatMap((p) => engine.ranked[p]);
-  const router = explainRoutes({ picks: engine.picks, ranked: engine.ranked, homeLane: engine.homeLane, selected: 'cheapest' });
-  assertRouterRefersToEngineQuote(router, allQuotes);
+  const kind: 'bank' | 'peer' = inv.source === 'peer' ? 'peer' : 'bank';
+  const { engine, router, payout } = kind === 'peer' ? await pricePeer(vault, inv, paymentId, now, opts.allowShort ?? false) : await priceBank(org, vault, inv, paymentId, now, opts.allowShort ?? false);
 
   const fresh = (d: PaymentRecord) => {
+    // A proposal abandoned with approvals on it (its quote ran out): they belong to that quote, not the
+    // new one. The new proposal starts at 0 of N, and the card says why (prompt 10 §5.7). Without this,
+    // the old approvals counted toward the new proposal's threshold off chain.
+    if (d.approvedBy.length > 0 || d.transactionIndex !== null) {
+      const previous = d.selectedQuoteId ? findQuote(d, d.selectedQuoteId) : null;
+      d.approvalsReset = { at: nowIso(now), previous: d.approvedBy.length, previousYouPayMinor: previous?.source.amountMinor ?? null };
+      d.approvedBy = [];
+      d.pendingApprover = null;
+      d.approvals = [];
+      d.transactionIndex = null;
+      d.plan = null;
+    }
     d.engine = engine;
     d.router = router;
     d.payout = payout;
@@ -887,6 +954,7 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
     id: paymentId,
     orgId: org.id,
     invoiceId: inv.id,
+    kind,
     createdAt: nowIso(now),
     updatedAt: nowIso(now),
     state: 'draft',
@@ -918,19 +986,217 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   return cas(() => repo().transition(drafted.id, { from: 'draft', version: drafted.version }, 'quoted', undefined, 'quoted', now));
 }
 
+/** A bank payout: the partner's quotes on each network, ranked by the engine, explained by Zeke. */
+async function priceBank(org: OrgRecord, vault: NonNullable<OrgRecord['vault']>, inv: InvoiceRecord, paymentId: string, now: Date, allowShort: boolean) {
+  const rt = runtime();
+  const amountPhpMinor = inv.confirmed!.amountPhpMinor;
+  // A checked saved recipient with a full number in the vault: the partner's instruction gets it, read
+  // just now and kept nowhere (the payout record keeps bank and last4). Unchecked: last4 only, and the
+  // rules refuse the payment anyway.
+  const c0 = inv.confirmed!;
+  const saved = org.suppliers.find((s) => s.name === c0.supplierName && s.bank === c0.supplierBank && s.accountLast4 === c0.supplierAccountLast4);
+  // The bank decides the rail where it takes only one (banks.ts); Step 2 named the same rail.
+  const bankCode = saved?.bankCode ?? null;
+  const partnerQuotes = (['solana', 'polygon'] as const).map((network) => rt.partner.quote({ amountPhpMinor, bankCode }, { network, now }));
+  const full = saved?.secretId && saved.verified && !saved.pendingCallBack ? await openForPayout(org.id, saved) : null;
+  const payout = rt.partner.createPayout({
+    paymentId,
+    amountPhpMinor,
+    expectedUsdcMinor: partnerQuotes[0]!.grossUsdcMinor,
+    beneficiary: { bank: c0.supplierBank, accountLast4: c0.supplierAccountLast4, ...(full ? { accountNumber: full.accountNumber } : {}) },
+    now,
+  });
+  const deposits = Object.fromEntries(payout.deposits.map((d) => [d.network, d.address]));
+  const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
+  const engineFor = (senderBalanceUsdcMinor: bigint) =>
+    quoteRoutes({
+      paymentId,
+      amount: { amountPhpMinor },
+      senderBalanceUsdcMinor,
+      partner: rt.partner.entry,
+      partnerQuotes,
+      deposits,
+      // No Fast Transfer fee is read offline (it comes from Circle's API), so no Fast candidate.
+      now,
+      homeChain: 'solana',
+    });
+  let engine = engineFor(balance);
+  if (allowShort && !POLICIES.some((p) => engine.picks[p])) {
+    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
+    // Priced as if the vault held enough for every route; funding comes before any approval.
+    if (needs.length) engine = engineFor(needs.reduce((a, b) => (b > a ? b : a)));
+  }
+  if (!POLICIES.some((p) => engine.picks[p])) {
+    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
+    if (needs.length) {
+      // The cheapest route's need, so the shortfall is the least that unblocks this payment.
+      const neededMinor = needs.reduce((a, b) => (b < a ? b : a));
+      const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+      const what = inv.source === 'transfer' ? 'this transfer' : 'this invoice';
+      throw new ServiceError('insufficient_balance', `Your payments vault is short for ${what}. Move USDC in from your treasury or add USDC, then get a new quote.`, 409, {
+        invoiceId: inv.id,
+        balanceUsdcMinor: balance.toString(),
+        neededUsdcMinor: neededMinor.toString(),
+        shortUsdcMinor: (neededMinor - balance).toString(),
+        treasuryUsdcMinor: treasuryMinor.toString(),
+      });
+    }
+    throw new ServiceError('no_route', 'No route can pay this invoice right now. Try again in a minute.', 409);
+  }
+  const allQuotes = POLICIES.flatMap((p) => engine.ranked[p]);
+  const router = explainRoutes({ picks: engine.picks, ranked: engine.ranked, homeLane: engine.homeLane, selected: 'cheapest' });
+  assertRouterRefersToEngineQuote(router, allQuotes);
+  return { engine, router, payout };
+}
+
+/**
+ * A payment into another business's own Splash account (prompt 10 §5.1): one route, straight there.
+ * No partner, no conversion, no Splash fee (SPLASH_PEER_FEE_BPS = 0, confirmed): you pay what they get.
+ */
+export const SPLASH_PEER_FEE_BPS = 0;
+async function pricePeer(vault: NonNullable<OrgRecord['vault']>, inv: InvoiceRecord, paymentId: string, now: Date, allowShort: boolean) {
+  const rt = runtime();
+  const peer = inv.peer!;
+  const amount = peer.amountUsdMinor;
+  const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
+  if (balance < amount && !allowShort) {
+    const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+    throw new ServiceError('insufficient_balance', 'Your Payments account is short for this payment. Move money in from your reserve or add money, then get a new quote.', 409, {
+      invoiceId: inv.id,
+      balanceUsdcMinor: balance.toString(),
+      neededUsdcMinor: amount.toString(),
+      shortUsdcMinor: (amount - balance).toString(),
+      treasuryUsdcMinor: treasuryMinor.toString(),
+    });
+  }
+  const q: RouteQuote = {
+    id: `rq_peer_${randomHex(8)}`,
+    policy: 'cheapest',
+    source: { lane: 'solana', token: 'USDC', amountMinor: amount },
+    target: { network: 'solana', token: 'USDC', partnerId: 'splash', depositAddress: peer.payeeVaultPda },
+    steps: [{ kind: 'transfer', provider: 'splash · into a Splash account', feeMinor: 0n, etaSec: 0 }],
+    costs: { routeMinor: 0n, partnerMinor: 0n, splashMinor: 0n, allInBps: SPLASH_PEER_FEE_BPS },
+    fx: { pair: 'USD/USD', rate: '1', reference: 'No conversion', capturedAt: nowIso(now) },
+    netLocal: { currency: 'USD', amountMinor: amount },
+    etaSec: 0,
+    expiresAt: new Date(now.getTime() + MAX_QUOTE_TTL_SEC * 1000).toISOString(),
+    flags: [],
+  };
+  const noLane = (policy: Policy) => ({ policy, homeChain: 'solana', applied: false, reason: 'winner_is_home_lane' as const, bestQuoteId: q.id, homeQuoteId: q.id });
+  const engine: EngineResult = {
+    paymentId,
+    mode: 'usdc_send',
+    generatedAt: nowIso(now),
+    homeChain: 'solana',
+    picks: { cheapest: q, fastest: q, safest: q },
+    ranked: { cheapest: [q], fastest: [q], safest: [q] },
+    homeLane: { cheapest: noLane('cheapest'), fastest: noLane('fastest'), safest: noLane('safest') },
+    fees: {},
+    excluded: [],
+    assumptions: { ...DEFAULT_ASSUMPTIONS },
+  };
+  const text = `Straight into ${peer.payeeName}'s Splash account: they get ${formatUsd(amount)}, and there is no Splash fee.`;
+  const router: RouterOutput = { draft: true, primary: { refersTo: q.id, policy: 'cheapest', text }, alternative: null };
+  const payout: PartnerPayout = {
+    payoutId: `peer_${paymentId}`,
+    paymentId,
+    partnerId: 'splash',
+    amountPhpMinor: 0n,
+    expectedUsdcMinor: amount,
+    rail: 'Splash',
+    beneficiary: { bank: 'Splash', accountLast4: '' },
+    deposits: [{ network: 'solana', token: 'USDC', address: peer.payeeVaultPda }],
+    status: 'AWAITING_DEPOSIT',
+    createdAt: nowIso(now),
+  };
+  return { engine, router, payout };
+}
+
+/** Why approvals started again, in words: the rate moved (You pay changed), or the quote ran out. */
+export function resetNoteFor(reset: PaymentRecord['approvalsReset'], youPayMinor: bigint | null): string | null {
+  if (!reset || reset.previous === 0) return null;
+  if (reset.previousYouPayMinor !== null && youPayMinor !== null && reset.previousYouPayMinor !== youPayMinor) return 'The rate moved; approvals start again.';
+  return 'The quote ran out; approvals start again.';
+}
+
+/**
+ * Joint control on the approval card (prompt 10 §5.7): "1 of 2 approved", who approved, who is still
+ * to approve, and why approvals started again if a re-quote reset them.
+ */
+export function approvalStatus(p: PaymentRecord, org: OrgRecord) {
+  const name = (key: string) => org.memberNames?.[key] ?? (key === org.keys.device?.publicKey ? org.personName : 'The other approver');
+  const approvers = approverKeys(org);
+  const q = p.selectedQuoteId ? findQuote(p, p.selectedQuoteId) : null;
+  return {
+    approved: p.approvedBy.length,
+    threshold: p.threshold,
+    approvedBy: p.approvedBy.map((key) => ({ key, name: name(key) })),
+    waitingFor: p.approvedBy.length > 0 && p.approvedBy.length < p.threshold ? approvers.filter((k) => !p.approvedBy.includes(k)).map((key) => ({ key, name: name(key) })) : [],
+    resetNote: resetNoteFor(p.approvalsReset ?? null, q?.source.amountMinor ?? null),
+  };
+}
+
+/** One reminder per payment per this long: pressing Remind twice sends one notice. */
+export const REMIND_EVERY_MS = 10 * 60_000;
+
+/**
+ * "Remind": an in-app notice to the approvers who haven't approved a payment that is waiting at
+ * "1 of 2". It never approves anything and never moves money.
+ */
+export async function remindApprover(orgId: string, paymentId: string, by: string, now = new Date()) {
+  const p = await getPayment(paymentId);
+  if (p.orgId !== orgId) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
+  const org = getOrg(orgId);
+  const status = approvalStatus(p, org);
+  if (p.state !== 'proposed' || status.waitingFor.length === 0) throw new ServiceError('wrong_state', 'Nobody is waiting to approve this payment.', 409);
+  const notices = (org.notifications ??= []);
+  const last = notices.filter((n) => n.kind === 'approval_reminder' && n.paymentId === p.id).at(-1);
+  if (last && now.getTime() - Date.parse(last.at) < REMIND_EVERY_MS) {
+    return { sent: false, to: status.waitingFor.map((w) => w.name), nextAt: new Date(Date.parse(last.at) + REMIND_EVERY_MS).toISOString() };
+  }
+  for (const w of status.waitingFor) notices.push({ id: `ntf_${randomHex(8)}`, kind: 'approval_reminder', paymentId: p.id, to: w.key, by, at: nowIso(now), read: false });
+  return { sent: true, to: status.waitingFor.map((w) => w.name), nextAt: new Date(now.getTime() + REMIND_EVERY_MS).toISOString() };
+}
+
 export async function requote(paymentId: string, now = new Date(), opts: { allowShort?: boolean } = {}) {
   const p = await getPayment(paymentId);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
   return quote(p.orgId, p.invoiceId, { now, paymentId: p.id, allowShort: opts.allowShort });
 }
 
+/**
+ * Drop a payment nobody has sent: it was quoted, checked, blocked, expired, or its proposal never
+ * reached the vault. It moves to the terminal state "discarded" with who and when on its
+ * transition row; nothing on chain is touched, and USDC already brought into the payments vault
+ * for it stays there. Once anything was sent, it cannot be discarded.
+ */
+export async function discardPayment(paymentId: string, by: string, now = new Date()): Promise<PaymentRecord> {
+  const p = await getPayment(paymentId);
+  if (p.state === 'discarded') return p;
+  if (!DISCARDABLE_STATES.includes(p.state)) {
+    throw new ServiceError('wrong_state', `This payment is ${STATE_LABEL[p.state].toLowerCase()}. Only a payment nothing was sent for can be discarded.`, 409);
+  }
+  return cas(() => repo().transition(p.id, { from: p.state, version: p.version }, 'discarded', (d) => {
+    d.prepared = null;
+    d.problem = null;
+  }, `discarded by ${by.trim() || 'a member'}`, now));
+}
+
 /** The payments vault must hold the route's full cost before it can be chosen or approved. */
-async function assertVaultCovers(p: PaymentRecord, q: RouteQuote): Promise<void> {
+/**
+ * Does the Payments account hold this route's cost? With `reserve`, the reserve may cover what it is short
+ * of: that shortfall is moved first, in the same approval sequence (prompt 10 §5.6, step 2 of the plan),
+ * and the approval card says so. The proposal itself is built only once the Payments account holds it all
+ * (prepareApproval checks without `reserve`).
+ */
+async function assertVaultCovers(p: PaymentRecord, q: RouteQuote, opts: { reserve?: boolean } = {}): Promise<{ reserveMoveMinor: bigint }> {
   const vault = requireVault(getOrg(p.orgId));
   const rt = runtime();
   const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
-  if (balance >= q.source.amountMinor) return;
+  if (balance >= q.source.amountMinor) return { reserveMoveMinor: 0n };
   const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+  const shortMinor = q.source.amountMinor - balance;
+  if (opts.reserve && treasuryMinor >= shortMinor) return { reserveMoveMinor: shortMinor };
   throw new ServiceError('insufficient_balance', 'Your payments vault does not hold this payment yet. Pay from your vaults or fund it another way first.', 409, {
     invoiceId: p.invoiceId,
     balanceUsdcMinor: balance.toString(),
@@ -952,10 +1218,32 @@ function runPolicy(p: PaymentRecord, q: RouteQuote, now: Date): EnginePolicyResu
     seenCommitments: new Set(org.seenCommitments),
     kyt: createKytStub(p.rehearsal === 'kyt_flag' ? [q.target.depositAddress] : []),
     now,
+    ...(inv.peer ? { peerAmountUsdMinor: inv.peer.amountUsdMinor } : {}),
   });
 }
 
-function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicyResult): ApprovalCard {
+/** The rules, in a person's words for this kind of payment (an invoice, a transfer, a payment to a Splash business). */
+function checkLines(inv: InvoiceRecord, policy: EnginePolicyResult) {
+  const transfer = inv.source === 'transfer';
+  const peer = inv.peer ?? null;
+  const label = (name: string) => (peer && PEER_CHECK_LABELS[name]) || (transfer && TRANSFER_CHECK_LABELS[name]) || CHECK_LABELS[name] || name;
+  return [...policy.checks, ...policy.extraChecks].map((x) => ({ name: x.name, label: label(x.name), passed: x.passed, detail: x.detail }));
+}
+
+/**
+ * Step 3's "Passed 8 of 8 rules" (prompt 10 §5.6): the rules the approval runs, for the route a person
+ * is looking at, read-only. Nothing changes: choosing the route (selectRoute) and approving it
+ * (prepareApproval) run them again for real.
+ */
+export async function previewChecks(paymentId: string, quoteId: string, now = new Date()) {
+  const p = await getPayment(paymentId);
+  const q = findQuote(p, quoteId);
+  if (!q) throw new ServiceError('bad_request', 'That route is not one of this payment’s quotes. Get a new quote.', 400);
+  const checks = checkLines(getInvoice(p.orgId, p.invoiceId), runPolicy(p, q, now));
+  return { quoteId: q.id, passed: checks.filter((c) => c.passed).length, total: checks.length, checks: checks.map((c) => ({ name: c.name, label: c.label, passed: c.passed })) };
+}
+
+function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicyResult, reserveMoveMinor: bigint = p.approval?.reserveMoveMinor ?? 0n): ApprovalCard {
   const org = getOrg(p.orgId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const c = inv.confirmed!;
@@ -965,8 +1253,8 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
   const arrival = arrivalOf(q);
   const covers = policy.extraChecks.find((x) => x.name === 'amount_covers_invoice');
   const transfer = inv.source === 'transfer';
-  const label = (name: string) => (transfer && TRANSFER_CHECK_LABELS[name]) || CHECK_LABELS[name] || name;
-  const checks = [...policy.checks, ...policy.extraChecks].map((x) => ({ name: x.name, label: label(x.name), passed: x.passed, detail: x.detail }));
+  const peer = inv.peer ?? null;
+  const checks = checkLines(inv, policy);
   return {
     paymentId: p.id,
     quoteId: q.id,
@@ -974,8 +1262,10 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     bank: c.supplierBank,
     accountLast4: c.supplierAccountLast4,
     verified: c.bankDetailsVerified,
-    receivePhpMinor: q.netLocal.amountMinor,
+    receivePhpMinor: peer ? 0n : q.netLocal.amountMinor,
+    ...(peer ? { receiveUsdMinor: q.netLocal.amountMinor, intoLine: `Into ${peer.payeeName}'s Splash account` } : {}),
     youPayUsdcMinor: q.source.amountMinor,
+    reserveMoveMinor,
     costs: {
       allInBps: q.costs.allInBps,
       routeMinor: q.costs.routeMinor,
@@ -997,9 +1287,9 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     policy: { allowed: policy.allowed, checks, kytLabel: policy.kyt.label },
     signerPublicKey: org.keys.device!.publicKey,
     depositAddress: q.target.depositAddress,
-    draftedBy: transfer ? c.confirmedBy : 'Zeke',
-    kind: transfer ? 'transfer' : 'invoice',
-    purpose: transfer ? purposeLine(inv.paymentDetails) : null,
+    draftedBy: transfer || peer ? c.confirmedBy : 'Zeke',
+    kind: peer ? 'peer' : transfer ? 'transfer' : 'invoice',
+    purpose: transfer ? purposeLine(inv.paymentDetails) : peer?.note ?? null,
     simulated: runtime().env.mode === 'offline',
   };
 }
@@ -1017,7 +1307,7 @@ export async function selectRoute(paymentId: string, input: { quoteId: string; r
     const missing = missingDetails(inv.paymentDetails);
     if (missing.length) throw new ServiceError('details_required', `The payout partner needs these first: ${missing.join(', ')}.`, 422, { missing });
   }
-  await assertVaultCovers(p, q);
+  const { reserveMoveMinor } = await assertVaultCovers(p, q, { reserve: true });
   const rt = runtime();
   const rehearsal = rt.env.mode === 'offline' ? (input.rehearsal ?? 'none') : 'none';
   const policy = runPolicy({ ...p, rehearsal }, q, now);
@@ -1028,7 +1318,7 @@ export async function selectRoute(paymentId: string, input: { quoteId: string; r
       d.rehearsal = rehearsal;
       d.selectedQuoteId = q.id;
       d.policy = policy;
-      d.approval = buildApprovalCard(d, q, policy);
+      d.approval = buildApprovalCard(d, q, policy, reserveMoveMinor);
       d.prepared = null;
       d.payeeHash = policy.allowed && !expired ? payeeHashOf(d, q) : null;
       d.problem = policy.allowed && !expired ? null : problemFromPolicy(policy);
@@ -1038,11 +1328,11 @@ export async function selectRoute(paymentId: string, input: { quoteId: string; r
 
 function problemFromPolicy(policy: EnginePolicyResult): { code: string; message: string } {
   const failed = new Set([...policy.checks, ...policy.extraChecks].filter((c) => !c.passed).map((c) => c.name));
-  if (failed.has('kyt')) return { code: 'kyt_flagged', message: `Screening flagged this supplier's wallet. Payment blocked. Contact support with reference ${policy.kyt.resultId}.` };
+  if (failed.has('kyt')) return { code: 'kyt_flagged', message: `The screening rule stopped it: screening flagged where this payment goes, so nothing was sent. Your company's owner can ask support to review it (reference ${policy.kyt.resultId}).` };
   if (failed.has('quote_expiry')) return { code: 'quote_expired', message: 'Quote expired before you approved. Refresh to get a new quote.' };
   if (failed.has('duplicate_invoice')) return { code: 'duplicate_invoice', message: 'This invoice was already paid or is being paid. Nothing was sent.' };
   if (failed.has('bank_details_verified')) return { code: 'bank_unverified', message: 'New bank details. Verify by phone before paying.' };
-  if (failed.has('per_payment_limit') || failed.has('daily_limit')) return { code: 'limit', message: 'This payment is above your limits. Split it or wait until tomorrow.' };
+  if (failed.has('per_payment_limit') || failed.has('daily_limit')) return { code: 'limit', message: `Your ${failed.has('per_payment_limit') ? 'per-payment' : 'daily'} limit stopped it. Split it or wait until tomorrow; your company's owner can change limits in Rules.` };
   return { code: 'policy_denied', message: `Payment blocked by your rules: ${policy.reasons.join('; ')}.` };
 }
 
@@ -1099,6 +1389,7 @@ function buildRoutePlan(p: PaymentRecord, q: RouteQuote, vault: NonNullable<OrgR
       reference: Keypair.generate().publicKey,
       splashKeys: keys,
       splashFee: fee,
+      ...(p.kind === 'peer' ? { memoKind: 'peer' as const } : {}),
     });
     return { kind, transferAmount, splashFee, vault: plan.vaultInstructions, pre: plan.preExecuteInstructions, post: plan.postExecuteInstructions, ephemeralSigners: 0 };
   }
@@ -1187,6 +1478,8 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
       throw new ServiceError(problem.code === 'payee_changed' ? 'payee_changed' : expired ? 'quote_expired' : 'policy_denied', problem.message, 409);
     }
   }
+  // The money is in the Payments account before the first approval (a planned reserve move lands first).
+  if (p.state === 'checked') await assertVaultCovers(p, q);
 
   const rt = runtime();
   const feePayer = await rt.chain.getFeePayer();
@@ -1199,7 +1492,7 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
   const messages: PreparedMessage[] = [];
   // Every transaction of this payment carries its memo at the top level, so each one reads
   // "splash:pay:v1:<paymentId>" in its Solscan program logs, not only the execute.
-  const traceMemo = () => buildMemoInstruction(buildPaymentMemo(p.id));
+  const traceMemo = () => buildMemoInstruction(p.kind === 'peer' ? buildPeerMemo(p.id) : buildPaymentMemo(p.id));
 
   let transactionIndex = p.transactionIndex;
   let routePlan: { kind: RouteKind; transferAmount: bigint; splashFee: bigint; vault: TransactionInstruction[]; pre: TransactionInstruction[]; post: TransactionInstruction[]; ephemeralSigners: number };
@@ -1227,7 +1520,9 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
       const purposes: ProposalPurpose[] = [];
       if (body.includes(proposal.create)) purposes.push('squads_proposal_create');
       if (body.includes(proposal.approve)) purposes.push('squads_proposal_approve');
-      messages.push(preparedMessage(`m${messages.length}`, 'proposal', `proposal:${i}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, purposes, budget, member));
+      // Keyed by the proposal's on-chain index: a payment re-proposed after a re-quote (its first proposal
+      // abandoned) sends new transactions, while a resend of the same one is still refused.
+      messages.push(preparedMessage(`m${messages.length}`, 'proposal', `proposal:tx${transactionIndex}.${i}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, purposes, budget, member));
     }
   } else {
     if (transactionIndex === null || !p.plan) throw new ServiceError('wrong_state', 'This payment has no proposal yet.', 409);
@@ -1242,7 +1537,7 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
     };
     if (p.state === 'proposed') {
       const budget = await budgeted(feePayer, [buildProposalApprove(multisigPda, transactionIndex, member), traceMemo()], blockhash, DEFAULT_UNIT_LIMITS.proposal, true);
-      messages.push(preparedMessage(`m${messages.length}`, 'approve', `approve:${signerKey.slice(0, 16)}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, ['squads_proposal_approve'], budget, member));
+      messages.push(preparedMessage(`m${messages.length}`, 'approve', `approve:tx${transactionIndex}.${signerKey.slice(0, 16)}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, ['squads_proposal_approve'], budget, member));
     }
   }
 
@@ -1569,6 +1864,10 @@ export async function resumePayment(paymentId: string, opts: { timeoutMs?: numbe
   if ((p.state === 'partner_paid' || p.state === 'evidence_failed') && p.execution.finalizedAt) {
     p = await settleEvidence(p.id);
   }
+  // A payment to a Splash business is in their account once confirmed: its proof is next (no partner).
+  if (p.kind === 'peer' && p.state === 'confirmed' && p.execution.finalizedAt) {
+    p = await settleEvidence(p.id);
+  }
   return p;
 }
 
@@ -1727,8 +2026,13 @@ async function applyPartnerWebhook(raw: Record<string, unknown>, now: Date) {
     const inv = getInvoice(p.orgId, p.invoiceId);
     const org = getOrg(p.orgId);
     const c = inv.confirmed!;
-    if (c.bankDetailsVerified && !org.suppliers.some((s) => s.name === c.supplierName && s.bank === c.supplierBank && s.accountLast4 === c.supplierAccountLast4)) {
-      org.suppliers.push({ name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at } });
+    const saved = org.suppliers.find((s) => s.name === c.supplierName && s.bank === c.supplierBank && s.accountLast4 === c.supplierAccountLast4);
+    if (c.bankDetailsVerified && !saved) {
+      org.suppliers.push({ id: newSupplierId(), name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at } });
+    } else if (saved?.pendingCallBack && c.bankDetailsVerified && c.bankDetailsVerified.method !== 'existing-record') {
+      // Paid after a call-back on the new details: they are the verified details now.
+      saved.verified = { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at };
+      delete saved.pendingCallBack;
     }
     // Evidence only after the execute is final (§5.1); resume picks it up if it is not yet.
     next = await resumePayment(p.id);
@@ -1770,7 +2074,8 @@ async function seal(plaintext: string): Promise<string> {
 /** partner_paid (and finalized) → evidenced → anchored; a failure lands in evidence_failed and is retried. */
 async function settleEvidence(paymentId: string): Promise<PaymentRecord> {
   let p = await getPayment(paymentId);
-  if (p.state !== 'partner_paid' && p.state !== 'evidence_failed') return p;
+  const ready = p.state === 'partner_paid' || p.state === 'evidence_failed' || (p.kind === 'peer' && p.state === 'confirmed');
+  if (!ready) return p;
   if (!p.execution.finalizedAt) return p;
   let record: EvidenceRecord;
   try {
@@ -1799,9 +2104,22 @@ async function buildEvidence(p: PaymentRecord): Promise<EvidenceRecord> {
   const inv = getInvoice(p.orgId, p.invoiceId);
   const rt = runtime();
   const q = findQuote(p, p.executedRoute!.quoteId)!;
-  const paid = p.partnerEvents.find((e) => e.status === 'paid')!;
   const receiptId = `rcpt_${randomHex(8)}`;
   const simulated = p.signatures.some((s) => s.simulated) || rt.env.mode === 'offline';
+  if (p.kind === 'peer') return sealEvidence(p, org, buildPeerTransferBundle({
+    paymentId: p.id,
+    createdAt: p.execution.confirmedAt ?? p.updatedAt,
+    payer: { orgId: org.id },
+    payee: { orgId: inv.peer!.payeeOrgId, name: inv.peer!.payeeName, account: inv.peer!.payeeVaultPda },
+    amount: { currency: 'USD', amountMinor: inv.peer!.amountUsdMinor },
+    reference: { commitmentHex: inv.confirmed!.commitmentHex },
+    approvals: p.approvals,
+    kyt: { provider: p.policy!.kyt.provider, resultId: p.policy!.kyt.resultId, verdict: p.policy!.kyt.verdict },
+    executedRoute: p.executedRoute!,
+    chain: { signatures: p.signatures },
+    receipt: { receiptId, issuedAt: nowIso(), simulated },
+  }), receiptId);
+  const paid = p.partnerEvents.find((e) => e.status === 'paid')!;
   const createdAt = paid.at;
   const bundle = buildCorridorPayoutBundle({
     paymentId: p.id,
@@ -1816,6 +2134,13 @@ async function buildEvidence(p: PaymentRecord): Promise<EvidenceRecord> {
     bank: { reference: paid.bankReference!, rail: p.payout.rail },
     receipt: { receiptId, issuedAt: nowIso(), simulated },
   });
+  return sealEvidence(p, org, bundle, receiptId);
+}
+
+/** Batch, anchor, seal and store one bundle (either kind). */
+async function sealEvidence(p: PaymentRecord, org: OrgRecord, bundle: EvidenceBundle, receiptId: string): Promise<EvidenceRecord> {
+  const rt = runtime();
+  const createdAt = bundle.createdAt;
   const t = Date.parse(createdAt);
   const dayStart = new Date(Math.floor(t / 86_400_000) * 86_400_000);
   const batch = buildEvidenceBatch([bundle], { start: dayStart, end: new Date(dayStart.getTime() + 86_400_000) });
@@ -1868,12 +2193,20 @@ export function verifyReceipt(receiptId: string): VerifyResult {
 
 /* ------------------------------------------------------------------ views for the UI */
 
+/** part ÷ whole as a percent with two decimals, "0.20%", rounded half up, in integers only. */
+export function shareText(part: bigint, whole: bigint): string {
+  if (whole <= 0n || part <= 0n) return '0.00%';
+  const hundredths = (part * 10_000n + whole / 2n) / whole;
+  return `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, '0')}%`;
+}
+
 export async function paymentView(paymentId: string) {
   const p = await getPayment(paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const rt = runtime();
-  // At most three cards. Picks that are the same route at the same price share one card; if no pick
-  // uses the CCTP lane, its best quote gets the last card so both lanes are visible.
+  // Two lanes, Cheapest and Fastest, labelled by the engine's ranking, never by network (prompt 10
+  // §5.6). A route that wins both is one card with both labels; the best other route then rides along
+  // as `compare`, shown quietly behind "Compare the other route".
   type Card = ReturnType<typeof cardFor>;
   const cardFor = (q: RouteQuote, policies: Policy[]) => {
     const kind = routeKindOf(q);
@@ -1882,12 +2215,29 @@ export async function paymentView(paymentId: string) {
     return {
       policy: q.policy,
       policies,
-      label: names.length === 1 ? names[0]! : `${[names[0]!, ...names.slice(1, -1).map((n) => n.toLowerCase())].join(', ')} and ${names[names.length - 1]!.toLowerCase()}`,
+      label: names.length === 0 ? 'Other route' : names.length === 1 ? names[0]! : `${[names[0]!, ...names.slice(1, -1).map((n) => n.toLowerCase())].join(', ')} and ${names[names.length - 1]!.toLowerCase()}`,
+      /** Links on the map: 2 straight to the partner, 3 through its lower-cost lane (display only). */
+      /** The lane's labels, each a whole word from POLICY_LABEL. */
+      labels: names,
+      steps: stepCount(q),
+      /** The partner's fee as a share of what you pay, "0.20%" (display only, integer math). */
+      partnerFee: shareText(q.costs.partnerMinor, q.source.amountMinor),
+      lowerCostLane: kind !== 'solana_direct',
       quoteId: q.id,
       kind,
       receivePhpMinor: q.netLocal.amountMinor,
       youPayUsdcMinor: q.source.amountMinor,
       allInBps: q.costs.allInBps,
+      /** The cost card's lines (§5.6): the amount itself, then each fee. They add up to youPayUsdcMinor. */
+      costs: {
+        amountMinor: q.source.amountMinor - q.costs.routeMinor - q.costs.partnerMinor - q.costs.splashMinor,
+        routeMinor: q.costs.routeMinor,
+        partnerMinor: q.costs.partnerMinor,
+        splashMinor: q.costs.splashMinor,
+        /** Splash's fee as a share of what you pay, "0.10%" (display only, integer math). */
+        splashShare: shareText(q.costs.splashMinor, q.source.amountMinor),
+      },
+      rate: q.fx.rate,
       arrives: arrivalOf(q).words.split(',')[0]!,
       laneLine: lane.line,
       solNote: lane.solNote,
@@ -1899,7 +2249,7 @@ export async function paymentView(paymentId: string) {
   };
   const cards: Card[] = [];
   const byKey = new Map<string, { q: RouteQuote; policies: Policy[] }>();
-  for (const policy of POLICIES) {
+  for (const policy of LANE_POLICIES) {
     const q = p.engine.picks[policy];
     if (!q) continue;
     const key = `${routeKindOf(q)}|${q.source.amountMinor}|${q.netLocal.amountMinor}`;
@@ -1908,9 +2258,11 @@ export async function paymentView(paymentId: string) {
     else byKey.set(key, { q, policies: [policy] });
   }
   for (const { q, policies } of byKey.values()) cards.push(cardFor(q, policies));
-  if (cards.length < 3 && !cards.some((c) => c.kind !== 'solana_direct')) {
-    const cctp = POLICIES.flatMap((x) => p.engine.ranked[x]).filter((q) => q.target.network === 'polygon').sort((a, b) => (a.source.amountMinor < b.source.amountMinor ? -1 : a.source.amountMinor > b.source.amountMinor ? 1 : 0))[0];
-    if (cctp) cards.push({ ...cardFor(cctp, [cctp.policy]), label: 'Via Polygon' });
+  let compare: Card | null = null;
+  if (cards.length === 1) {
+    const kind = cards[0]!.kind;
+    const other = LANE_POLICIES.flatMap((x) => p.engine.ranked[x]).filter((q) => routeKindOf(q) !== kind).sort((a, b) => -compareValue(a, b))[0];
+    if (other) compare = cardFor(other, []);
   }
   // Zeke Checker: the deterministic results in plain words. It explains; it never decides.
   const checker = p.policy ? explainChecks({ tier: DEMO_TIER, checks: p.policy.checks, extraChecks: p.policy.extraChecks, screeningLabel: p.policy.kyt.label }) : null;
@@ -1921,12 +2273,23 @@ export async function paymentView(paymentId: string) {
     stateLabel: STATE_LABEL[p.state],
     createdAt: p.createdAt,
     simulated: rt.env.mode === 'offline',
-    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed, details: detailsView(inv.paymentDetails) },
+    kind: p.kind ?? ('bank' as const),
+    invoice: {
+      id: inv.id,
+      source: inv.source,
+      confirmed: inv.confirmed,
+      details: detailsView(inv.paymentDetails),
+      peer: inv.peer ? { payeeName: inv.peer.payeeName, payeeHandle: inv.peer.payeeHandle, payeeCountry: inv.peer.payeeCountry, amountUsdMinor: inv.peer.amountUsdMinor, note: inv.peer.note } : null,
+    },
     cards,
+    compare,
+    /** The lane names, for the copy that explains them ("How it moves"): the words come from POLICY_LABEL only. */
+    laneNames: { cheapest: POLICY_LABEL.cheapest, fastest: POLICY_LABEL.fastest },
+    allInTarget: shareText(ALL_IN_TARGET_BPS, 10_000n),
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,
     approval: p.approval,
-    approvals: { threshold: p.threshold, approved: p.approvedBy.length },
+    approvals: approvalStatus(p, getOrg(p.orgId)),
     rehearsal: p.rehearsal,
     timeline: p.timeline,
     finalized: p.execution.finalizedAt !== null,
@@ -1975,17 +2338,36 @@ export async function receiptView(receiptId: string) {
     paymentId: e.paymentId,
     simulated: e.anchor.simulated || e.bundle.receipt.simulated,
     companyName: org.companyName,
-    summary: {
-      supplierName: inv.confirmed!.supplierName,
-      bank: inv.confirmed!.supplierBank,
-      accountLast4: inv.confirmed!.supplierAccountLast4,
-      invoiceNumber: inv.confirmed!.invoiceNumber,
-      receivePhpMinor: e.bundle.quotedRoute.netLocal.amountMinor,
-      youPayUsdcMinor: e.bundle.quotedRoute.source.amountMinor,
-      paidAt: p.timeline.paidAt ?? null,
-      bankReference: e.bundle.bank.reference,
-      partnerLabel: rt.partner.entry.name,
-    },
+    summary:
+      e.bundle.kindName === 'peer_transfer'
+        ? {
+            kind: 'peer' as const,
+            supplierName: e.bundle.payee.name,
+            bank: 'Splash',
+            accountLast4: '',
+            invoiceNumber: inv.confirmed!.invoiceNumber,
+            receivePhpMinor: 0n,
+            receiveUsdMinor: e.bundle.amount.amountMinor,
+            youPayUsdcMinor: e.bundle.amount.amountMinor,
+            paidAt: p.execution.confirmedAt ?? null,
+            bankReference: null,
+            partnerLabel: null,
+            note: inv.peer?.note ?? null,
+          }
+        : {
+            kind: 'bank' as const,
+            supplierName: inv.confirmed!.supplierName,
+            bank: inv.confirmed!.supplierBank,
+            accountLast4: inv.confirmed!.supplierAccountLast4,
+            invoiceNumber: inv.confirmed!.invoiceNumber,
+            receivePhpMinor: e.bundle.quotedRoute.netLocal.amountMinor,
+            receiveUsdMinor: null,
+            youPayUsdcMinor: e.bundle.quotedRoute.source.amountMinor,
+            paidAt: p.timeline.paidAt ?? null,
+            bankReference: e.bundle.bank.reference,
+            partnerLabel: rt.partner.entry.name,
+            note: null,
+          },
     bundle: e.bundle,
     leafHex: e.leafHex,
     proof: e.proof,

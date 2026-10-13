@@ -41,6 +41,14 @@ const ALLOWED = new Set(
   ].map((p) => path.normalize(p)),
 );
 
+/**
+ * The locked tables (prompt 10 Phase S): full bank numbers, sealed, and the log of who asked to see
+ * one. Only their store touches them, so every read names the company and nothing reads a ciphertext
+ * sideways. The schema declares them; nothing else may name them.
+ */
+const LOCKED_TABLES = /\b(bankAccountSecrets|bankAccountReveals|bank_account_secrets|bank_account_reveals)\b/;
+const LOCKED_OWNERS = new Set(['lib/solana-app/bank-secret-store.ts', 'lib/db/schema.ts'].map((p) => path.normalize(p)));
+
 const ROOTS = ['app', 'lib', 'components'];
 const SKIP = new Set(['node_modules', '.next', '.git', 'dist', 'build']);
 
@@ -90,12 +98,19 @@ for (const root of ROOTS) {
             `use the store, which scopes the read and works against Postgres.`,
         );
       }
+      const locked = LOCKED_OWNERS.has(path.normalize(file)) ? null : LOCKED_TABLES.exec(raw);
+      if (locked) {
+        violations.push(
+          `${file.replace(/\\/g, '/')}:${line} names ${locked[1]} — bank numbers are read and written only ` +
+            `through lib/solana-app/bank-secret-store.ts (runtime().secrets).`,
+        );
+      }
     }
   }
 }
 
 if (violations.length > 0) {
-  console.error('An operations map is reached from outside its store:\n');
+  console.error('A store is reached from outside itself:\n');
   for (const violation of violations) console.error(`  ✖ ${violation}`);
   console.error(
     '\nThese maps are the no-database fallback inside a store module. Read through\n' +
@@ -107,5 +122,5 @@ if (violations.length > 0) {
 
 console.log(
   `Store access is private: ${OWNED.length} operations map(s), reached only from ` +
-    `${ALLOWED.size} owning module(s).`,
+    `${ALLOWED.size} owning module(s); the bank-number tables only from their store.`,
 );

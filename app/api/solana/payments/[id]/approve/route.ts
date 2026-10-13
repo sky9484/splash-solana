@@ -2,7 +2,7 @@ import { after } from 'next/server';
 
 import { withCompany } from '@/lib/solana-app/company';
 import { paymentFor, readBody, schemas } from '@/lib/solana-app/http';
-import { deliverPartnerEvents, noteProblem, paymentView, submitApproval } from '@/lib/solana-app/service';
+import { deliverPartnerEvents, noteProblem, paymentView, resumePayment, submitApproval } from '@/lib/solana-app/service';
 import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
@@ -21,8 +21,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await requireMoneyGates(ctx);
     await paymentFor(id, ctx.orgId);
     const p = await submitApproval(id, { signatures: body.signatures, who: ctx.personName });
+    // A payment to a Splash business is in their account once confirmed: its proof follows (no partner).
+    if (p.state === 'confirmed' && p.kind === 'peer') {
+      after(async () => {
+        await withCompany(ctx.orgId, () => resumePayment(id)).catch((e) => console.error('[api/solana] peer proof', e));
+      });
+    }
     // Only once the execute is confirmed does the mock partner look at its deposit address.
-    if (p.state === 'confirmed') {
+    if (p.state === 'confirmed' && p.kind !== 'peer') {
       after(async () => {
         await new Promise((r) => setTimeout(r, 1500));
         await withCompany(ctx.orgId, async () => {
