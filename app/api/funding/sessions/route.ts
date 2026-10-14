@@ -17,11 +17,11 @@ const usdSelectionSchema = z.object({
 });
 
 const stablecoinSelectionSchema = z.object({
-  source: z.enum(['USDC', 'USDSUI', 'USDT']),
+  source: z.literal('USDC'),
   type: z.literal('stablecoin'),
-  asset: z.enum(['USDC', 'USDSUI', 'USDT']),
-  rail: z.enum(['SUI_NATIVE', 'CCTP']),
-  sourceChain: z.enum(['ETHEREUM', 'SOLANA', 'BASE', 'ARBITRUM']).optional(),
+  asset: z.literal('USDC'),
+  rail: z.enum(['SOLANA', 'CCTP']),
+  sourceChain: z.enum(['ETHEREUM', 'BASE', 'ARBITRUM']).optional(),
   feeTier: z.literal('DISCOUNT'),
 });
 
@@ -52,11 +52,18 @@ export async function POST(request: Request) {
 
   try {
     const amountExpectedMicro = Math.round(parsed.data.amountUsd * 1_000_000);
+    // Native USDC deposits go to the org's own vault; read it, never derive one.
+    let vaultAddress: string | null = null;
+    if (process.env.DATABASE_URL) {
+      const [{ getDb }, { findOrgVault }] = await Promise.all([import('@/lib/db/client'), import('@/lib/auth/devices')]);
+      vaultAddress = (await findOrgVault(getDb(), orgId))?.vaultPda ?? null;
+    }
     const session = createFundingSession({
       orgId,
       businessAccountId: accountId,
       selection: parsed.data.selection as FundingSelection,
       amountExpectedMicro,
+      vaultAddress,
     });
     const qrDataUrl = session.depositUri
       ? await QRCode.toDataURL(session.depositUri, {

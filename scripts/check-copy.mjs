@@ -62,7 +62,7 @@ const banned = [
 // OwnerCap. A guard that fights the work it is meant to protect gets
 // weakened, so it stops at the surfaces a reader actually reads.
 //
-// SECURITY.md and STATUS.md keep the record of what was removed and why.
+// SECURITY.md and docs/prior-work/STATUS-sui-build.md keep the record of what was removed and why.
 const claimSurfaceBanned = [
   /\bBitGo\b/i,
   /\bCoKeeps\b/i,
@@ -102,7 +102,7 @@ const allowedHexes = new Set([
   '#d9fff6', '#e0b05a', '#e7eef0', '#eaf6f1', '#eaf7f8', '#ede8e4', '#eef4f5',
   '#efc46f', '#f4efe4', '#f4f8fa', '#f8fcfd', '#ffd9c9', '#ffe6a4', '#fffaf6',
   '#fffdf9',
-  // Google's brand mark, in components/auth/ZkLoginButton.tsx. These four are
+  // Google's brand mark, in components/auth/GoogleSignInButton.tsx. These four are
   // fixed by Google's identity guidelines and are not Splash palette: they
   // cannot become tokens, because a token implies we may change them. Inline
   // rather than an <img> so the sign-in button needs no network request to

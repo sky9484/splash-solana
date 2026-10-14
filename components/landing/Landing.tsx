@@ -29,15 +29,15 @@ export const LANDING_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'How long does it take?',
-    a: 'The settlement step is final in under a second. Delivery to a Philippine bank or wallet depends on the local rail, and the quote shows the expected time before you approve.',
+    a: "The payment settles in USDC on Solana once a person approves it. A payout partner then delivers it to the supplier's bank, and the time that takes depends on the local rail; the quote shows the expected time before you approve.",
   },
   {
     q: 'Does the assistant move money?',
-    a: 'No. The assistant can prepare a payment and suggest a batch. A person approves every payment, and nothing moves without that approval.',
+    a: 'No. Zeke, the assistant, drafts a payment and can suggest a batch. It cannot sign or send. A person approves every payment with their device key, and nothing moves without that approval.',
   },
   {
     q: 'Can Splash hold a balance for me or my supplier?',
-    a: 'Not yet. Holding customer funds needs a money-broking licence Splash does not hold. Today Splash pays out only: the supplier is paid, and nothing is kept on your behalf.',
+    a: "No. Splash never holds the money. It sits in your business's own Squads vault, and no Splash key can move it. The supplier is paid from there, and nothing is kept on your behalf.",
   },
 ];
 
@@ -147,7 +147,7 @@ export default function Landing() {
                 </div>
                 <div className="ld-record-row">
                   <dt>Settled</dt>
-                  <dd>Final on Sui, time-stamped</dd>
+                  <dd>On Solana, time-stamped</dd>
                 </div>
                 <div className="ld-record-row">
                   <dt>Reference</dt>
@@ -262,7 +262,7 @@ export default function Landing() {
               sides.
             </p>
             <p>
-              Sandbox on the Sui testnet. No customer funds move. Support:{' '}
+              Sandbox on Solana devnet. No customer funds move. Support:{' '}
               <a className="ld-link" href={`mailto:${BRAND.supportEmail}`}>
                 {BRAND.supportEmail}
               </a>

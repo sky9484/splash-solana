@@ -122,17 +122,80 @@ function dummyHash(): Promise<string> {
 /**
  * Mark an address proven.
  *
- * Reached from exactly two places: the zkLogin route, when the provider's
- * token carries the boolean claim `email_verified: true`, and
- * `lib/auth/email-verification.ts`, when a link delivered to the mailbox is
- * opened. The first proof time is kept — proving an address twice does not
- * move the date it was first proven.
+ * Proving a mailbox through a delivered link goes through
+ * `lib/auth/email-verification.ts`, and through Google through
+ * `linkVerifiedIdentity` below; both also move the credential version. This
+ * is the bare marker, for the seed and for operators. The first proof time is
+ * kept — proving an address twice does not move the date it was first proven.
  */
 export async function markEmailVerified(db: DrizzleDb, email: string, now = new Date()): Promise<void> {
   await db
     .update(users)
     .set({ emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, ${now}::timestamptz)`, updatedAt: now })
     .where(eq(users.email, norm(email)));
+}
+
+export type LinkedIdentity = AccountIdentity & { outcome: 'created' | 'claimed' | 'existing' };
+
+/**
+ * Sign-in with an email that an identity provider has proven (Google's
+ * `email_verified: true`). Links by verified email, never by anything else.
+ *
+ *   - no account:            create one with NO password, already verified, and
+ *                            no membership (same fail-closed start as signup);
+ *   - unverified account:    the provider's proof is the first proof of this
+ *                            mailbox, so it is handled like opening a delivered
+ *                            link: the address is marked proven, the credential
+ *                            version moves (every earlier session dies), and the
+ *                            password is DISCARDED. Whoever typed it never proved
+ *                            the mailbox; keeping it is the pre-account-hijack
+ *                            hole (sign up first with the victim's email, wait for
+ *                            them to verify, then log in with your own password);
+ *   - verified account:      nothing changes; the session links to it.
+ *
+ * Never grants a membership.
+ */
+export async function linkVerifiedIdentity(
+  db: DrizzleDb,
+  input: { email: string; name?: string; now?: Date },
+): Promise<LinkedIdentity> {
+  const email = norm(input.email);
+  const now = input.now ?? new Date();
+  const existing = await findAccount(db, email);
+
+  if (!existing) {
+    const userId = userIdFromEmail(email);
+    const name = input.name?.trim() || email.split('@')[0] || 'member';
+    await db
+      .insert(users)
+      .values({ id: userId, email, name, passwordHash: null, emailVerifiedAt: now })
+      .onConflictDoNothing();
+    const created = await findAccount(db, email);
+    if (!created) throw new Error(`account for ${email} could not be created`);
+    // A concurrent insert won the race: treat it as whatever it now is.
+    if (created.userId !== userId || !created.emailVerifiedAt) return linkVerifiedIdentity(db, input);
+    return { ...stripVerified(created), outcome: 'created' };
+  }
+
+  if (existing.emailVerifiedAt) return { ...stripVerified(existing), outcome: 'existing' };
+
+  const rows = await db
+    .update(users)
+    .set({
+      passwordHash: null,
+      emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, ${now}::timestamptz)`,
+      credentialVersion: sql`${users.credentialVersion} + 1`,
+      updatedAt: now,
+    })
+    .where(eq(users.id, existing.userId))
+    .returning({ userId: users.id, email: users.email, name: users.name, credentialVersion: users.credentialVersion });
+  const row = rows[0];
+  if (!row) throw new Error(`account for ${email} disappeared while being linked`);
+  return { ...row, outcome: 'claimed' };
+}
+
+function stripVerified(account: AccountStatus): AccountIdentity {
+  return { userId: account.userId, email: account.email, name: account.name, credentialVersion: account.credentialVersion };
 }
 
 export async function findAccount(db: DrizzleDb, email: string): Promise<AccountStatus | null> {

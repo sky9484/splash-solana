@@ -1,15 +1,11 @@
 /**
  * Application idle timeout: fifteen minutes.
  *
- * Distinct from `maxEpoch`, and deliberately much shorter. `maxEpoch` bounds
- * how long a zkLogin ephemeral KEY can produce a valid signature — a
- * network-level ceiling of roughly a day, fixed at sign-in and unchangeable.
- * This bounds how long an unattended BROWSER stays authenticated.
- *
- * They must not be the same number. Tie the session to `maxEpoch` and a laptop
- * left open in a café stays able to raise payments until tomorrow; tie
- * `maxEpoch` to fifteen minutes and a signing key dies during a coffee break,
- * forcing a fresh OAuth round trip to finish approving something.
+ * This bounds how long an unattended BROWSER stays signed in. It is not what
+ * protects money: a payment also needs the member's device key to sign, and
+ * that key never leaves the device it was made on (lib/solana/device-key.ts).
+ * A laptop left open in a café still should not stay able to raise payments
+ * until tomorrow, so the sign-in itself goes quiet after fifteen minutes.
  *
  * The clock is server-side. `lastSeenAt` is re-stamped on the session cookie
  * as requests arrive, so a client cannot extend its own session by lying: the
@@ -48,13 +44,4 @@ export function evaluateIdle(lastSeenMs: number | undefined, nowMs: number = Dat
   const idleMs = nowMs - lastSeenMs;
   if (idleMs >= IDLE_TIMEOUT_MS) return { state: 'expired', idleMs };
   return { state: 'active', idleMs, refresh: idleMs >= IDLE_REFRESH_INTERVAL_MS };
-}
-
-/**
- * The idle window must always close before the ephemeral key expires,
- * whatever epoch length the network reports. Asserted by the test suite
- * rather than assumed.
- */
-export function idleWindowIsShorterThan(maxEpochValidityMs: number): boolean {
-  return IDLE_TIMEOUT_MS < maxEpochValidityMs;
 }

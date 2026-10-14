@@ -33,9 +33,9 @@ export function ProgressLine({ payment }: { payment: PaymentDTO }) {
               </span>
               <span className="sx-stop-meta">{s.at ? timeShort(s.at) : current?.key === s.key ? 'Waiting…' : ''}</span>
               {s.at && s.sig ? (
-                s.sig.explorerUrl ? (
-                  <a className="sx-stop-meta" href={s.sig.explorerUrl} target="_blank" rel="noreferrer">
-                    View transaction
+                s.sig.solscanUrl ? (
+                  <a className="sx-stop-meta" href={s.sig.solscanUrl} target="_blank" rel="noreferrer">
+                    View on Solscan
                   </a>
                 ) : (
                   <span className="sx-stop-meta" title={s.sig.signature}>

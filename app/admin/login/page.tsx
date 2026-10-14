@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
         </div>
         <div className="admin-login-art">
           <Image src="/isometric/secure.svg" alt="Isometric verified security shield" width={1448} height={1086} priority />
-          <div><i /><strong>Control room live</strong><small>Sui settled / Walrus verified</small></div>
+          <div><i /><strong>Control room live</strong><small>Every payment approved, every record kept</small></div>
         </div>
         <div className="admin-login-signals">
           <span><ShieldCheck aria-hidden="true" /><strong>KYB review</strong><small>Evidence connected</small></span>

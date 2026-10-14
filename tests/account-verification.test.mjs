@@ -72,7 +72,7 @@ async function userRow(db, email) {
 }
 
 /** The demo organisation every desk proposal is booked under. Pinned: the seed,
- *  the zkLogin route and the tests all agree on it, and a silent rename would
+ *  the desk and the tests all agree on it, and a silent rename would
  *  strand every membership granted against the old id. */
 test('the demo org id is pinned', () => {
   assert.equal(DEFAULT_ORG_ID, 'demo-business');
@@ -410,16 +410,13 @@ test('signup delivers a verification link, and verify-email mints no session', a
   assert.match(resend, /202/, 'resend answers the same way whether or not the address exists');
 });
 
-test('zkLogin marks the mailbox proven only when the provider asserts email_verified: true', async () => {
-  const { readEmailVerifiedClaim } = await import('../lib/auth/zklogin.ts');
-  assert.equal(typeof readEmailVerifiedClaim, 'function');
-  assert.equal(readEmailVerifiedClaim({ email_verified: true }), true);
-  assert.equal(readEmailVerifiedClaim({ email_verified: 'true' }), false, 'a string is not the boolean the spec defines');
-  assert.equal(readEmailVerifiedClaim({ email_verified: false }), false);
-  assert.equal(readEmailVerifiedClaim({}), false);
-
-  const route = code(await readFile(new URL('../app/api/auth/zklogin/route.ts', import.meta.url), 'utf8'));
-  assert.match(route, /emailVerified\s*===\s*true[\s\S]{0,300}markEmailVerified/, 'the route reads the claim; it does not assume');
+test('Google sign-in proves the mailbox only after the token, with email_verified: true, has verified', async () => {
+  // The claim itself is checked strictly in lib/auth/google-oidc.ts
+  // (tests/google-oidc.test.mjs: absent, false and "true" all refuse). Here:
+  // the route links an account only AFTER that verification, never before.
+  const route = code(await readFile(new URL('../app/api/auth/google/callback/route.ts', import.meta.url), 'utf8'));
+  assert.match(route, /verifyGoogleIdToken\([\s\S]*linkVerifiedIdentity\(/, 'verify first, then link');
+  assert.doesNotMatch(route, /markEmailVerified/, 'linking goes through linkVerifiedIdentity, which also kills an unproven password');
 });
 
 test('resend and signup are rate limited per address and per IP', async () => {

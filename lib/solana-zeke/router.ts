@@ -36,7 +36,7 @@ export interface RouterOutput {
   alternative: RouterExplanation | null;
 }
 
-const LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Fastest', safest: 'Safest' };
+const LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Shortest route', safest: 'Safest' };
 const ORDER: Policy[] = ['cheapest', 'fastest', 'safest'];
 
 function groupThousands(intPart: string): string {
@@ -61,12 +61,12 @@ export function formatPct(bps: number): string {
   return `${(Math.round(bps) / 100).toFixed(2)}%`;
 }
 
+/** The rail that reaches the bank, never an arrival time: Zeke states no speed (prompt 07 §0.6). */
 function arrivalPhrase(q: RouteQuote): string {
   const partner = q.steps.find((s) => s.kind === 'partner');
-  if (partner?.provider.includes('PESONet')) return 'arrives same banking day';
-  if (partner?.provider.includes('InstaPay')) return 'arrives within minutes';
-  const hours = Math.max(1, Math.round(q.etaSec / 3600));
-  return `arrives in about ${hours} hour${hours === 1 ? '' : 's'}`;
+  if (partner?.provider.includes('PESONet')) return 'paid out by PESONet';
+  if (partner?.provider.includes('InstaPay')) return 'paid out by InstaPay';
+  return "paid out by the partner's bank transfer";
 }
 
 function routePhrase(q: RouteQuote): string {

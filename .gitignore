@@ -81,3 +81,5 @@ next-env.d.ts
 .dev-*.log
 /public/_previews/
 .tmp-*.mjs
+# the browser walkthrough's own dev server output (next.config.ts NEXT_DIST_DIR)
+/.next-e2e/

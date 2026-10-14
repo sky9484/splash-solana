@@ -65,7 +65,7 @@ export function quoteRoutes(input: EngineInput): EngineResult {
     const affordable: RouteQuote[] = [];
     for (const p of priced) {
       if (p.quote.source.amountMinor > input.senderBalanceUsdcMinor) {
-        excluded.push({ kind: p.kind, policy, reason: 'insufficient_balance', detail: `needs ${p.quote.source.amountMinor}, balance ${input.senderBalanceUsdcMinor}` });
+        excluded.push({ kind: p.kind, policy, reason: 'insufficient_balance', detail: `needs ${p.quote.source.amountMinor}, balance ${input.senderBalanceUsdcMinor}`, neededMinor: p.quote.source.amountMinor });
         continue;
       }
       affordable.push(p.quote);

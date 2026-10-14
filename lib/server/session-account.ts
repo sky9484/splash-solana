@@ -10,11 +10,10 @@
  * another org's funded account and spend it — Invariant #8 (the client is never
  * authoritative) applied to the one field that decides whose money moves.
  *
- * The resolution order deliberately mirrors what the routes did before, minus
- * the client input, so existing single-tenant ledger balances keep their key:
- *   1. `organizations.sui_business_account_id` for the caller's org (multi-tenant)
- *   2. `SPLASH_BUSINESS_ACCOUNT_ID` (the single-tenant demo workspace)
- *   3. `dashboard-primary` (no chain config at all — local dev)
+ * Resolution, per org and from the database only:
+ *   1. the org's earlier ledger key, so existing balances keep their key
+ *   2. the org's Squads vault address (lib/compliance/org-kyb.ts)
+ *   3. `dashboard-primary` (no database, or no vault yet — local dev)
  */
 import { UnauthorizedError, resolveAuthorityForSession } from '@/lib/auth/authority';
 import { resolveBusinessAccountId } from '@/lib/compliance/org-kyb';
@@ -34,8 +33,7 @@ export async function resolveSessionAccount(session: CustomerSession): Promise<S
   try {
     return { orgId: ctx.orgId, accountId: await resolveBusinessAccountId(ctx.orgId) };
   } catch {
-    // `resolveBusinessAccountId` throws when the org has no on-chain account and
-    // no env fallback. That is a legitimate local-dev state, not an auth
+    // `resolveBusinessAccountId` throws when the org has no vault yet. That is a legitimate local-dev state, not an auth
     // failure — but it must never widen into "use whatever the client asked
     // for", so it collapses to a single fixed key.
     return { orgId: ctx.orgId, accountId: FALLBACK_ACCOUNT_ID };

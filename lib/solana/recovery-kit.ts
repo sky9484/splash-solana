@@ -209,7 +209,16 @@ export interface PossessionChallenge {
   expiresAt: string;
 }
 
-const POP_DOMAIN = 'splash:pop:v1';
+/**
+ * Every challenge a device key signs starts `splash:challenge:v1:` (prompt 07
+ * §4.3). Its first byte, 's' (0x73), is not an evidence-layer intent scope and
+ * lacks the versioned-message bit a Solana v0 message carries, and the text is
+ * far longer than the 32-byte digests the key signs for evidence
+ * (lib/evidence-sui/device-sui-signer.ts) — so a signature over it is never
+ * valid as a transaction on either chain.
+ */
+export const CHALLENGE_PREFIX = 'splash:challenge:v1:';
+const POP_DOMAIN = `${CHALLENGE_PREFIX}pop`;
 
 /** Server side: issue a nonce bound to the org and the claimed key. */
 export function createPossessionChallenge(orgId: string, publicKey: string, now = new Date(), ttlSec = 300): PossessionChallenge {

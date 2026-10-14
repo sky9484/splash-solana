@@ -8,7 +8,7 @@
  * copy that a permitted reader decrypts to re-derive the leaf.
  *
  *   InMemoryEvidenceStore   offline / tests
- *   createWalrusEvidenceStore()  placeholder over lib/server/walrus.ts, loaded
+ *   createWalrusEvidenceStore()  placeholder over lib/evidence-sui/walrus.ts, loaded
  *                           lazily so importing this module reads no env and
  *                           pulls in no server code. Not exercised offline.
  */
@@ -56,7 +56,7 @@ export class InMemoryEvidenceStore implements EvidenceStore {
 
 /** Placeholder adapter over the existing Walrus module. Server-side only. */
 export function createWalrusEvidenceStore(): EvidenceStore {
-  const load = () => import('../server/walrus.ts');
+  const load = () => import('../evidence-sui/walrus.ts');
   return {
     async put(_bundleId, ciphertext) {
       assertCiphertext(ciphertext);

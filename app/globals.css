@@ -1065,15 +1065,6 @@ body {
   gap: 8px;
 }
 
-.iso-deepbook-logo {
-  filter: brightness(0) saturate(100%) invert(20%) sepia(16%) saturate(1679%) hue-rotate(142deg) brightness(91%);
-}
-
-.iso-airwallex-logo {
-  padding: 0;
-  background: transparent;
-}
-
 .iso-partner-item {
   display: grid;
   min-height: 100px;
@@ -1588,13 +1579,13 @@ body {
   gap: 14px;
   margin-top: 26px;
 }
-.iso-gasless-note {
+.iso-fee-note {
   max-width: 560px;
   color: var(--iso-text-muted);
   font-size: 12.5px;
   line-height: 1.55;
 }
-.iso-gasless-note strong { color: var(--iso-teal-dark); font-weight: 800; }
+.iso-fee-note strong { color: var(--iso-teal-dark); font-weight: 800; }
 
 @media (max-width: 900px) {
   .iso-wheel-orbit { display: none; }
@@ -3983,7 +3974,7 @@ body {
 
 .iso-footer p,
 .iso-footer > .iso-shell > small {
-  color: rgba(12, 62, 72, .66);
+  color: rgba(12, 62, 72, .86); /* 4.5:1 on the footer paper; .66 measured 4.2:1 */
   font-size: 12px;
   line-height: 1.6;
 }
@@ -7980,7 +7971,6 @@ button.iso-product-row {
 
   /* Footer: status line, legal, ticker and copyright. */
   .iso-landing .cin-footer-status span,
-  .iso-landing .cin-footer-col small,
   .iso-landing .cin-footer-tick,
   .iso-landing .cin-footer-bar span { font-size: 11px; }
 }
@@ -8144,8 +8134,8 @@ button.iso-product-row {
   .fintech-dashboard-shell .dash-block-interactive:hover { transition: none; transform: none; }
 }
 
-/* ─── zkLogin sign-in ─────────────────────────────────────────────────────
-   The Google button and its divider. Sized to the password submit beside it
+/* ─── Google sign-in ──────────────────────────────────────────────────────
+   The Google button and its divider (components/auth/GoogleSignInButton.tsx). Sized to the password submit beside it
    so neither reads as the primary path: proving identity with a provider and
    proving it with a password are the same act, and the page should not push
    one over the other. */
@@ -8185,6 +8175,11 @@ button.iso-product-row {
   transition: border-color .15s ease, background .15s ease;
 }
 
+.iso-auth-oauth:focus-visible {
+  outline: 2px solid var(--iso-teal);
+  outline-offset: 2px;
+}
+
 .iso-auth-oauth:hover:not(:disabled) {
   border-color: rgba(12, 62, 72, .4);
   background: #fffdf9;
@@ -8200,15 +8195,6 @@ button.iso-product-row {
   color: var(--iso-text-muted);
   font-size: 12.5px;
   line-height: 1.5;
-  text-align: center;
-}
-
-.iso-auth-callback {
-  display: grid;
-  gap: 14px;
-  place-content: center;
-  min-height: 60vh;
-  padding: 40px 24px;
   text-align: center;
 }
 
@@ -8266,8 +8252,8 @@ button.iso-product-row {
   font-weight: 700;
 }
 
-/* The derived Sui address. Mono and tabular so it can be compared character by
-   character against what an explorer shows. */
+/* An address or key shown for comparison. Mono and tabular so it can be compared
+   character by character against what an explorer shows. */
 .iso-passkey-address {
   overflow-wrap: anywhere;
   color: var(--iso-teal);
@@ -8360,4 +8346,17 @@ button.iso-product-row {
   .legal-prose h2 { font-size: 17.5px; margin-top: 30px; }
   .legal-prose p,
   .legal-prose li { font-size: 14.5px; }
+}
+
+/* The third hero token (rupiah). It takes the slot and sizes the retired
+   network token held in styles/cinematic.css, so the hero composition is
+   unchanged. */
+.cin-token-idr { bottom: 13%; right: 4%; --token-size: 200px; transform: rotate(7deg); }
+
+@media (max-height: 760px) {
+  .cin-token-idr { --token-size: 150px; }
+}
+
+@media (max-width: 880px) {
+  .cin-token-idr { bottom: 9%; right: 3%; --token-size: 130px; }
 }

@@ -6,7 +6,7 @@
  */
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 
-import { bundleLeaf, EVIDENCE_BUNDLE_VERSION, EVIDENCE_KIND_CORRIDOR_PAYOUT, type CorridorPayoutBundle } from './bundle.ts';
+import { bundleLeaf, EVIDENCE_BUNDLE_VERSION, EVIDENCE_KIND_CORRIDOR_PAYOUT, walrusBlobIdsRoot, type CorridorPayoutBundle } from './bundle.ts';
 import { rootFromProof, type MerkleProof } from './merkle.ts';
 
 export interface AnchoredRoot {
@@ -15,6 +15,8 @@ export interface AnchoredRoot {
   count: number;
   periodStart?: bigint;
   periodEnd?: bigint;
+  /** SAS v2 only: sha256 over the batch's sorted Walrus blob ids. */
+  walrusBlobIdsRoot?: string;
   /** Transaction signature of the anchor, if known. */
   signature?: string;
   /** true when the anchor came from the offline simulator (I-7). */
@@ -22,7 +24,7 @@ export interface AnchoredRoot {
 }
 
 export interface VerifyCheck {
-  name: 'bundle_shape' | 'leaf' | 'proof' | 'root_matches_anchor' | 'count_matches_anchor' | 'period' | 'simulated_label';
+  name: 'bundle_shape' | 'leaf' | 'proof' | 'root_matches_anchor' | 'count_matches_anchor' | 'period' | 'blob_ids' | 'simulated_label';
   passed: boolean;
   detail: string;
 }
@@ -36,8 +38,8 @@ export interface VerifyResult {
   checks: VerifyCheck[];
 }
 
-/** Decode SAS attestation data for splash.evidence.root.v1 (borsh: Vec<u8>, u32, i64, i64, String). */
-export function decodeRootAttestationData(data: Uint8Array): { rootHex: string; count: number; periodStart: bigint; periodEnd: bigint; suiDigest: string } {
+/** Decode SAS attestation data for splash.evidence.root.v2 (borsh: Vec<u8>, u32, i64, i64, String). */
+export function decodeRootAttestationData(data: Uint8Array): { rootHex: string; count: number; periodStart: bigint; periodEnd: bigint; walrusBlobIdsRoot: string } {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let o = 0;
   const need = (n: number) => {
@@ -62,15 +64,16 @@ export function decodeRootAttestationData(data: Uint8Array): { rootHex: string; 
   const sLen = view.getUint32(o, true);
   o += 4;
   need(sLen);
-  const suiDigest = new TextDecoder('utf-8', { fatal: true }).decode(data.slice(o, o + sLen));
+  const walrusBlobIdsRoot = new TextDecoder('utf-8', { fatal: true }).decode(data.slice(o, o + sLen));
+  if (!/^[0-9a-f]{64}$/.test(walrusBlobIdsRoot)) throw new Error('walrus_blob_ids_root is not 32-byte hex');
   o += sLen;
   if (o !== data.length) throw new Error('trailing bytes in attestation data');
-  return { rootHex, count, periodStart, periodEnd, suiDigest };
+  return { rootHex, count, periodStart, periodEnd, walrusBlobIdsRoot };
 }
 
 export function anchoredRootFromSas(data: Uint8Array, meta: { signature?: string; simulated: boolean }): AnchoredRoot {
   const d = decodeRootAttestationData(data);
-  return { method: 'sas', rootHex: d.rootHex, count: d.count, periodStart: d.periodStart, periodEnd: d.periodEnd, ...meta };
+  return { method: 'sas', rootHex: d.rootHex, count: d.count, periodStart: d.periodStart, periodEnd: d.periodEnd, walrusBlobIdsRoot: d.walrusBlobIdsRoot, ...meta };
 }
 
 const MEMO = /^splash:root:v1:([0-9a-f]{64}):([1-9]\d{0,9})$/;
@@ -81,8 +84,14 @@ export function anchoredRootFromMemo(memo: string, meta: { signature?: string; s
   return { method: 'memo', rootHex: m[1], count: Number(m[2]), ...meta };
 }
 
-export function verifyBundle(params: { bundle: CorridorPayoutBundle; proof: MerkleProof; anchor: AnchoredRoot }): VerifyResult {
-  const { bundle, proof, anchor } = params;
+export function verifyBundle(params: {
+  bundle: CorridorPayoutBundle;
+  proof: MerkleProof;
+  anchor: AnchoredRoot;
+  /** The batch's Walrus blob ids, when the verifier has them: checked against a v2 anchor. */
+  blobIds?: readonly string[];
+}): VerifyResult {
+  const { bundle, proof, anchor, blobIds } = params;
   const checks: VerifyCheck[] = [];
   let leafHex: string | null = null;
   let computedRootHex: string | null = null;
@@ -123,6 +132,16 @@ export function verifyBundle(params: { bundle: CorridorPayoutBundle; proof: Merk
     const t = Number.isFinite(ms) ? BigInt(Math.floor(ms / 1000)) : null;
     const inPeriod = t !== null && t >= anchor.periodStart && t < anchor.periodEnd;
     checks.push({ name: 'period', passed: inPeriod, detail: inPeriod ? 'bundle inside the anchored period' : 'bundle outside the anchored period' });
+  }
+
+  if (anchor.walrusBlobIdsRoot !== undefined && blobIds !== undefined) {
+    let blobsOk = false;
+    try {
+      blobsOk = walrusBlobIdsRoot(blobIds) === anchor.walrusBlobIdsRoot;
+    } catch {
+      blobsOk = false;
+    }
+    checks.push({ name: 'blob_ids', passed: blobsOk, detail: blobsOk ? 'the anchor binds exactly these Walrus blobs' : 'the Walrus blob ids differ from the anchored set' });
   }
 
   // I-7: a simulated receipt must say so; a simulated anchor cannot back a receipt claiming to be real.

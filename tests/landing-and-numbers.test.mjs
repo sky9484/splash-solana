@@ -202,9 +202,14 @@ test('the landing is the v1 cinematic: sections in order, supply on its own page
   assert.doesNotMatch(landing, /id="supply"/, 'supply must not be a landing section');
   assert.match(landing, /href="\/working-capital"/, 'loop 03 links the supply page');
 
-  // Two ways into a payment: an invoice, or a transfer filled in by hand.
-  assert.match(landing, /Invoice in, or type it in/);
-  assert.match(landing, /Manual transfer branch/);
+  // How it works is the four steps prompt 07 §6.1 names, in order.
+  const steps = ["title: 'Your vault'", "title: 'Best route by pesos received'", "title: 'A person approves'", "'Proof saved: encrypted on Walrus, anchored on Solana'"];
+  const at = steps.map((s) => landing.indexOf(s));
+  assert.ok(at.every((i) => i >= 0), 'every step is on the landing');
+  assert.deepEqual([...at].sort((a, b) => a - b), at, 'in this order');
+  assert.doesNotMatch(landing, /Manual transfer branch|Five steps/, 'the earlier five-step flow is gone');
+  // The footer carries the one tech line §6.1 asks for.
+  assert.match(landing, /Settlement on Solana · Evidence encrypted with Seal, stored on Walrus/);
 
   // The control plane reveals inside the copilot section, on demand.
   assert.match(landing, /aria-controls="control-plane"/);
@@ -212,9 +217,22 @@ test('the landing is the v1 cinematic: sections in order, supply on its own page
 
   // The truth rules, unchanged from the WS9 version of this test: no licence
   // or regulator claim, no dead entity, no protocol vocabulary, no three.js.
+  // Walrus is named only in the two lines §6.1 asks for (scripts/copy-rules.mjs SANCTIONED_TECH_LINES).
+  const { SANCTIONED_TECH_LINES } = await import('../scripts/copy-rules.mjs');
+  const unsanctioned = SANCTIONED_TECH_LINES.reduce((text, line) => text.split(line).join(''), landing);
   for (const banned of [/Licensed[- ]partner/i, /Splash Financial/i, /Labuan FSA/, /\bBNM\b/, /\bBSP\b/, /Walrus/i, /audit spine/i, /from 'three'|@react-three/]) {
-    assert.doesNotMatch(landing, banned, `${banned} must not be on the landing`);
+    assert.doesNotMatch(unsanctioned, banned, `${banned} must not be on the landing`);
   }
+
+  // Settlement moved to Solana: the landing and its hero name no Sui
+  // settlement, quote no speed figure, and keep no MemWal or DeepBook.
+  const cinematic = await source('components/landing/SettlementCinematic.tsx');
+  for (const surface of [landing, cinematic]) {
+    for (const banned of [/\bSui\b/i, /MemWal/i, /DeepBook/i, /lockedCopy\.(?:speed|yield)/, /\d+\s?ms\b/, /\bAPY\b/]) {
+      assert.doesNotMatch(surface, banned, `${banned} must not be on the landing`);
+    }
+  }
+  assert.match(cinematic, /Pay suppliers abroad\./, 'the approved hero');
 
   const page = await source('app/page.tsx');
   assert.match(page, /<IsometricLanding/);
@@ -274,7 +292,7 @@ test('the copy lint gives a reason for every rule, fails on a planted "licensed 
 
   // Protocol jargon is banned on marketing routes and nowhere else.
   assert.ok(copyViolations('components/landing/Landing.tsx', 'Receipts live on Walrus and are anchored on-chain.').length >= 2);
-  assert.deepEqual(copyViolations('lib/server/walrus.ts', 'Walrus blob store'), []);
+  assert.deepEqual(copyViolations('lib/evidence-sui/walrus.ts', 'Walrus blob store'), []);
   assert.deepEqual(copyViolations('app/dashboard/receipts/page.tsx', 'Walrus blob id'), [], 'the dashboard may say what it does');
   assert.ok(copyViolations('app/page.tsx', 'alt="a payment intent on the audit spine"').length >= 2, 'alt text and JSON-LD are scanned too');
 

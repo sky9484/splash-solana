@@ -25,7 +25,6 @@ import {
 import { toast } from 'sonner';
 
 import LocalTime from '@/components/LocalTime';
-import MemWalBehaviorCard from '@/components/MemWalBehaviorCard';
 import OxWalComposer, { type OxWalComposerChip } from '@/components/oxwal/OxWalComposer';
 import StatusBadge from '@/components/StatusBadge';
 import { stashBatchDraft } from '@/lib/batch-parse';
@@ -337,7 +336,7 @@ export default function InvoiceLoop() {
               // local currency, which is where this loop leads.
               <section className="dash-surface p-5 text-sm leading-6 text-[#326273]">
                 <strong className="block text-[#1F4452]">Invoice uploads are not open yet</strong>
-                {LAUNCH_SCOPE_WHY} Create an invoice without a document to get a pay link payers can settle in USDC on Sui.
+                {LAUNCH_SCOPE_WHY} Create an invoice without a document to get a pay link payers can settle in USDC on Solana.
               </section>
             )}
             <InvoicePanel invoices={invoices} selected={selected} onSelect={chooseInvoice} />
@@ -365,7 +364,6 @@ export default function InvoiceLoop() {
 
         <aside className="space-y-4">
           <ReleaseRail stages={releaseStages} />
-          <MemWalBehaviorCard compact />
           <IntentPanel selected={selected} suggestion={suggestion} href={transferHref} />
         </aside>
       </section>
@@ -714,10 +712,10 @@ function IntentPanel({ selected, suggestion, href }: { selected: InvoiceRecord |
           </div>
         </div>
         <Link
-          href={suggestion.blocked.lane === 'LAUNCH_SCOPE' ? '/dashboard/send-usdc' : '/dashboard/setup'}
+          href={suggestion.blocked.lane === 'LAUNCH_SCOPE' ? '/dashboard' : '/dashboard/setup'}
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0C3E48] px-4 py-2 text-sm font-bold text-white shadow-[0_12px_24px_rgba(12,62,72,0.2)] transition hover:bg-[#145D6A] focus-ring"
         >
-          {suggestion.blocked.lane === 'LAUNCH_SCOPE' ? 'Send USDC' : 'Finish verification'}
+          {suggestion.blocked.lane === 'LAUNCH_SCOPE' ? 'Back to overview' : 'Finish verification'}
           <ArrowRight className="h-4 w-4" />
         </Link>
       </section>

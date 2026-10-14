@@ -161,7 +161,7 @@ test('Router explains in plain words, refers to the engine quote, changes nothin
   assert.equal(canonicalJson(r.ranked), before, 'inputs untouched');
   assert.equal(out.draft, true);
   assert.equal(out.primary.refersTo, r.picks.cheapest.id);
-  assert.match(out.primary.text, /^Cheapest: supplier receives ₱560,000\.00, all-in 0\.30%, arrives same banking day\./);
+  assert.match(out.primary.text, /^Cheapest: supplier receives ₱560,000\.00, all-in 0\.30%, paid out by PESONet\./);
   assert.match(out.primary.text, /Mock partner · devnet/);
   assert.ok(out.alternative, 'one alternative');
   assert.notEqual(out.alternative.refersTo, out.primary.refersTo);

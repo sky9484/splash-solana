@@ -38,8 +38,9 @@ export type RecipientMatch = {
   country: string;
   bank: string;
   tier: string;
-  /** BANK: a local-currency payout through a corridor partner. WALLET: USDC on
-   *  Sui, signed by the business in its own wallet on the Send screen. */
+  /** BANK: a local-currency payout through a payout partner. WALLET: USDC on
+   *  Solana from the business's own vault, approved by a person with their
+   *  device key on the Send USDC screen. */
   payoutMethod: 'BANK' | 'WALLET';
   /** WALLET only: the address, shortened — enough to confirm, not to copy. */
   wallet?: string;
@@ -73,7 +74,7 @@ function describe(record: RecipientRecord, ctx: DescribeContext): RecipientMatch
       wallet: record.walletAddress ? shortAddress(record.walletAddress) : undefined,
       payable: !blockedBecause,
       blockedBecause,
-      howToPay: 'USDC on Sui mainnet. The business approves it with a WhatsApp code and signs it in its own wallet on the Send screen; Zeke cannot send it.',
+      howToPay: 'USDC on Solana, from your business vault. A person in your business approves it with their device key on the Send USDC screen; Zeke cannot send it.',
     };
   }
 
@@ -91,7 +92,7 @@ function describe(record: RecipientRecord, ctx: DescribeContext): RecipientMatch
       tier: record.tier,
       payoutMethod: 'BANK',
       payable: false,
-      blockedBecause: `${LAUNCH_SCOPE_WHY} Pay a Sui wallet recipient instead.`,
+      blockedBecause: `${LAUNCH_SCOPE_WHY} Pay a Solana wallet recipient instead.`,
     };
   }
   const fiat = laneAccess(ctx.state, 'FIAT_OUT_LOCAL');

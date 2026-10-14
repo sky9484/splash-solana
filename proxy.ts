@@ -3,11 +3,16 @@ import { randomBytes } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { isAdminHostname } from '@/lib/admin-routing';
+import { movedRoute } from '@/lib/route-moves';
+import { CUSTOMER_SESSION_COOKIE } from '@/lib/auth/customer-session';
 import { buildContentSecurityPolicy } from '@/lib/security/csp';
+import { SETUP_COOKIE } from '@/lib/server/setup-cookie';
+import { proxySetupRedirect } from '@/lib/server/setup-gate';
 
 /**
- * Two jobs. The admin-host rewrite it always did, and the Content-Security-
- * Policy every page now carries.
+ * Three jobs. The 308s for URLs that moved (lib/route-moves.ts), the
+ * admin-host rewrite it always did, and the Content-Security-Policy every
+ * page now carries.
  *
  * The policy is built around a nonce minted here, once per page request,
  * from the CSPRNG. It goes out twice: on the request, as `x-nonce` and as
@@ -18,9 +23,17 @@ import { buildContentSecurityPolicy } from '@/lib/security/csp';
  * next.config.ts cover them. The admin rewrite carries it too: it serves
  * the approval screens, which are the pages that must never be framed.
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get('host')?.split(':')[0] ?? '';
+
+  // A moved page answers 308 with its new address and the same query, before anything else runs.
+  const moved = movedRoute(pathname);
+  if (moved && !isAdminHostname(hostname)) {
+    const target = request.nextUrl.clone();
+    target.pathname = moved;
+    return NextResponse.redirect(target, 308);
+  }
 
   const isPrefetch = request.headers.has('next-router-prefetch') || request.headers.get('purpose') === 'prefetch';
   const rendersPage = !pathname.startsWith('/api') && !pathname.startsWith('/_next') && !isPrefetch;
@@ -30,6 +43,10 @@ export function proxy(request: NextRequest) {
     : null;
 
   const requestHeaders = new Headers(request.headers);
+  // The path, for server layouts that cannot otherwise see it (the dashboard's
+  // device check, lib/server/setup-gate.ts). Always overwritten: a client-sent
+  // value must never decide which page skips the check.
+  requestHeaders.set('x-splash-pathname', pathname);
   if (nonce && policy) {
     requestHeaders.set('x-nonce', nonce);
     requestHeaders.set('Content-Security-Policy', policy);
@@ -40,6 +57,13 @@ export function proxy(request: NextRequest) {
   };
 
   if (!isAdminHostname(hostname)) {
+    // The device check runs here as well as in the dashboard layout, because a
+    // layout does not re-render on client-side navigation (lib/server/setup-gate.ts).
+    const setupRedirect = await proxySetupRedirect(pathname, {
+      session: request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value,
+      setup: request.cookies.get(SETUP_COOKIE)?.value,
+    });
+    if (setupRedirect) return withPolicy(NextResponse.redirect(new URL(setupRedirect, request.url)));
     return withPolicy(NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
