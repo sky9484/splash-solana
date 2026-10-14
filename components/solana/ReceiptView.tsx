@@ -53,7 +53,11 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
   const bundle = useMemo(() => {
     if (!receipt) return null;
     const copy = structuredClone(receipt.bundle) as ReceiptDTO['bundle'];
-    if (tamper) copy.bank.reference = TAMPERED_REFERENCE;
+    if (tamper) {
+      // A bank payout: change the bank reference. A payment to (or from) a Splash account: change who was paid.
+      if (copy.kindName === 'corridor_payout') copy.bank.reference = TAMPERED_REFERENCE;
+      else copy.payee.name = `${copy.payee.name} (edited)`;
+    }
     return copy;
   }, [receipt, tamper]);
 
@@ -173,7 +177,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         <div>
           {showTitle ? <h1>Receipt</h1> : null}
           <p className="sx-lede">
-            {receipt.companyName} paid {s.supplierName}
+            {s.kind === 'receivable' ? `${s.supplierName} paid ${receipt.companyName}` : `${receipt.companyName} paid ${s.supplierName}`}
           </p>
         </div>
         {receipt.simulated ? <span className="sx-pill sx-pill-sim">Simulated · devnet-ready</span> : <span className="sx-pill sx-pill-ok">Solana devnet</span>}
@@ -183,35 +187,91 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         <h2 id="sum-title" className="sx-visually-hidden">
           Summary
         </h2>
-        <div>
-          <p className="sx-big">{php(s.receivePhpMinor)}</p>
-          <p className="sx-muted">Supplier received</p>
-        </div>
-        <dl className="sx-kv">
-          <dt>Supplier</dt>
-          <dd>
-            {s.supplierName}, {s.bank} <span className="sx-mono">•••• {s.accountLast4}</span>
-          </dd>
-          <dt>Invoice</dt>
-          <dd className="sx-mono">{s.invoiceNumber}</dd>
-          <dt>Paid</dt>
-          <dd>
-            {dateShort(s.paidAt)} at {timeShort(s.paidAt)} by {s.partnerLabel}
-          </dd>
-          <dt>Bank reference</dt>
-          <dd className="sx-mono">{s.bankReference}</dd>
-          <dt>{source.kind === 'company' ? 'You paid' : 'Paid from'}</dt>
-          <dd className="sx-num">{usd(s.youPayUsdcMinor)} from the company’s Solana vault</dd>
-          <dt>Rate</dt>
-          <dd>
-            {bundle.fx.rate} PHP per USDC <span className="sx-muted">({bundle.fx.reference})</span>
-          </dd>
-          <dt>Approved by</dt>
-          <dd>
-            {[...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', ')} with device key{' '}
-            <span className="sx-mono">{shortKey(bundle.approvals[0]?.keyPublic)}</span>
-          </dd>
-        </dl>
+        {s.kind === 'receivable' ? (
+          <>
+            <div>
+              <p className="sx-big">{usd(s.receiveUsdMinor)}</p>
+              <p className="sx-muted">Into your Payments account</p>
+            </div>
+            <dl className="sx-kv">
+              <dt>Paid by</dt>
+              <dd>{s.supplierName}</dd>
+              <dt>Your request</dt>
+              <dd className="sx-mono">{s.invoiceNumber}</dd>
+              <dt>Paid</dt>
+              <dd>
+                {dateShort(s.paidAt)} at {timeShort(s.paidAt)}
+              </dd>
+              <dt>Matched</dt>
+              <dd>{s.matchedBy === 'splash_payment' ? 'A payment on Splash for this request' : 'By the reference and the exact amount'}</dd>
+            </dl>
+          </>
+        ) : s.kind === 'peer' ? (
+          <>
+            <div>
+              <p className="sx-big">{usd(s.receiveUsdMinor)}</p>
+              <p className="sx-muted">Into {s.supplierName}&rsquo;s Splash account</p>
+            </div>
+            <dl className="sx-kv">
+              <dt>Paid to</dt>
+              <dd>{s.supplierName}, a business on Splash</dd>
+              <dt>Reference</dt>
+              <dd className="sx-mono">{s.invoiceNumber}</dd>
+              {s.note ? (
+                <>
+                  <dt>Note</dt>
+                  <dd>{s.note}</dd>
+                </>
+              ) : null}
+              <dt>Paid</dt>
+              <dd>
+                {dateShort(s.paidAt)} at {timeShort(s.paidAt)}
+              </dd>
+              <dt>{source.kind === 'company' ? 'You paid' : 'Paid from'}</dt>
+              <dd className="sx-num">{usd(s.youPayUsdcMinor)}, no conversion and no Splash fee</dd>
+            </dl>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="sx-big">{php(s.receivePhpMinor)}</p>
+              <p className="sx-muted">Supplier received</p>
+            </div>
+            <dl className="sx-kv">
+              <dt>Supplier</dt>
+              <dd>
+                {s.supplierName}, {s.bank} <span className="sx-mono">•••• {s.accountLast4}</span>
+              </dd>
+              <dt>Invoice</dt>
+              <dd className="sx-mono">{s.invoiceNumber}</dd>
+              <dt>Paid</dt>
+              <dd>
+                {dateShort(s.paidAt)} at {timeShort(s.paidAt)} by {s.partnerLabel}
+              </dd>
+              <dt>Bank reference</dt>
+              <dd className="sx-mono">{s.bankReference}</dd>
+              <dt>{source.kind === 'company' ? 'You paid' : 'Paid from'}</dt>
+              <dd className="sx-num">{usd(s.youPayUsdcMinor)} from the company’s Solana vault</dd>
+              {bundle.kindName === 'corridor_payout' ? (
+                <>
+                  <dt>Rate</dt>
+                  <dd>
+                    {bundle.fx.rate} PHP per USDC <span className="sx-muted">({bundle.fx.reference})</span>
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+          </>
+        )}
+        {bundle.kindName !== 'receivable' ? (
+          <dl className="sx-kv">
+            <dt>Approved by</dt>
+            <dd>
+              {[...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', ')} with device key{' '}
+              <span className="sx-mono">{shortKey(bundle.approvals[0]?.keyPublic)}</span>
+            </dd>
+          </dl>
+        ) : null}
         <div className="sx-row">
           <a className="sx-btn" href={p.pack} download>
             Download evidence pack
@@ -254,8 +314,8 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         <dl className="sx-kv">
           <dt>Anchor memo</dt>
           <dd className="sx-hash">{receipt.anchor.status === 'anchored' ? receipt.anchor.memo : 'Recorded, anchor pending'}</dd>
-          <dt>Invoice commitment</dt>
-          <dd className="sx-hash">{bundle.invoice.commitmentHex}</dd>
+          <dt>{bundle.kindName === 'peer_transfer' ? 'Reference commitment' : bundle.kindName === 'receivable' ? 'Request commitment' : 'Invoice commitment'}</dt>
+          <dd className="sx-hash">{bundle.kindName === 'peer_transfer' ? bundle.reference.commitmentHex : bundle.kindName === 'receivable' ? bundle.request.commitmentHex : bundle.invoice.commitmentHex}</dd>
           <dt>Stored copy</dt>
           <dd>
             <span className="sx-mono">{shortKey(receipt.stored.blobId, 10)}</span>{' '}
@@ -278,8 +338,14 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         </label>
         {tamper ? (
           <p className="sx-small">
-            Changed the bank reference in this browser&rsquo;s copy from <span className="sx-mono">{receipt.bundle.bank.reference}</span> to{' '}
-            <span className="sx-mono">{TAMPERED_REFERENCE}</span>.
+            {receipt.bundle.kindName !== 'corridor_payout' ? (
+              <>Changed who was paid in this browser&rsquo;s copy to &ldquo;{receipt.bundle.payee.name} (edited)&rdquo;.</>
+            ) : (
+              <>
+                Changed the bank reference in this browser&rsquo;s copy from <span className="sx-mono">{receipt.bundle.bank.reference}</span> to{' '}
+                <span className="sx-mono">{TAMPERED_REFERENCE}</span>.
+              </>
+            )}
           </p>
         ) : null}
         <div>

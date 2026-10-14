@@ -13,7 +13,7 @@ import type { EngineResult } from '../route-engine/index.ts';
 import type { EnginePolicyResult } from '../route-engine/policy.ts';
 import type { RouteKind } from '../route-engine/quote.ts';
 import type { PartnerPayout } from '../solana-partner/registry.ts';
-import type { ApprovalRecord, ChainSignatureRecord, CorridorPayoutBundle, ExecutedRoute } from '../solana-evidence/bundle.ts';
+import type { ApprovalRecord, ChainSignatureRecord, EvidenceBundle, ExecutedRoute } from '../solana-evidence/bundle.ts';
 import type { MerkleProof } from '../solana-evidence/merkle.ts';
 import type { StoredEvidence } from '../solana-evidence/store.ts';
 import type { ReaderOutput } from '../solana-zeke/reader.ts';
@@ -22,15 +22,63 @@ import type { PossessionChallenge } from '../solana/recovery-kit.ts';
 import type { Cluster, ConfirmedInvoice, PartnerPayoutEvent, VaultInfo } from '../solana/types.ts';
 import type { BatchRecord } from './batch-service.ts';
 import type { ShareRecord } from './doc-store.ts';
+import type { WalletNetwork } from './funding-router.ts';
 import type { PaymentState } from './payment-machine.ts';
 
-export type BankVerification = { by: string; method: 'call-back' | 'supplier-account' | 'existing-record'; at: string };
+export type BankVerification = {
+  by: string;
+  method: 'call-back' | 'supplier-account' | 'existing-record';
+  at: string;
+  /** A call-back (prompt 10 §6.2): who answered at the supplier, and the number called, from the company's own records. */
+  spokeTo?: string;
+  numberCalled?: string;
+};
 
 export interface SupplierRecord {
+  /**
+   * Stable id (`sup_<uuid>`), the recipient's name everywhere: routes, the bank-number vault's
+   * beneficiary_id. Companies saved before it existed get one on first read (ensureSupplierIds).
+   */
+  id: string;
   name: string;
   bank: string;
   accountLast4: string;
-  verified: BankVerification;
+  /** The call-back (or record) that checked these details. Null for a recipient saved to check later. */
+  verified: BankVerification | null;
+  /** The current full number's record in bank_account_secrets (prompt 10 Phase S). Never the number. */
+  secretId?: string;
+  /**
+   * Details not yet confirmed by a call-back: the recipient reads as "changed" and can't be paid.
+   * `previousLast4` is null for a new recipient that was never checked.
+   */
+  pendingCallBack?: { since: string; previousLast4: string | null };
+  /** Saved through Transfer's "New bank recipient" (prompt 10 §5.3); absent on recipients saved by a paid invoice. */
+  bankCode?: string;
+  /**
+   * Who they are, as the payout partner asks once per recipient (business or individual, SEC/DTI number
+   * or ID, address, account holder): given in the sheet, so a transfer asks only about itself.
+   */
+  partnerRecipient?: TransferDetails['recipient'];
+  country?: 'PH';
+  createdAt?: string;
+  createdBy?: string;
+}
+
+/** A new recipient id. */
+export const newSupplierId = () => `sup_${globalThis.crypto.randomUUID()}`;
+
+/**
+ * Give every saved recipient a stable id the first time its company is read (prompt 10 §S.1.0).
+ * Returns how many it assigned; a second run assigns none.
+ */
+export function ensureSupplierIds(org: { suppliers: Array<Omit<SupplierRecord, 'id'> & { id?: string }> }): number {
+  let assigned = 0;
+  for (const s of org.suppliers) {
+    if (s.id) continue;
+    s.id = newSupplierId();
+    assigned++;
+  }
+  return assigned;
 }
 
 export interface OrgRecord {
@@ -61,6 +109,124 @@ export interface OrgRecord {
   suspended: { at: string; by: string; reason: string } | null;
   /** Every suspend and unsuspend, oldest first, never edited (the admin console's audit log). */
   serviceLog?: ServiceLogEntry[];
+  /** Who holds each approver key, for "1 of 2 approved · waiting for <name>" (prompt 10 §5.7). Never a secret. */
+  memberNames?: Record<string, string>;
+  /** In-app notices to members, e.g. "Aisyah asked you to approve a payment" (Remind). Oldest first. */
+  notifications?: OrgNotification[];
+  /** "Save as template" on a transfer's receipt (prompt 10 §5.8): who and how much, never a bank number. */
+  transferTemplates?: TransferTemplate[];
+  /**
+   * Money that came into the Payments account from outside the company (prompt 10 §6.3): a business on
+   * Splash paying, or someone paying a request's link. Oldest first.
+   */
+  received?: ReceivedRecord[];
+}
+
+/** Money in from outside the company, into its own Payments account. */
+export interface ReceivedRecord {
+  id: string;
+  at: string;
+  amountMinor: bigint;
+  /** A business on Splash (by id), or someone who paid a request's link (the name they were asked as). */
+  from: { kind: 'splash'; orgId: string; name: string } | { kind: 'link'; name: string };
+  /** The request it paid, when it matched one. */
+  requestId: string | null;
+  /** A business on Splash: its payment. */
+  paymentId: string | null;
+  signature: string;
+  memo: string | null;
+  simulated: boolean;
+}
+
+/** One line of a payment request: integers only (quantity × unit price = amount, US$ minor units). */
+export interface RequestLine {
+  description: string;
+  quantity: bigint;
+  unitMinor: bigint;
+  amountMinor: bigint;
+}
+
+/**
+ * A payment request this company sent (prompt 10 §6.3, "Get paid"). A business on Splash finds it in
+ * its own "Pay an invoice" inbox, ready to pay; anyone else gets a link to a page with this company's
+ * own account details. The money always lands in the requester's Payments account.
+ */
+export interface PaymentRequestRecord {
+  id: string;
+  /** The requester. */
+  orgId: string;
+  /** "Your invoice number": unique among the company's requests that aren't cancelled. */
+  number: string;
+  payer: { kind: 'splash'; orgId: string; name: string; handle: string | null; country: string | null } | { kind: 'external'; name: string; email: string };
+  lines: RequestLine[];
+  amountMinor: bigint;
+  /** YYYY-MM-DD. */
+  dueDate: string;
+  /** Text only: kept with the request, never submitted anywhere. */
+  myInvoisRef: string | null;
+  note: string | null;
+  state: 'draft' | 'sent' | 'paid' | 'cancelled';
+  /** The pay link's token (someone else pays by link). */
+  slug: string | null;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  sentAt: string | null;
+  viewedAt: string | null;
+  paidAt: string | null;
+  /** A business on Splash: the bill this request became in its inbox. */
+  billId: string | null;
+  paid: { by: 'splash'; paymentId: string; signature: string } | { by: 'link'; signature: string } | null;
+  receiptId: string | null;
+  reminders: Array<{ at: string; by: string }>;
+  /** For the request's commitment on its receipt (kind 5). */
+  saltHex: string;
+}
+
+/** A request someone else pays by link: the token, and whose request it is. */
+export interface PayLinkRecord {
+  slug: string;
+  requestId: string;
+  orgId: string;
+}
+
+/** A request from a business on Splash, as it lands in the payer's "Pay an invoice" inbox. */
+export interface IncomingRequest {
+  requestId: string;
+  requesterOrgId: string;
+  requesterName: string;
+  number: string;
+  dueDate: string;
+  lines: Array<{ description: string; amountMinor: bigint }>;
+  note: string | null;
+  myInvoisRef: string | null;
+  sentAt: string;
+  /** The requester's last reminder. */
+  remindedAt?: string;
+  /** When the payer's inbox first listed it (its sender then sees "Viewed"). */
+  seenAt?: string;
+  /** The requester cancelled it: it can't be paid. */
+  cancelledAt?: string;
+}
+
+/** A transfer to start again from Step 2: the recipient by id (or the business on Splash) and the amount. */
+export interface TransferTemplate {
+  id: string;
+  to: 'bank' | 'splash';
+  /** A saved bank recipient, by id: its number stays in the vault. */
+  recipientId: string | null;
+  payee: { orgId: string; name: string; handle: string | null; country: string | null } | null;
+  /** "Manila Freight Services": how the template is named. */
+  payeeName: string;
+  amountPhpMinor: bigint | null;
+  amountUsdMinor: bigint | null;
+  purpose: 'goods' | 'services' | null;
+  description: string | null;
+  relationship: TransferDetails['relationship'] | null;
+  sourceOfFunds: TransferDetails['sourceOfFunds'] | null;
+  note: string | null;
+  createdAt: string;
+  createdBy: string;
 }
 
 export interface ServiceLogEntry {
@@ -121,7 +287,12 @@ export interface MoveRecord {
 }
 
 /** Where the USDC for one payment comes from when it is not already in the company's vaults (Sky, 13 Oct). */
-export type FundingMethod = 'wallet_usdc' | 'wallet_swap' | 'stripe' | 'airwallex';
+/**
+ * How outside money came in. Today: 'bank_card' (a top-up) or 'wallet' (a crypto wallet; the route is
+ * in `sourceId`). The other four are records saved before prompt 10, still readable; they are shown
+ * without the providers' names.
+ */
+export type FundingMethod = 'bank_card' | 'wallet' | 'wallet_usdc' | 'wallet_swap' | 'stripe' | 'airwallex';
 
 /**
  * USDC brought into the company's own payments vault for one payment, from outside its vaults
@@ -132,8 +303,13 @@ export type FundingMethod = 'wallet_usdc' | 'wallet_swap' | 'stripe' | 'airwalle
 export interface PaymentFunding {
   id: string;
   orgId: string;
-  paymentId: string;
+  /** The payment it covers, or null for a top-up from Balance (prompt 10 §5.10). */
+  paymentId: string | null;
   method: FundingMethod;
+  /** The route it took (funding-router.ts), e.g. 'wallet:USDC:base'. Absent on records before prompt 10. */
+  sourceId?: string;
+  /** The network a wallet sent from. Absent on records before prompt 10 (they were all Solana). */
+  network?: WalletNetwork | null;
   /** What the person sends: USDC, or the stablecoin swapped to USDC before it reaches the vault. */
   asset: 'USDC' | 'USDT' | 'PYUSD' | 'USD';
   /** The sending wallet (wallet methods only); screened before the money counts. */
@@ -146,10 +322,12 @@ export interface PaymentFunding {
   sourceOfFunds: 'business_revenue' | 'owner_capital' | 'loan_or_facility' | 'customer_payment';
   declaredBy: string;
   declaredAt: string;
-  state: 'checking' | 'held' | 'in_vault';
+  /** 'crediting' is claimed before the credit is awaited, so two reads at once credit once. */
+  state: 'checking' | 'held' | 'crediting' | 'in_vault';
   /** When the funds check finishes (offline: a fixed hold, so the extra step is visible). */
   checkUntil: string;
-  check: { resultId: string; label: string; flagged: boolean } | null;
+  /** `unknown`: screening couldn't answer. Held, like a flag: screening fails closed. */
+  check: { resultId: string; label: string; flagged: boolean; unknown?: boolean } | null;
   signature: string | null;
   simulated: boolean;
   createdAt: string;
@@ -160,8 +338,26 @@ export interface InvoiceRecord {
   id: string;
   orgId: string;
   createdAt: string;
-  /** Where the fields came from: Zeke read a document (sample, paste, upload), or a person typed a transfer. */
-  source: 'sample' | 'paste' | 'upload' | 'transfer';
+  /**
+   * Where the fields came from: Zeke read a document (sample, paste, upload), a person typed a transfer
+   * to a bank, or a person paid another business on Splash ('peer', prompt 10 §5.1).
+   */
+  source: 'sample' | 'paste' | 'upload' | 'transfer' | 'peer' | 'request';
+  /** A payment to another business on Splash: who, into which account, how much, and the note. */
+  peer?: PeerDestination;
+  /** 'request': a business on Splash asked this company to pay (prompt 10 §6.3). Paid as a `peer` payment. */
+  request?: IncomingRequest;
+  /**
+   * The document Zeke read, line by line, with the bank account number masked (prompt 10 §6.2): what
+   * "Check the invoice" shows. The full number is never kept here; it is sealed (`accountSecretId`).
+   */
+  document?: { lines: string[] };
+  /** The full account number printed on the invoice, sealed in bank_account_secrets under this invoice's id. */
+  accountSecretId?: string;
+  /** The invoice's bank, as the payout partner's list names it (lib/solana-partner/banks.ts), when it matched one. */
+  bankCode?: string | null;
+  /** "Not this one": a person set the bill aside. It leaves the inbox; its sealed number is shredded later. */
+  dismissed?: { at: string; by: string } | null;
   draft: ReaderOutput;
   /** Whether the draft's supplier bank details are already in the verified directory. */
   bankStatus: 'known' | 'new' | 'changed';
@@ -246,8 +442,15 @@ export interface ApprovalCard {
   bank: string;
   accountLast4: string;
   verified: BankVerification | null;
+  /** What they receive: PHP centavos for a bank payout; for a payment to a Splash business, see `receiveUsdMinor`. */
   receivePhpMinor: bigint;
+  /** A payment to another business on Splash: what lands in their account, USD minor (prompt 10 §5.7). */
+  receiveUsdMinor?: bigint;
+  /** "Into Kuching Marine Supply's Splash account" for a payment to a Splash business. */
+  intoLine?: string | null;
   youPayUsdcMinor: bigint;
+  /** What moves from the reserve to the Payments account first, in the same approval sequence (0 when covered). */
+  reserveMoveMinor?: bigint;
   costs: { allInBps: number; routeMinor: bigint; partnerMinor: bigint; splashMinor: bigint; routeBps: number; partnerBps: number; splashBps: number };
   arrives: string;
   laneNote: string;
@@ -265,16 +468,32 @@ export interface ApprovalCard {
   /** Who prepared the payment: Zeke drafts an invoice payment, a person types a transfer; a person approves either (§5.4). */
   draftedBy: string;
   /** An invoice Zeke read, or a transfer a person typed in. */
-  kind: 'invoice' | 'transfer';
+  kind: 'invoice' | 'transfer' | 'peer';
   /** A transfer's stated purpose, as the payout partner receives it ("Purchase of services: sea freight"). */
   purpose?: string | null;
   simulated: boolean;
+}
+
+/** Another business on Splash, as the directory found it (lib/server/splash-directory.ts). */
+export interface PeerDestination {
+  payeeOrgId: string;
+  payeeName: string;
+  payeeHandle: string | null;
+  payeeCountry: string | null;
+  /** The payee's own Payments account (its vault #0): where the money lands. */
+  payeeVaultPda: string;
+  /** What they get, USD minor units: the same as what you pay (no conversion, no Splash fee). */
+  amountUsdMinor: bigint;
+  /** On both receipts. */
+  note: string | null;
 }
 
 export interface PaymentRecord {
   id: string;
   orgId: string;
   invoiceId: string;
+  /** 'peer': into another Splash business's own account (no partner, no conversion). Absent: a bank payout. */
+  kind?: 'bank' | 'peer';
   createdAt: string;
   updatedAt: string;
   /** The state machine (payment-machine.ts). Changed only through the repository's compare-and-set. */
@@ -308,6 +527,22 @@ export interface PaymentRecord {
   executedRoute: ExecutedRoute | null;
   receiptId: string | null;
   problem: { code: string; message: string } | null;
+  /**
+   * Set when a re-quote abandoned a proposal that already had approvals: they don't carry over to a
+   * new quote (prompt 10 §5.7). `previousYouPayMinor` tells "The rate moved" from "The quote ran out".
+   */
+  approvalsReset?: { at: string; previous: number; previousYouPayMinor: bigint | null } | null;
+}
+
+export interface OrgNotification {
+  id: string;
+  kind: 'approval_reminder';
+  paymentId: string;
+  /** The approver key the notice is for. */
+  to: string;
+  by: string;
+  at: string;
+  read: boolean;
 }
 
 export interface EvidenceRecord {
@@ -315,7 +550,7 @@ export interface EvidenceRecord {
   paymentId: string;
   orgId: string;
   createdAt: string;
-  bundle: CorridorPayoutBundle;
+  bundle: EvidenceBundle;
   leafHex: string;
   batch: { rootHex: string; count: number; periodStart: bigint; periodEnd: bigint };
   proof: MerkleProof;
@@ -338,6 +573,9 @@ export interface SolanaAppStore {
   shares: Map<string, ShareRecord>;
   /** Batch payouts (batch-service.ts), by id. */
   batches: Map<string, BatchRecord>;
+  /** Payment requests (requests.ts), by id, and the pay links someone else opens, by token. */
+  requests: Map<string, PaymentRequestRecord>;
+  paylinks: Map<string, PayLinkRecord>;
   /** Which companies were loaded from the document store, and what was last written for each document. */
   docs: { loaded: Set<string>; written: Map<string, string> };
   /** The last 200 partner webhooks this server received, newest last. Process memory: since this server started. */
@@ -347,10 +585,12 @@ export interface SolanaAppStore {
 const G = globalThis as typeof globalThis & { __splashSolanaAppStore?: SolanaAppStore };
 
 export function store(): SolanaAppStore {
-  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), docs: { loaded: new Set(), written: new Map() }, webhookLog: [] });
+  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), requests: new Map(), paylinks: new Map(), docs: { loaded: new Set(), written: new Map() }, webhookLog: [] });
   // A store made by older code in this process (a dev reload) gains the maps added since.
   s.shares ??= new Map();
   s.batches ??= new Map();
+  s.requests ??= new Map();
+  s.paylinks ??= new Map();
   s.docs ??= { loaded: new Set(), written: new Map() };
   s.webhookLog ??= [];
   return s;
@@ -360,3 +600,12 @@ export function store(): SolanaAppStore {
 export function resetStore(): void {
   G.__splashSolanaAppStore = undefined;
 }
+
+/**
+ * A bill (prompt 10 §6.2): an invoice a supplier sent that Zeke read, or a request a business on Splash
+ * sent. Not a transfer or a payment a person typed in Transfer.
+ */
+export const isBill = (inv: Pick<InvoiceRecord, 'source'>) => inv.source === 'sample' || inv.source === 'paste' || inv.source === 'upload' || inv.source === 'request';
+
+/** Paid straight into another Splash company's own account: a payment typed in Transfer, or a request's bill. */
+export const paysPeer = (inv: Pick<InvoiceRecord, 'source'>) => inv.source === 'peer' || inv.source === 'request';

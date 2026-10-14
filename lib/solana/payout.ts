@@ -64,6 +64,19 @@ export function buildPaymentMemo(paymentId: string): string {
   return `${PAYMENT_MEMO_PREFIX}${paymentId}`;
 }
 
+/** A payment into another business's Splash account (prompt 10 §5.2): `splash:peer:v1:<paymentId>`. */
+export const PEER_MEMO_PREFIX = 'splash:peer:v1:';
+const PEER_MEMO_RE = /^splash:peer:v1:pay_[0-9a-f]{16}$/;
+export function isPeerMemo(memo: string): boolean {
+  return PEER_MEMO_RE.test(memo);
+}
+export function buildPeerMemo(paymentId: string): string {
+  if (typeof paymentId !== 'string' || !PAYMENT_ID_RE.test(paymentId)) {
+    throw new Error('Memo refused: a peer memo carries only a Splash payment id (pay_ + 16 hex)');
+  }
+  return `${PEER_MEMO_PREFIX}${paymentId}`;
+}
+
 export function isPaymentMemo(memo: string): boolean {
   return PAYMENT_MEMO_RE.test(memo);
 }
@@ -81,13 +94,16 @@ export function isMoveMemo(memo: string): boolean {
   return MOVE_MEMO_RE.test(memo);
 }
 
-/** Any Splash memo: a payment id (current), a move between the company's own vaults, or the salted commitment (earlier runs). */
+/**
+ * Any Splash memo: a payment id (current), a payment to another business on Splash, a move between the
+ * company's own vaults, or the salted commitment (earlier runs).
+ */
 export function isSplashMemo(memo: string): boolean {
-  return MEMO_RE.test(memo) || PAYMENT_MEMO_RE.test(memo) || MOVE_MEMO_RE.test(memo);
+  return MEMO_RE.test(memo) || PAYMENT_MEMO_RE.test(memo) || PEER_MEMO_RE.test(memo) || MOVE_MEMO_RE.test(memo);
 }
 
 export function assertSplashMemo(memo: string): void {
-  if (!isSplashMemo(memo)) throw new Error('Memo refused: only "splash:pay:v1:<payment id>", "splash:move:v1:<move id>" or "splash:v1:<sha256 hex>" is allowed');
+  if (!isSplashMemo(memo)) throw new Error('Memo refused: only "splash:pay:v1:<payment id>", "splash:peer:v1:<payment id>", "splash:move:v1:<move id>" or "splash:v1:<sha256 hex>" is allowed');
 }
 
 /** SPL Memo with no signer accounts. Rejects anything but a Splash memo. */
@@ -172,6 +188,8 @@ export interface PayoutParams {
   splashKeys: string[];
   /** Optional Splash fee leg, split inside the same vault transaction. */
   splashFee?: SplashFeeLeg;
+  /** 'peer': into another business's Splash account, memo `splash:peer:v1:<paymentId>` (no Splash fee). */
+  memoKind?: 'pay' | 'peer';
 }
 
 export interface SplashFeeLeg {
@@ -291,7 +309,8 @@ export function buildPayoutInstructions(p: PayoutParams): PayoutPlan {
     throw new Error('Reference key must be a fresh, unrelated public key');
   }
   if ((p.paymentId === undefined) === (p.commitmentHex === undefined)) throw new Error('Memo refused: give exactly one of paymentId or commitmentHex');
-  const memo = p.paymentId !== undefined ? buildPaymentMemo(p.paymentId) : buildSplashMemo(p.commitmentHex!);
+  if (p.memoKind === 'peer' && (p.paymentId === undefined || p.splashFee)) throw new Error('A peer transfer carries its payment id and no Splash fee');
+  const memo = p.paymentId !== undefined ? (p.memoKind === 'peer' ? buildPeerMemo(p.paymentId) : buildPaymentMemo(p.paymentId)) : buildSplashMemo(p.commitmentHex!);
   const fee = p.splashFee
     ? buildSplashFeeInstructions({ cluster: p.cluster, vaultPda: p.vaultPda, feePayer: p.feePayer, fee: p.splashFee, payoutAmountMinor: p.amountMinor, payoutDestinationOwner: destinationOwner })
     : undefined;

@@ -17,7 +17,7 @@ import type { PgDatabase } from 'drizzle-orm/pg-core';
 import { solanaDocuments } from '../db/schema.ts';
 import { decodeRecord, encodeRecord } from './payment-repo.ts';
 import type { BatchRecord } from './batch-service.ts';
-import type { EvidenceRecord, InvoiceRecord, OrgRecord } from './store.ts';
+import type { EvidenceRecord, InvoiceRecord, OrgRecord, PayLinkRecord, PaymentRequestRecord } from './store.ts';
 
 /** A receipt share link: who minted it, for which receipt. The token is the document id. */
 export interface ShareRecord {
@@ -29,7 +29,8 @@ export interface ShareRecord {
   revokedAt: string | null;
 }
 
-export type DocKind = 'org' | 'invoice' | 'evidence' | 'share' | 'batch';
+/** 'request' and 'paylink' (drizzle/0036): a company's payment requests, and the links someone else pays one by. */
+export type DocKind = 'org' | 'invoice' | 'evidence' | 'share' | 'batch' | 'request' | 'paylink';
 
 export interface Doc {
   kind: DocKind;
@@ -44,6 +45,8 @@ export interface OrgDocuments {
   evidence: EvidenceRecord[];
   shares: ShareRecord[];
   batches: BatchRecord[];
+  requests: PaymentRequestRecord[];
+  paylinks: PayLinkRecord[];
 }
 
 export interface DocStore {
@@ -59,7 +62,7 @@ export interface DocStore {
 export function createMemoryDocStore(): DocStore {
   return {
     async loadOrg() {
-      return { org: null, invoices: [], evidence: [], shares: [], batches: [] };
+      return { org: null, invoices: [], evidence: [], shares: [], batches: [], requests: [], paylinks: [] };
     },
     async ownerOf() {
       return null;
@@ -79,7 +82,7 @@ export function createPostgresDocStore(db: Db): DocStore {
     async loadOrg(orgId) {
       const rows = await db.select().from(solanaDocuments).where(eq(solanaDocuments.orgId, orgId));
       const of = <T>(kind: DocKind) => rows.filter((r) => r.kind === kind).map((r) => decodeRecord<T>(r.body));
-      return { org: of<OrgRecord>('org')[0] ?? null, invoices: of<InvoiceRecord>('invoice'), evidence: of<EvidenceRecord>('evidence'), shares: of<ShareRecord>('share'), batches: of<BatchRecord>('batch') };
+      return { org: of<OrgRecord>('org')[0] ?? null, invoices: of<InvoiceRecord>('invoice'), evidence: of<EvidenceRecord>('evidence'), shares: of<ShareRecord>('share'), batches: of<BatchRecord>('batch'), requests: of<PaymentRequestRecord>('request'), paylinks: of<PayLinkRecord>('paylink') };
     },
     async ownerOf(kind, id) {
       const [row] = await db.select({ orgId: solanaDocuments.orgId }).from(solanaDocuments).where(and(eq(solanaDocuments.kind, kind), eq(solanaDocuments.id, id))).limit(1);

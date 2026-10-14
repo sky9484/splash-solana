@@ -162,7 +162,9 @@ test('Router explains in plain words, refers to the engine quote, changes nothin
   assert.equal(out.draft, true);
   assert.equal(out.primary.refersTo, r.picks.cheapest.id);
   assert.match(out.primary.text, /^Cheapest: supplier receives ₱560,000\.00, all-in 0\.30%, paid out by PESONet\./);
-  assert.match(out.primary.text, /Mock partner · devnet/);
+  // Prompt 10 §5.6 (was /Mock partner · devnet/): the partner is named by its test mode, never as a mock.
+  assert.match(out.primary.text, /Your payout partner is in test mode: this is a test rate, not a live one./);
+  assert.doesNotMatch(out.primary.text, /Mock partner|devnet|CCTP|Polygon|Solana/, 'plain words: no network or protocol names');
   assert.ok(out.alternative, 'one alternative');
   assert.notEqual(out.alternative.refersTo, out.primary.refersTo);
   assert.deepEqual(Object.keys(out.primary).sort(), ['policy', 'refersTo', 'text']);

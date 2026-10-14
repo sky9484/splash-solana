@@ -30,6 +30,15 @@ export const HOME_LANE_MIN_USDC_MINOR = 1_000_000n; // US$1
 export const HOME_LANE_BPS = 2; // 0.02%
 export const DEFAULT_HOME_LANE_POLICIES: readonly Policy[] = ['cheapest', 'safest'];
 
+/**
+ * How many links a route draws on the Transfer map (prompt 10 §5.6): a `transfer` or `partner` step is
+ * one link, a `bridge` is two (it leaves one network and lands on another). A same-network route is
+ * 2, a route through the partner's lower-cost lane is 3. Display only: nothing is ranked by it.
+ */
+export function stepCount(q: Pick<RouteQuote, 'steps'>): number {
+  return q.steps.reduce((n, s) => n + (s.kind === 'bridge' ? 2 : 1), 0);
+}
+
 /** >0 when a is better value than b. */
 export function compareValue(a: RouteQuote, b: RouteQuote): number {
   const l = a.netLocal.amountMinor * b.source.amountMinor;

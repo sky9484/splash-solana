@@ -1,5 +1,6 @@
 /**
- * Evidence bundle, kind 3 (corridor payout), and batch building.
+ * Evidence bundles, kind 3 (corridor payout), kind 4 (a payment to a Splash business), kind 5 (money
+ * received against a request), and batch building.
  *
  * One bundle per payout. It records, without plaintext invoice data:
  *   invoice commitment (salted sha256) + e-invoice ref
@@ -33,6 +34,8 @@ import { buildLevels, hashLeaf, merkleProof, type MerkleProof } from './merkle.t
 
 export const EVIDENCE_BUNDLE_VERSION = 1 as const;
 export const EVIDENCE_KIND_CORRIDOR_PAYOUT = 3 as const;
+/** A payment into another business's Splash account (prompt 10 §5.2): no partner, no conversion. */
+export const EVIDENCE_KIND_PEER_TRANSFER = 4 as const;
 export const INVOICE_SALT_BYTES = 32;
 
 export class EvidenceError extends Error {
@@ -168,15 +171,150 @@ export function buildCorridorPayoutBundle(input: CorridorPayoutBundleInput): Cor
   return structuredClone(bundle);
 }
 
-export function bundleCanonical(bundle: CorridorPayoutBundle): string {
+/**
+ * Kind 4: a payment into another business's own Splash account (prompt 10 §5.2). Both companies, the
+ * amount (no conversion, no Splash fee), the approval chain, the payee's screening, the transfer
+ * signature and its memo `splash:peer:v1:<paymentId>`. No partner, no bank reference.
+ *
+ * Builder invariants (throw on violation):
+ *   - at least one person's approval (I-4)
+ *   - payer and payee are different companies
+ *   - the executed destination is the payee's own account, and the amount is what was quoted
+ *   - the memo names this payment
+ *   - any simulated chain signature ⇒ receipt.simulated === true (I-7)
+ */
+export interface PeerTransferBundle {
+  version: typeof EVIDENCE_BUNDLE_VERSION;
+  kind: typeof EVIDENCE_KIND_PEER_TRANSFER;
+  kindName: 'peer_transfer';
+  bundleId: string;
+  paymentId: string;
+  createdAt: string;
+  payer: { orgId: string };
+  payee: { orgId: string; name: string; account: string };
+  amount: { currency: 'USD'; amountMinor: bigint };
+  reference: { commitmentHex: string };
+  approvals: ApprovalRecord[];
+  kyt: { provider: string; resultId: string; verdict: 'clear' | 'flagged' };
+  executedRoute: ExecutedRoute;
+  chain: { signatures: ChainSignatureRecord[] };
+  memo: string;
+  receipt: { receiptId: string; issuedAt: string; simulated: boolean };
+}
+
+export type PeerTransferBundleInput = Omit<PeerTransferBundle, 'version' | 'kind' | 'kindName' | 'bundleId' | 'memo'> & { bundleId?: string };
+
+export const PEER_MEMO_PREFIX = 'splash:peer:v1:';
+
+export function buildPeerTransferBundle(input: PeerTransferBundleInput): PeerTransferBundle {
+  if (!/^[0-9a-f]{64}$/.test(input.reference.commitmentHex)) throw new EvidenceError('reference commitment must be 32-byte hex');
+  if (input.approvals.length === 0) throw new EvidenceError('a peer bundle needs at least one person’s approval');
+  if (!input.approvals.some((a) => a.action === 'approve' || a.action === 'execute')) throw new EvidenceError('no approve/execute signature in the approval chain');
+  if (input.payer.orgId === input.payee.orgId) throw new EvidenceError('a peer transfer goes to another company');
+  if (input.executedRoute.depositAddress !== input.payee.account) throw new EvidenceError('executed destination is not the payee’s own account');
+  if (input.executedRoute.amountMinor !== input.amount.amountMinor) throw new EvidenceError('the amount sent differs from the amount quoted');
+  if (input.chain.signatures.some((s) => s.simulated) && !input.receipt.simulated) {
+    throw new EvidenceError('a simulated signature cannot back a receipt that is not marked simulated');
+  }
+  const bundle: PeerTransferBundle = {
+    version: EVIDENCE_BUNDLE_VERSION,
+    kind: EVIDENCE_KIND_PEER_TRANSFER,
+    kindName: 'peer_transfer',
+    bundleId: input.bundleId ?? `evb4_${input.paymentId}`,
+    paymentId: input.paymentId,
+    createdAt: input.createdAt,
+    payer: input.payer,
+    payee: input.payee,
+    amount: input.amount,
+    reference: input.reference,
+    approvals: input.approvals,
+    kyt: input.kyt,
+    executedRoute: input.executedRoute,
+    chain: input.chain,
+    memo: `${PEER_MEMO_PREFIX}${input.paymentId}`,
+    receipt: input.receipt,
+  };
+  return structuredClone(bundle);
+}
+
+/**
+ * Kind 5: money a company asked for and received (prompt 10 §6.3, "Get paid"). The request (a salted
+ * commitment over its number, lines and due date), who paid (another Splash company by id, or someone
+ * else by a commitment only: their name and email stay off the record), the transfer that brought the
+ * money into the requester's own Payments account, and how it was matched to the request.
+ *
+ * Builder invariants (throw on violation):
+ *   - the money landed in the requester's own account, and the amount is the amount asked
+ *   - a Splash payer is another company; its payment is named
+ *   - a match by reference names a reference
+ *   - any simulated chain signature ⇒ receipt.simulated === true (I-7)
+ */
+export const EVIDENCE_KIND_RECEIVABLE = 5 as const;
+
+export interface ReceivableBundle {
+  version: typeof EVIDENCE_BUNDLE_VERSION;
+  kind: typeof EVIDENCE_KIND_RECEIVABLE;
+  kindName: 'receivable';
+  bundleId: string;
+  requestId: string;
+  createdAt: string;
+  payee: { orgId: string; name: string; account: string };
+  payer: { kind: 'splash'; orgId: string } | { kind: 'external'; commitmentHex: string };
+  amount: { currency: 'USD'; amountMinor: bigint };
+  request: { commitmentHex: string; einvoiceRef: string | null };
+  incoming: { to: string; amountMinor: bigint; memo: string | null };
+  match: { method: 'splash_payment'; paymentId: string } | { method: 'reference_and_amount'; reference: string };
+  chain: { signatures: ChainSignatureRecord[] };
+  receipt: { receiptId: string; issuedAt: string; simulated: boolean };
+}
+
+export type ReceivableBundleInput = Omit<ReceivableBundle, 'version' | 'kind' | 'kindName' | 'bundleId'> & { bundleId?: string };
+
+export function buildReceivableBundle(input: ReceivableBundleInput): ReceivableBundle {
+  const hex64 = /^[0-9a-f]{64}$/;
+  if (!hex64.test(input.request.commitmentHex)) throw new EvidenceError('request commitment must be 32-byte hex');
+  if (input.payer.kind === 'external' && !hex64.test(input.payer.commitmentHex)) throw new EvidenceError('payer commitment must be 32-byte hex');
+  if (input.payer.kind === 'splash' && input.payer.orgId === input.payee.orgId) throw new EvidenceError('a company does not pay its own request');
+  if (input.amount.amountMinor <= 0n) throw new EvidenceError('a receivable is for an amount above zero');
+  if (input.incoming.to !== input.payee.account) throw new EvidenceError('the money did not land in the requester’s own account');
+  if (input.incoming.amountMinor !== input.amount.amountMinor) throw new EvidenceError('the amount received differs from the amount asked');
+  if (input.match.method === 'splash_payment' && (input.payer.kind !== 'splash' || !input.match.paymentId)) throw new EvidenceError('a Splash payment match names the payment');
+  if (input.match.method === 'reference_and_amount' && !input.match.reference) throw new EvidenceError('a reference match names the reference');
+  if (input.chain.signatures.length === 0) throw new EvidenceError('a receivable names the transfer that brought the money');
+  if (input.chain.signatures.some((s) => s.simulated) && !input.receipt.simulated) {
+    throw new EvidenceError('a simulated signature cannot back a receipt that is not marked simulated');
+  }
+  const bundle: ReceivableBundle = {
+    version: EVIDENCE_BUNDLE_VERSION,
+    kind: EVIDENCE_KIND_RECEIVABLE,
+    kindName: 'receivable',
+    bundleId: input.bundleId ?? `evb5_${input.requestId}`,
+    requestId: input.requestId,
+    createdAt: input.createdAt,
+    payee: input.payee,
+    payer: input.payer,
+    amount: input.amount,
+    request: input.request,
+    incoming: input.incoming,
+    match: input.match,
+    chain: input.chain,
+    receipt: input.receipt,
+  };
+  return structuredClone(bundle);
+}
+
+/** Any bundle a receipt can carry. */
+export type EvidenceBundle = CorridorPayoutBundle | PeerTransferBundle | ReceivableBundle;
+
+export function bundleCanonical(bundle: EvidenceBundle): string {
   return canonicalJson(bundle);
 }
 
-export function bundleLeaf(bundle: CorridorPayoutBundle): Uint8Array {
+export function bundleLeaf(bundle: EvidenceBundle): Uint8Array {
   return hashLeaf(bundleCanonical(bundle));
 }
 
-export function bundleLeafHex(bundle: CorridorPayoutBundle): string {
+export function bundleLeafHex(bundle: EvidenceBundle): string {
   return bytesToHex(bundleLeaf(bundle));
 }
 
@@ -213,7 +351,7 @@ export function walrusBlobIdsRoot(blobIds: readonly string[]): string {
 }
 
 /** Bundles are ordered by (createdAt, bundleId) so a batch is reproducible from its bundles. */
-export function buildEvidenceBatch(bundles: CorridorPayoutBundle[], period: { start: Date; end: Date }): EvidenceBatch {
+export function buildEvidenceBatch(bundles: EvidenceBundle[], period: { start: Date; end: Date }): EvidenceBatch {
   if (bundles.length === 0) throw new EvidenceError('empty batch');
   if (period.end.getTime() <= period.start.getTime()) throw new EvidenceError('period end must be after start');
   const ids = new Set<string>();

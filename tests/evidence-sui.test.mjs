@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 
 import { BrowserDecryptOnlyError, liveSealAdapter, mockSealAdapter, sealIdentity } from '../lib/evidence-sui/seal.ts';
@@ -71,7 +72,8 @@ test('the sponsor signs allowlist calls and nothing else', async () => {
 });
 
 test('the sponsor key from env is refused on mainnet', () => {
-  const key = 'suiprivkey1qzwant2qv5gpcpcaxkqxtt9xwtzph2sv5jajyxq0ug6cq8e6gyvzqu8e9pa'; // throwaway test key, no funds anywhere
+  // A key made for this run only: no private key lives in the repo (prompt 10 §0.8).
+  const key = Ed25519Keypair.generate().getSecretKey();
   assert.equal(evidenceSponsorFromEnv({}), null);
   assert.throws(() => evidenceSponsorFromEnv({ EVIDENCE_SPONSOR_SUI_PRIVATE_KEY: key, EVIDENCE_SUI_NETWORK: 'mainnet' }), SponsorRefusedError);
 });
