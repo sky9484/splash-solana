@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { IsoButton, IsoSurface, Segmented, Tag } from '@/components/iso';
 
 import { api, ApiError, usd } from '../client';
+import { usdWhole } from '../transfer/shared';
 import { notifyCompanyChanged } from '../useCompany';
 import type { TreasuryDTO } from './Treasury';
 
@@ -21,8 +22,9 @@ function moveWords(r: Row): { what: string; why: string } {
 /**
  * Hold or sweep (prompt 11 §4.3, decision 9): the owner's setting, and Zeke's drafts, each a row a
  * person decides. "Approve" opens the approval moment (it never approves in place); "Not now" sets the
- * draft aside, and a sweep-out draft isn't drafted again for 7 days. Under it, the payout fees kept
- * inside Splash this month, when there are any.
+ * draft aside, and a sweep-out draft isn't drafted again for 7 days. Under Hold there are no rows:
+ * turning sweep off withdraws what waited, and a decided row's "Zeke will ask again" would no longer
+ * hold. Under it, the payout fees kept inside Splash this month, when there are any.
  */
 export function HoldSweep({ data, myKey, onApprove, onSweep, sweepBusy, sweepError }: { data: TreasuryDTO; myKey: string | null; onApprove: (r: Row) => void; onSweep: (on: boolean) => void; sweepBusy: boolean; sweepError: string | null }) {
   const sw = data.sweep;
@@ -62,7 +64,7 @@ export function HoldSweep({ data, myKey, onApprove, onSweep, sweepBusy, sweepErr
       </div>
       <p className="iso-small" style={{ margin: 0 }} aria-live="polite">
         {sw.on
-          ? `When cash builds above your reserve and a ${usd(sw.cushionMinor)} cushion, Zeke drafts a move into the T-bill pool. Nothing moves until you approve it.`
+          ? `When cash builds above your reserve and a ${usdWhole(sw.cushionMinor)} cushion, Zeke drafts a move into the T-bill pool. Nothing moves until you approve it.`
           : 'Idle cash stays in your Payments account. Zeke won’t draft sweeps.'}
         {sw.mayChange ? '' : ' Your company’s owner sets this.'}
       </p>
@@ -72,19 +74,19 @@ export function HoldSweep({ data, myKey, onApprove, onSweep, sweepBusy, sweepErr
         </p>
       ) : null}
 
-      {sw.rows.length > 0 ? (
-        <ul className="iso-drafts">
+      {sw.on && sw.rows.length > 0 ? (
+        <ul className="iso-sweepdrafts">
           {sw.rows.map((r) => {
             const w = moveWords(r);
             return (
-              <li key={r.id} className="iso-draft" data-state={r.state}>
-                <Image className="iso-draft__zeke" src="/cinematic/agent-bot-cut.png" alt="" width={28} height={28} />
-                <span className="iso-draft__what">
+              <li key={r.id} className="iso-sweepdraft" data-state={r.state}>
+                <Image className="iso-sweepdraft__zeke" src="/cinematic/agent-bot-cut.png" alt="" width={28} height={28} />
+                <span className="iso-sweepdraft__what">
                   <strong className="iso-ink iso-num">{w.what}</strong>
                   <span className="iso-small">{w.why}</span>
                 </span>
                 {r.state === 'drafted' ? (
-                  <span className="iso-actions iso-draft__do">
+                  <span className="iso-actions iso-sweepdraft__do">
                     <IsoButton variant="approve" size="sm" onClick={() => onApprove(r)}>
                       Approve
                     </IsoButton>
@@ -97,7 +99,7 @@ export function HoldSweep({ data, myKey, onApprove, onSweep, sweepBusy, sweepErr
                     {r.approvedKey && r.approvedKey === myKey ? 'Approved on this device' : `Approved${r.approvedBy ? ` by ${r.approvedBy}` : ''}`}
                   </Tag>
                 ) : (
-                  <span className="iso-small iso-draft__done">{r.purpose === 'sweep' && r.kind === 'subscribe' ? 'Dismissed · Zeke will ask again next week' : r.purpose === 'quarter_interest' ? 'Dismissed · Zeke drafts the next one after this quarter' : 'Dismissed · Zeke will ask again tomorrow if bills still need it'}</span>
+                  <span className="iso-small iso-sweepdraft__done">{r.purpose === 'sweep' && r.kind === 'subscribe' ? 'Dismissed · Zeke will ask again next week' : r.purpose === 'quarter_interest' ? 'Dismissed · Zeke drafts the next one after this quarter' : 'Dismissed · Zeke will ask again tomorrow if bills still need it'}</span>
                 )}
               </li>
             );

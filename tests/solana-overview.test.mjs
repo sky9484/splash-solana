@@ -13,7 +13,7 @@ import * as svc from '../lib/solana-app/service.ts';
 import { pipelineFor, stationLabel, stationOf, STATIONS } from '../lib/solana-app/stations.ts';
 import { needsYou, NEEDS_LIMIT } from '../lib/solana-app/needs-you.ts';
 import { bpsText, overviewFor, phpToUsdMinor } from '../lib/solana-app/overview.ts';
-import { formatPhp } from '../lib/solana-zeke/router.ts';
+import { formatPhp, formatUsd } from '../lib/solana-zeke/router.ts';
 import { resolvesToPage } from './helpers/app-routes.mjs';
 import { giveDetails } from './helpers/transfer-details.mjs';
 
@@ -52,7 +52,7 @@ test('stations: every payment state maps to exactly one station, for a bank payo
 
 const now = new Date('2026-10-13T02:00:00Z');
 const inSec = (s) => new Date(now.getTime() + s * 1000).toISOString();
-const base = { now, approvals: [], verifications: [], dueSoon: [], overdue: [], sweep: null, setup: [], php: formatPhp };
+const base = { now, approvals: [], verifications: [], dueSoon: [], overdue: [], sweep: null, setup: [], php: formatPhp, usd: formatUsd };
 
 test('needs you: approvals with a live quote first, then verifications, bills due, requests, a sweep, setup', () => {
   const r = needsYou({
@@ -85,6 +85,14 @@ test('needs you: approvals with a live quote first, then verifications, bills du
   assert.equal(r.rows[0].tag.tone, 'coral');
   assert.equal(r.rows[2].tag.tone, 'amber');
   for (const row of r.rows) assert.doesNotMatch(`${row.title} ${row.detail} ${row.tag.label}`, /KYB|\bApproved\b/);
+});
+
+test('needs you: a bill asked in US dollars is summed in US dollars, never as ₱0.00', () => {
+  const kms = { supplierName: 'Kuching Marine Supply', dueDate: '2026-10-17', dueLabel: '17 Oct', amountPhpMinor: 0n, amountUsdMinor: 100_000_000n };
+  const davao = { supplierName: 'Davao Agri Supply', dueDate: '2026-10-16', dueLabel: '16 Oct', amountPhpMinor: 12_500_000n };
+  assert.equal(needsYou({ ...base, dueSoon: [kms] }).rows[0].title, '1 invoice · US$100.00');
+  assert.equal(needsYou({ ...base, dueSoon: [kms, davao] }).rows[0].title, '2 invoices · ₱125,000.00 and US$100.00');
+  assert.equal(needsYou({ ...base, dueSoon: [davao] }).rows[0].title, '1 invoice · ₱125,000.00');
 });
 
 test('needs you: nothing waiting is an honest empty list', () => {

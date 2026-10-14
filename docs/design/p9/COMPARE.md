@@ -24,9 +24,9 @@ everywhere below:
 | 02 | Transfer · bank · 1 Recipient | Five tab strip (1 · Recipient … 5 · Track). "Who are you paying?", Pay again chip, two big rail cards (A bank account / A business on Splash), Saved bank recipients with search and Pay buttons, ink action bar (Cancel / Continue) at the bottom. | Dark **intent header** on top ("Send a payout", Draft, Test mode, step meter 1 of 5, four facts: They receive / You pay / Paid out by / Quote). Under it: step box with Bank account / Splash business switch and recipient rows (initials, bank, Verified), "+ New recipient", double-click hint; right rail **So far** (Paying, They receive, Route, Approval) with "Continue to amount". | New five-step pattern (decision 4): `TransferHeader` on every step, step + sticky So far rail, primary action in the rail (pinned to the bottom under 860 px). Double-click a saved recipient goes straight to step 2. |
 | 03 | Transfer · bank · 2 Amount | "How much does Cebu Logistics get?" Amount box (PHP / US$, rate line), big extruded "They receive" figure with payout method, What it's for (reference, Goods / Services, what was bought, how you know them, where the money comes from), Your limits box, ink action bar. | Intent header now "Pay Manila Freight Services · bank ···· · INV-…", facts filled. "How much?" with both amounts and rate line, "Use invoice INV-… " chip, What it's for, So far with Per payment / Left today / "Fits your rules", "See routes and cost", "Back to recipient". | Same fields and limits, moved into the new pattern; limits sit in the rail. The invoice chip opens that invoice's own payment (no second payment). |
 | 04 | Transfer · bank · 3 Route | "How ₱75,000 reaches Cebu Logistics": route diagram (your account → payout partner → bank), picked route bar, Compare the other route, How it moves, Rehearse a problem, rules line; Cost box and Money comes from box; ink action bar. | "Pick a route": two route cards (Cheapest / Fastest) each with fee, mini path and "You pay"; "Cost and where it comes from" grid; Pay from; How it moves; So far + "Review and approve". Header Quote shows "New quote in 0:59". | Route cards side by side replace the single diagram + compare link; cost grid; quote timer moves into the header. Build's Rehearse a problem (test mode) and rules line are kept. Route label renamed "Route" (was "Quote & send"). |
-| 05 | Transfer · bank · 4 Approve | Modal "Approve this payment" over a dimmed step 3: who, big extruded amount, You pay / All-in cost / Route / Reference / Purpose / Paid from, Rules checked 8 of 8, coral "Approve on this device". | In-page approval: "Approve this payment", receives figure with timer, To / Route / Pay from / You pay, "Approve on this device", "Zeke drafted this payment. Zeke can't approve; only you can.", Your rules 8 of 8 listed, "Back to route". | Approval moves into the page in the new pattern; same facts, same device key, rules listed. Build's Reference / Purpose / For rows are kept. |
+| 05 | Transfer · bank · 4 Approve | Modal "Approve this payment" over a dimmed step 3: who, big extruded amount, You pay / All-in cost / Route / Reference / Purpose / Paid from, Rules checked 8 of 8, coral "Approve on this device". | In-page approval: "Approve this payment", receives figure with timer, To / Route / Pay from / You pay, "Approve on this device", "Zeke drafted this payment. Zeke can't approve; only you can.", Your rules 8 of 8 listed, "Back to route". | Approval moves into the page in the new pattern; same facts, same device key, rules listed. Build's Reference and Purpose become one **For** row (what the payment is for, with the invoice or statement reference). |
 | 06 | Transfer · bank · 5 Track | "Cebu Logistics has been paid": six-station tracker in an extruded box, receipt box (rows, Verify this receipt, Share with auditor, Download PDF, Technical details), What's next (Pay another / Save as template / Back to Overview). | Header "Paid", Quote "Locked at 57.40". Tracker row, Receipt rows, Verify receipt / Share with auditor / Technical details, "What happened" timeline, "What's next", "Start a new transfer". | New pattern; tracker, receipt and timeline. Build's Download PDF and Save as template are kept. |
-| 07 | Transfer · Splash business · 1 Recipient | Same tab strip; "A business on Splash" card picked; "Find a business on Splash" search (name, handle, registration number) with a verified result and Pay; invite / pay their bank link; ink action bar. | The preview only shows the Bank account / Splash business switch inside step 1; no separate Splash search screen. | New pattern with the switch; the build's search, verified badge, invite and "pay their bank instead" links are kept. |
+| 07 | Transfer · Splash business · 1 Recipient | Same tab strip; "A business on Splash" card picked; "Find a business on Splash" search (name, handle, registration number) with a verified result and Pay; invite / pay their bank link; ink action bar. | The preview only shows the Bank account / Splash business switch inside step 1; no separate Splash search screen. | New pattern with the switch; the build's search, invite and "pay their bank instead" links are kept. Rows carry "No payout fee" in place of the verified badge. |
 | 08 | Transfer · Splash business · 2 Amount | "How much are you sending Kuching Marine Supply?" Amount (US$), note, their invoice number, extruded "Into their Splash account" figure, Your limits, ink bar "gets US$1,500.00 · no Splash fee". | Not shown separately (same step-2 pattern as bank). | New pattern; same fields. |
 | 09 | Transfer · Splash business · 3 Route | "How US$1,500 reaches Kuching Marine Supply": two-node path, cost box (Splash fee US$0.00), Money comes from, ink bar with Back / Review and approve. | Not shown separately. | New pattern: one route card ("Inside Splash"), cost grid, So far. |
 | 10 | Invoices · chooser | Two big extruded cards, Get paid / Pay an invoice, coin art, counts (1 unpaid request · 1 to check · 1 ready to pay), one button each. | Same two cards, floating; counts include "1 waiting for approval"; the clicked card **grows into its page**. | Floating cards with a 5 px hover rise; the clicked card morphs into the page (View Transition, with a fallback and reduced-motion cut). Counts stay the build's. |
@@ -46,17 +46,18 @@ everywhere below:
   Recipients and Rules, and the sidebar test-mode note. The preview has a short flat nav and no top
   row. Kept per Sky.
 - **Overview:** the fees line under "Payments this month" (Splash and partner fees, average all-in).
-- **Transfer:** Pay again chip; the Splash-business search with verified badge, invite link and
-  "pay their bank instead"; Rehearse a problem (test mode only); the rules line on the route; the
-  "Money comes from" box with Add money another way; Reference, Purpose and For rows on the
-  approval; Download PDF and Save as template after payment.
+- **Transfer:** Pay again chip; the Splash-business search with invite link and "pay their bank
+  instead"; Rehearse a problem (test mode only); the rules line on the route; the "Money comes
+  from" box with Add money another way; the For row on the approval; Download PDF and Save as
+  template after payment.
 - **Invoices:** Pay, Check and Get paid pages in full (the preview stops at the chooser); the Bills
   tabs; the request form with MyInvois reference and live preview.
 - **Balance:** the empty-state line when the Payments account is empty; the account-details pointer.
 - **Treasury:** the USDY explanation (what it is, not a bank deposit, 40-day hold on direct
   subscription, non-US companies only), the stocks 12-month returns with sources and the Tesla
-  example, the Positions table, the US-person confirmation, Technical details. Kept where the new
-  layout has room; the prompt decides on Treasury.
+  example, the US-person confirmation, Technical details. Kept where the new layout has room; the
+  prompt decides on Treasury, so the Positions table went (holdings show on the T-bill card and in
+  the stocks table).
 - **Zeke page:** stats, attach, How Zeke is kept safe, What each part of Zeke does.
 
 ## Preview has, build lacks (added by this prompt)
@@ -79,3 +80,187 @@ collapsing the sidebar) on that resize; the capture caught the slide part-way. S
 in a row before the fix: 3 drawn under the sidebar. Phase 1 makes the slide run only when a person
 collapses or expands the sidebar, and switches `main` from `overflow-x: hidden` to `clip`; after the
 fix: 6 of 6 clean. The before captures are left as they were, as the record of the bug.
+
+## Before and after (Phase 5)
+
+`before/` was taken on `b41dc50` (Phase 0); `after/` on the Phase 5 branch, the same script (`tests/p9-screens.e2e.mjs`), the same seeded test account and the same walk before it, 2026-10-14. Each pair is the same screen at the same width. Click an image for the full page. In `after/` the dev server's own "N" badge is hidden (it isn't part of the app).
+
+### 01 · Overview
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/01-overview-1440.webp"><img src="before/01-overview-1440.webp" width="420" alt="Overview, before, 1440 px"></a> | <a href="after/01-overview-1440.webp"><img src="after/01-overview-1440.webp" width="420" alt="Overview, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/01-overview-390.webp"><img src="before/01-overview-390.webp" width="200" alt="Overview, before, 390 px"></a> | <a href="after/01-overview-390.webp"><img src="after/01-overview-390.webp" width="200" alt="Overview, after, 390 px"></a> |
+
+### 02 · Transfer · bank · 1 Recipient
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/02-transfer-bank-1-recipient-1440.webp"><img src="before/02-transfer-bank-1-recipient-1440.webp" width="420" alt="Transfer · bank · 1 Recipient, before, 1440 px"></a> | <a href="after/02-transfer-bank-1-recipient-1440.webp"><img src="after/02-transfer-bank-1-recipient-1440.webp" width="420" alt="Transfer · bank · 1 Recipient, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/02-transfer-bank-1-recipient-390.webp"><img src="before/02-transfer-bank-1-recipient-390.webp" width="200" alt="Transfer · bank · 1 Recipient, before, 390 px"></a> | <a href="after/02-transfer-bank-1-recipient-390.webp"><img src="after/02-transfer-bank-1-recipient-390.webp" width="200" alt="Transfer · bank · 1 Recipient, after, 390 px"></a> |
+
+### 03 · Transfer · bank · 2 Amount
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/03-transfer-bank-2-amount-1440.webp"><img src="before/03-transfer-bank-2-amount-1440.webp" width="420" alt="Transfer · bank · 2 Amount, before, 1440 px"></a> | <a href="after/03-transfer-bank-2-amount-1440.webp"><img src="after/03-transfer-bank-2-amount-1440.webp" width="420" alt="Transfer · bank · 2 Amount, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/03-transfer-bank-2-amount-390.webp"><img src="before/03-transfer-bank-2-amount-390.webp" width="200" alt="Transfer · bank · 2 Amount, before, 390 px"></a> | <a href="after/03-transfer-bank-2-amount-390.webp"><img src="after/03-transfer-bank-2-amount-390.webp" width="200" alt="Transfer · bank · 2 Amount, after, 390 px"></a> |
+
+### 04 · Transfer · bank · 3 Route
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/04-transfer-bank-3-route-1440.webp"><img src="before/04-transfer-bank-3-route-1440.webp" width="420" alt="Transfer · bank · 3 Route, before, 1440 px"></a> | <a href="after/04-transfer-bank-3-route-1440.webp"><img src="after/04-transfer-bank-3-route-1440.webp" width="420" alt="Transfer · bank · 3 Route, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/04-transfer-bank-3-route-390.webp"><img src="before/04-transfer-bank-3-route-390.webp" width="200" alt="Transfer · bank · 3 Route, before, 390 px"></a> | <a href="after/04-transfer-bank-3-route-390.webp"><img src="after/04-transfer-bank-3-route-390.webp" width="200" alt="Transfer · bank · 3 Route, after, 390 px"></a> |
+
+### 05 · Transfer · bank · 4 Approve
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/05-transfer-bank-4-approve-1440.webp"><img src="before/05-transfer-bank-4-approve-1440.webp" width="420" alt="Transfer · bank · 4 Approve, before, 1440 px"></a> | <a href="after/05-transfer-bank-4-approve-1440.webp"><img src="after/05-transfer-bank-4-approve-1440.webp" width="420" alt="Transfer · bank · 4 Approve, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/05-transfer-bank-4-approve-390.webp"><img src="before/05-transfer-bank-4-approve-390.webp" width="200" alt="Transfer · bank · 4 Approve, before, 390 px"></a> | <a href="after/05-transfer-bank-4-approve-390.webp"><img src="after/05-transfer-bank-4-approve-390.webp" width="200" alt="Transfer · bank · 4 Approve, after, 390 px"></a> |
+
+### 06 · Transfer · bank · 5 Track
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/06-transfer-bank-5-track-1440.webp"><img src="before/06-transfer-bank-5-track-1440.webp" width="420" alt="Transfer · bank · 5 Track, before, 1440 px"></a> | <a href="after/06-transfer-bank-5-track-1440.webp"><img src="after/06-transfer-bank-5-track-1440.webp" width="420" alt="Transfer · bank · 5 Track, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/06-transfer-bank-5-track-390.webp"><img src="before/06-transfer-bank-5-track-390.webp" width="200" alt="Transfer · bank · 5 Track, before, 390 px"></a> | <a href="after/06-transfer-bank-5-track-390.webp"><img src="after/06-transfer-bank-5-track-390.webp" width="200" alt="Transfer · bank · 5 Track, after, 390 px"></a> |
+
+### 07 · Transfer · Splash business · 1 Recipient
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/07-transfer-splash-1-recipient-1440.webp"><img src="before/07-transfer-splash-1-recipient-1440.webp" width="420" alt="Transfer · Splash business · 1 Recipient, before, 1440 px"></a> | <a href="after/07-transfer-splash-1-recipient-1440.webp"><img src="after/07-transfer-splash-1-recipient-1440.webp" width="420" alt="Transfer · Splash business · 1 Recipient, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/07-transfer-splash-1-recipient-390.webp"><img src="before/07-transfer-splash-1-recipient-390.webp" width="200" alt="Transfer · Splash business · 1 Recipient, before, 390 px"></a> | <a href="after/07-transfer-splash-1-recipient-390.webp"><img src="after/07-transfer-splash-1-recipient-390.webp" width="200" alt="Transfer · Splash business · 1 Recipient, after, 390 px"></a> |
+
+### 08 · Transfer · Splash business · 2 Amount
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/08-transfer-splash-2-amount-1440.webp"><img src="before/08-transfer-splash-2-amount-1440.webp" width="420" alt="Transfer · Splash business · 2 Amount, before, 1440 px"></a> | <a href="after/08-transfer-splash-2-amount-1440.webp"><img src="after/08-transfer-splash-2-amount-1440.webp" width="420" alt="Transfer · Splash business · 2 Amount, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/08-transfer-splash-2-amount-390.webp"><img src="before/08-transfer-splash-2-amount-390.webp" width="200" alt="Transfer · Splash business · 2 Amount, before, 390 px"></a> | <a href="after/08-transfer-splash-2-amount-390.webp"><img src="after/08-transfer-splash-2-amount-390.webp" width="200" alt="Transfer · Splash business · 2 Amount, after, 390 px"></a> |
+
+### 09 · Transfer · Splash business · 3 Route
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/09-transfer-splash-3-route-1440.webp"><img src="before/09-transfer-splash-3-route-1440.webp" width="420" alt="Transfer · Splash business · 3 Route, before, 1440 px"></a> | <a href="after/09-transfer-splash-3-route-1440.webp"><img src="after/09-transfer-splash-3-route-1440.webp" width="420" alt="Transfer · Splash business · 3 Route, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/09-transfer-splash-3-route-390.webp"><img src="before/09-transfer-splash-3-route-390.webp" width="200" alt="Transfer · Splash business · 3 Route, before, 390 px"></a> | <a href="after/09-transfer-splash-3-route-390.webp"><img src="after/09-transfer-splash-3-route-390.webp" width="200" alt="Transfer · Splash business · 3 Route, after, 390 px"></a> |
+
+### 10 · Invoices · chooser
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/10-invoices-chooser-1440.webp"><img src="before/10-invoices-chooser-1440.webp" width="420" alt="Invoices · chooser, before, 1440 px"></a> | <a href="after/10-invoices-chooser-1440.webp"><img src="after/10-invoices-chooser-1440.webp" width="420" alt="Invoices · chooser, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/10-invoices-chooser-390.webp"><img src="before/10-invoices-chooser-390.webp" width="200" alt="Invoices · chooser, before, 390 px"></a> | <a href="after/10-invoices-chooser-390.webp"><img src="after/10-invoices-chooser-390.webp" width="200" alt="Invoices · chooser, after, 390 px"></a> |
+
+### 11 · Invoices · Pay
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/11-invoices-pay-1440.webp"><img src="before/11-invoices-pay-1440.webp" width="420" alt="Invoices · Pay, before, 1440 px"></a> | <a href="after/11-invoices-pay-1440.webp"><img src="after/11-invoices-pay-1440.webp" width="420" alt="Invoices · Pay, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/11-invoices-pay-390.webp"><img src="before/11-invoices-pay-390.webp" width="200" alt="Invoices · Pay, before, 390 px"></a> | <a href="after/11-invoices-pay-390.webp"><img src="after/11-invoices-pay-390.webp" width="200" alt="Invoices · Pay, after, 390 px"></a> |
+
+### 12 · Invoices · Check
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/12-invoices-check-1440.webp"><img src="before/12-invoices-check-1440.webp" width="420" alt="Invoices · Check, before, 1440 px"></a> | <a href="after/12-invoices-check-1440.webp"><img src="after/12-invoices-check-1440.webp" width="420" alt="Invoices · Check, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/12-invoices-check-390.webp"><img src="before/12-invoices-check-390.webp" width="200" alt="Invoices · Check, before, 390 px"></a> | <a href="after/12-invoices-check-390.webp"><img src="after/12-invoices-check-390.webp" width="200" alt="Invoices · Check, after, 390 px"></a> |
+
+### 13 · Invoices · Get paid
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/13-invoices-get-paid-1440.webp"><img src="before/13-invoices-get-paid-1440.webp" width="420" alt="Invoices · Get paid, before, 1440 px"></a> | <a href="after/13-invoices-get-paid-1440.webp"><img src="after/13-invoices-get-paid-1440.webp" width="420" alt="Invoices · Get paid, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/13-invoices-get-paid-390.webp"><img src="before/13-invoices-get-paid-390.webp" width="200" alt="Invoices · Get paid, before, 390 px"></a> | <a href="after/13-invoices-get-paid-390.webp"><img src="after/13-invoices-get-paid-390.webp" width="200" alt="Invoices · Get paid, after, 390 px"></a> |
+
+### 14 · Balance
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/14-balance-1440.webp"><img src="before/14-balance-1440.webp" width="420" alt="Balance, before, 1440 px"></a> | <a href="after/14-balance-1440.webp"><img src="after/14-balance-1440.webp" width="420" alt="Balance, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/14-balance-390.webp"><img src="before/14-balance-390.webp" width="200" alt="Balance, before, 390 px"></a> | <a href="after/14-balance-390.webp"><img src="after/14-balance-390.webp" width="200" alt="Balance, after, 390 px"></a> |
+
+### 15 · Treasury · Hold
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/15-treasury-hold-1440.webp"><img src="before/15-treasury-hold-1440.webp" width="420" alt="Treasury · Hold, before, 1440 px"></a> | <a href="after/15-treasury-hold-1440.webp"><img src="after/15-treasury-hold-1440.webp" width="420" alt="Treasury · Hold, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/15-treasury-hold-390.webp"><img src="before/15-treasury-hold-390.webp" width="200" alt="Treasury · Hold, before, 390 px"></a> | <a href="after/15-treasury-hold-390.webp"><img src="after/15-treasury-hold-390.webp" width="200" alt="Treasury · Hold, after, 390 px"></a> |
+
+### 16 · Treasury · Sweep
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/16-treasury-sweep-1440.webp"><img src="before/16-treasury-sweep-1440.webp" width="420" alt="Treasury · Sweep, before, 1440 px"></a> | <a href="after/16-treasury-sweep-1440.webp"><img src="after/16-treasury-sweep-1440.webp" width="420" alt="Treasury · Sweep, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/16-treasury-sweep-390.webp"><img src="before/16-treasury-sweep-390.webp" width="200" alt="Treasury · Sweep, before, 390 px"></a> | <a href="after/16-treasury-sweep-390.webp"><img src="after/16-treasury-sweep-390.webp" width="200" alt="Treasury · Sweep, after, 390 px"></a> |
+
+### 17 · Zeke
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/17-zeke-1440.webp"><img src="before/17-zeke-1440.webp" width="420" alt="Zeke, before, 1440 px"></a> | <a href="after/17-zeke-1440.webp"><img src="after/17-zeke-1440.webp" width="420" alt="Zeke, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/17-zeke-390.webp"><img src="before/17-zeke-390.webp" width="200" alt="Zeke, before, 390 px"></a> | <a href="after/17-zeke-390.webp"><img src="after/17-zeke-390.webp" width="200" alt="Zeke, after, 390 px"></a> |
+
+### 18 · Floating Zeke, open
+
+| Before · 1440 | After · 1440 |
+|---|---|
+| <a href="before/18-zeke-floating-open-1440.webp"><img src="before/18-zeke-floating-open-1440.webp" width="420" alt="Floating Zeke, open, before, 1440 px"></a> | <a href="after/18-zeke-floating-open-1440.webp"><img src="after/18-zeke-floating-open-1440.webp" width="420" alt="Floating Zeke, open, after, 1440 px"></a> |
+
+| Before · 390 | After · 390 |
+|---|---|
+| <a href="before/18-zeke-floating-open-390.webp"><img src="before/18-zeke-floating-open-390.webp" width="200" alt="Floating Zeke, open, before, 390 px"></a> | <a href="after/18-zeke-floating-open-390.webp"><img src="after/18-zeke-floating-open-390.webp" width="200" alt="Floating Zeke, open, after, 390 px"></a> |

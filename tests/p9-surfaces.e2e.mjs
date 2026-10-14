@@ -195,7 +195,7 @@ test('prompt 11 Phase 1: warm paper, floating boxes that rise 3 px and settle, 4
     if (p.touchHover && p.touchHover.hoverY !== 0) problems.push(`${p.name}: moved ${p.touchHover.hoverY} px on a touch screen`);
     if (p.overflow > 0) problems.push(`${p.name}: ${p.overflow}px sideways scroll at 390 px`);
     for (const b of p.buttons) {
-      const want = { md: 40, lg: 48, sm: 36, link: 44 }[b.kind];
+      const want = { md: 40, lg: 48, sm: 40, link: 44 }[b.kind];
       if (b.h < want || (b.kind !== 'link' && b.h > want + 4)) problems.push(`${p.name}: "${b.text}" (${b.kind}) is ${b.h} px, not ${want}`);
     }
   }

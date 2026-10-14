@@ -1,0 +1,1039 @@
+{
+  "label": "phase5",
+  "base": "http://localhost:3200",
+  "at": "2026-10-14T20:09:51.677Z",
+  "ground": null,
+  "pages": [
+    {
+      "name": "Overview",
+      "url": "/dashboard",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "Your money, all accounts",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "Needs you",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Payments this month",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Recent payments",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Where you can pay",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Checks and limits",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "Your money, all accounts",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "buttons": [
+        {
+          "text": "Pay an invoice",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "New transfer",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Get paid",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "See all rules",
+          "kind": "link",
+          "h": 44
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "Your money, all accounts",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Balance",
+      "url": "/dashboard/fund",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "Payments account",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "Bank or card top-up",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "From a crypto wallet",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Get paid",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Money in and out",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "Payments account",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "buttons": [
+        {
+          "text": "Move between accounts",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Add money",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Top up",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Choose a wallet",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Request a payment",
+          "kind": "md",
+          "h": 40
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "Payments account",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Treasury",
+      "url": "/dashboard/treasury",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "All accounts",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "US T-bill pool",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "US stocks and ETFs",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Hold or sweep",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Treasury activity",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Risk and rules",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "All accounts",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "buttons": [
+        {
+          "text": "Move money between accounts",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Subscribe",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Redeem",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Buy a stock or ETF",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Buy more\nS&P 500",
+          "kind": "sm",
+          "h": 40
+        },
+        {
+          "text": "Sell\nS&P 500",
+          "kind": "sm",
+          "h": 40
+        },
+        {
+          "text": "Buy\nNasdaq-100",
+          "kind": "sm",
+          "h": 40
+        },
+        {
+          "text": "Buy\nNVIDIA",
+          "kind": "sm",
+          "h": 40
+        },
+        {
+          "text": "Buy\nAlphabet",
+          "kind": "sm",
+          "h": 40
+        },
+        {
+          "text": "Buy\nTesla",
+          "kind": "sm",
+          "h": 40
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "All accounts",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Invoices",
+      "url": "/dashboard/invoices",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "iso-chooser__card iso-chooser__card--first iso-rise",
+          "restY": 0,
+          "hoverY": -5,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "iso-chooser__card iso-chooser__card--second iso-rise",
+          "restY": 0,
+          "hoverY": -5,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        }
+      ],
+      "reduced": {
+        "name": "iso-chooser__card iso-chooser__card--first iso-rise",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "buttons": [
+        {
+          "text": "Request a payment",
+          "kind": "lg",
+          "h": 48
+        },
+        {
+          "text": "Pay an invoice",
+          "kind": "lg",
+          "h": 48
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "iso-chooser__card iso-chooser__card--first iso-rise",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Pay an invoice",
+      "url": "/dashboard/invoices/pay",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "Drop an invoice, or paste its text",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "Bills",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "Drop an invoice, or paste its text",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "buttons": [
+        {
+          "text": "Switch to Get paid",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Choose a file",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Paste text",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Use the sample invoice",
+          "kind": "md",
+          "h": 40
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "Drop an invoice, or paste its text",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Get paid",
+      "url": "/dashboard/invoices/get",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "Requests",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "New request",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        }
+      ],
+      "reduced": {
+        "name": "Requests",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "buttons": [
+        {
+          "text": "Switch to Pay an invoice",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Add a line",
+          "kind": "link",
+          "h": 44
+        },
+        {
+          "text": "Send request",
+          "kind": "lg",
+          "h": 48
+        },
+        {
+          "text": "Save draft",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Pay in Splash",
+          "kind": "md",
+          "h": 40
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "Requests",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Transfer",
+      "url": "/dashboard/transfer",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "Who are you paying?",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "Who are you paying?",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "buttons": [
+        {
+          "text": "New recipient",
+          "kind": "md",
+          "h": 40
+        },
+        {
+          "text": "Continue to amount",
+          "kind": "lg",
+          "h": 48
+        }
+      ],
+      "touch": false,
+      "touchHover": {
+        "name": "Who are you paying?",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Zeke",
+      "url": "/dashboard/zeke",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "What should we look at?",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+        },
+        {
+          "name": "Waiting for you",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Today",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "How Zeke is kept safe",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "What each part of Zeke does",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "What should we look at?",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "buttons": [],
+      "touch": false,
+      "touchHover": {
+        "name": "What should we look at?",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.07) 0px 2px 4px 0px, rgba(8, 54, 64, 0.34) 0px 18px 38px -16px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "History",
+      "url": "/dashboard/history",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "sx-card sx-table-wrap bg-white",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Treasury",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "sx-card sx-table-wrap bg-white",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "buttons": [],
+      "touch": false,
+      "touchHover": {
+        "name": "sx-card sx-table-wrap bg-white",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Recipients",
+      "url": "/dashboard/recipients",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "dash-surface flex flex-wrap items-center gap-2 p-2",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "dash-surface p-6 text-center text-sm text-[#326273]/90",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Corridor mix",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Quick actions",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Beneficiary stats",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "dash-surface flex flex-wrap items-center gap-2 p-2",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "buttons": [],
+      "touch": false,
+      "touchHover": {
+        "name": "dash-surface flex flex-wrap items-center gap-2 p-2",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Rules",
+      "url": "/dashboard/settings/policy",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "sx-card",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "sx-card",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "buttons": [],
+      "touch": false,
+      "touchHover": {
+        "name": "sx-card",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "overflow": 0
+    },
+    {
+      "name": "Settings",
+      "url": "/dashboard/settings",
+      "axe": {
+        "390": [],
+        "1440": []
+      },
+      "ground": {
+        "background": "rgb(244, 238, 233)",
+        "image": "none"
+      },
+      "boxes": [
+        {
+          "name": "Payment controls",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Security controls",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Waiting for your approval",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "Approvals on WhatsApp",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        },
+        {
+          "name": "How Splash operates",
+          "restY": 0,
+          "hoverY": -3,
+          "backY": 0,
+          "shadowChanged": true,
+          "nextMoved": false,
+          "heightMoved": false,
+          "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+        }
+      ],
+      "reduced": {
+        "name": "Payment controls",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": true,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "buttons": [],
+      "touch": false,
+      "touchHover": {
+        "name": "Payment controls",
+        "restY": 0,
+        "hoverY": 0,
+        "backY": 0,
+        "shadowChanged": false,
+        "nextMoved": false,
+        "heightMoved": false,
+        "restShadow": "rgba(8, 54, 64, 0.06) 0px 1px 2px 0px, rgba(8, 54, 64, 0.26) 0px 10px 24px -12px"
+      },
+      "overflow": 0
+    }
+  ]
+}

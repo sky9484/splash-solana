@@ -9,7 +9,7 @@ import { IsoButton, IsoDisplay, IsoSurface, QuoteRing, Tag, holdOverlay, seconds
 import { api, ApiError, dateShort, existingDeviceKey, php, signPrepared, timeShort, usd } from '../client';
 import type { CompanyDTO, FundingOptionsDTO, PaymentDTO } from '../types';
 import { notifyCompanyChanged } from '../useCompany';
-import { problemOf, shortName, type Problem } from './shared';
+import { laneTags, problemOf, shortName, type Problem } from './shared';
 
 const METHOD: Record<string, string> = { 'call-back': 'by call-back', 'supplier-account': 'from their account record', 'existing-record': 'from an earlier record' };
 
@@ -58,7 +58,9 @@ export function StepApprove({ company, payment, plan, onPayment, onTrack }: { co
   const reserve = BigInt(a.reserveMoveMinor ?? '0');
   const short = shortName(a.supplierName);
   const receive = peer ? usd(a.receiveUsdMinor ?? '0') : php(a.receivePhpMinor);
-  const lane = [...payment.cards, ...(payment.compare ? [payment.compare] : [])].find((c) => c.quoteId === a.quoteId) ?? null;
+  const lanes = [...payment.cards, ...(payment.compare ? [payment.compare] : [])];
+  const lane = lanes.find((c) => c.quoteId === a.quoteId) ?? null;
+  const laneName = lane ? laneTags(lane, lanes).map((t) => t.label).join(' · ') : '';
   const waiting = payment.approvals.waitingFor;
   const why =
     phase !== 'ready'
@@ -181,7 +183,7 @@ export function StepApprove({ company, payment, plan, onPayment, onTrack }: { co
           </div>
           <div>
             <dt>Route</dt>
-            <dd>{peer ? `Inside Splash · straight into ${short}’s account` : `${lane?.labels.join(' · ') || a.policyLabel} · paid out by ${a.arrives.split(',')[0]}`}</dd>
+            <dd>{peer ? `Inside Splash · straight into ${short}’s account` : `${laneName || (lane ? 'Other route' : a.policyLabel)} · paid out by ${a.arrives.split(',')[0]}`}</dd>
           </div>
           {/* Prompt 10 §5.7: every card says what the payment is for; a bill's is its invoice. */}
           <div>

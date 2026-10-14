@@ -30,8 +30,8 @@ const SETTLED = ['anchored', ...STOPPED];
 
 const LABEL: Record<StationId, string> = { draft: 'Draft', waiting: 'Approved', sent: 'Sent', partner: 'With partner', paid: 'Paid to bank', recording: 'Recording proof', recorded: 'Proof recorded', stopped: 'Stopped' };
 
-/** A moment in the reader's own time zone: "14 Oct, 09:12". */
-const at = (iso: string) => <LocalTime value={iso} options={{ day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }} />;
+/** A moment in the reader's own time zone, day first on a 24-hour clock as elsewhere in the app: "14 Oct, 09:12". */
+const at = (iso: string) => <LocalTime value={iso} locale="en-GB" options={{ day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }} />;
 
 /**
  * Step 5, Track (prompt 11 §2.3; prompt 10 §5.8): the six stations, Approved, Sent, With partner, Paid
@@ -116,7 +116,10 @@ export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onR
         </div>
         <ol className="iso-tracker" style={{ ['--n' as string]: ids.length }} aria-label={`Where ${peer ? usd(payment.approval?.receiveUsdMinor ?? '0') : php(payment.approval?.receivePhpMinor ?? '0')} to ${payee.name} is`}>
           {ids.map((id, i) => {
-            const tone = stopped ? (i <= reached ? 'done' : 'later') : i < reached || (i === reached && (id === 'recorded' || recorded)) ? 'done' : i === reached ? 'now' : 'later';
+            // Arriving is a done thing: once the money is in, "Paid to bank" / "In their account" is ticked
+            // and recording the proof is what happens now (prompt 11 Phase 5 review).
+            const nowAt = recorded ? ids.length : station === 'paid' ? reached + 1 : reached;
+            const tone = stopped ? (i <= reached ? 'done' : 'later') : i < nowAt ? 'done' : i === nowAt ? 'now' : 'later';
             const label = id === 'waiting' && waiting ? 'Waiting approval' : id === 'paid' && peer ? 'In their account' : LABEL[id];
             return (
               <Fragment key={id}>
@@ -143,7 +146,7 @@ export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onR
 
       {stopped ? <Stopped state={payment.state} problem={payment.problem} short={short} onRequote={onRequote} onRetry={onRetry} /> : null}
 
-      {payment.receiptId ? <Receipt payment={payment} payee={payee} receipt={receipt} problem={receiptProblem} recorded={recorded} /> : <ReceiptPending peer={peer} />}
+      {payment.receiptId ? <Receipt payment={payment} payee={payee} receipt={receipt} problem={receiptProblem} recorded={recorded} /> : <ReceiptPending peer={peer} paid={paid} />}
     </>
   );
 
@@ -177,14 +180,14 @@ function Stopped({ state, problem, short, onRequote, onRetry }: { state: string;
   );
 }
 
-function ReceiptPending({ peer }: { peer: boolean }) {
+function ReceiptPending({ peer, paid }: { peer: boolean; paid: boolean }) {
   return (
     <IsoSurface pad className="iso-stack" aria-labelledby="t5-receipt">
       <h2 id="t5-receipt" className="iso-h2">
         Receipt
       </h2>
       <p className="iso-small" style={{ margin: 0 }}>
-        {peer ? 'The receipt is ready once the money is in their account.' : 'The receipt is ready once the partner reports the bank has paid.'} One record holds the approval, the transfer and the proof.
+        {paid ? 'The receipt is ready once the proof is recorded.' : peer ? 'The receipt is ready once the money is in their account.' : 'The receipt is ready once the partner reports the bank has paid.'} One record holds the approval, the transfer and the proof.
       </p>
     </IsoSurface>
   );
@@ -339,7 +342,9 @@ function Rail({ payment, receipt, peer, stopped, done, onAnother }: { payment: P
   if (t.approvedAt || payment.approvals.approved > 0) events.push({ what: 'Approved', at: t.approvedAt ?? null });
   if (t.sentAt) events.push({ what: 'Sent', at: t.sentAt });
   if (!peer && t.receivedAt) events.push({ what: 'With partner', at: t.receivedAt });
-  if (t.paidAt) events.push({ what: peer ? 'In their account' : 'Paid to bank', at: t.paidAt });
+  // Inside Splash there's no partner to report "paid": the money is in their account when the chain confirms it.
+  const paidMoment = peer ? (payment.confirmedAt ?? t.paidAt ?? null) : (t.paidAt ?? null);
+  if (paidMoment) events.push({ what: peer ? 'In their account' : 'Paid to bank', at: paidMoment });
   if (t.returnedAt) events.push({ what: 'Returned by the bank', at: t.returnedAt });
   if (payment.receiptId) events.push({ what: 'Recording proof', at: receipt?.bundle.receipt.issuedAt ?? null });
   if (recorded) events.push({ what: 'Proof recorded', at: null });

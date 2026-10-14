@@ -99,6 +99,11 @@ test('"Not now": the draft is set aside, nothing moves, and sweep-out isn’t dr
   assert.deepEqual(v.sweep.rows.map((r) => [r.purpose, r.state]), [['sweep', 'drafted']]);
   const vDay1 = await inv.treasuryView(env.org.id, OWNER, new Date('2026-10-14T05:00:00Z'));
   assert.deepEqual(vDay1.sweep.rows.map((r) => [r.purpose, r.state]), [['sweep', 'dismissed']]);
+  // Zeke says why nothing waits: "Not now", and until when (not "nothing needs drafting").
+  assert.equal(vDay1.zeke, 'You said not now to today’s sweep, so I won’t draft one into T-bills again before 21 Oct. I never pick an investment for you.');
+  const vDay3 = await inv.treasuryView(env.org.id, OWNER, new Date('2026-10-16T05:00:00Z'));
+  assert.equal(vDay3.zeke, 'You said not now to a sweep, so I won’t draft one into T-bills again before 21 Oct. I never pick an investment for you.');
+  assert.match(v.zeke, /^I drafted a sweep of US\$[\d,.]+ into T-bills/);
   assert.equal(svc.getOrg(env.org.id).investments?.orders.length ?? 0, 0, 'no order was placed');
 });
 

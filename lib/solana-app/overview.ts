@@ -105,7 +105,7 @@ export async function overviewFor(input: OverviewInput) {
     });
   const dueSoon = accepted
     .filter((i) => i.confirmed!.dueDate && i.confirmed!.dueDate <= horizon7)
-    .map((i) => ({ supplierName: i.confirmed!.supplierName, dueDate: i.confirmed!.dueDate, dueLabel: shortDate(i.confirmed!.dueDate), amountPhpMinor: i.confirmed!.amountPhpMinor }));
+    .map((i) => ({ supplierName: i.confirmed!.supplierName, dueDate: i.confirmed!.dueDate, dueLabel: shortDate(i.confirmed!.dueDate), amountPhpMinor: i.confirmed!.amountPhpMinor, amountUsdMinor: i.peer?.amountUsdMinor ?? null }));
   const needs = needsYou({
     now,
     approvals: waiting.map((p) => {
@@ -133,6 +133,7 @@ export async function overviewFor(input: OverviewInput) {
     })(),
     setup: input.setupOpen,
     php: formatPhp,
+    usd: formatUsd,
   });
   const readToday = bills.filter((i) => utcDay(new Date(i.createdAt)) === utcDay(now)).length;
 

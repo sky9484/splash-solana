@@ -131,7 +131,7 @@ export function OverviewView({ data }: { data: OverviewDTO }) {
                 )}
               </p>
             </div>
-            <Image className="iso-art iso-bob iso-bob--slow iso-money__vault" src="/cinematic/vault-transparent.png" alt="" width={210} height={117} priority />
+            <Image className="iso-art iso-money__vault" src="/cinematic/vault-transparent.png" alt="" width={210} height={117} priority />
           </div>
           <MoneyBar shares={m.shares} investmentsSetUp={m.investmentsSetUp} />
           <div className="iso-money__rows">

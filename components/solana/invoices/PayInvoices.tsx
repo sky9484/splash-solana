@@ -184,7 +184,7 @@ function Inbox() {
             )}
           </div>
           <div className="iso-zekenote">
-            <Image className="iso-bob" src="/cinematic/agent-bot-cut.png" alt="" width={92} height={92} />
+            <Image src="/cinematic/agent-bot-cut.png" alt="" width={92} height={92} />
             <strong>Zeke reads; you check.</strong>
             <p>It reads with no tools, so a document can&rsquo;t make it do anything. New bank details always wait for a phone call-back.</p>
             <p className="iso-small">Forward invoices by email · coming soon</p>

@@ -193,7 +193,7 @@
   transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso), border-color var(--t-ui), background-color var(--t-ui);
 }
 .iso .iso-btn--lg { min-height: 48px; padding: 0 24px; }
-.iso .iso-btn--sm { min-height: 36px; padding: 0 12px; font-size: var(--iso-14); }
+.iso .iso-btn--sm { min-height: 40px; padding: 0 12px; font-size: var(--iso-14); }
 .iso .iso-btn--block { width: 100%; }
 .iso .iso-btn--primary { background: var(--teal); color: var(--paper-warm); box-shadow: var(--ledge-1); }
 .iso .iso-btn--approve { background: var(--coral); color: var(--ink-deep); box-shadow: var(--ledge-1); }
@@ -768,7 +768,10 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
 }
 
 /* A loading placeholder in the final layout's shape (no spinner). */
-.iso .iso-skel { background: linear-gradient(90deg, rgb(12 62 72 / .06), rgb(12 62 72 / .12), rgb(12 62 72 / .06)); background-size: 200% 100%; animation: iso-shimmer 1.4s linear infinite; }
+/* A loading placeholder is a calm tint, not a shimmer: nothing moves on its own except the coins on a
+   moving wire, the chooser's coin bob, Treasury's live dot and number, and the quote ring (prompt 11
+   Phase 5, motion audit). */
+.iso .iso-skel { background: rgb(12 62 72 / .08); }
 
 /* ── Motion: rise on load (once), staggered 80 ms ────────────────────── */
 /* `backwards`, not `both`: a finished rise holds nothing, so a box's hover lift (a transform) still applies. */
@@ -795,7 +798,6 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
 @keyframes iso-slidein { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes iso-sheetup { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes iso-land { 0% { transform: translateY(-48px); opacity: 0; } 60% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
-@keyframes iso-shimmer { to { background-position: -200% 0; } }
 
 /* Reduced motion: no coins travelling, no dashes marching, no bobbing, no
    count-up or morphs; coins sit mid-wire, and content crossfades (120 ms). */
@@ -1200,7 +1202,9 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-money__short { color: var(--amber-ink); }
 .iso .iso-money__short strong { color: var(--amber-ink); }
 .iso .iso-money__vault { flex: 0 0 auto; width: 210px; height: auto; }
-.iso .iso-money__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+/* Three accounts in one row on a desktop (prompt 11 Phase 5: at 190 px the third wrapped in the hero's
+   ~586 px), one column on a phone. */
+.iso .iso-money__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
 .iso .iso-money__row { display: flex; gap: 10px; align-items: flex-start; }
 .iso .iso-money__row > div { display: flex; flex-direction: column; gap: 1px; }
 .iso .iso-money__name { color: var(--ink-deep); }
@@ -1281,8 +1285,14 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 
 /* Step 3. */
 .iso .iso-howto { display: flex; flex-direction: column; gap: 10px; }
-.iso .iso-rules { margin: 0; color: var(--ink); }
+.iso .iso-rules { margin: 0; color: var(--ink); flex-wrap: nowrap; align-items: flex-start; }
 .iso .iso-rules svg { color: var(--teal); }
+.iso .iso-rules > svg { flex: 0 0 auto; margin-top: 1px; }
+.iso .iso-rules > span { flex: 1 1 0; min-width: 0; }
+/* Step 3's "Rehearse a problem": three long choices, one under another in the narrow column, never two and a stray. */
+.iso .iso-rehearse .iso-seg { flex-direction: column; }
+.iso .iso-rehearse .iso-seg__btn { text-align: left; }
+.iso .iso-rehearse .iso-seg__btn + .iso-seg__btn { border-left: 0; border-top: 1.5px solid var(--ink-deep); }
 .iso .iso-from { border: 1.5px solid var(--line-soft); }
 .iso .iso-from > li { padding: 12px 16px; }
 .iso .iso-ways { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); line-height: 1.5; color: var(--text-2); }
@@ -1369,6 +1379,10 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 }
 
 .iso .iso-tx { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+/* On Transfer the floating Zeke sits raised (FloatingCopilot's iso-zk--raised, 104 px up; its 64 px
+   tile and count badge above that). The page ends far enough below it that, scrolled to the end, the
+   rail's last button and the last line of every step come clear of it. Zeke itself doesn't move. */
+.iso-app .iso-main:has(.iso-txhead) { padding-bottom: 196px; }
 .iso .iso-tx__step { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 /* Focus moves to a step's heading for screen readers (tabindex -1); it is not a control, so no ring. */
 .iso [data-step-heading]:focus { outline: none; }
@@ -1421,7 +1435,8 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
     background: var(--white); box-shadow: var(--lift-bar);
     gap: 0;
   }
-  .iso-app .iso-main:has(.iso-sofar__cta) { padding-bottom: calc(var(--iso-actionbar-h, 120px) + 40px); }
+  /* Room for the pinned bar, and for Zeke resting above it (up to 24 px over the bar, 73 px tall). */
+  .iso-app .iso-main:has(.iso-sofar__cta) { padding-bottom: calc(var(--iso-actionbar-h, 120px) + 112px); }
 }
 
 /* Step 1: recipients as rows. */
@@ -1443,8 +1458,12 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-pick__more:hover { color: var(--ink-deep); }
 @media (max-width: 640px) {
   .iso .iso-pick__main { flex-wrap: wrap; }
+  /* The name always sits beside its tile, however long; the tag goes under it, every row alike. */
+  .iso .iso-pick__text { flex-basis: calc(100% - 52px); }
   .iso .iso-pick__tag { margin-left: 52px; }
 }
+/* Links inside the sentence under the search read as part of it: its size, its line. */
+.iso .iso-pick__hint .iso-btn--link { display: inline; min-height: 0; font-size: inherit; line-height: inherit; white-space: normal; vertical-align: baseline; }
 
 /* Step 3: the routes side by side, each with a small route line; coins only on the chosen one. */
 .iso .iso-routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
@@ -1501,7 +1520,8 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-tracker__bar--done { background: var(--teal); }
 .iso .iso-dl--rows.iso-receipt__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 11px 26px; }
 .iso .iso-happened { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.iso .iso-happened li { position: relative; display: flex; flex-direction: column; padding-left: 18px; font-size: var(--iso-14); }
+/* One line an event: what, then its time at the right (it wraps under only when the rail is too narrow). */
+.iso .iso-happened li { position: relative; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; column-gap: 12px; padding-left: 18px; font-size: var(--iso-14); }
 .iso .iso-happened li::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
 .iso .iso-happened strong { color: var(--ink-deep); }
 @media (max-width: 859px) {
@@ -1806,11 +1826,11 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 @media (max-width: 480px) { .iso .iso-ichart__tiles { grid-template-columns: minmax(0, 1fr); } }
 
 /* Hold or sweep: Zeke's drafts, each a row a person decides. */
-.iso .iso-drafts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.iso .iso-draft { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; padding: 12px; background: var(--white); border: 1px solid var(--surface-line); }
-.iso .iso-draft__zeke { width: 28px; height: 28px; object-fit: contain; }
-.iso .iso-draft__what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.iso .iso-draft__do, .iso .iso-draft > .iso-tag, .iso .iso-draft__done { grid-column: 2; justify-self: start; }
+.iso .iso-sweepdrafts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-sweepdraft { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; padding: 12px; background: var(--white); border: 1px solid var(--surface-line); }
+.iso .iso-sweepdraft__zeke { width: 28px; height: 28px; object-fit: contain; }
+.iso .iso-sweepdraft__what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.iso .iso-sweepdraft__do, .iso .iso-sweepdraft > .iso-tag, .iso .iso-sweepdraft__done { grid-column: 2; justify-self: start; }
 .iso .iso-feeskept { display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
 .iso .iso-feeskept__sum { font-size: 24px; font-weight: 900; color: var(--ink-deep); }
 

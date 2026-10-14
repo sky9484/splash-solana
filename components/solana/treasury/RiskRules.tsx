@@ -50,7 +50,7 @@ export function Activity({ data, myKey }: { data: TreasuryDTO; myKey: string | n
 export function RiskRules({ data }: { data: TreasuryDTO }) {
   const d = data;
   return (
-    <IsoSurface pad className="iso-split__main iso-rise iso-rise-5" aria-labelledby="tr-risk">
+    <IsoSurface pad className="iso-rise iso-rise-5" aria-labelledby="tr-risk">
       <h2 id="tr-risk" className="iso-h2" style={{ marginBottom: 10 }}>
         Risk and rules
       </h2>
