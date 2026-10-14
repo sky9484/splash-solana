@@ -119,15 +119,17 @@ export function StepQuote({
   const checkFailed = checks && checks.quoteId === card.quoteId ? checks.checks.find((c) => !c.passed) : null;
   // A payment to a Splash business has no rate to run out: Review gets a fresh quote if it must.
   const why =
-    left === 0 && !peer
-      ? 'The quote ran out. Get a new one first.'
-      : !plan
-        ? 'Working out where the money comes from…'
-        : plan.kind === 'external'
-          ? `Add money first: your Payments account is short by ${usd(plan.shortMinor)}.`
-          : checkFailed
-            ? `Stopped by a rule: ${checkFailed.label.toLowerCase()}.`
-            : null;
+    payment.state === 'rejected_by_policy'
+      ? 'Stopped by a rule, so nothing was sent. See why above; your company’s owner can change rules in Rules.'
+      : left === 0 && !peer
+        ? 'The quote ran out. Get a new one first.'
+        : !plan
+          ? 'Working out where the money comes from…'
+          : plan.kind === 'external'
+            ? `Add money first: your Payments account is short by ${usd(plan.shortMinor)}.`
+            : checkFailed
+              ? `Stopped by a rule: ${checkFailed.label.toLowerCase()}.`
+              : null;
 
   const options = lanes.map((c) => ({
     value: c.quoteId,

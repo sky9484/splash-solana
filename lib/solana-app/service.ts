@@ -53,7 +53,7 @@ import type { ShareRecord } from './doc-store.ts';
 import { compareValue, quoteRoutes, stepCount, POLICIES, type EngineResult } from '../route-engine/index.ts';
 import { createKytStub, evaluatePolicy, TIER_LIMITS, type EnginePolicyResult } from '../route-engine/policy.ts';
 import { DEFAULT_ASSUMPTIONS, isQuoteExpired, MAX_QUOTE_TTL_SEC, routeKindOf, type RouteKind } from '../route-engine/quote.ts';
-import { ALL_IN_TARGET_BPS } from '../route-engine/fees.ts';
+import { ALL_IN_TARGET_BPS, SPLASH_FEE_BPS, SPLASH_MIN_FEE_USDC_MINOR } from '../route-engine/fees.ts';
 import { signWebhook } from '../solana-partner/mock-partner.ts';
 import type { PartnerPayout } from '../solana-partner/registry.ts';
 import { assertAttesterIsolated, buildMemoAnchor } from '../solana-evidence/anchor.ts';
@@ -1378,7 +1378,8 @@ export async function selectRoute(paymentId: string, input: { quoteId: string; r
 
 function problemFromPolicy(policy: EnginePolicyResult): { code: string; message: string } {
   const failed = new Set([...policy.checks, ...policy.extraChecks].filter((c) => !c.passed).map((c) => c.name));
-  if (failed.has('kyt')) return { code: 'kyt_flagged', message: `The screening rule stopped it: screening flagged where this payment goes, so nothing was sent. Your company's owner can ask support to review it (reference ${policy.kyt.resultId}).` };
+  // The support reference is the screening result's own id, shown without the provider's internal prefix.
+  if (failed.has('kyt')) return { code: 'kyt_flagged', message: `The screening rule stopped it: screening flagged where this payment goes, so nothing was sent. Your company's owner can ask support to review it (reference SCR-${policy.kyt.resultId.slice(-8).toUpperCase()}).` };
   if (failed.has('quote_expiry')) return { code: 'quote_expired', message: 'Quote expired before you approved. Refresh to get a new quote.' };
   if (failed.has('duplicate_invoice')) return { code: 'duplicate_invoice', message: 'This invoice was already paid or is being paid. Nothing was sent.' };
   if (failed.has('bank_details_verified')) return { code: 'bank_unverified', message: 'New bank details. Verify by phone before paying.' };
@@ -2098,7 +2099,7 @@ async function applyPartnerWebhook(raw: Record<string, unknown>, now: Date) {
   const next = await cas(() => repo().transition(p.id, { from: 'confirmed', version: p.version }, 'partner_failed', (d) => {
     d.partnerEvents.push(event);
     d.timeline.returnedAt = event.at;
-    d.problem = { code: 'partner_returned', message: 'The payout partner returned the payment. Money is back in your Solana balance. Retry or pay another way.' };
+    d.problem = { code: 'partner_returned', message: 'The payout partner returned the payment. What it received is back in your Payments account; Splash’s fee isn’t part of it. Retry or pay another way.' };
   }, 'partner returned', now));
   // The invoice is free to pay again.
   const org = getOrg(p.orgId);
@@ -2297,8 +2298,11 @@ export async function paymentView(paymentId: string) {
         routeMinor: q.costs.routeMinor,
         partnerMinor: q.costs.partnerMinor,
         splashMinor: q.costs.splashMinor,
-        /** Splash's fee as a share of what you pay, "0.10%" (display only, integer math). */
-        splashShare: shareText(q.costs.splashMinor, q.source.amountMinor),
+        /**
+         * Splash's fee as its rule (§5.6): "0.10%", and "0.10%, at least US$2.00" when the minimum is what
+         * applied, so the label never reads as a higher rate than the one charged.
+         */
+        splashShare: `${shareText(BigInt(SPLASH_FEE_BPS[q.policy]), 10_000n)}${q.costs.splashMinor === SPLASH_MIN_FEE_USDC_MINOR ? `, at least ${formatUsd(SPLASH_MIN_FEE_USDC_MINOR)}` : ''}`,
       },
       rate: q.fx.rate,
       arrives: arrivalOf(q).words.split(',')[0]!,

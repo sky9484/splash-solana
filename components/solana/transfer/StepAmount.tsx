@@ -329,7 +329,7 @@ export function StepAmount({
             )
           ) : null}
           <p className="iso-small" style={{ margin: 0 }}>
-            Fees come on top, on the next step. Every rule is checked again before you approve.
+            {kind === 'peer' ? 'No Splash fee between Splash businesses.' : 'Fees come on top, on the next step.'} Every rule is checked again before you approve.
           </p>
         </IsoSurface>
       </div>

@@ -297,7 +297,7 @@ export default function ZekeDesk() {
         </div>
         {d ? (
           <ScrollRegion label="What each part of Zeke does">
-            <table className="iso-table iso-table--stack">
+            <table className="iso-table iso-table--stack iso-desk__roster">
               <thead>
                 <tr>
                   <th scope="col">Part</th>

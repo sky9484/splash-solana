@@ -120,8 +120,12 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
   if (!intent) return null;
   const limit = preview ? BigInt(preview.limit.maxMinor) : null;
   const chosenPath: Path = path ?? (preview?.request.path as Path | undefined) ?? 'market';
+  // Exactly how much of this order each account gives (the Reserve's spare first), never a total
+  // attached to one account's name.
   const fromLine = paying
-    ? `${preview?.from?.label ?? (BigInt(treasury.available.fromReserveMinor) > 0n ? 'Reserve, then Payments account' : 'Payments account')} (available ${usd(treasury.available.totalMinor)})`
+    ? preview?.from
+      ? [BigInt(preview.from.reserveMinor) > 0n ? `Reserve ${usd(preview.from.reserveMinor)}` : null, BigInt(preview.from.paymentsMinor) > 0n ? `Payments account ${usd(preview.from.paymentsMinor)}` : null].filter(Boolean).join(' + ')
+      : `Your Reserve’s spare first, then your Payments account (${usd(treasury.available.totalMinor)} available to invest)`
     : `Investments account (you can ${kind} ${usd(preview?.redeemableMinor ?? (tbill ? (treasury.tbills.holding?.redeemableMinor ?? '0') : '0'))} now)`;
   const gateReason = needsGate && !(company.me.isOwner && tick) ? (company.me.isOwner ? 'Tick the confirmation above first. It’s asked once, before your first subscription or buy.' : 'Your company’s owner confirms this once, before the first subscription or buy.') : null;
   const why = quoting ? 'Pricing the order…' : !preview ? (sweep ? 'Pricing the order…' : 'Enter an amount first.') : !preview.ok && !preview.gateOnly ? preview.problem : gateReason;
@@ -167,24 +171,31 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
               Drafted by Zeke from your sweep rule: keep the reserve at its floor and at least {usd(treasury.sweep.cushionMinor)} in Payments. Your owner chose T-bills when turning sweep on; Zeke didn’t. Nothing moves until you approve.
             </p>
           ) : null}
-          {tbill && !sweep ? (
+          {/* §7.2: a subscription's path is the planner's, and the sheet says which and why. A redemption
+              offers Ondo's wire as a second path, with what that means. */}
+          {tbill && kind === 'subscribe' && preview ? (
+            <p className="iso-note" role="status" style={{ margin: 0 }}>
+              {preview.request.path === 'ondo'
+                ? `Straight from Ondo: on the market this order would move the price more than 0.30%, so it goes to Ondo, with no price to move. The units are held ${treasury.tbills.holdDays} days before you can redeem them.`
+                : 'On the market: this order stays within the 0.30% price-moved limit, so it’s bought on the market, with no hold.'}
+            </p>
+          ) : null}
+          {tbill && kind === 'redeem' && !sweep ? (
             <div className="iso-stack" style={{ gap: 6 }}>
               <span className="iso-small">How</span>
               <Segmented
-                label="How to place the order"
-                options={kind === 'subscribe' ? [{ value: 'market', label: 'On the market' }, { value: 'ondo', label: 'Straight from Ondo' }] : [{ value: 'market', label: 'On the market' }, { value: 'ondo', label: 'With Ondo, by wire' }]}
+                label="How to redeem"
+                options={[
+                  { value: 'market', label: 'On the market' },
+                  { value: 'ondo', label: 'With Ondo, by wire' },
+                ]}
                 value={chosenPath}
                 onChange={(v) => setPath(v)}
               />
               <span className="iso-small">
-                {kind === 'subscribe'
-                  ? chosenPath === 'ondo'
-                    ? `Straight from Ondo: no price to move, and the units are held ${treasury.tbills.holdDays} days before you can redeem them.`
-                    : 'On the market: no hold. The order stops if it would move the price more than 0.30%.'
-                  : chosenPath === 'ondo'
-                    ? 'With Ondo, US dollars go by bank wire to your company’s bank account, outside Splash. They never land in your Payments account.'
-                    : 'On the market: the money lands in your Payments account.'}
-                {path === null && preview ? ' Picked for this amount; you can change it.' : ''}
+                {chosenPath === 'ondo'
+                  ? 'With Ondo, US dollars go by bank wire to your company’s bank account, outside Splash. They never land in your Payments account.'
+                  : 'On the market: the money lands in your Payments account.'}
               </span>
             </div>
           ) : null}

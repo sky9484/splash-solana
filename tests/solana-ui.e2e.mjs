@@ -417,6 +417,17 @@ async function run(page, email) {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-routemap .iso-wire').length), chosenSteps, 'one link on the map per step');
   assert.doesNotMatch((await page.text('main')).join('\n'), TIME_WORDS, 'no time or speed words on Transfer');
   await shot('transfer-quote');
+  // "How it moves" (§5.6), opened: the one place on Step 3 that names how a route travels.
+  await page.evaluate(() => [...document.querySelectorAll('summary')].find((s) => /How it moves/.test(s.innerText))?.click());
+  await page.sleep(300);
+  await shotOne('transfer-how-it-moves', 'desktop');
+  await page.evaluate(() => [...document.querySelectorAll('summary')].find((s) => /How it moves/.test(s.innerText))?.click());
+  // The floating Zeke on Transfer (§3.5): it knows where it is, and it has no approve control.
+  await page.click('button', 'Open Zeke');
+  await page.find('text', /Looking at:\s*Transfer/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-zk__panel button')].filter((b) => /approve/i.test(b.textContent)).length), 0, 'no approve button in the floating panel');
+  await shot('zeke-open-transfer');
+  await page.click('button', 'Close Zeke');
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
   // The approval moment: the page behind is inert, focus is in the card, and Esc goes back.
@@ -598,7 +609,7 @@ async function run(page, email) {
   await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
   await page.click('button', 'Track it');
   await page.find('heading', 'The bank returned the payment to Cebu Logistics', { timeoutMs: 60_000 });
-  await page.find('text', /^The bank returned it: the money comes back to your Payments account/);
+  await page.find('text', /^The bank returned it: what the partner received comes back to your Payments account/);
   await shot('transfer-returned');
 
   // And one stopped by a rule: screening flags the recipient, so the route can't be approved.
@@ -743,6 +754,12 @@ async function run(page, email) {
   await page.waitFor(() => /Kuching Marine Supply[\s\S]*on Splash[\s\S]*KMS-0094[\s\S]*US\$3,450\.00/.test(document.querySelector('[role=tabpanel]')?.innerText ?? ''), [], { what: 'the request in the inbox, ready to pay' });
   assert.equal(await page.evaluate(() => document.querySelector('[role=tab][aria-selected="true"]')?.firstChild?.textContent), 'Ready to pay');
   await shot('invoices-ready-from-splash');
+  // The floating Zeke on Invoices (§3.5): its context, and no approve control.
+  await page.click('button', 'Open Zeke');
+  await page.find('text', /Looking at:\s*Invoices · Pay an invoice/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-zk__panel button')].filter((b) => /approve/i.test(b.textContent)).length), 0, 'no approve button in the floating panel');
+  await shot('zeke-open-invoices');
+  await page.click('button', 'Close Zeke');
   await tap('Pay Kuching Marine Supply');
   await page.find('heading', 'How US$3,450 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
   assert.match((await page.text('main')).join('\n'), /KMS-0094/);
@@ -793,13 +810,20 @@ async function run(page, email) {
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
   await shot('treasury-hold');
 
-  // Subscribe straight from Ondo: the owner confirms eligibility once, in the sheet.
+  // More test money in the Reserve, so a subscription can go past what the market takes (US$75,000).
+  await page.click('button', 'Move money between accounts');
+  await page.click('button', 'Add test money to your Reserve');
+  await page.waitFor(() => [...document.querySelectorAll('.iso-treasury__hero .iso-station__amount')].some((e) => /^US\$1\d\d,\d{3}\.\d\d$/.test(e.innerText.trim())), [], { what: 'more test money in the Reserve' });
+  await page.press('Escape');
+  // Subscribe US$80,000: past the market's 0.30% limit, so the planner sends it straight to Ondo (§7.2),
+  // and the sheet says so; the units are held 40 days. The owner confirms eligibility once, in the sheet.
   await page.click('button', 'Subscribe', { exact: true });
   await page.find('heading', 'Subscribe to US Treasury bills');
-  await page.click('button', 'Straight from Ondo', { exact: true });
-  await page.fill('Amount', '4,000');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-sheet button')].some((b) => /Straight from Ondo|On the market/.test(b.innerText))), false, 'the planner picks a subscription’s path');
+  await page.fill('Amount', '80,000');
   await page.find('text', 'Straight from Ondo · units held 40 days');
-  await page.find('text', '3,558.71 units at US$1.1240 (test price)');
+  await page.find('text', /^Straight from Ondo: on the market this order would move the price more than 0\.30%/);
+  await page.find('text', '71,174.37 units at US$1.1240 (test price)');
   await page.find('text', /^I confirm: no owner \(25% or more\), director or approver of Acme Manufacturing is a US person/);
   await page.waitFor(() => /The units land in|Units land in/.test(document.querySelector('.iso-sheet')?.innerText ?? ''), [], { what: 'the order priced' });
   assert.equal(await page.evaluate(() => document.querySelector('.iso-sheet .iso-btn--approve')?.disabled), true, 'the gate blocks until the owner confirms');
@@ -812,12 +836,12 @@ async function run(page, email) {
   await page.click('button', 'Approve on this device', { exact: true });
   await page.find('text', /^Approved by you\. Settled in test mode\. The units are in your Investments account\./, { timeoutMs: 60_000 });
   await page.click('button', 'Done');
-  await page.waitFor(() => /US\$4,000\.00 is in its 40-day hold until \d{1,2} [A-Z][a-z]{2}/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the hold and its release date' });
+  await page.waitFor(() => /US\$80,000\.00 is in its 40-day hold until \d{1,2} [A-Z][a-z]{2}/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the hold and its release date' });
   // Everything held: nothing to redeem yet.
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('section[aria-labelledby="tr-usdy"] button')].find((b) => b.innerText.trim() === 'Redeem')?.disabled), true, 'held units can’t be redeemed');
 
   // On the market: no hold. Then redeem part of it on the market (into Payments) and part with Ondo (by wire).
-  await order({ open: 'Subscribe', title: 'Subscribe to US Treasury bills', path: 'On the market', amount: '2,000', approveTitle: 'Approve this subscription' });
+  await order({ open: 'Subscribe', title: 'Subscribe to US Treasury bills', amount: '2,000', approveTitle: 'Approve this subscription' });
   await page.click('link', 'See the receipt');
   await page.waitFor(() => /subscribed to US Treasury bills/.test(document.querySelector('main')?.innerText ?? ''), [], { what: 'the order’s receipt' });
   await page.find('text', 'On the market');
@@ -855,6 +879,15 @@ async function run(page, email) {
   await page.find('text', /Zeke drafted\s*Subscribe US\$[\d,]+\.\d\d · cash above your reserve and cushion/);
   await page.find('text', /^Zeke: I drafted a sweep of US\$[\d,]+\.\d\d into T-bills under your sweep rule\. Nothing moves until a person approves it\.$/);
   await shot('treasury-sweep');
+  // Overview with Investments above zero and the sweep draft in Needs you (§4.2, §7.3).
+  await page.goto(`${BASE}/dashboard`);
+  await page.find('heading', 'Your money, all accounts');
+  await page.find('text', 'Treasury bills and stocks · test mode');
+  if (!(await page.evaluate(() => /Sweep drafted · US\$/.test(document.querySelector('main')?.innerText ?? '')))) await page.click('button', /^See all \d+/);
+  await page.find('text', /^Sweep drafted · US\$[\d,]+\.\d\d into T-bills$/);
+  await shot('overview-investments-sweep');
+  await page.goto(`${BASE}/dashboard/treasury`);
+  await page.find('heading', 'US Treasury bills');
   await page.click('button', 'Review', { exact: true });
   await page.find('heading', /^Sweep: subscribe US\$[\d,]+\.\d\d$/);
   await page.find('text', /^Drafted by Zeke from your sweep rule: keep the reserve at its floor and at least US\$5,000\.00 in Payments\. Your owner chose T-bills when turning sweep on; Zeke didn't\./);
@@ -899,7 +932,7 @@ async function run(page, email) {
   assert.ok(zekeCounts.every((c) => /^\d+$/.test(c)), `the counters come from the server: ${zekeCounts.join(', ')}`);
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].filter((b) => /approve/i.test(b.innerText)).length), 0, 'no approve control on the Zeke page');
   assert.equal(await page.evaluate(() => document.querySelector('.iso-zk')), null, 'the floating Zeke steps aside');
-  await page.find('text', 'It can only read and draft. It can’t approve, pay or change a rule.');
+  await page.find('text', 'It can only read and draft. It can’t approve a payment, move money or change a rule.');
   assert.equal(await page.evaluate(() => document.querySelectorAll('section[aria-labelledby="zk-team"] tbody tr').length), 7, 'every part of Zeke, from the code');
   await page.fill('Ask Zeke', 'What’s due this week?');
   await page.click('button', 'Send', { exact: true });

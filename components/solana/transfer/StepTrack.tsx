@@ -194,7 +194,7 @@ function Stopped({ state, problem, short, onRequote, onRetry }: { state: string;
       : state === 'rejected_by_policy'
         ? [`Stopped by a rule: ${problem?.message ?? 'one of your rules'} Your company’s owner can change rules in Rules.`, <IsoButton key="a" variant="quiet" href="/dashboard/rules">Open Rules</IsoButton>]
         : state === 'partner_failed'
-          ? [`The bank returned it: the money comes back to your Payments account. Check the account details with ${short}, then pay again.`, <IsoButton key="a" variant="quiet" href="/dashboard/transfer?to=bank&step=recipient">Check their details</IsoButton>]
+          ? [`The bank returned it: what the partner received comes back to your Payments account (Splash’s fee isn’t part of it). Check the account details with ${short}, then pay again.`, <IsoButton key="a" variant="quiet" href="/dashboard/transfer?to=bank&step=recipient">Check their details</IsoButton>]
           : state === 'execute_failed'
             ? ['Couldn’t send: nothing left your account. Approve again to try once more.', <IsoButton key="a" variant="primary" onClick={onRetry}>Try again</IsoButton>]
             : ['Couldn’t send: nothing left your account. Get a new quote and try again.', <IsoButton key="a" variant="primary" onClick={onRequote}>Try again</IsoButton>];

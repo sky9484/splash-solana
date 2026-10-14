@@ -56,7 +56,7 @@ export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perP
     { text: 'Every account a supplier is paid into is screened before you approve.', tags: [{ text: 'Enforced by Splash', tone: 'splash' }, { text: 'Stub, not a real screening', tone: 'stub' }] },
     { text: 'Processing is included. The account Splash pays processing from can’t send money anywhere.', tags: [{ text: 'Enforced by Splash', tone: 'splash' }] },
     { text: <>Two people approve payments above {usd(10_000_000_000n)}.</>, tags: [{ text: 'Planned · two approvers', tone: 'planned' }] },
-    { text: 'Zeke may pay for data services up to US$50 a month (Weather API only).', tags: [{ text: 'Planned · mandate', tone: 'planned' }] },
+    { text: 'Not built yet: Zeke could buy listed data (weather only) up to US$50 a month, only if your company’s owner turns it on.', tags: [{ text: 'Planned · needs the owner', tone: 'planned' }] },
   ];
   return (
     <ul className="sx-rules">

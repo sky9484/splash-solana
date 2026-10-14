@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 
-import { CountUp, Details, IsoButton, IsoDisplay, IsoSurface, RouteMap, ScrollRegion, Segmented, Station, Tag, TestModeBadge, Wire } from '@/components/iso';
+import { Details, IsoButton, IsoDisplay, IsoSurface, RouteMap, ScrollRegion, Segmented, Station, Tag, TestModeBadge, Wire } from '@/components/iso';
 import { PageHead } from '@/components/dashboard/PageHead';
 import type { TreasuryView as TreasuryData } from '@/lib/solana-app/investments';
 import type { Wire as WireOf } from '@/lib/solana-app/json';
@@ -149,9 +149,8 @@ export function Treasury({ prefillMoveMinor, back, sweepId }: { prefillMoveMinor
             <h2 id="tr-total" className="iso-money__label">
               All accounts
             </h2>
-            <IsoDisplay size="xl">
-              <CountUp minor={big(a.totalMinor)} format={usd} />
-            </IsoDisplay>
+            {/* §8: only Overview's total counts up; this one shows the figure as it is. */}
+            <IsoDisplay size="xl">{usd(a.totalMinor)}</IsoDisplay>
           </div>
           <span className="iso-small iso-num" aria-live="polite">
             {moveNote}

@@ -197,7 +197,7 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
         title="Check the invoice"
         context={
           <>
-            {c.supplierName} · <span className="iso-mono">{c.number}</span> · read by Zeke at <LocalTime value={c.readAt} format="time" options={{ hour: '2-digit', minute: '2-digit' }} />. Tick each field once you&rsquo;ve checked it against the document.
+            {c.supplierName} · <span className="iso-mono">{c.number}</span> · read by Zeke at <LocalTime value={c.readAt} format="time" options={{ hour: '2-digit', minute: '2-digit', hour12: false }} />. Tick each field once you&rsquo;ve checked it against the document.
           </>
         }
       />
@@ -224,7 +224,7 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
             <Tag tone="ok" tick className="iso-pop">
               {/* One run of text: the tag spaces its children apart. */}
               <span>
-                Verified by {panel.verified.by}, <LocalTime value={panel.verified.at} format="time" options={{ hour: '2-digit', minute: '2-digit' }} />
+                Verified by {panel.verified.by}, <LocalTime value={panel.verified.at} format="time" options={{ hour: '2-digit', minute: '2-digit', hour12: false }} />
                 {panel.verified.numberCalled ? <>, on {panel.verified.numberCalled} (from your records)</> : null}
                 {panel.verified.spokeTo ? <>. Spoke to {panel.verified.spokeTo}</> : null}
               </span>

@@ -121,19 +121,18 @@ test('the landing offers no fund-holding rung: the Solana build never holds the 
 
 /* ── Settings ──────────────────────────────────────────────────────────── */
 
-test('the settings page stops presenting Treasury and the fund-holding rungs as running in Phase 0', async () => {
+test('the settings page stops presenting the fund-holding rungs as running in Phase 0, and Treasury as custodial', async () => {
   const page = await source('app/dashboard/settings/page.tsx');
   assert.match(page, /const custodyOn = useCustodyPhaseOn\(\);/, 'the phase the shell resolved');
   // Nothing reads autoAllocateTreasuryPct, so "applied to treasury allocation" was never true.
   assert.doesNotMatch(page, /treasury allocation, and account security/);
-  assert.match(page, /Phase 2 · Smart Treasury holds customer funds, which needs \$\{CUSTODY_LICENCE\}/);
+  // Prompt 10 §7: Treasury is the company's own accounts, so it is neither custodial nor behind the
+  // custody gate, and the never-read "Auto-allocate to treasury" control is gone (§12 lists the only
+  // settings this prompt adds).
+  assert.doesNotMatch(page, /Smart Treasury holds customer funds|Treasury is not available on this build|Auto-allocate to treasury/);
+  assert.match(page, /your Payments account, Reserve and Investments, all in your company’s own accounts/);
   assert.match(page, /custodyOn \? 'payout\/sweep\/stored' : 'payout today · sweep and stored balance in Phase 2/);
   assert.match(page, /text\(custodyOn\)/, 'the phase-dependent cards are rendered with the phase');
-  assert.match(
-    page,
-    /label="Auto-allocate to treasury"[^\n]*disabled=\{!custodyOn\} note=\{custodyOn \? undefined : TREASURY_PHASE0\}/,
-    'the treasury control is not offered in Phase 0',
-  );
 });
 
 /* ── Zeke and Treasury ─────────────────────────────────────────────────── */

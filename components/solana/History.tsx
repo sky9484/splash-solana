@@ -186,7 +186,10 @@ export function History() {
               return (
                 <li key={o.id} className="sx-row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span>
-                    <strong>{w.what}</strong> <Tag tone="gold">{o.sweep ? 'Treasury · sweep' : 'Treasury'}</Tag>
+                    <strong>{w.what}</strong>{' '}
+                    <span className="iso">
+                      <Tag tone="gold">{o.sweep ? 'Treasury · sweep' : 'Treasury'}</Tag>
+                    </span>
                     <span className="sx-small sx-muted" style={{ display: 'block' }}>
                       {w.where} · {dateShort(o.at)} {timeShort(o.at)}
                     </span>

@@ -236,7 +236,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
     ));
 
   const setupLink = card ? (
-    <Link href="/dashboard/setup" className="iso-setupcard" aria-label={`Account setup, ${card.done} of ${card.total} done. Next: ${card.next}`}>
+    <Link href="/dashboard/setup" className="iso-setupcard">
       <span className="iso-setupcard__head">
         <span>Account setup</span>
         <span className="iso-num">
@@ -292,7 +292,8 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
               <Image src="/splash-main-icon.png" alt="" width={48} height={47} className="iso-logo__mark" loading="eager" unoptimized />
             </span>
             {collapsed ? null : (
-              <span className="iso-logo__words">
+              // The button's name is what it does (collapse or expand); the brand words are decoration to a screen reader.
+              <span className="iso-logo__words" aria-hidden="true">
                 <strong>
                   Splash<span className="iso-logo__dot">.</span>
                 </strong>
