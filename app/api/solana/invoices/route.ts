@@ -1,4 +1,4 @@
-import { billsView } from '@/lib/solana-app/bills';
+import { billsView, readyBankBills } from '@/lib/solana-app/bills';
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { invoiceView, readInvoiceDraft } from '@/lib/solana-app/service';
 import { companyRoute } from '@/lib/server/solana-company';
@@ -6,9 +6,12 @@ import { companyRoute } from '@/lib/server/solana-company';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Pay an invoice's inbox (prompt 10 §6.2): every bill on its tab, with the tab counts. */
+/**
+ * Pay an invoice's inbox (prompt 10 §6.2): every bill on its tab, with the tab counts. `?view=ready`:
+ * only the checked bank invoices ready to pay, for Transfer's Step 2 chip, read without side effects.
+ */
 export async function GET(request: Request) {
-  return companyRoute(request, async (ctx) => billsView(ctx.orgId));
+  return companyRoute(request, async (ctx) => (new URL(request.url).searchParams.get('view') === 'ready' ? { bills: await readyBankBills(ctx.orgId) } : billsView(ctx.orgId)));
 }
 
 /**
