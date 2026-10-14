@@ -1,0 +1,104 @@
+{
+  "label": "before",
+  "base": "http://localhost:3200",
+  "at": "2026-10-14T13:25:00.947Z",
+  "ground": null,
+  "pages": [
+    {
+      "name": "Overview",
+      "url": "/dashboard",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Balance",
+      "url": "/dashboard/fund",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Treasury",
+      "url": "/dashboard/treasury",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Invoices",
+      "url": "/dashboard/invoices",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Pay an invoice",
+      "url": "/dashboard/invoices/pay",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Get paid",
+      "url": "/dashboard/invoices/get",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Transfer",
+      "url": "/dashboard/transfer",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Zeke",
+      "url": "/dashboard/zeke",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "History",
+      "url": "/dashboard/history",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Recipients",
+      "url": "/dashboard/recipients",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Rules",
+      "url": "/dashboard/settings/policy",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    },
+    {
+      "name": "Settings",
+      "url": "/dashboard/settings",
+      "axe": {
+        "390": [],
+        "1440": []
+      }
+    }
+  ]
+}

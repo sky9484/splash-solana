@@ -56,15 +56,16 @@ test('the dashboard stylesheet is read the way the browser paints it', () => {
   );
 });
 
-test('the check finds the dashboard’s surfaces: the paper ground, the sidebar, paper surfaces, cards and fields', (t) => {
+test('the check finds the dashboard’s surfaces: the warm paper ground, the sidebar, boxes, sheets, cards and fields', (t) => {
   const white = [255, 255, 255];
-  // Prompt 10 Phase 1 (look 9): the page is the paper ground (#F6F0ED) with its grid; the glow that
-  // used to sit fixed over a gradient page is gone. The sidebar keeps its dark-teal gradient.
-  const ground = [246, 240, 237];
+  // Prompt 11 §1.2: the page is warm paper (#F4EEE9) with no grid, and every box floats on it in its
+  // near-white fill (#FFFDFA); sheets keep look 9's paper. The sidebar keeps its dark-teal gradient.
+  const ground = [244, 238, 233];
   const expected = {
-    'the page: the paper ground': ground,
+    'the page: warm paper': ground,
     'the sidebar, at the top of its gradient': [36, 85, 99],
-    'a redesigned surface: paper': [255, 250, 244],
+    'a box: its near-white fill': [255, 253, 250],
+    'a sheet: paper': [255, 250, 244],
     // Buttons, avatars: an ink element lifted towards white (the screens not yet rebuilt).
     'an ink element (bg-[#1F4452], lifted towards white)': over([31, 68, 82, 0.85], white),
     'a .dash-surface card on the ground': over([255, 253, 249, 0.93], ground),

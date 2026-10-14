@@ -156,6 +156,10 @@ function lockForPath(pathname: string, locks: DashboardShellProps['locks'], scop
 
 export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope, solana, setup }: DashboardShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // The page slides with the sidebar only while a person collapses or expands it (prompt 11 §1.4),
+  // never on a viewport change: a full-page screenshot resizes the viewport and caught the slide
+  // half-way, which drew the page under the sidebar ("alance", "dd money"). Each click restarts it.
+  const [sliding, setSliding] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -164,6 +168,11 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
   // Test mode: the offline simulator or devnet, with the test payout partner. Mainnet is refused in config.
   const testMode = !solana || solana.mode === 'offline' || solana.cluster !== 'mainnet-beta';
 
+  useEffect(() => {
+    if (!sliding) return;
+    const done = window.setTimeout(() => setSliding(0), 450);
+    return () => window.clearTimeout(done);
+  }, [sliding]);
   // A page change closes the phone menu.
   useEffect(() => {
     setMobileOpen(false); // eslint-disable-line react-hooks/set-state-in-effect
@@ -287,7 +296,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         <aside className={clsx('iso iso-side hidden md:flex', collapsed && 'is-collapsed')} aria-label="Dashboard">
           <span className="iso-side__rings" aria-hidden="true" />
           {/* The logo is the collapse toggle, as before. */}
-          <button type="button" className="iso-logo" onClick={() => setCollapsed((v) => !v)} aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'} aria-expanded={!collapsed}>
+          <button type="button" className="iso-logo" onClick={() => { setSliding((n) => n + 1); setCollapsed((v) => !v); }} aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'} aria-expanded={!collapsed}>
             <span className="iso-logo__tile">
               <Image src="/splash-main-icon.png" alt="" width={48} height={47} className="iso-logo__mark" loading="eager" unoptimized />
             </span>
@@ -339,7 +348,7 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         {/* ── Main content ──────────────────────────────────────── */}
         {/* Top pad: the phone bar (56 px) on a phone, none on a desktop (the top row is in the flow).
             Bottom pad 112 px everywhere: Zeke's floating button covers the bottom 92 px. */}
-        <main className={clsx('fintech-dashboard-main iso-main relative z-0 min-w-0 flex-1 overflow-x-hidden', collapsed ? 'md:ml-20' : 'md:ml-[264px]')}>
+        <main className={clsx('fintech-dashboard-main iso-main relative z-0 min-w-0 flex-1 overflow-x-clip', collapsed ? 'md:ml-20' : 'md:ml-[264px]')} data-sliding={sliding ? '' : undefined}>
           <ShellTopRow data={shell} person={session.name} role={session.userRole} company={session.organization} testMode={testMode} />
           {kyb?.blocked ? (
             <div className="iso iso-appnote" role="status">

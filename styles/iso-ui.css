@@ -1,16 +1,19 @@
 /* iso-ui
    Splash Iso UI · look 9 (prompt 10 §2). Every redesigned dashboard screen is
    built from these classes and the components in components/iso/. Rules:
-   - flat paper surfaces, solid offset ledges (the only elevation), square
-     corners; circles only for coins and the quote ring;
+   - page boxes float off the warm paper on a soft shadow (prompt 11 §1.2,
+     the --lift-* tokens, the only blurred shadows); buttons, tags and the
+     sidebar keep their solid offset ledges; square corners; circles only for
+     coins and the quote ring;
    - colours only from the `.iso` block in styles/tokens.css;
    - every selector starts with `.iso` (or `.iso-app`, `.iso-sheet-root`,
      `.iso-modal-root` for roots that portal or wrap screens not yet rebuilt), so
      it outranks the older dashboard rules in app/globals.css
      (`.fintech-dashboard-main input`, `thead th`, …) without !important;
    - nothing moves on its own except coins and dashes on a wire that carries
-     real (or chosen) movement, and coin art bobbing. prefers-reduced-motion
-     stops all of it (coins sit mid-wire).
+     real (or chosen) movement, and coin art bobbing. A box rises 3 px under a
+     fine pointer (hover) and settles back. prefers-reduced-motion stops all
+     of it (coins sit mid-wire; a box changes only its shadow).
    scripts/check-iso-ui.mjs lints this file and every file marked `// iso-ui`. */
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
@@ -45,15 +48,9 @@
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* The page ground: the landing's 24 px grid at 5% ink. */
+/* The page ground: warm paper, no grid (prompt 11 §1.2). The pay page keeps its grid (.iso-paypage). */
 .iso.iso-ground,
-.iso .iso-ground {
-  background-color: var(--ground);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 24px 24px;
-}
+.iso .iso-ground { background-color: var(--ground); }
 
 /* ── Page frame (§3.4) ───────────────────────────────────────────────── */
 .iso.iso-page,
@@ -87,7 +84,8 @@
 .iso .iso-label { font-size: var(--iso-13); font-weight: 700; color: var(--ink-deep); }
 .iso .iso-small { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
 .iso .iso-body { font-size: var(--iso-15); line-height: 1.55; color: var(--ink); max-width: 68ch; }
-.iso .iso-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Centred, not stretched: a 40 px button beside the 48 px main action keeps its own height (prompt 11 §1.3). */
+.iso .iso-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .iso .iso-stack { display: flex; flex-direction: column; gap: 14px; }
 .iso .iso-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .iso .iso-split { display: flex; flex-wrap: wrap; gap: 22px; align-items: stretch; }
@@ -95,12 +93,20 @@
 .iso .iso-split > .iso-split__side { flex: 5 1 380px; min-width: 0; }
 .iso .iso-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 22px; align-items: start; }
 
-/* ── Surfaces (§2.3 IsoSurface) ──────────────────────────────────────── */
+/* ── Surfaces (§2.3 IsoSurface; prompt 11 §1.2) ───────────────────────
+   Every page box floats: a near-white fill, a 1 px edge, a soft shadow. Under
+   a fine pointer it rises 3 px on hover and settles back when the pointer
+   leaves; a box holding the keyboard's focus shows the same lift. A box inside
+   another box, or inside a sheet or the approval moment, is a hairline with no
+   shadow and never moves. The rise is a transform, so nothing around it shifts.
+   The floating Zeke has no boxes and is left exactly as it is. */
 .iso .iso-surface {
   position: relative;
   min-width: 0;
-  background: var(--paper);
-  border: var(--border);
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-1);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
 }
 .iso .iso-surface--pad { padding: 22px 24px; }
 .iso .iso-surface--head {
@@ -108,16 +114,44 @@
   padding: 18px 22px; border-bottom: 1.5px solid var(--line-soft);
 }
 .iso .iso-surface--hero {
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(var(--grid-hero) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-hero) 1px, transparent 1px),
-    var(--hero-wash);
-  background-size: 24px 24px, 24px 24px, 100% 100%;
-  border: var(--border-hero);
-  box-shadow: var(--ledge-hero);
+  background-color: var(--surface);
+  background-image: var(--hero-wash);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-hero);
 }
 .iso .iso-surface--ink { background: var(--ink-deep); color: var(--paper-warm); border-color: var(--ink-deep); }
+/* Inside another box, a sheet or the approval moment: a hairline, no shadow, no rise. */
+.iso .iso-surface .iso-surface,
+.iso .iso-surface .iso-ticket,
+.iso-sheet-root .iso-surface,
+.iso-modal-root .iso-surface { box-shadow: none; transform: none; transition: none; }
+.iso .iso-surface:focus-within { box-shadow: var(--lift-2); }
+.iso .iso-surface--hero:focus-within { box-shadow: var(--lift-hero-2); }
+.iso .iso-surface .iso-surface:focus-within,
+.iso .iso-surface .iso-ticket:focus-within,
+.iso-sheet-root .iso-surface:focus-within,
+.iso-modal-root .iso-surface:focus-within { box-shadow: none; }
+/* A box that must stay put (the transfer intent header, a sticky rail) opts out with --still. */
+@media (hover: hover) and (pointer: fine) {
+  .iso .iso-surface:hover,
+  .iso .iso-surface:focus-within { transform: translateY(var(--rise)); }
+  .iso .iso-surface:hover { box-shadow: var(--lift-2); }
+  .iso .iso-surface--hero:hover { box-shadow: var(--lift-hero-2); }
+  .iso .iso-surface .iso-surface:hover,
+  .iso .iso-surface .iso-surface:focus-within,
+  .iso .iso-surface .iso-ticket:hover,
+  .iso .iso-surface .iso-ticket:focus-within,
+  .iso-sheet-root .iso-surface:hover,
+  .iso-sheet-root .iso-surface:focus-within,
+  .iso-modal-root .iso-surface:hover,
+  .iso-modal-root .iso-surface:focus-within { transform: none; box-shadow: none; }
+}
+.iso .iso-surface.iso-surface--still,
+.iso .iso-surface.iso-surface--still:hover,
+.iso .iso-surface.iso-surface--still:focus-within { transform: none; box-shadow: var(--lift-1); }
+.iso .iso-surface--hero.iso-surface--still,
+.iso .iso-surface--hero.iso-surface--still:hover,
+.iso .iso-surface--hero.iso-surface--still:focus-within { box-shadow: var(--lift-hero); }
 .iso .iso-surface--ink a { color: var(--mint); }
 .iso .iso-divider { border: 0; border-top: 1px dashed rgb(12 62 72 / .24); margin: 0; }
 
@@ -143,9 +177,10 @@
 .iso .iso-extrude--md { font-size: clamp(30px, 3vw, 36px); }
 
 /* ── Buttons (§2.3 IsoButton) ────────────────────────────────────────── */
+/* 40 px; the screen's one main action is --lg, 48 px (prompt 11 §1.3). */
 .iso .iso-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 48px; padding: 0 20px;
+  min-height: 40px; padding: 0 18px;
   font: 700 15px/1 var(--font-sans);
   white-space: nowrap;
   text-decoration: none;
@@ -157,8 +192,8 @@
   touch-action: manipulation;
   transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso), border-color var(--t-ui), background-color var(--t-ui);
 }
-.iso .iso-btn--lg { min-height: 52px; padding: 0 24px; }
-.iso .iso-btn--sm { min-height: 44px; padding: 0 14px; font-size: var(--iso-14); }
+.iso .iso-btn--lg { min-height: 48px; padding: 0 24px; }
+.iso .iso-btn--sm { min-height: 36px; padding: 0 12px; font-size: var(--iso-14); }
 .iso .iso-btn--block { width: 100%; }
 .iso .iso-btn--primary { background: var(--teal); color: var(--paper-warm); box-shadow: var(--ledge-1); }
 .iso .iso-btn--approve { background: var(--coral); color: var(--ink-deep); box-shadow: var(--ledge-1); }
@@ -470,11 +505,15 @@
 .iso .iso-seg__btn[aria-pressed="true"] { background: var(--teal); color: var(--paper-warm); }
 .iso .iso-seg__btn:disabled { color: var(--text-2); cursor: not-allowed; }
 
-/* Combobox: a text field with a listbox under it (no native select). */
+/* Combobox: a text field with a listbox under it (no native select). The list is in a portal, fixed to
+   the window at z-index 70: above the sticky action bar (25), sheets (60) and the approval moment (65),
+   so nothing covers it (prompt 11 §1.3). components/iso/Combobox.tsx places it under or above the
+   field and caps its height to the room there; it scrolls inside. */
 .iso .iso-combo { position: relative; }
+.iso.iso-combo-layer { display: contents; }
 .iso .iso-combo__list {
-  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
-  max-height: 280px; overflow-y: auto;
+  position: fixed; z-index: 70; left: 0; top: 0;
+  max-height: 280px; overflow-y: auto; overscroll-behavior: contain;
   margin: 0; padding: 4px 0; list-style: none;
   background: var(--paper);
   border: 2px solid var(--ink-deep);
@@ -490,6 +529,8 @@
 .iso .iso-combo__opt[aria-disabled="true"] { color: var(--text-2); cursor: not-allowed; }
 .iso .iso-combo__meta { font-size: var(--iso-13); color: var(--text-2); }
 .iso .iso-combo__empty { padding: 10px 14px; font-size: var(--iso-14); color: var(--text-2); }
+/* The floating Zeke's open panel stays on top of a list on the page (it is z-index 55). */
+body:has(.iso-zk__panel) > .iso-combo-layer > .iso-combo__list { z-index: 54; }
 
 /* A checkbox row (declarations, "I called them"). */
 .iso .iso-check {
@@ -518,18 +559,25 @@
 /* ── Ticket (§2.3): the receipt-shaped summary that becomes the approval card ─ */
 .iso .iso-ticket {
   position: relative;
-  background: var(--paper);
-  border: 2px solid var(--ink-deep);
-  box-shadow: var(--ledge-2);
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-1);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
 }
-.iso .iso-ticket--card { box-shadow: 8px 8px 0 var(--ink-deep); }
+/* On a page it floats like any box (prompt 11 §1.2); as the approval card it keeps its ink edge and
+   floats higher, and never moves on hover. */
+.iso .iso-ticket--card { border: 2px solid var(--ink-deep); box-shadow: var(--lift-hero); transition: none; }
+@media (hover: hover) and (pointer: fine) {
+  .iso .iso-ticket:not(.iso-ticket--card):hover,
+  .iso .iso-ticket:not(.iso-ticket--card):focus-within { transform: translateY(var(--rise)); box-shadow: var(--lift-2); }
+}
 .iso .iso-ticket__band {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
   padding: 14px 22px;
   background: var(--ink-deep); color: var(--paper-warm);
   font-size: var(--iso-14);
 }
-.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; background: var(--paper); }
+.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; background: var(--surface); }
 .iso .iso-ticket__foot { padding: 16px 26px 24px; display: flex; flex-direction: column; gap: 10px; }
 .iso .iso-ticket__perf {
   display: flex; flex-direction: column; gap: 6px;
@@ -609,6 +657,8 @@
 .iso .iso-actionbar__sum strong { color: var(--paper-warm); }
 /* A disabled button's reason, on the ink bar: paper, not ink (Lighthouse found it at 1.09:1). */
 .iso .iso-actionbar .iso-btn-why { color: rgb(255 250 241 / .88); }
+/* A field the keyboard moves to is scrolled clear of the pinned bar, not under it (prompt 11 §1.3). */
+html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80px) + 16px); }
 
 /* ── Quote ring (§2.3 QuoteRing) ─────────────────────────────────────── */
 .iso .iso-ring { display: inline-flex; align-items: center; gap: 8px; font-size: var(--iso-14); color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -721,7 +771,8 @@
 .iso .iso-skel { background: linear-gradient(90deg, rgb(12 62 72 / .06), rgb(12 62 72 / .12), rgb(12 62 72 / .06)); background-size: 200% 100%; animation: iso-shimmer 1.4s linear infinite; }
 
 /* ── Motion: rise on load (once), staggered 80 ms ────────────────────── */
-.iso .iso-rise { animation: iso-rise .5s var(--ease-iso) both; }
+/* `backwards`, not `both`: a finished rise holds nothing, so a box's hover lift (a transform) still applies. */
+.iso .iso-rise { animation: iso-rise .5s var(--ease-iso) backwards; }
 .iso .iso-rise-2 { animation-delay: 80ms; }
 .iso .iso-rise-3 { animation-delay: 160ms; }
 .iso .iso-rise-4 { animation-delay: 240ms; }
@@ -772,28 +823,53 @@
   .iso .iso-row-btn:hover,
   .iso .iso-lane[aria-checked="true"],
   .iso .iso-choice--on { transform: none; }
+  /* A box changes only its shadow (prompt 11 §1.2). */
+  .iso .iso-surface:hover,
+  .iso .iso-surface:focus-within,
+  .iso .iso-ticket:hover,
+  .iso .iso-ticket:focus-within { transform: none !important; }
 }
 
 /* ── The shell (prompt 10 Phase 1) ───────────────────────────────────────
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
-   page ground is look 9's paper with the 24 px grid. The shell root itself is
+   page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #F6F0ED; }
+.iso-app { background-color: #F4EEE9; }
 .iso-app::before { display: none; }
+/* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
+   The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
+   main is a scroll box that focus or find-in-page can scroll sideways, under the sidebar, and it would
+   hold the sticky Transfer rail. Its slide runs only while a person collapses or expands the sidebar
+   (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #F6F0ED;
-  background-image:
-    linear-gradient(rgb(12 62 72 / .05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(12 62 72 / .05) 1px, transparent 1px);
-  background-size: 24px 24px;
-  transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1);
+  background-color: #F4EEE9;
 }
+.iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
   .iso-app .iso-main { padding: 18px 36px 112px; }
 }
 @media (max-width: 767px) {
   .iso-app .iso-main { padding-top: 72px; }
+}
+
+/* The screens not yet rebuilt in look 9 (History, Recipients, Rules, Settings, Batch payout) float their
+   page boxes on the same lift and rise the same 3 px (prompt 11 decision 3); a box inside another box,
+   a sheet or a dialog stays flat. Their rounded corners stay. */
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block) {
+  box-shadow: var(--lift-1);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
+}
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block, .iso-surface, .iso-ticket, .iso-sheet-root, .iso-modal-root) :is(.sx-card, .dash-surface, .dash-block) {
+  box-shadow: none; transform: none;
+}
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block):focus-within { box-shadow: var(--lift-2); }
+@media (hover: hover) and (pointer: fine) {
+  .iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block):is(:hover, :focus-within) { transform: translateY(var(--rise)); box-shadow: var(--lift-2); }
+}
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block, .iso-surface, .iso-ticket, .iso-sheet-root, .iso-modal-root) :is(.sx-card, .dash-surface, .dash-block):is(:hover, :focus-within) { transform: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block):is(:hover, :focus-within) { transform: none; }
 }
 
 /* The sidebar */
@@ -1288,13 +1364,19 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   position: relative;
   display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
   min-height: 440px; padding: 30px;
-  background: var(--paper); color: var(--ink);
-  border: 2px solid var(--ink-deep);
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-hero);
   text-decoration: none;
-  transition: transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
 }
-.iso .iso-chooser__card:hover { color: var(--ink); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
-.iso .iso-chooser__card:active { transform: translate(1px, 1px); box-shadow: none; }
+.iso .iso-chooser__card:hover { color: var(--ink); }
+/* The chooser's cards rise further than a box: 5 px, onto a deeper shadow (prompt 11 §1.1). */
+@media (hover: hover) and (pointer: fine) {
+  .iso .iso-chooser__card:hover { transform: translateY(var(--rise-chooser)); box-shadow: var(--lift-hero-2); }
+  .iso .iso-chooser__card:active { transform: translateY(-1px); box-shadow: var(--lift-hero); }
+}
+.iso .iso-chooser__card:focus-visible { box-shadow: var(--lift-hero-2); }
 .iso .iso-chooser__card:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
 .iso .iso-chooser__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 /* A title is words, not a number: it may wrap ("Pay an / invoice") and keeps a readable gap between words. */
@@ -1398,9 +1480,10 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-reqline { display: grid; grid-template-columns: minmax(0, 1fr) 84px 150px 44px; gap: 8px; align-items: end; }
 .iso .iso-reqline__amount { grid-column: 1 / -1; margin: -2px 0 0; font-size: var(--iso-13); color: var(--text-2); font-variant-numeric: tabular-nums; }
 .iso .iso-reqline .iso-iconbtn { width: 44px; height: 56px; }
+/* A box inside the composer: a hairline, no shadow (prompt 11 §1.2). */
 .iso .iso-reqpreview {
   display: flex; flex-direction: column; gap: 14px; padding: 22px; min-width: 0;
-  background: var(--white); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-2);
+  background: var(--white); border: 1px solid var(--surface-line);
 }
 .iso .iso-reqpreview__head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .iso .iso-reqpreview__who { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink-deep); }
@@ -1427,7 +1510,7 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 }
 
 /* The pay page someone else opens (app/pay/[slug]): one request, in the receipt style. */
-.iso.iso-paypage { min-height: 100dvh; padding: 40px 16px 64px; background-color: var(--ground); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; color: var(--ink); }
+.iso.iso-paypage { min-height: 100dvh; padding: 40px 16px 64px; background-color: var(--ground-grid); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; color: var(--ink); }
 .iso .iso-paypage__in { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 .iso .iso-paypage__brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; color: var(--ink-deep); text-decoration: none; }
 .iso .iso-paypage__brand img { width: 30px; height: 30px; object-fit: contain; }

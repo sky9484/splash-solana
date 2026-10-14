@@ -3,8 +3,9 @@ import type { ElementType, ReactNode } from 'react';
 import clsx from 'clsx';
 
 /**
- * Flat paper with a border and no shadow. `hero` is the one hero surface on a screen: the mint wash
- * with the 24 px grid, a 2 px ink border and the 6 px ledge (decision 20).
+ * A box floating off the page (prompt 11 §1.2): a near-white fill, a 1 px edge and a soft shadow; it
+ * rises 3 px under a mouse and settles back. `hero` is the one hero surface on a screen: the mint wash
+ * on a deeper shadow. A box inside another box is a hairline and never moves.
  */
 export function IsoSurface({
   as: Tag = 'section',

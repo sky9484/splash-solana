@@ -44,6 +44,9 @@ export function ratio(fg, bg) {
 const PAIRS = [
   ['ink', 'paper'], ['ink-deep', 'paper'], ['ink', 'ground'], ['ink-deep', 'white'],
   ['text-2', 'paper'], ['text-2', 'ground'], ['text-2', 'white'],
+  // Prompt 11 §1.2: every box's near-white fill, and the pay page's kept ground.
+  ['ink', 'surface'], ['ink-deep', 'surface'], ['text-2', 'surface'], ['teal', 'surface'],
+  ['ink', 'ground-grid'], ['text-2', 'ground-grid'],
   // The hero wash: every text pair on its mint start too (decision 20).
   ['ink', 'mint-wash'], ['ink-deep', 'mint-wash'], ['text-2', 'mint-wash'], ['teal', 'mint-wash'],
   ['teal', 'paper'], ['teal', 'white'],
@@ -95,6 +98,56 @@ test('check-iso-ui catches blurred shadows, native selects, stray colours and a 
   assert.equal(f('// iso-ui states: 2\n<IsoDisplay>a</IsoDisplay><IsoDisplay>b</IsoDisplay>').length, 0);
   assert.equal(f('.a { box-shadow: 0 1px 2px rgb(12 62 72 / .2); }', 'styles/z.css').length, 1);
   assert.equal(f('.a { box-shadow: var(--ledge-1); }', 'styles/z.css').length, 0);
+  // Prompt 11 §1.1: a box floats on a --lift-* token; the same shadow written out is still caught.
+  assert.equal(f('.a { box-shadow: var(--lift-1); }', 'styles/z.css').length, 0);
+  assert.equal(f('.a { box-shadow: 0 10px 24px -12px rgb(8 54 64 / .26); }', 'styles/z.css').length, 1);
+});
+
+test('prompt 11 §1.1: warm paper with no grid, the box fill and edge, and the four lift shadows', () => {
+  assert.equal(token('ground'), '#F4EEE9');
+  assert.equal(token('surface'), '#FFFDFA');
+  assert.equal(token('surface-line'), 'rgb(12 62 72 / .09)');
+  assert.equal(token('lift-1'), '0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26)');
+  assert.equal(token('lift-2'), '0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34)');
+  assert.equal(token('lift-hero'), '0 2px 4px rgb(8 54 64 / .07), 0 18px 38px -16px rgb(8 54 64 / .34)');
+  assert.equal(token('lift-hero-2'), '0 3px 6px rgb(8 54 64 / .08), 0 28px 52px -18px rgb(8 54 64 / .42)');
+  assert.equal(token('rise'), '-3px');
+  assert.equal(token('rise-chooser'), '-5px');
+  assert.equal(token('t-lift'), '220ms cubic-bezier(.2, .7, .2, 1)');
+  const ui = readFileSync('styles/iso-ui.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  // No grid on the dashboard: the shell's page and every box are flat paper; only the pay page keeps it.
+  const rule = (sel) => new RegExp(`${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(ui)?.[1] ?? '';
+  for (const sel of ['.iso-app .iso-main', '.iso .iso-surface--hero', '.iso .iso-surface']) {
+    assert.ok(rule(sel), `${sel} is in styles/iso-ui.css`);
+    assert.doesNotMatch(rule(sel), /--grid|linear-gradient\(rgb|background-size: 24px/, `${sel} draws no grid`);
+  }
+  assert.match(rule('.iso.iso-paypage'), /var\(--grid\)/, 'the pay page keeps its grid');
+  assert.match(rule('.iso .iso-surface'), /box-shadow: var\(--lift-1\)/);
+  assert.match(rule('.iso .iso-surface--hero'), /box-shadow: var\(--lift-hero\)/);
+  // Hover only under a fine pointer, and never a lift with reduced motion.
+  assert.match(ui, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.iso \.iso-surface:hover,\s*\.iso \.iso-surface:focus-within \{ transform: translateY\(var\(--rise\)\); \}/);
+  assert.match(ui, /prefers-reduced-motion: reduce[\s\S]*\.iso \.iso-surface:hover,[\s\S]*transform: none !important;/);
+  // A finished rise holds no transform, or the hover lift would never show.
+  assert.match(ui, /\.iso \.iso-rise \{ animation: iso-rise \.5s var\(--ease-iso\) backwards; \}/);
+});
+
+test('prompt 11 decision 3: the screens outside .iso float on the same lift, with no drift', () => {
+  const start = css.indexOf('\n.iso-app {');
+  assert.ok(start > 0, 'the shell carries the lift tokens (.iso-app in styles/tokens.css)');
+  const shell = css.slice(start, css.indexOf('\n}', start));
+  for (const name of ['lift-1', 'lift-2', 'rise', 't-lift']) {
+    const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(shell);
+    assert.ok(m, `--${name} is on .iso-app`);
+    assert.equal(m[1].trim(), token(name), `--${name} on .iso-app equals the .iso block`);
+  }
+  const ui = readFileSync('styles/iso-ui.css', 'utf8');
+  assert.match(ui, /\.iso-app \.iso-main :is\(\.sx-card, \.dash-surface, \.dash-block\) \{\s*box-shadow: var\(--lift-1\);/);
+});
+
+test('prompt 11 §1.3: buttons are 40 px, the main action 48 px', () => {
+  const ui = readFileSync('styles/iso-ui.css', 'utf8');
+  assert.match(ui, /\.iso \.iso-btn \{[^}]*min-height: 40px;/);
+  assert.match(ui, /\.iso \.iso-btn--lg \{ min-height: 48px;/);
 });
 
 test('no Iso UI class shares a name with the landing CSS, so neither leaks into the other', () => {

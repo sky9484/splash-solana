@@ -329,10 +329,15 @@ async function createPage(call, subscribe, viewport) {
     throw new Error(`Tabbed ${max} times without reaching ${what}`);
   }
 
+  /** A real pointer (CDP Input events): moves the mouse to (x, y) in the viewport, so :hover applies. */
+  async function mouse(x, y, type = 'mouseMoved') {
+    await call('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
+  }
+
   /** Emulate CSS media features, e.g. [{ name: 'prefers-reduced-motion', value: 'reduce' }]. */
   async function emulateMedia(features) {
     await call('Emulation.setEmulatedMedia', { features });
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, requests, errors, stuck, sleep };
+  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, requests, errors, stuck, sleep };
 }
