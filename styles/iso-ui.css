@@ -1443,3 +1443,43 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* ── Treasury (prompt 10 Phase 5, frame Final-Treasury) ───────────────── */
+.iso .iso-ink { color: var(--ink-deep); }
+.iso .iso-neg { color: var(--danger-ink); }
+.iso .iso-bullets { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 7px; font-size: var(--iso-14); line-height: 1.55; color: var(--ink); max-width: 72ch; }
+.iso .iso-actions--end { justify-content: flex-end; }
+.iso .iso-treasury__hero { display: flex; flex-direction: column; gap: 20px; padding: 26px 28px 22px; }
+.iso .iso-treasury__top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.iso .iso-treasury__hero .iso-routemap { justify-content: flex-start; }
+.iso .iso-treasury__hero .iso-extrude--xl { font-size: clamp(36px, 4.6vw, 60px); }
+/* The three arts stand on one line, so the labels and amounts line up under them. */
+.iso .iso-treasury__hero .iso-station__art { height: 84px; width: auto; object-fit: contain; }
+.iso .iso-treasury__reserve { display: flex; flex-direction: column; gap: 10px; font-size: var(--iso-14); }
+.iso .iso-treasury__reserve > .iso-row { gap: 8px; }
+/* The Reserve against its floor: the fill is the Reserve, the post is the floor. */
+.iso .iso-resbar { position: relative; height: 14px; border: 1.5px solid var(--ink-deep); background: var(--paper); }
+.iso .iso-resbar__fill { position: absolute; inset: 0 auto 0 0; background: var(--mint); transform-origin: left; animation: iso-grow .9s var(--ease-iso) both; }
+.iso .iso-resbar__floor { position: absolute; top: -6px; bottom: -6px; width: 3px; margin-left: -3px; background: var(--ink-deep); }
+.iso .iso-tcard { display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-tcard__rate { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; color: var(--ink-deep); }
+.iso .iso-tcard__pct { font-size: 40px; font-weight: 900; letter-spacing: -.03em; line-height: 1; color: var(--ink-deep); }
+.iso .iso-tcard__foot .iso-actions { align-items: flex-start; }
+.iso .iso-tcard__foot { margin-top: auto; padding-top: 14px; border-top: 1px dashed var(--line-strong); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-idle { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--white); border: 1.5px solid var(--line); }
+.iso .iso-idle__draft { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-stocks td { vertical-align: middle; }
+.iso .iso-sources { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 5px; font-size: var(--iso-13); line-height: 1.5; color: var(--text-2); }
+.iso .iso-treasury__zeke { align-self: flex-start; align-items: center; gap: 12px; font-size: var(--iso-14); line-height: 1.55; }
+.iso .iso-treasury__zeke img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: var(--paper); }
+.iso .iso-treasury__zeke > span { flex: 1 1 220px; min-width: 0; }
+.iso .iso-sheet__amount { font-size: 22px; font-weight: 800; color: var(--ink-deep); }
+@media (max-width: 720px) {
+  .iso .iso-treasury__hero { padding: 20px 16px; }
+  .iso .iso-tcard__pct { font-size: 34px; }
+  .iso .iso-tcard__foot .iso-actions { width: 100%; }
+  .iso .iso-tcard__foot .iso-actions > * { flex: 1 1 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-resbar__fill { animation: none; }
+}

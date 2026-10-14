@@ -6,7 +6,7 @@
  */
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 
-import { bundleLeaf, EVIDENCE_BUNDLE_VERSION, EVIDENCE_KIND_CORRIDOR_PAYOUT, EVIDENCE_KIND_PEER_TRANSFER, EVIDENCE_KIND_RECEIVABLE, PEER_MEMO_PREFIX, walrusBlobIdsRoot, type EvidenceBundle } from './bundle.ts';
+import { bundleLeaf, EVIDENCE_BUNDLE_VERSION, EVIDENCE_KIND_CORRIDOR_PAYOUT, EVIDENCE_KIND_PEER_TRANSFER, EVIDENCE_KIND_RECEIVABLE, EVIDENCE_KIND_TREASURY, PEER_MEMO_PREFIX, walrusBlobIdsRoot, type EvidenceBundle } from './bundle.ts';
 import { rootFromProof, type MerkleProof } from './merkle.ts';
 
 export interface AnchoredRoot {
@@ -101,8 +101,10 @@ export function verifyBundle(params: {
   const peer = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_PEER_TRANSFER && bundle?.kindName === 'peer_transfer' && bundle.memo === `${PEER_MEMO_PREFIX}${bundle.paymentId}`;
   // Kind 5, money received against a request: it landed in the requester's own account.
   const receivable = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_RECEIVABLE && bundle?.kindName === 'receivable' && bundle.incoming?.to === bundle.payee?.account;
-  const shapeOk = corridor || peer || receivable;
-  checks.push({ name: 'bundle_shape', passed: shapeOk, detail: corridor ? 'kind 3 corridor payout, v1' : peer ? 'kind 4 payment to a Splash business, v1' : receivable ? 'kind 5 money received against a request, v1' : 'not a v1 kind-3, kind-4 or kind-5 bundle' });
+  // Kind 6, a treasury order: a device approved it; Ondo's redemption goes by wire, never into Payments.
+  const treasury = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_TREASURY && bundle?.kindName === 'treasury' && Boolean(bundle.approval?.signature) && (bundle.order?.landsIn === 'bank_wire') === Boolean(bundle.wire);
+  const shapeOk = corridor || peer || receivable || treasury;
+  checks.push({ name: 'bundle_shape', passed: shapeOk, detail: corridor ? 'kind 3 corridor payout, v1' : peer ? 'kind 4 payment to a Splash business, v1' : receivable ? 'kind 5 money received against a request, v1' : treasury ? 'kind 6 treasury order, v1' : 'not a v1 kind-3, 4, 5 or 6 bundle' });
 
   let leaf: Uint8Array | null = null;
   try {

@@ -1,6 +1,6 @@
 /**
  * Evidence bundles, kind 3 (corridor payout), kind 4 (a payment to a Splash business), kind 5 (money
- * received against a request), and batch building.
+ * received against a request), kind 6 (a treasury order), and batch building.
  *
  * One bundle per payout. It records, without plaintext invoice data:
  *   invoice commitment (salted sha256) + e-invoice ref
@@ -303,8 +303,90 @@ export function buildReceivableBundle(input: ReceivableBundleInput): ReceivableB
   return structuredClone(bundle);
 }
 
+/**
+ * Kind 6: a treasury order (prompt 10 §7.4), T-bills subscribed or redeemed, a stock bought or sold, in
+ * the company's own Investments account (vault #2). In test mode the order is off-chain: a member's device
+ * signed the exact order text (its sha256 is here), and the simulator settled the money side.
+ *
+ * Builder invariants (throw on violation):
+ *   - T-bills are subscribed and redeemed; stocks are bought and sold
+ *   - a person's device approved it (signature and key present)
+ *   - money into the Investments account names the Investments account; Ondo's redemption is by wire and
+ *     names no chain transfer into the Payments account
+ *   - a sweep order names its draft and the rule's cushion
+ *   - any simulated chain signature ⇒ receipt.simulated === true (I-7)
+ */
+export const EVIDENCE_KIND_TREASURY = 6 as const;
+
+export interface TreasuryOrderBundle {
+  version: typeof EVIDENCE_BUNDLE_VERSION;
+  kind: typeof EVIDENCE_KIND_TREASURY;
+  kindName: 'treasury';
+  bundleId: string;
+  orderId: string;
+  createdAt: string;
+  org: { orgId: string; investmentsAccount: string };
+  asset: { id: string; issuer: 'Ondo'; token: string };
+  order: {
+    kind: 'subscribe' | 'redeem' | 'buy' | 'sell';
+    path: 'market' | 'ondo';
+    amountMinor: bigint;
+    unitsMicro: bigint;
+    priceMinor: bigint;
+    priceMovedBps: bigint | null;
+    holdUntil: string | null;
+    landsIn: 'investments' | 'payments' | 'bank_wire';
+  };
+  approval: { who: string; keyPublic: string; at: string; signature: string; messageSha256: string };
+  chain: { signatures: ChainSignatureRecord[] };
+  wire: { to: string; reference: string } | null;
+  sweep: { draftId: string; reason: string; cushionMinor: bigint } | null;
+  receipt: { receiptId: string; issuedAt: string; simulated: boolean };
+}
+
+export type TreasuryOrderBundleInput = Omit<TreasuryOrderBundle, 'version' | 'kind' | 'kindName' | 'bundleId'> & { bundleId?: string };
+
+export function buildTreasuryOrderBundle(input: TreasuryOrderBundleInput): TreasuryOrderBundle {
+  const tbill = input.asset.id === 'usdy';
+  const k = input.order.kind;
+  if (tbill !== (k === 'subscribe' || k === 'redeem')) throw new EvidenceError('T-bills are subscribed and redeemed; stocks are bought and sold');
+  if (input.order.amountMinor <= 0n || input.order.unitsMicro <= 0n) throw new EvidenceError('an order is for an amount above zero');
+  if (!input.approval.signature || !input.approval.keyPublic) throw new EvidenceError('a person’s device approves every order');
+  if (!/^[0-9a-f]{64}$/.test(input.approval.messageSha256)) throw new EvidenceError('the approved order text’s hash must be 32-byte hex');
+  if (!input.org.investmentsAccount) throw new EvidenceError('an order names the Investments account');
+  const paying = k === 'subscribe' || k === 'buy';
+  if (paying && input.order.landsIn !== 'investments') throw new EvidenceError('units land in the Investments account');
+  if (!paying && input.order.landsIn === 'investments') throw new EvidenceError('money from a redemption or sale leaves the Investments account');
+  if (input.order.landsIn === 'bank_wire') {
+    if (!input.wire) throw new EvidenceError('a redemption by wire names the wire');
+    if (input.order.path !== 'ondo') throw new EvidenceError('only Ondo redeems by wire');
+  } else if (input.wire) throw new EvidenceError('only a redemption with Ondo goes by wire');
+  if (input.order.landsIn !== 'bank_wire' && input.chain.signatures.length === 0) throw new EvidenceError('an order names the transfers that settled it');
+  if (input.sweep && (!input.sweep.draftId || input.sweep.cushionMinor < 0n)) throw new EvidenceError('a sweep order names its draft and the rule’s cushion');
+  if (input.chain.signatures.some((s) => s.simulated) && !input.receipt.simulated) {
+    throw new EvidenceError('a simulated signature cannot back a receipt that is not marked simulated');
+  }
+  const bundle: TreasuryOrderBundle = {
+    version: EVIDENCE_BUNDLE_VERSION,
+    kind: EVIDENCE_KIND_TREASURY,
+    kindName: 'treasury',
+    bundleId: input.bundleId ?? `evb6_${input.orderId}`,
+    orderId: input.orderId,
+    createdAt: input.createdAt,
+    org: input.org,
+    asset: input.asset,
+    order: input.order,
+    approval: input.approval,
+    chain: input.chain,
+    wire: input.wire,
+    sweep: input.sweep,
+    receipt: input.receipt,
+  };
+  return structuredClone(bundle);
+}
+
 /** Any bundle a receipt can carry. */
-export type EvidenceBundle = CorridorPayoutBundle | PeerTransferBundle | ReceivableBundle;
+export type EvidenceBundle = CorridorPayoutBundle | PeerTransferBundle | ReceivableBundle | TreasuryOrderBundle;
 
 export function bundleCanonical(bundle: EvidenceBundle): string {
   return canonicalJson(bundle);

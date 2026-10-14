@@ -265,4 +265,20 @@ export const schemas = {
   moveApprove: z
     .object({ signatures: z.array(z.object({ id: z.string().regex(/^(p\d|x)$/), signature: base58 }).strict()).min(1).max(4) })
     .strict(),
+  /** Treasury (prompt 10 §7.4). T-bills are subscribed and redeemed; stocks are bought and sold. Whole cents. */
+  treasuryOrder: z.union([
+    z
+      .object({
+        asset: z.enum(['usdy', 'spy', 'qqq', 'nvda', 'googl', 'tsla']),
+        kind: z.enum(['subscribe', 'redeem', 'buy', 'sell']),
+        amountMinor: z.string().regex(/^\d{1,15}$/),
+        path: z.enum(['market', 'ondo']).optional(),
+      })
+      .strict(),
+    z.object({ sweepDraftId: z.string().regex(/^swp_[0-9a-f]{16}$/), path: z.enum(['market', 'ondo']).optional() }).strict(),
+  ]),
+  orderId: id('ord'),
+  orderApprove: z.object({ signature: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{64,90}$/) }).strict(),
+  sweepRule: z.object({ on: z.boolean(), cushionMinor: z.string().regex(/^\d{1,13}$/).optional() }).strict(),
+  eligibility: z.object({ confirm: z.literal(true) }).strict(),
 };

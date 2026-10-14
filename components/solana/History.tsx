@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { Tag } from '@/components/iso/Tag';
 import { stationLabel, stationOf, STATIONS, type StationId } from '@/lib/solana-app/stations';
 
 import { dateShort, payHref, php, timeShort, usd } from './client';
@@ -13,6 +14,14 @@ import type { CompanyDTO } from './types';
 import { useCompany } from './useCompany';
 
 type Row = CompanyDTO['payments'][number];
+type TreasuryRow = CompanyDTO['treasuryOrders'][number];
+
+/** A treasury order in History's words. T-bills are subscribed and redeemed; stocks are bought and sold. */
+function orderWords(o: TreasuryRow): { what: string; where: string } {
+  const what = o.kind === 'subscribe' ? 'Subscribed to US Treasury bills' : o.kind === 'redeem' ? 'Redeemed US Treasury bills' : o.kind === 'buy' ? `Bought ${o.name}` : `Sold ${o.name}`;
+  const where = o.landsIn === 'investments' ? 'into your Investments account' : o.landsIn === 'payments' ? 'into your Payments account' : 'by bank wire to your company’s bank account';
+  return { what, where };
+}
 type Filter = 'all' | 'waiting' | 'moving' | 'paid' | 'problem';
 
 const FILTERS: Array<{ key: Filter; label: string; test: (p: Row) => boolean }> = [
@@ -44,6 +53,7 @@ export function History() {
   const param = useSearchParams()?.get('station') ?? null;
   const station = STATIONS.some((s) => s.id === param) ? (param as StationId) : null;
   const rows = useMemo(() => (state.status === 'ready' ? state.company.payments : []), [state]);
+  const orders = state.status === 'ready' ? state.company.treasuryOrders : [];
   const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test).filter((p) => !station || stationOf(p.state, p.paymentKind) === station);
 
   if (state.status === 'loading') return <p className="sx-muted">Loading payments…</p>;
@@ -166,6 +176,35 @@ export function History() {
           </table>
         </div>
       )}
+
+      {orders.length > 0 && filter === 'all' && !station ? (
+        <section className="sx-card sx-stack" aria-labelledby="history-treasury">
+          <h2 id="history-treasury">Treasury</h2>
+          <ul className="sx-stack" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {orders.map((o) => {
+              const w = orderWords(o);
+              return (
+                <li key={o.id} className="sx-row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span>
+                    <strong>{w.what}</strong> <Tag tone="gold">{o.sweep ? 'Treasury · sweep' : 'Treasury'}</Tag>
+                    <span className="sx-small sx-muted" style={{ display: 'block' }}>
+                      {w.where} · {dateShort(o.at)} {timeShort(o.at)}
+                    </span>
+                  </span>
+                  <span className="sx-row" style={{ gap: 12 }}>
+                    <span className="sx-num">{usd(o.amountMinor)}</span>
+                    {o.receiptId ? (
+                      <Link href={`/dashboard/receipts/${o.receiptId}`}>
+                        Receipt<span className="sx-visually-hidden"> for {w.what}</span>
+                      </Link>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

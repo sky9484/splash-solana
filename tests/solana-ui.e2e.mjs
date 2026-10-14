@@ -216,16 +216,23 @@ async function run(page, email) {
   await page.waitIdle();
   assert.equal(await page.evaluate(() => document.querySelector('.iso-zk')), null, 'the floating Zeke steps aside on the Zeke page');
 
-  // Treasury: operating cash in vault #1, then a move that funds the payments vault (#0).
+  // Treasury (prompt 10 Phase 5): the three accounts; test money into the Reserve, then a move that
+  // funds the Payments account. The wire between them carries coins only while the sheet is open.
   await page.goto(`${BASE}/dashboard/treasury`);
-  await page.click('button', 'Add 100,000 test USDC (simulated)');
-  await page.find('text', /US\$100,000\.00/);
+  await page.find('heading', 'All accounts');
+  await page.find('text', 'Nothing is moving right now');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-treasury__hero .iso-wire--active').length), 0, 'no coins while nothing moves');
+  await page.click('button', 'Move money between accounts');
+  await page.find('heading', 'Move money between accounts');
+  await page.find('text', 'Showing where the money would move');
+  await page.click('button', 'Add test money to your Reserve');
+  await page.waitFor(() => [...document.querySelectorAll('.iso-treasury__hero .iso-station__amount')].some((e) => e.innerText.trim() === 'US$100,000.00'), [], { what: 'the Reserve funded' });
   await shot('treasury-funded');
-  await page.fill('Amount (USDC)', '30,000');
-  await page.click('button', 'Move with this device', { exact: true });
-  await page.find('text', 'Moved US$30,000.00 to your payments vault.', { timeoutMs: 60_000 });
-  await page.waitFor(() => document.querySelectorAll('section[aria-labelledby="moves-title"] li').length >= 1, [], { what: 'the move in the list' });
+  await page.fill('Amount from your Reserve', '30,000');
+  await page.click('button', 'Approve on this device', { exact: true });
+  await page.find('text', /^Moved US\$30,000\.00 to your Payments account\./, { timeoutMs: 60_000 });
   await shot('treasury-moved');
+  await page.press('Escape');
   await page.goto(`${BASE}/dashboard/fund`);
   await page.find('text', /US\$30,000\.00/);
   await shot('balance-funded');
@@ -701,6 +708,10 @@ async function run(page, email) {
   await page.click('button', 'Listed');
   await page.click('button', 'Save');
   await page.find('text', /^Listed as @/);
+  // Settings › Treasury: the reserve floor and stock limit read-only, the sweep rule the owner's.
+  await page.find('heading', 'Treasury');
+  await page.find('text', /^10% above what's due in the next 30 days$/);
+  await page.find('text', /^At most 20% of treasury$/);
   const signInAs = async (who) => {
     // Read the answer to the end: a request left open would make every later wait for a quiet network time out.
     await page.evaluate(async () => (await fetch('/api/auth/logout', { method: 'POST' })).text());
@@ -753,6 +764,116 @@ async function run(page, email) {
   assert.ok(paidRequest.viewedAt, 'it was viewed when Acme’s inbox listed it');
   await signInAs(email);
 
+  // Treasury's investments (prompt 10 Phase 5, test mode): Hold; the owner's one-time eligibility
+  // confirmation; T-bills subscribed straight from Ondo (held 40 days) and on the market; redeemed on
+  // the market and with Ondo by wire; a stock bought and sold; then sweep on, today's draft reviewed
+  // and approved, and Hold again. Every order ends in the approval moment and leaves a receipt.
+  const order = async ({ open, title, path, amount, approveTitle, sheetShot, approveShot }) => {
+    await page.click('button', open, { exact: true });
+    await page.find('heading', title);
+    if (path) await page.click('button', path, { exact: true });
+    if (amount) await page.fill('Amount', amount);
+    await page.waitFor(() => /(test price)/.test(document.querySelector('.iso-sheet')?.innerText ?? '') && !document.querySelector('.iso-sheet [aria-busy="true"]'), [], { what: 'the order priced' });
+    if (sheetShot) await shot(sheetShot);
+    await page.click('button', 'Review and approve');
+    await page.find('heading', approveTitle);
+    if (approveShot) await shot(approveShot);
+    await page.click('button', 'Approve on this device', { exact: true });
+    await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
+  };
+  const usdyCard = () => page.evaluate(() => document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? '');
+  await page.goto(`${BASE}/dashboard/treasury`);
+  await page.find('heading', 'US Treasury bills');
+  await page.find('text', 'Investments aren’t live until legal sign-off in Malaysia. Buttons work on test money.');
+  await page.find('text', /^Hold: idle cash stays where it is\./);
+  await page.find('text', /^3\.75%$/);
+  assert.match(await usdyCard(), /variable · set monthly by Ondo · as of 13 Oct 2026 · source/);
+  assert.match(await usdyCard(), /Not a bank deposit; its value can fall\./);
+  assert.doesNotMatch(await usdyCard(), /\b(?:Buy|Sell|Withdraw|yield|APR|APY|earn)\b/, 'the T-bills card never says buy, sell, withdraw or yield');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
+  await shot('treasury-hold');
+
+  // Subscribe straight from Ondo: the owner confirms eligibility once, in the sheet.
+  await page.click('button', 'Subscribe', { exact: true });
+  await page.find('heading', 'Subscribe to US Treasury bills');
+  await page.click('button', 'Straight from Ondo', { exact: true });
+  await page.fill('Amount', '4,000');
+  await page.find('text', 'Straight from Ondo · units held 40 days');
+  await page.find('text', '3,558.71 units at US$1.1240 (test price)');
+  await page.find('text', /^I confirm: no owner \(25% or more\), director or approver of Acme Manufacturing is a US person/);
+  await page.waitFor(() => /The units land in|Units land in/.test(document.querySelector('.iso-sheet')?.innerText ?? ''), [], { what: 'the order priced' });
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-sheet .iso-btn--approve')?.disabled), true, 'the gate blocks until the owner confirms');
+  await page.evaluate(() => document.querySelector('.iso-sheet .iso-check input')?.click());
+  await shot('treasury-subscribe-sheet');
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this subscription');
+  await page.find('text', 'Not a bank deposit; its value can fall.');
+  await shot('treasury-approve');
+  await page.click('button', 'Approve on this device', { exact: true });
+  await page.find('text', /^Approved by you\. Settled in test mode\. The units are in your Investments account\./, { timeoutMs: 60_000 });
+  await page.click('button', 'Done');
+  await page.waitFor(() => /US\$4,000\.00 is in its 40-day hold until \d{1,2} [A-Z][a-z]{2}/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the hold and its release date' });
+  // Everything held: nothing to redeem yet.
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('section[aria-labelledby="tr-usdy"] button')].find((b) => b.innerText.trim() === 'Redeem')?.disabled), true, 'held units can’t be redeemed');
+
+  // On the market: no hold. Then redeem part of it on the market (into Payments) and part with Ondo (by wire).
+  await order({ open: 'Subscribe', title: 'Subscribe to US Treasury bills', path: 'On the market', amount: '2,000', approveTitle: 'Approve this subscription' });
+  await page.click('link', 'See the receipt');
+  await page.waitFor(() => /subscribed to US Treasury bills/.test(document.querySelector('main')?.innerText ?? ''), [], { what: 'the order’s receipt' });
+  await page.find('text', 'On the market');
+  await shot('treasury-receipt');
+  await page.goto(`${BASE}/dashboard/treasury`);
+  await page.find('heading', 'US Treasury bills');
+  await order({ open: 'Redeem', title: 'Redeem US Treasury bills', path: 'On the market', amount: '1,000', approveTitle: 'Approve this redemption', sheetShot: 'treasury-redeem-sheet' });
+  await page.find('text', /The money is in your Payments account\./);
+  await page.click('button', 'Done');
+  await page.click('button', 'Redeem', { exact: true });
+  await page.find('heading', 'Redeem US Treasury bills');
+  await page.click('button', 'With Ondo, by wire', { exact: true });
+  await page.fill('Amount', '500');
+  await page.find('text', 'Your company’s bank account, by wire, outside Splash');
+  await page.find('text', /Redeeming with Ondo sends US dollars by bank wire to your company's bank account, outside Splash\. It doesn't land in your Payments account\./);
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this redemption');
+  await page.click('button', 'Approve on this device', { exact: true });
+  await page.find('text', /^Approved by you\. Settled in test mode\. Ondo sends US dollars by bank wire/, { timeoutMs: 60_000 });
+  await page.click('button', 'Done');
+
+  // A stock: bought within the 20% limit and the 0.30% price-moved limit, then partly sold.
+  await order({ open: 'Buy S&P 500', title: 'Buy S&P 500', amount: '1,000', approveTitle: 'Approve this buy', sheetShot: 'treasury-buy-sheet' });
+  await page.click('button', 'Done');
+  await page.find('button', 'Sell S&P 500');
+  await order({ open: 'Sell S&P 500', title: 'Sell S&P 500', amount: '400', approveTitle: 'Approve this sale' });
+  await page.click('button', 'Done');
+  await page.find('heading', 'Positions');
+  await page.waitFor(() => /US Treasury bills[\s\S]*S&P 500/.test(document.querySelector('section[aria-labelledby="tr-pos"]')?.innerText ?? ''), [], { what: 'both positions' });
+  await shot('treasury-positions');
+
+  // Sweep: the owner turns it on; Zeke drafts today's move; a person reviews and approves it; Hold again.
+  await page.click('button', 'Sweep', { exact: true });
+  await page.find('text', /^Sweep is on\. Each morning Zeke drafts a move of cash above your reserve and a US\$5,000\.00 cushion into T-bills/);
+  await page.find('text', /Zeke drafted\s*Subscribe US\$[\d,]+\.\d\d · cash above your reserve and cushion/);
+  await page.find('text', /^Zeke: I drafted a sweep of US\$[\d,]+\.\d\d into T-bills under your sweep rule\. Nothing moves until a person approves it\.$/);
+  await shot('treasury-sweep');
+  await page.click('button', 'Review', { exact: true });
+  await page.find('heading', /^Sweep: subscribe US\$[\d,]+\.\d\d$/);
+  await page.find('text', /^Drafted by Zeke from your sweep rule: keep the reserve at its floor and at least US\$5,000\.00 in Payments\. Your owner chose T-bills when turning sweep on; Zeke didn't\./);
+  await shot('treasury-sweep-review');
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this subscription');
+  await page.find('text', /^Drafted by Zeke from your sweep rule/);
+  await page.click('button', 'Approve on this device', { exact: true });
+  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
+  await page.click('button', 'Done');
+  await page.waitFor(() => !/Zeke drafted/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the draft approved and gone' });
+  await page.click('button', 'Hold', { exact: true });
+  await page.find('text', /^Hold: idle cash stays where it is\./);
+  // History's gold Treasury rows, one per settled order.
+  await page.goto(`${BASE}/dashboard/history`);
+  await page.find('heading', 'Treasury');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('section[aria-labelledby="history-treasury"] li').length), 7, 'seven settled orders');
+  await shot('history-treasury');
+
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.
   // 2. In every Solana API request body, no free-text value contains any single recovery word. Enum
@@ -760,7 +881,7 @@ async function run(page, email) {
   //    since some are BIP39 words by coincidence; invoice text is ordinary English and gets check 1.
   const phrase = words.map((w) => w.toLowerCase());
   const word = new RegExp(`\\b(${phrase.join('|')})\\b`, 'i');
-  const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample', 'from', 'step', 'sourceOfFunds', 'relationship', 'type', 'asset', 'kind', 'when', 'bankCode']);
+  const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample', 'from', 'step', 'sourceOfFunds', 'relationship', 'type', 'asset', 'kind', 'when', 'bankCode', 'path']);
   // What a person typed about a supplier, a recipient or a payer (invoice text, transfer details, a
   // request's lines, a call-back) is ordinary English: check 1 only.
   const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv', 'recipient', 'reference', 'verification', 'details', 'name', 'holderName', 'addressLine', 'city', 'registration', 'personId', 'note', 'check', 'by', 'payer', 'lines', 'spokeTo', 'numberCalled', 'number', 'myInvoisRef']);
@@ -832,6 +953,9 @@ async function run(page, email) {
   await shot('admin-webhooks');
   await page.goto(`${BASE}/admin/compliance`);
   await page.find('heading', 'Refuse service');
+  // Type only once React owns the form: a value set before hydration never reaches its state, and the
+  // Suspend button stays disabled (seen once a second company, Kuching, is listed first).
+  await page.waitFor(() => [...document.querySelectorAll('textarea')].every((t) => Object.keys(t).some((k) => k.startsWith('__reactProps'))) && document.querySelectorAll('textarea').length > 0, [], { what: 'the compliance form hydrated' });
   await page.fill('Reason for the audit log', 'KYB documents expired (walkthrough)');
   await page.click('button', /^Suspend /);
   await page.waitFor(() => [...document.querySelectorAll('table td')].some((td) => td.innerText.includes('KYB documents expired (walkthrough)')), [], { what: 'the suspension in the audit log' });

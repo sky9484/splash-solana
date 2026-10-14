@@ -11,31 +11,24 @@
  *   What did it cost?             month (paid, fees, average all-in)
  *   Where can we pay, and within what rules? corridors, checks
  */
-import { billHref } from '../dashboard/links.ts';
+import { billHref, sweepHref } from '../dashboard/links.ts';
 import { formatPhp, formatUsd } from '../solana-zeke/router.ts';
 import { CORRIDORS } from '../solana-partner/registry.ts';
-import { MOCK_RATE } from '../solana-partner/mock-partner.ts';
-import { availableToInvest, isCovered, payablesDue, reserveFloor, sharesPct, shortfall, type Position } from '../treasury/reserve.ts';
+import { availableToInvest, isCovered, payablesDue, reserveFloor, sharesPct, shortfall } from '../treasury/reserve.ts';
+import { investmentsSummary, waitingSweepDraft } from './investments.ts';
+import { accountBalances, payablesOf, phpToUsdMinor, positionFrom } from './money-position.ts';
 import { needsYou, type NeedRow, type SetupIn } from './needs-you.ts';
-import { isCommitted, type PaymentState } from './payment-machine.ts';
-import { runtime } from './runtime.ts';
-import { DEMO_LIMITS, getOrg, treasuryVaultPda } from './service.ts';
+import { DEMO_LIMITS, getOrg } from './service.ts';
 import { overdueRequests } from './requests.ts';
 import { isMovingInto, pipelineFor, stationLabel, stationOf, type StationId } from './stations.ts';
-import { isBill, store, type InvoiceRecord, type PaymentRecord } from './store.ts';
+import { store, type InvoiceRecord, type PaymentRecord } from './store.ts';
 
 const DAY_MS = 86_400_000;
 /** Above this a payment needs a second approver: a rule that isn't built yet, so it shows as Planned. */
 export const SECOND_APPROVER_ABOVE_MINOR = 10_000_000_000n;
 
-/** PHP centavos to US dollar minor units at the test rate, rounded up (a bill is never under-reserved). */
-export function phpToUsdMinor(phpMinor: bigint, rate: string = MOCK_RATE): bigint {
-  const [whole, frac = ''] = rate.split('.');
-  const rateHundredths = BigInt(whole) * 100n + BigInt((frac + '00').slice(0, 2));
-  // USD minor = PHP minor / 100 / (rate) * 1e6 = PHP minor * 1e6 / rateHundredths
-  const num = phpMinor * 1_000_000n;
-  return (num + rateHundredths - 1n) / rateHundredths;
-}
+/** Kept here too: Overview's tests and older callers import it from this module. */
+export { phpToUsdMinor };
 
 const utcDay = (d: Date) => d.toISOString().slice(0, 10);
 const monthKey = (iso: string) => iso.slice(0, 7);
@@ -90,30 +83,15 @@ function tagFor(p: PaymentRecord): { tone: 'coral' | 'amber' | 'ok' | 'ink' | 'd
 export async function overviewFor(input: OverviewInput) {
   const now = input.now ?? new Date();
   const org = getOrg(input.orgId);
-  const rt = runtime();
 
-  /* ── The accounts ───────────────────────────────────────────── */
-  const paymentsMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
-  const reserveMinor = org.vault ? await rt.chain.getUsdcBalance(treasuryVaultPda(org.vault.multisigPda)) : 0n;
-  // Investments (vault #2) arrive in Phase 5; until then none, and the row says "Not set up yet".
-  const investmentsMinor = 0n;
-  const stocksMinor = 0n;
-
-  const all = (await rt.payments.listByOrg(org.id)).filter((p) => p.state !== 'discarded');
-  const sentFor = new Set(all.filter((p) => isCommitted(p.state as PaymentState)).map((p) => p.invoiceId));
-  const waiting = all.filter((p) => p.state === 'checked' || p.state === 'proposed');
-  const waitingMinor = waiting.reduce((n, p) => n + (p.approval?.youPayUsdcMinor ?? 0n), 0n);
-  const approvedUnsentMinor = all.filter((p) => p.state === 'approved').reduce((n, p) => n + (p.approval?.youPayUsdcMinor ?? 0n), 0n);
-
-  // Accepted bills: Zeke read them and a person checked them; not sent; due in the next 30 days.
-  const horizon30 = utcDay(new Date(now.getTime() + 30 * DAY_MS));
+  /* ── The accounts (the same reading Treasury makes: money-position.ts) ── */
+  const { paymentsMinor, reserveMinor } = await accountBalances(org);
+  const invested = investmentsSummary(org, now);
+  const investmentsMinor = invested.investmentsMinor;
+  const owed = await payablesOf(org, now);
+  const { all, sentFor, waiting, waitingMinor, bills, accepted } = owed;
   const horizon7 = utcDay(new Date(now.getTime() + 7 * DAY_MS));
-  const bills = [...store().invoices.values()].filter((i) => i.orgId === org.id && isBill(i) && !i.dismissed);
-  const accepted = bills.filter((i) => i.confirmed && !sentFor.has(i.id));
-  const billsDue30 = accepted.filter((i) => i.confirmed!.dueDate && i.confirmed!.dueDate <= horizon30);
-  const billsDueMinor = billsDue30.reduce((n, i) => n + phpToUsdMinor(i.confirmed!.amountPhpMinor), 0n);
-
-  const position: Position = { paymentsMinor, reserveMinor, investmentsMinor, stocksMinor, approvedUnsentMinor, billsDueMinor, waitingMinor };
+  const position = positionFrom({ paymentsMinor, reserveMinor, investmentsMinor, stocksMinor: invested.stocksMinor }, owed);
   const payables = payablesDue(position);
   const [pPct, rPct, iPct] = sharesPct([paymentsMinor, reserveMinor, investmentsMinor]);
 
@@ -144,7 +122,10 @@ export async function overviewFor(input: OverviewInput) {
     verifications,
     dueSoon,
     overdue: overdueRequests(org.id, now),
-    sweep: null,
+    sweep: (() => {
+      const d = waitingSweepDraft(org, now);
+      return d ? { kind: d.kind, amount: formatUsd(d.amountMinor), href: sweepHref(d.id) } : null;
+    })(),
     setup: input.setupOpen,
     php: formatPhp,
   });
@@ -225,7 +206,7 @@ export async function overviewFor(input: OverviewInput) {
       paymentsMinor,
       reserveMinor,
       investmentsMinor,
-      investmentsSetUp: false,
+      investmentsSetUp: invested.setUp,
       shares: { payments: pPct, reserve: rPct, investments: iPct },
       payablesDueMinor: payables,
       floorMinor: reserveFloor(payables),

@@ -8,6 +8,7 @@ import { IsoSurface, Tag } from '@/components/iso';
 import { useCompany } from '@/components/solana/useCompany';
 
 import { DirectoryCard } from './DirectoryCard';
+import { TreasuryRulesCard } from './TreasuryRulesCard';
 
 /**
  * Settings › Account details, the one place the dashboard shows account IDs and how approval is set
@@ -106,6 +107,7 @@ export function AccountDetails() {
       ) : null}
 
       <DirectoryCard isOwner={c.me.isOwner} />
+      {c.vault ? <TreasuryRulesCard isOwner={c.me.isOwner} /> : null}
     </div>
   );
 }
