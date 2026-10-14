@@ -946,15 +946,32 @@ async function run(page, email) {
     await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
   };
   const usdyCard = () => page.evaluate(() => document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? '');
+  /** The T-bill card's text, its closed "How it works" included. */
+  const usdyText = () => page.evaluate(() => document.querySelector('section[aria-labelledby="tr-usdy"]')?.textContent ?? '');
+  /** The Investments account's amount, in the three accounts at the top. */
+  const invested = () => page.evaluate(() => [...document.querySelectorAll('.iso-treasury__hero .iso-station')].find((s) => /Investments/.test(s.innerText))?.querySelector('.iso-station__amount')?.innerText.trim() ?? null);
   await page.goto(`${BASE}/dashboard/treasury`);
-  await page.find('heading', 'US Treasury bills');
+  await page.find('heading', 'US T-bill pool');
   await page.find('text', 'Investments aren’t live until legal sign-off in Malaysia. Buttons work on test money.');
-  await page.find('text', /^Hold: idle cash stays where it is\./);
-  await page.find('text', /^3\.75%$/);
-  assert.match(await usdyCard(), /variable · set monthly by Ondo · as of 13 Oct 2026 · source/);
-  assert.match(await usdyCard(), /Not a bank deposit; its value can fall\./);
-  assert.doesNotMatch(await usdyCard(), /\b(?:Buy|Sell|Withdraw|yield|APR|APY|earn)\b/, 'the T-bills card never says buy, sell, withdraw or yield');
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
+  await page.find('text', /^Idle cash stays in your Payments account\. Zeke won't draft sweeps\./);
+  // Prompt 11 §4.1: All accounts; then the T-bill pool and stocks on the left, Hold or sweep and the
+  // activity in the rail beside them; then Risk and rules.
+  const sections = await page.evaluate(() => [...document.querySelectorAll('main h2')].map((h) => h.innerText.trim()).filter((t) => ['All accounts', 'US T-bill pool', 'US stocks and ETFs', 'Hold or sweep', 'Treasury activity', 'Risk and rules'].includes(t)));
+  assert.deepEqual(sections, ['All accounts', 'US T-bill pool', 'US stocks and ETFs', 'Hold or sweep', 'Treasury activity', 'Risk and rules']);
+  const cols = await page.evaluate(() => {
+    const r = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+    return { left: r('.iso-treasury__left')?.right ?? null, rail: r('.iso-treasury__rail')?.left ?? null, railWidth: r('.iso-treasury__rail')?.width ?? null };
+  });
+  assert.ok(cols.rail >= cols.left && Math.round(cols.railWidth) === 320, `the rail sits beside the cards, 320 px wide: ${JSON.stringify(cols)}`);
+  assert.match(await usdyCard(), /USDY, issued by Ondo · held in your Investments account/);
+  assert.match(await usdyCard(), /Rate 3\.75% a year · variable · set monthly by Ondo · as of 13 Oct 2026 · source/);
+  assert.match(await usdyCard(), /Interest today · live estimate/);
+  assert.match(await usdyText(), /Not a bank deposit; its value can fall\./);
+  assert.match(await usdyText(), /Most businesses redeem once a quarter\./);
+  assert.doesNotMatch(await usdyText(), /\b(?:Buy|Sell|Withdraw|yield|APR|APY|earn)\b/, 'the T-bill card never says buy, sell, withdraw or yield');
+  assert.match((await page.text('section[aria-labelledby="tr-stocks"] .iso-note--gold')).join(' '), /^Bought through Treasurers, our stock partner\./);
+  // Two extruded numbers (prompt 11 §4.2 asks for the T-bill pool's value as one): the total and the pool.
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).map((e) => e.closest('[aria-labelledby]')?.getAttribute('aria-labelledby'))), ['tr-total', 'tr-usdy']);
   await shot('treasury-hold');
 
   // More test money in the Reserve, so a subscription can go past what the market takes (US$75,000).
@@ -970,7 +987,13 @@ async function run(page, email) {
   await page.fill('Amount', '80,000');
   await page.find('text', 'Straight from Ondo · units held 40 days');
   await page.find('text', /^Straight from Ondo: on the market this order would move the price more than 0\.30%/);
-  await page.find('text', '71,174.37 units at US$1.1240 (test price)');
+  // Prompt 11 §4.2: the simulator books one price a day, rising from its anchor day (13 Oct 2026), so
+  // the price on the sheet is the day's. The units are the amount at that price.
+  const priced = await page.waitFor(() => /([\d,]+\.\d\d) units at US\$(\d+\.\d{4}) \(test price\)/.exec(document.querySelector('.iso-sheet')?.innerText ?? '')?.slice(1), [], { what: 'the units at the day’s price' });
+  const [unitsShown, priceShown] = priced.map((x) => Number(x.replaceAll(',', '')));
+  assert.ok(priceShown >= 1.124 && priceShown < 1.2, `the day's test price: ${priceShown}`);
+  // The price is shown to 4 decimals, so the units agree with 80,000 / price to within that rounding.
+  assert.ok(Math.abs(unitsShown - 80_000 / priceShown) <= (80_000 / priceShown) * 5e-5, `${unitsShown} units at US$${priceShown}`);
   await page.find('text', /^I confirm: no owner \(25% or more\), director or approver of Acme Manufacturing is a US person/);
   await page.waitFor(() => /The units land in|Units land in/.test(document.querySelector('.iso-sheet')?.innerText ?? ''), [], { what: 'the order priced' });
   assert.equal(await page.evaluate(() => document.querySelector('.iso-sheet .iso-btn--approve')?.disabled), true, 'the gate blocks until the owner confirms');
@@ -986,6 +1009,29 @@ async function run(page, email) {
   await page.waitFor(() => /US\$80,000\.00 is in its 40-day hold until \d{1,2} [A-Z][a-z]{2}/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the hold and its release date' });
   // Everything held: nothing to redeem yet.
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('section[aria-labelledby="tr-usdy"] button')].find((b) => b.innerText.trim() === 'Redeem')?.disabled), true, 'held units can’t be redeemed');
+  // "Interest today" ticks every second while the tab is visible, and stops while it's hidden (§4.2).
+  // It is aria-live off; the group's name is read on focus.
+  const live = () => page.evaluate(() => document.querySelector('.iso-tbill__liveval')?.innerText.trim() ?? null);
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-tbill__liveval')?.getAttribute('aria-live')), 'off');
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-tbill__live')?.getAttribute('aria-label')), 'Interest today, a live estimate');
+  const tick0 = await live();
+  assert.match(tick0, /^\+US\$\d+\.\d{4}$/);
+  await page.sleep(3500);
+  const tick1 = await live();
+  assert.notEqual(tick1, tick0, `it ticks: ${tick0} → ${tick1}`);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const paused0 = await live();
+  await page.sleep(3500);
+  assert.equal(await live(), paused0, 'a hidden tab stops it');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.sleep(3500);
+  assert.notEqual(await live(), paused0, 'and it ticks again when the tab is back');
 
   // On the market: no hold. Then redeem part of it on the market (into Payments) and part with Ondo (by wire).
   await order({ open: 'Subscribe', title: 'Subscribe to US Treasury bills', amount: '2,000', approveTitle: 'Approve this subscription' });
@@ -994,7 +1040,7 @@ async function run(page, email) {
   await page.find('text', 'On the market');
   await shot('treasury-receipt');
   await page.goto(`${BASE}/dashboard/treasury`);
-  await page.find('heading', 'US Treasury bills');
+  await page.find('heading', 'US T-bill pool');
   await order({ open: 'Redeem', title: 'Redeem US Treasury bills', path: 'On the market', amount: '1,000', approveTitle: 'Approve this redemption', sheetShot: 'treasury-redeem-sheet' });
   await page.find('text', /The money is in your Payments account\./);
   await page.click('button', 'Done');
@@ -1016,15 +1062,21 @@ async function run(page, email) {
   await page.find('button', 'Sell S&P 500');
   await order({ open: 'Sell S&P 500', title: 'Sell S&P 500', amount: '400', approveTitle: 'Approve this sale' });
   await page.click('button', 'Done');
-  await page.find('heading', 'Positions');
-  await page.waitFor(() => /US Treasury bills[\s\S]*S&P 500/.test(document.querySelector('section[aria-labelledby="tr-pos"]')?.innerText ?? ''), [], { what: 'both positions' });
-  await shot('treasury-positions');
+  // What's held (prompt 11 §4.1 has no Positions box): the T-bill card's units, and the stock's row,
+  // which now offers "Buy more" and "Sell".
+  await page.waitFor(() => /[\d,]+\.\d+ units/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the T-bill units' });
+  await page.waitFor(() => [...document.querySelectorAll('section[aria-labelledby="tr-stocks"] tbody tr')].some((r) => /S&P 500/.test(r.innerText) && /^US\$[\d,]+\.\d\d$/.test(r.querySelector('[data-label="You hold (test)"]')?.innerText.trim() ?? '') && /Buy more/.test(r.innerText)), [], { what: 'the stock held' });
+  await shot('treasury-holdings');
 
-  // Sweep: the owner turns it on; Zeke drafts today's move; a person reviews and approves it; Hold again.
+  // Sweep (prompt 11 §4.3): the owner turns it on; Zeke drafts today's move as a row; Overview's
+  // Review opens it; "Approve" on the row opens the approval moment, and nothing moves before it; then
+  // the row says "Approved on this device" and the activity "you approved"; Hold again.
   await page.click('button', 'Sweep', { exact: true });
-  await page.find('text', /^Sweep is on\. Each morning Zeke drafts a move of cash above your reserve and a US\$5,000\.00 cushion into T-bills/);
-  await page.find('text', /Zeke drafted\s*Subscribe US\$[\d,]+\.\d\d · cash above your reserve and cushion/);
+  await page.find('text', /^When cash builds above your reserve and a US\$5,000\.00 cushion, Zeke drafts a move into the T-bill pool\. Nothing moves until you approve it\./);
+  await page.find('text', /^Move US\$[\d,]+\.\d\d in$/);
+  await page.find('text', 'Idle cash above reserve and cushion');
   await page.find('text', /^Zeke: I drafted a sweep of US\$[\d,]+\.\d\d into T-bills under your sweep rule\. Nothing moves until a person approves it\.$/);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.iso-draft[data-state="drafted"] button')].map((b) => [b.innerText.trim(), b.classList.contains('iso-btn--approve')])), [['Approve', true], ['Not now', false]]);
   await shot('treasury-sweep');
   // Overview with Investments above zero and the sweep draft in Needs you (§4.2, §7.3).
   await page.goto(`${BASE}/dashboard`);
@@ -1033,21 +1085,29 @@ async function run(page, email) {
   if (!(await page.evaluate(() => /Sweep drafted · US\$/.test(document.querySelector('main')?.innerText ?? '')))) await page.click('button', /^See all \d+/);
   await page.find('text', /^Sweep drafted · US\$[\d,]+\.\d\d into T-bills$/);
   await shot('overview-investments-sweep');
-  await page.goto(`${BASE}/dashboard/treasury`);
-  await page.find('heading', 'US Treasury bills');
-  await page.click('button', 'Review', { exact: true });
+  // Its Review opens the draft on Treasury, to read before approving.
+  await page.evaluate(() => [...document.querySelectorAll('main li, main [role="listitem"], main .iso-need')].find((r) => /Sweep drafted · US\$/.test(r.innerText))?.querySelector('a')?.click());
+  await page.waitFor(() => location.pathname === '/dashboard/treasury' && /sweep=/.test(location.search), [], { what: 'Treasury with the draft' });
   await page.find('heading', /^Sweep: subscribe US\$[\d,]+\.\d\d$/);
   await page.find('text', /^Drafted by Zeke from your sweep rule: keep the reserve at its floor and at least US\$5,000\.00 in Payments\. Your owner chose T-bills when turning sweep on; Zeke didn't\./);
   await shot('treasury-sweep-review');
-  await page.click('button', 'Review and approve');
-  await page.find('heading', 'Approve this subscription');
+  await page.press('Escape');
+  await page.waitFor(() => !document.querySelector('.iso-sheet-root'), [], { what: 'the sheet closed' });
+  // "Approve" on the row: the approval moment, and nothing has moved yet.
+  const before = await invested();
+  await page.evaluate(() => [...document.querySelectorAll('.iso-draft[data-state="drafted"]')].find((r) => /Move US\$/.test(r.innerText))?.querySelector('.iso-btn--approve')?.click());
+  await page.find('heading', 'Approve this subscription', { timeoutMs: 60_000 });
   await page.find('text', /^Drafted by Zeke from your sweep rule/);
+  assert.equal(await invested(), before, 'nothing moves until a person approves');
+  await shot('treasury-sweep-approve');
   await page.click('button', 'Approve on this device', { exact: true });
   await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
   await page.click('button', 'Done');
-  await page.waitFor(() => !/Zeke drafted/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the draft approved and gone' });
+  await page.waitFor(() => /Approved on this device/.test(document.querySelector('section[aria-labelledby="tr-sweep"]')?.innerText ?? ''), [], { what: 'the row approved on this device' });
+  assert.notEqual(await invested(), before, 'the move happened once approved');
+  assert.match(await page.evaluate(() => document.querySelector('section[aria-labelledby="tr-activity"]')?.innerText ?? ''), /Moved in · you approved · Today/);
   await page.click('button', 'Hold', { exact: true });
-  await page.find('text', /^Hold: idle cash stays where it is\./);
+  await page.find('text', /^Idle cash stays in your Payments account\. Zeke won't draft sweeps\./);
   // History's gold Treasury rows, one per settled order.
   await page.goto(`${BASE}/dashboard/history`);
   await page.find('heading', 'Treasury');

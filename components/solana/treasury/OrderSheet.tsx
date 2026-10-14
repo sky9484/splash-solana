@@ -19,7 +19,8 @@ import type { TreasuryDTO } from './Treasury';
 type Asset = 'usdy' | 'spy' | 'qqq' | 'nvda' | 'googl' | 'tsla';
 type Kind = 'subscribe' | 'redeem' | 'buy' | 'sell';
 type Path = 'market' | 'ondo';
-export type OrderIntent = { asset: Asset | string; kind: Kind; sweepDraftId?: string };
+/** `direct`: "Approve" on a drafted move (Hold or sweep, prompt 11 §4.3) goes straight to the approval moment. */
+export type OrderIntent = { asset: Asset | string; kind: Kind; sweepDraftId?: string; direct?: boolean };
 type PreviewDTO = Wire<OrderPreview>;
 type Flow = { paymentsReserve: boolean; reserveInvestments: boolean } | null;
 
@@ -46,7 +47,8 @@ const TITLE: Record<Kind, (name: string) => string> = {
 const APPROVE_TITLE: Record<Kind, string> = { subscribe: 'Approve this subscription', redeem: 'Approve this redemption', buy: 'Approve this buy', sell: 'Approve this sale' };
 const RISK = {
   tbill: 'Not a bank deposit; its value can fall.',
-  stock: 'You don’t own the share itself; prices move with the market and can fall.',
+  // Prompt 11 §0.4: stocks used to say "via Ondo"; the stock sheets now name Treasurers, the stock partner.
+  stock: 'Bought through Treasurers. You don’t own the share itself; prices move with the market and can fall.',
 };
 
 /**
@@ -70,6 +72,7 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
   const tbill = asset === 'usdy';
   const paying = kind === 'subscribe' || kind === 'buy';
   const sweep = intent?.sweepDraftId ?? null;
+  const draftRow = sweep ? (treasury.sweep.rows.find((r) => r.id === sweep) ?? null) : null;
   const name = tbill ? 'US Treasury bills' : (treasury.stocks.rows.find((r) => r.id === asset)?.name ?? asset);
   const minor = sweep ? null : dollarsToMinor(amount);
   const needsGate = paying && !treasury.eligibility.confirmed;
@@ -104,6 +107,14 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
       clearTimeout(t);
     };
   }, [intent, stage, sweep, minor, path, asset, kind]);
+
+  // "Approve" on a drafted move opens the approval moment itself, once the order is priced and nothing
+  // on the sheet needs the person first (the one-time eligibility confirmation). It never approves.
+  useEffect(() => {
+    if (!intent?.direct || stage !== 'sheet' || quoting || !preview?.ok || needsGate) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStage('approve');
+  }, [intent, stage, quoting, preview, needsGate]);
 
   // The wires on the page carry the money while the sheet shows where it would go.
   useEffect(() => {
@@ -151,7 +162,7 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
       <Sheet
         open={stage === 'sheet'}
         onClose={onClose}
-        title={sweep && preview ? `Sweep: ${preview.request.kind} ${usd(preview.request.amountMinor)}` : TITLE[kind](name)}
+        title={sweep && preview ? (draftRow?.purpose === 'quarter_interest' ? `Interest back: redeem ${usd(preview.request.amountMinor)}` : `Sweep: ${preview.request.kind} ${usd(preview.request.amountMinor)}`) : TITLE[kind](name)}
         footer={
           <div className="iso-stack" style={{ gap: 8 }}>
             <IsoButton variant="approve" size="lg" block onClick={() => void review()} busy={busy} disabledReason={busy ? null : why}>
@@ -166,7 +177,11 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
             <TestModeBadge />
             {sweep ? <Tag tone="ink">Zeke drafted</Tag> : null}
           </span>
-          {sweep ? (
+          {sweep && draftRow?.purpose === 'quarter_interest' ? (
+            <p className="iso-note" style={{ margin: 0 }}>
+              Drafted by Zeke: last quarter’s interest ({draftRow.months ?? 'last quarter'}), back to your Payments account. Nothing moves until you approve.
+            </p>
+          ) : sweep ? (
             <p className="iso-note" style={{ margin: 0 }}>
               Drafted by Zeke from your sweep rule: keep the reserve at its floor and at least {usd(treasury.sweep.cushionMinor)} in Payments. Your owner chose T-bills when turning sweep on; Zeke didn’t. Nothing moves until you approve.
             </p>

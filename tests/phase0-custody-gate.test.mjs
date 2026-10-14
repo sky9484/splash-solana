@@ -81,7 +81,13 @@ test('the treasury page shows no demo balance or transaction as confirmed, and n
   // Investments, vaults #0, #1 and #2 of its multisig). It is not the Sui build's Smart Treasury: no
   // yield or APY wording, no ledger of Splash's, and every balance is read by the server (one read,
   // GET /api/solana/treasury). The T-bills rate is printed only with its date and source (§7.1).
-  const page = (await source('app/dashboard/treasury/page.tsx')) + (await source('components/solana/treasury/Treasury.tsx')) + (await source('components/solana/treasury/OrderSheet.tsx')) + (await source('components/solana/treasury/MoveSheet.tsx'));
+  // Prompt 11 Phase 4 split the page into its cards (the T-bill pool, its chart, stocks, Hold or sweep,
+  // Risk and rules); every one of them is held to the same rules.
+  const page = (
+    await Promise.all(
+      ['app/dashboard/treasury/page.tsx', ...['Treasury', 'OrderSheet', 'MoveSheet', 'TbillCard', 'InterestChart', 'Stocks', 'HoldSweep', 'RiskRules'].map((c) => `components/solana/treasury/${c}.tsx`), 'components/solana/treasury/live.ts'].map(source),
+    )
+  ).join('\n');
 
   assert.doesNotMatch(page, /SEED_HISTORY/, 'the six hardcoded transactions are gone');
   assert.doesNotMatch(page, /useState\(11140/, 'no hardcoded available balance');

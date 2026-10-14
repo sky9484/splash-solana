@@ -1768,6 +1768,60 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-treasury__zeke { align-self: flex-start; align-items: center; gap: 12px; font-size: var(--iso-14); line-height: 1.55; }
 .iso .iso-treasury__zeke img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: var(--paper); }
 .iso .iso-treasury__zeke > span { flex: 1 1 220px; min-width: 0; }
+
+/* ── Smart Treasury (prompt 11 Phase 4) ──────────────────────────────────
+   Under All accounts: the T-bill pool and stocks on the left, Hold or sweep and the activity in a
+   320 px rail; one column below 1080 px, the rail after. */
+.iso .iso-treasury__cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+.iso .iso-treasury__left, .iso .iso-treasury__rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+@media (max-width: 1079px) { .iso .iso-treasury__cols { grid-template-columns: minmax(0, 1fr); } }
+.iso .iso-note--gold { background: var(--gold-fill); border-color: var(--gold); color: var(--gold-ink); }
+
+/* The T-bill pool: what is held, extruded; today's interest as a live estimate on the right. */
+.iso .iso-tbill__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px 24px; }
+.iso .iso-tbill__what { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.iso .iso-tbill__live { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: right; }
+.iso .iso-tbill__livehead { display: inline-flex; align-items: center; gap: 8px; }
+.iso .iso-tbill__liveval { font-size: 28px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; color: var(--ink-deep); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .iso .iso-tbill__live { align-items: flex-start; text-align: left; } }
+/* A small gold dot that pulses while the figure is live; still with reduced motion. */
+.iso .iso-livedot { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 0 var(--gold); animation: iso-livedot 1.8s ease-out infinite; }
+@keyframes iso-livedot { 0% { box-shadow: 0 0 0 0 rgb(239 196 111 / .7); } 70%, 100% { box-shadow: 0 0 0 7px rgb(239 196 111 / 0); } }
+
+/* Interest per day: one bar a day; the date and amount of the bar under the pointer or focus. */
+.iso .iso-ichart { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+.iso .iso-ichart__plot { display: flex; flex-direction: column; gap: 4px; }
+.iso .iso-ichart__tip { margin: 0; min-height: 20px; font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-ichart__bars { margin: 0; padding: 0; list-style: none; height: 140px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1.5px solid var(--ink-deep); }
+.iso .iso-ichart__bars[data-span='30'] { gap: 2px; }
+.iso .iso-ichart__bars > li { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.iso .iso-ichart__bar { display: block; width: 100%; min-height: 0; padding: 0; border: 0; background: var(--gold); cursor: default; transition: background-color var(--t-ui, 160ms); }
+.iso .iso-ichart__bar:hover, .iso .iso-ichart__bar[data-active] { background: var(--teal); }
+.iso .iso-ichart__bar:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso .iso-ichart__axis { display: flex; justify-content: space-between; }
+.iso .iso-ichart__tiles { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.iso .iso-ichart__tiles > div { padding: 10px 12px; background: var(--white); border: 1px solid var(--surface-line); }
+.iso .iso-ichart__tiles dt { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-ichart__tiles dd { margin: 2px 0 0; font-weight: 800; color: var(--ink-deep); }
+@media (max-width: 480px) { .iso .iso-ichart__tiles { grid-template-columns: minmax(0, 1fr); } }
+
+/* Hold or sweep: Zeke's drafts, each a row a person decides. */
+.iso .iso-drafts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-draft { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; padding: 12px; background: var(--white); border: 1px solid var(--surface-line); }
+.iso .iso-draft__zeke { width: 28px; height: 28px; object-fit: contain; }
+.iso .iso-draft__what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.iso .iso-draft__do, .iso .iso-draft > .iso-tag, .iso .iso-draft__done { grid-column: 2; justify-self: start; }
+.iso .iso-feeskept { display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+.iso .iso-feeskept__sum { font-size: 24px; font-weight: 900; color: var(--ink-deep); }
+
+/* Treasury activity: newest first. */
+.iso .iso-activity { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.iso .iso-activity > li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line-soft); font-size: var(--iso-14); }
+.iso .iso-activity > li:first-child { border-top: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-livedot { animation: none; }
+  .iso .iso-ichart__bar { transition: none; }
+}
 .iso .iso-sheet__amount { font-size: 22px; font-weight: 800; color: var(--ink-deep); }
 @media (max-width: 720px) {
   .iso .iso-treasury__hero { padding: 20px 16px; }

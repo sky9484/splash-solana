@@ -76,6 +76,8 @@ export interface NeedsInput {
   dueSoon: DueIn[];
   overdue: OverdueIn[];
   sweep: SweepIn | null;
+  /** Prompt 11 §4.4: the quarter's interest, drafted to come back (Zeke drafts; a person approves). */
+  quarter?: { amount: string; months: string; href: string } | null;
   setup: SetupIn[];
   /** Formats a PHP total of the due bills. */
   php: (minor: bigint) => string;
@@ -152,6 +154,16 @@ export function needsYou(input: NeedsInput): { rows: NeedRow[]; more: NeedRow[];
       title: `Sweep drafted · ${input.sweep.amount} ${input.sweep.kind === 'subscribe' ? 'into T-bills' : 'back from T-bills'}`,
       detail: 'From your sweep rule. Nothing moves until a person approves it.',
       action: { label: 'Review', href: input.sweep.href },
+    });
+  }
+
+  if (input.quarter) {
+    rows.push({
+      kind: 'sweep',
+      tag: { tone: 'gold', label: 'Zeke drafted' },
+      title: `Interest drafted · ${input.quarter.amount} back from T-bills`,
+      detail: `Last quarter’s interest (${input.quarter.months}). Nothing moves until a person approves it.`,
+      action: { label: 'Review', href: input.quarter.href },
     });
   }
 

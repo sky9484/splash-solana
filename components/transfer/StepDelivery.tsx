@@ -12,7 +12,7 @@ import type { RecipientTier } from '@/lib/server/operations';
 // rail, and an invented one reads as a promise.
 const options: Array<{ tier: RecipientTier; icon: typeof Building2; title: string; body: (currency: string) => string }> = [
   { tier: 'PAYOUT_ONLY', icon: Building2, title: 'Direct to business bank account / crypto wallet', body: (currency) => `Bank: they receive ${currency} in their business account. Wallet: USDC on Solana lands in their own wallet, such as Phantom, Solflare or Backpack.` },
-  { tier: 'SWEEP_ACCOUNT', icon: Zap, title: 'Splash receive account (auto-sweep)', body: () => 'Account experience; funds sweep on to their bank.' },
+  { tier: 'SWEEP_ACCOUNT', icon: Zap, title: 'Splash receive account, then on to their bank', body: () => 'Account experience; funds sweep on to their bank.' },
   { tier: 'STORED_BALANCE', icon: Landmark, title: 'Splash balance', body: () => 'Funds stay as USD, re-spendable in-network.' },
 ];
 
