@@ -10,6 +10,10 @@ import { useNavShell } from './useNavShell';
 export interface Crumb {
   label: string;
   href?: string;
+  /** Prefetch the whole page, not only its shell: a named morph back to it plays only when its content is cached (prompt 11 Phase 3). */
+  prefetch?: boolean;
+  /** View-transition types for the navigation back (Next's `transitionTypes`). */
+  types?: string[];
 }
 
 /**
@@ -28,7 +32,7 @@ export function PageHead({ title, context, actions, crumbs }: { title: ReactNode
             <ol className="iso-crumbs">
               {crumbs.map((c, i) => (
                 <li key={`${c.label}-${i}`}>
-                  {c.href && i < crumbs.length - 1 ? <Link href={c.href}>{c.label}</Link> : <span aria-current={i === crumbs.length - 1 ? 'page' : undefined}>{c.label}</span>}
+                  {c.href && i < crumbs.length - 1 ? <Link href={c.href} prefetch={c.prefetch ? true : undefined} transitionTypes={c.types}>{c.label}</Link> : <span aria-current={i === crumbs.length - 1 ? 'page' : undefined}>{c.label}</span>}
                 </li>
               ))}
             </ol>

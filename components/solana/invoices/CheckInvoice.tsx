@@ -249,14 +249,13 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
           <div className="iso-row" style={{ alignSelf: 'end' }}>
             <IsoButton
               variant="primary"
-              size="lg"
               busy={busy === 'verify'}
               disabledReason={spokeTo.trim().length < 2 ? 'Say who you spoke to.' : numberCalled.replace(/\D/g, '').length < 6 ? 'Give the number you called.' : null}
               onClick={() => void markVerified()}
             >
               Mark verified
             </IsoButton>
-            <IsoButton variant="quiet" size="lg" onClick={() => setCallOpen(false)}>
+            <IsoButton variant="quiet" onClick={() => setCallOpen(false)}>
               Cancel
             </IsoButton>
           </div>
@@ -421,7 +420,7 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
                 </IsoButton>
               </span>
             ) : (
-              <IsoButton variant="quiet" size="lg" onClick={() => setConfirmDismiss(true)}>
+              <IsoButton variant="quiet" onClick={() => setConfirmDismiss(true)}>
                 Not this one
               </IsoButton>
             )}
