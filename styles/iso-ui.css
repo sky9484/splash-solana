@@ -1,16 +1,19 @@
 /* iso-ui
    Splash Iso UI · look 9 (prompt 10 §2). Every redesigned dashboard screen is
    built from these classes and the components in components/iso/. Rules:
-   - flat paper surfaces, solid offset ledges (the only elevation), square
-     corners; circles only for coins and the quote ring;
+   - page boxes float off the warm paper on a soft shadow (prompt 11 §1.2,
+     the --lift-* tokens, the only blurred shadows); buttons, tags and the
+     sidebar keep their solid offset ledges; square corners; circles only for
+     coins and the quote ring;
    - colours only from the `.iso` block in styles/tokens.css;
    - every selector starts with `.iso` (or `.iso-app`, `.iso-sheet-root`,
      `.iso-modal-root` for roots that portal or wrap screens not yet rebuilt), so
      it outranks the older dashboard rules in app/globals.css
      (`.fintech-dashboard-main input`, `thead th`, …) without !important;
    - nothing moves on its own except coins and dashes on a wire that carries
-     real (or chosen) movement, and coin art bobbing. prefers-reduced-motion
-     stops all of it (coins sit mid-wire).
+     real (or chosen) movement, and coin art bobbing. A box rises 3 px under a
+     fine pointer (hover) and settles back. prefers-reduced-motion stops all
+     of it (coins sit mid-wire; a box changes only its shadow).
    scripts/check-iso-ui.mjs lints this file and every file marked `// iso-ui`. */
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
@@ -45,15 +48,9 @@
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* The page ground: the landing's 24 px grid at 5% ink. */
+/* The page ground: warm paper, no grid (prompt 11 §1.2). The pay page keeps its grid (.iso-paypage). */
 .iso.iso-ground,
-.iso .iso-ground {
-  background-color: var(--ground);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 24px 24px;
-}
+.iso .iso-ground { background-color: var(--ground); }
 
 /* ── Page frame (§3.4) ───────────────────────────────────────────────── */
 .iso.iso-page,
@@ -87,7 +84,8 @@
 .iso .iso-label { font-size: var(--iso-13); font-weight: 700; color: var(--ink-deep); }
 .iso .iso-small { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
 .iso .iso-body { font-size: var(--iso-15); line-height: 1.55; color: var(--ink); max-width: 68ch; }
-.iso .iso-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Centred, not stretched: a 40 px button beside the 48 px main action keeps its own height (prompt 11 §1.3). */
+.iso .iso-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .iso .iso-stack { display: flex; flex-direction: column; gap: 14px; }
 .iso .iso-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .iso .iso-split { display: flex; flex-wrap: wrap; gap: 22px; align-items: stretch; }
@@ -95,12 +93,20 @@
 .iso .iso-split > .iso-split__side { flex: 5 1 380px; min-width: 0; }
 .iso .iso-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 22px; align-items: start; }
 
-/* ── Surfaces (§2.3 IsoSurface) ──────────────────────────────────────── */
+/* ── Surfaces (§2.3 IsoSurface; prompt 11 §1.2) ───────────────────────
+   Every page box floats: a near-white fill, a 1 px edge, a soft shadow. Under
+   a fine pointer it rises 3 px on hover and settles back when the pointer
+   leaves; a box holding the keyboard's focus shows the same lift. A box inside
+   another box, or inside a sheet or the approval moment, is a hairline with no
+   shadow and never moves. The rise is a transform, so nothing around it shifts.
+   The floating Zeke has no boxes and is left exactly as it is. */
 .iso .iso-surface {
   position: relative;
   min-width: 0;
-  background: var(--paper);
-  border: var(--border);
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-1);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
 }
 .iso .iso-surface--pad { padding: 22px 24px; }
 .iso .iso-surface--head {
@@ -108,16 +114,44 @@
   padding: 18px 22px; border-bottom: 1.5px solid var(--line-soft);
 }
 .iso .iso-surface--hero {
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(var(--grid-hero) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-hero) 1px, transparent 1px),
-    var(--hero-wash);
-  background-size: 24px 24px, 24px 24px, 100% 100%;
-  border: var(--border-hero);
-  box-shadow: var(--ledge-hero);
+  background-color: var(--surface);
+  background-image: var(--hero-wash);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-hero);
 }
 .iso .iso-surface--ink { background: var(--ink-deep); color: var(--paper-warm); border-color: var(--ink-deep); }
+/* Inside another box, a sheet or the approval moment: a hairline, no shadow, no rise. */
+.iso .iso-surface .iso-surface,
+.iso .iso-surface .iso-ticket,
+.iso-sheet-root .iso-surface,
+.iso-modal-root .iso-surface { box-shadow: none; transform: none; transition: none; }
+.iso .iso-surface:focus-within { box-shadow: var(--lift-2); }
+.iso .iso-surface--hero:focus-within { box-shadow: var(--lift-hero-2); }
+.iso .iso-surface .iso-surface:focus-within,
+.iso .iso-surface .iso-ticket:focus-within,
+.iso-sheet-root .iso-surface:focus-within,
+.iso-modal-root .iso-surface:focus-within { box-shadow: none; }
+/* A box that must stay put (the transfer intent header, a sticky rail) opts out with --still. */
+@media (hover: hover) and (pointer: fine) {
+  .iso .iso-surface:hover,
+  .iso .iso-surface:focus-within { transform: translateY(var(--rise)); }
+  .iso .iso-surface:hover { box-shadow: var(--lift-2); }
+  .iso .iso-surface--hero:hover { box-shadow: var(--lift-hero-2); }
+  .iso .iso-surface .iso-surface:hover,
+  .iso .iso-surface .iso-surface:focus-within,
+  .iso .iso-surface .iso-ticket:hover,
+  .iso .iso-surface .iso-ticket:focus-within,
+  .iso-sheet-root .iso-surface:hover,
+  .iso-sheet-root .iso-surface:focus-within,
+  .iso-modal-root .iso-surface:hover,
+  .iso-modal-root .iso-surface:focus-within { transform: none; box-shadow: none; }
+}
+.iso .iso-surface.iso-surface--still,
+.iso .iso-surface.iso-surface--still:hover,
+.iso .iso-surface.iso-surface--still:focus-within { transform: none; box-shadow: var(--lift-1); }
+.iso .iso-surface--hero.iso-surface--still,
+.iso .iso-surface--hero.iso-surface--still:hover,
+.iso .iso-surface--hero.iso-surface--still:focus-within { box-shadow: var(--lift-hero); }
 .iso .iso-surface--ink a { color: var(--mint); }
 .iso .iso-divider { border: 0; border-top: 1px dashed rgb(12 62 72 / .24); margin: 0; }
 
@@ -143,9 +177,10 @@
 .iso .iso-extrude--md { font-size: clamp(30px, 3vw, 36px); }
 
 /* ── Buttons (§2.3 IsoButton) ────────────────────────────────────────── */
+/* 40 px; the screen's one main action is --lg, 48 px (prompt 11 §1.3). */
 .iso .iso-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 48px; padding: 0 20px;
+  min-height: 40px; padding: 0 18px;
   font: 700 15px/1 var(--font-sans);
   white-space: nowrap;
   text-decoration: none;
@@ -157,8 +192,8 @@
   touch-action: manipulation;
   transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso), border-color var(--t-ui), background-color var(--t-ui);
 }
-.iso .iso-btn--lg { min-height: 52px; padding: 0 24px; }
-.iso .iso-btn--sm { min-height: 44px; padding: 0 14px; font-size: var(--iso-14); }
+.iso .iso-btn--lg { min-height: 48px; padding: 0 24px; }
+.iso .iso-btn--sm { min-height: 36px; padding: 0 12px; font-size: var(--iso-14); }
 .iso .iso-btn--block { width: 100%; }
 .iso .iso-btn--primary { background: var(--teal); color: var(--paper-warm); box-shadow: var(--ledge-1); }
 .iso .iso-btn--approve { background: var(--coral); color: var(--ink-deep); box-shadow: var(--ledge-1); }
@@ -470,11 +505,15 @@
 .iso .iso-seg__btn[aria-pressed="true"] { background: var(--teal); color: var(--paper-warm); }
 .iso .iso-seg__btn:disabled { color: var(--text-2); cursor: not-allowed; }
 
-/* Combobox: a text field with a listbox under it (no native select). */
+/* Combobox: a text field with a listbox under it (no native select). The list is in a portal, fixed to
+   the window at z-index 70: above the sticky action bar (25), sheets (60) and the approval moment (65),
+   so nothing covers it (prompt 11 §1.3). components/iso/Combobox.tsx places it under or above the
+   field and caps its height to the room there; it scrolls inside. */
 .iso .iso-combo { position: relative; }
+.iso.iso-combo-layer { display: contents; }
 .iso .iso-combo__list {
-  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
-  max-height: 280px; overflow-y: auto;
+  position: fixed; z-index: 70; left: 0; top: 0;
+  max-height: 280px; overflow-y: auto; overscroll-behavior: contain;
   margin: 0; padding: 4px 0; list-style: none;
   background: var(--paper);
   border: 2px solid var(--ink-deep);
@@ -490,6 +529,8 @@
 .iso .iso-combo__opt[aria-disabled="true"] { color: var(--text-2); cursor: not-allowed; }
 .iso .iso-combo__meta { font-size: var(--iso-13); color: var(--text-2); }
 .iso .iso-combo__empty { padding: 10px 14px; font-size: var(--iso-14); color: var(--text-2); }
+/* The floating Zeke's open panel stays on top of a list on the page (it is z-index 55). */
+body:has(.iso-zk__panel) > .iso-combo-layer > .iso-combo__list { z-index: 54; }
 
 /* A checkbox row (declarations, "I called them"). */
 .iso .iso-check {
@@ -518,18 +559,25 @@
 /* ── Ticket (§2.3): the receipt-shaped summary that becomes the approval card ─ */
 .iso .iso-ticket {
   position: relative;
-  background: var(--paper);
-  border: 2px solid var(--ink-deep);
-  box-shadow: var(--ledge-2);
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-1);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
 }
-.iso .iso-ticket--card { box-shadow: 8px 8px 0 var(--ink-deep); }
+/* On a page it floats like any box (prompt 11 §1.2); as the approval card it keeps its ink edge and
+   floats higher, and never moves on hover. */
+.iso .iso-ticket--card { border: 2px solid var(--ink-deep); box-shadow: var(--lift-hero); transition: none; }
+@media (hover: hover) and (pointer: fine) {
+  .iso .iso-ticket:not(.iso-ticket--card):hover,
+  .iso .iso-ticket:not(.iso-ticket--card):focus-within { transform: translateY(var(--rise)); box-shadow: var(--lift-2); }
+}
 .iso .iso-ticket__band {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
   padding: 14px 22px;
   background: var(--ink-deep); color: var(--paper-warm);
   font-size: var(--iso-14);
 }
-.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; background: var(--paper); }
+.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; background: var(--surface); }
 .iso .iso-ticket__foot { padding: 16px 26px 24px; display: flex; flex-direction: column; gap: 10px; }
 .iso .iso-ticket__perf {
   display: flex; flex-direction: column; gap: 6px;
@@ -609,6 +657,8 @@
 .iso .iso-actionbar__sum strong { color: var(--paper-warm); }
 /* A disabled button's reason, on the ink bar: paper, not ink (Lighthouse found it at 1.09:1). */
 .iso .iso-actionbar .iso-btn-why { color: rgb(255 250 241 / .88); }
+/* A field the keyboard moves to is scrolled clear of the pinned bar, not under it (prompt 11 §1.3). */
+html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80px) + 16px); }
 
 /* ── Quote ring (§2.3 QuoteRing) ─────────────────────────────────────── */
 .iso .iso-ring { display: inline-flex; align-items: center; gap: 8px; font-size: var(--iso-14); color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -721,7 +771,8 @@
 .iso .iso-skel { background: linear-gradient(90deg, rgb(12 62 72 / .06), rgb(12 62 72 / .12), rgb(12 62 72 / .06)); background-size: 200% 100%; animation: iso-shimmer 1.4s linear infinite; }
 
 /* ── Motion: rise on load (once), staggered 80 ms ────────────────────── */
-.iso .iso-rise { animation: iso-rise .5s var(--ease-iso) both; }
+/* `backwards`, not `both`: a finished rise holds nothing, so a box's hover lift (a transform) still applies. */
+.iso .iso-rise { animation: iso-rise .5s var(--ease-iso) backwards; }
 .iso .iso-rise-2 { animation-delay: 80ms; }
 .iso .iso-rise-3 { animation-delay: 160ms; }
 .iso .iso-rise-4 { animation-delay: 240ms; }
@@ -772,28 +823,53 @@
   .iso .iso-row-btn:hover,
   .iso .iso-lane[aria-checked="true"],
   .iso .iso-choice--on { transform: none; }
+  /* A box changes only its shadow (prompt 11 §1.2). */
+  .iso .iso-surface:hover,
+  .iso .iso-surface:focus-within,
+  .iso .iso-ticket:hover,
+  .iso .iso-ticket:focus-within { transform: none !important; }
 }
 
 /* ── The shell (prompt 10 Phase 1) ───────────────────────────────────────
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
-   page ground is look 9's paper with the 24 px grid. The shell root itself is
+   page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #F6F0ED; }
+.iso-app { background-color: #F4EEE9; }
 .iso-app::before { display: none; }
+/* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
+   The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
+   main is a scroll box that focus or find-in-page can scroll sideways, under the sidebar, and it would
+   hold the sticky Transfer rail. Its slide runs only while a person collapses or expands the sidebar
+   (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #F6F0ED;
-  background-image:
-    linear-gradient(rgb(12 62 72 / .05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(12 62 72 / .05) 1px, transparent 1px);
-  background-size: 24px 24px;
-  transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1);
+  background-color: #F4EEE9;
 }
+.iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
   .iso-app .iso-main { padding: 18px 36px 112px; }
 }
 @media (max-width: 767px) {
   .iso-app .iso-main { padding-top: 72px; }
+}
+
+/* The screens not yet rebuilt in look 9 (History, Recipients, Rules, Settings, Batch payout) float their
+   page boxes on the same lift and rise the same 3 px (prompt 11 decision 3); a box inside another box,
+   a sheet or a dialog stays flat. Their rounded corners stay. */
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block) {
+  box-shadow: var(--lift-1);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
+}
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block, .iso-surface, .iso-ticket, .iso-sheet-root, .iso-modal-root) :is(.sx-card, .dash-surface, .dash-block) {
+  box-shadow: none; transform: none;
+}
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block):focus-within { box-shadow: var(--lift-2); }
+@media (hover: hover) and (pointer: fine) {
+  .iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block):is(:hover, :focus-within) { transform: translateY(var(--rise)); box-shadow: var(--lift-2); }
+}
+.iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block, .iso-surface, .iso-ticket, .iso-sheet-root, .iso-modal-root) :is(.sx-card, .dash-surface, .dash-block):is(:hover, :focus-within) { transform: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .iso-app .iso-main :is(.sx-card, .dash-surface, .dash-block):is(:hover, :focus-within) { transform: none; }
 }
 
 /* The sidebar */
@@ -1249,6 +1325,198 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-recips__row > .iso-btn,
   .iso .iso-recips__row > .iso-btn-host > .iso-btn { margin-left: auto; }
 }
+/* ── Transfer, the new pattern (prompt 11 Phase 2) ─────────────────────
+   The intent header on every step; under it the step and its sticky "So far"
+   rail (320 px) from 1080 px, one column below; on a phone (< 860 px) the
+   main action is pinned to the bottom of the screen. */
+.iso .iso-txhead {
+  color: var(--white);
+  background: linear-gradient(135deg, var(--teal), var(--teal-deep));
+  box-shadow: var(--lift-hero);
+}
+.iso .iso-txhead :focus-visible { outline-color: var(--mint); }
+.iso .iso-txhead__top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 24px; align-items: start; padding: 18px 22px; }
+.iso .iso-txhead__chips { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.iso .iso-txhead__chip { display: inline-flex; align-items: center; padding: 3px 9px; font: 800 12px/1.3 var(--font-sans); color: var(--white); border: 1px solid rgb(255 255 255 / .55); }
+.iso .iso-txhead__title { margin: 10px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; color: var(--white); overflow-wrap: anywhere; }
+.iso .iso-txhead__sub { margin: 4px 0 0; font-size: var(--iso-14); line-height: 1.45; color: rgb(255 255 255 / .9); font-variant-numeric: tabular-nums; }
+.iso .iso-txhead__stepline { margin: 2px 0 8px; display: flex; justify-content: space-between; gap: 8px; font-size: var(--iso-13); font-weight: 800; color: var(--white); }
+.iso .iso-txhead__steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.iso .iso-txhead__seg,
+.iso .iso-txhead__seglink { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; font-weight: 600; color: rgb(255 255 255 / .86); text-decoration: none; }
+.iso .iso-txhead__seglink { min-height: 32px; color: var(--white); }
+.iso .iso-txhead__seglink:hover { color: var(--white); }
+.iso .iso-txhead__seglink:hover .iso-txhead__seglabel { text-decoration: underline; text-underline-offset: 3px; }
+.iso .iso-txhead__bar { display: block; height: 4px; background: rgb(255 255 255 / .24); }
+.iso .iso-txhead__seg--done .iso-txhead__bar { background: var(--mint); }
+.iso .iso-txhead__seg--now .iso-txhead__bar { background: var(--coral); }
+.iso .iso-txhead__seg--now { color: var(--white); font-weight: 800; }
+.iso .iso-txhead__seglabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iso .iso-txhead__metrics { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgb(4 28 34 / .22); border-top: 1px solid rgb(255 255 255 / .16); }
+.iso .iso-txhead__metrics > div { min-width: 0; padding: 11px 22px; border-left: 1px solid rgb(255 255 255 / .14); }
+.iso .iso-txhead__metrics > div:first-child { border-left: 0; }
+.iso .iso-txhead__metrics dt { font-size: 12px; font-weight: 700; color: rgb(255 255 255 / .86); }
+.iso .iso-txhead__metrics dd { margin: 2px 0 0; font-size: var(--iso-15); font-weight: 800; color: var(--white); overflow-wrap: anywhere; }
+@media (max-width: 859px) {
+  .iso .iso-txhead__top { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px; }
+  .iso .iso-txhead__title { font-size: 22px; }
+  /* The segments stay; their words are for screen readers only on a phone. */
+  .iso .iso-txhead__seglabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .iso .iso-txhead__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .iso .iso-txhead__metrics > div { padding: 10px 16px; }
+  .iso .iso-txhead__metrics > div:nth-child(3) { border-left: 0; }
+  .iso .iso-txhead__metrics > div:nth-child(n + 3) { border-top: 1px solid rgb(255 255 255 / .14); }
+}
+
+.iso .iso-tx { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.iso .iso-tx__step { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Focus moves to a step's heading for screen readers (tabindex -1); it is not a control, so no ring. */
+.iso [data-step-heading]:focus { outline: none; }
+.iso .iso-tx__rail { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (max-width: 1079px) {
+  .iso .iso-tx { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-tx__rail { position: static; }
+}
+/* Each step enters with a 260 ms fade and a 6 px rise; the rail only fades, so a pinned action never
+   rides a moving box. */
+.iso .iso-tx-enter .iso-tx__step,
+.iso .iso-tx-enter > .iso-approve { animation: iso-stepin 260ms cubic-bezier(.2, .7, .2, 1) backwards; }
+.iso .iso-tx-enter .iso-tx__rail { animation: iso-fade 260ms cubic-bezier(.2, .7, .2, 1) backwards; }
+@keyframes iso-stepin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* So far: a row a fact, ticked once it is known; then the step's one main action. */
+.iso .iso-sofar { display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 16px; }
+.iso .iso-sofar__rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.iso .iso-sofar__rows > li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.iso .iso-sofar__rows > li:first-child { border-top: 0; padding-top: 2px; }
+.iso .iso-sofar__tick { display: inline-flex; width: 20px; height: 20px; margin-top: 1px; align-items: center; justify-content: center; border-radius: 50%; background: rgb(12 62 72 / .08); color: var(--ok-ink); }
+.iso .iso-sofar__rows > li[data-known] .iso-sofar__tick { background: var(--ok-fill); border: 1.5px solid var(--mint); }
+.iso .iso-sofar__what { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.iso .iso-sofar__label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-sofar__value { font-size: var(--iso-15); font-weight: 800; color: var(--ink-deep); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.iso .iso-sofar__sub { font-size: var(--iso-13); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-limits { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; background: rgb(12 62 72 / .04); border: 1px solid var(--surface-line); }
+.iso .iso-limits > .iso-dl { width: 100%; font-size: var(--iso-14); }
+.iso .iso-limits__bar { width: 100%; height: 6px; background: rgb(12 62 72 / .12); }
+.iso .iso-limits__bar > span { display: block; height: 100%; background: var(--teal); }
+.iso .iso-sofar__cta { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.iso .iso-sofar__cta > .iso-btn-wrap { flex-direction: column; align-items: stretch; text-align: center; }
+.iso .iso-sofar__cta .iso-btn-why { max-width: none; }
+.iso .iso-sofar__back {
+  align-self: center; display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px;
+  background: none; border: 0; cursor: pointer;
+  font: 700 14px/1 var(--font-sans); color: var(--teal);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+.iso .iso-sofar__back:hover { color: var(--ink-deep); }
+/* A phone: the main action is pinned to the bottom of the screen (white bar, shadow, safe-area
+   padding). components/solana/transfer/SoFar.tsx publishes its height and its left edge. */
+@media (max-width: 859px) {
+  .iso .iso-sofar,
+  .iso .iso-sofar:hover,
+  .iso .iso-sofar:focus-within { transform: none; }
+  .iso .iso-sofar__cta {
+    position: fixed; left: var(--iso-pin-left, 0px); right: 0; bottom: 0; z-index: 35;
+    padding: 10px 16px calc(6px + env(safe-area-inset-bottom));
+    background: var(--white); box-shadow: var(--lift-bar);
+    gap: 0;
+  }
+  .iso-app .iso-main:has(.iso-sofar__cta) { padding-bottom: calc(var(--iso-actionbar-h, 120px) + 40px); }
+}
+
+/* Step 1: recipients as rows. */
+.iso .iso-picks { display: flex; flex-direction: column; gap: 8px; }
+.iso .iso-pick { display: flex; align-items: stretch; background: rgb(12 62 72 / .03); border: 1px solid var(--surface-line); transition: border-color var(--t-ui), background-color var(--t-ui); }
+.iso .iso-pick:hover { border-color: var(--line-strong); }
+.iso .iso-pick--on { background: var(--white); border-color: var(--teal); box-shadow: inset 4px 0 0 var(--teal); }
+.iso .iso-pick__main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: none; border: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.iso .iso-pick__tile { flex: 0 0 40px; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--line); font: 800 14px/1 var(--font-sans); color: var(--ink-deep); }
+.iso .iso-pick__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-pick__name { font-weight: 800; color: var(--ink-deep); }
+.iso .iso-pick__line { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-pick__tag { flex: 0 0 auto; }
+.iso .iso-pick__more {
+  flex: 0 0 auto; min-height: 44px; padding: 0 14px;
+  background: none; border: 0; border-left: 1px solid var(--surface-line); cursor: pointer;
+  font: 700 13px/1 var(--font-sans); color: var(--teal); text-decoration: underline; text-underline-offset: 3px;
+}
+.iso .iso-pick__more:hover { color: var(--ink-deep); }
+@media (max-width: 640px) {
+  .iso .iso-pick__main { flex-wrap: wrap; }
+  .iso .iso-pick__tag { margin-left: 52px; }
+}
+
+/* Step 3: the routes side by side, each with a small route line; coins only on the chosen one. */
+.iso .iso-routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.iso .iso-route {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: rgb(12 62 72 / .03); border: 1px solid var(--surface-line);
+  transition: border-color var(--t-ui), background-color var(--t-ui);
+}
+.iso .iso-route:hover { border-color: var(--line-strong); }
+.iso .iso-route[aria-checked="true"] { padding: 13px 15px; background: var(--white); border: 2px solid var(--teal); }
+.iso .iso-route__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.iso .iso-route__tags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.iso .iso-route__fee { font-size: var(--iso-15); color: var(--ink-deep); }
+.iso .iso-route__why { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-route__foot { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: var(--iso-14); }
+.iso .iso-route__foot strong { color: var(--ink-deep); }
+.iso .iso-mini { display: flex; align-items: flex-start; padding: 4px 0 2px; }
+.iso .iso-mini__stop { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: 96px; }
+.iso .iso-mini__dot { width: 12px; height: 12px; border-radius: 50%; background: var(--white); border: 2px solid var(--ink-deep); }
+.iso .iso-mini__label { font-size: 12px; font-weight: 700; line-height: 1.25; color: var(--text-2); text-align: center; overflow-wrap: anywhere; }
+.iso .iso-mini__wire { position: relative; flex: 1 1 auto; min-width: 16px; height: 2px; margin-top: 5px; background: rgb(12 62 72 / .25); }
+.iso .iso-mini__wire .iso-coin,
+.iso .iso-tracker__bar .iso-coin { top: -5px; width: 12px; height: 12px; }
+.iso .iso-mini__wire--active { background: var(--teal); }
+.iso .iso-mini__wire--active .iso-coin,
+.iso .iso-tracker__bar--active .iso-coin { display: block; animation: iso-travel 2.2s cubic-bezier(.45, .05, .55, .95) infinite; }
+.iso .iso-costgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 22px; align-items: start; }
+.iso .iso-payfrom { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: var(--white); border: 1px solid var(--line); }
+
+/* Step 4: the approval card at 1.5 fr beside the rules at 1 fr, full width. */
+.iso .iso-approve { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.iso .iso-approve__card { display: flex; flex-direction: column; gap: 16px; padding: 22px 24px; }
+.iso .iso-approve__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.iso .iso-approve__head > div { display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-approve__rows { padding: 14px 16px; background: var(--white); border: 1px solid var(--surface-line); }
+@media (max-width: 1079px) {
+  .iso .iso-approve { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .iso .iso-approve__card { padding: 18px 16px; }
+}
+
+/* Step 5: the six stations, the receipt, what happened. */
+.iso .iso-tracker { margin: 4px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); }
+.iso .iso-tracker__st { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.iso .iso-tracker__dot { position: relative; z-index: 1; display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 50%; background: var(--white); border: 2px solid rgb(12 62 72 / .25); color: var(--ink-deep); }
+/* Done: the tick, white on teal. */
+.iso .iso-tracker__st--done .iso-tracker__dot { background: var(--teal); border-color: var(--teal); color: var(--white); }
+.iso .iso-tracker__st--now .iso-tracker__dot { background: var(--gold-fill); border-color: var(--gold); box-shadow: 0 0 0 4px rgb(239 196 111 / .35); }
+.iso .iso-tracker__label { padding-right: 6px; font-size: var(--iso-13); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-tracker__st--later .iso-tracker__label { color: var(--text-2); }
+.iso .iso-tracker__bar { position: absolute; top: 10px; left: 24px; right: 2px; height: 2px; background: rgb(12 62 72 / .18); }
+.iso .iso-tracker__bar--done { background: var(--teal); }
+.iso .iso-dl--rows.iso-receipt__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 11px 26px; }
+.iso .iso-happened { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-happened li { position: relative; display: flex; flex-direction: column; padding-left: 18px; font-size: var(--iso-14); }
+.iso .iso-happened li::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+.iso .iso-happened strong { color: var(--ink-deep); }
+@media (max-width: 859px) {
+  .iso .iso-tracker { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .iso .iso-tracker__st { flex-direction: row; align-items: center; }
+  .iso .iso-tracker__bar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-tx-enter .iso-tx__step,
+  .iso .iso-tx-enter .iso-tx__rail,
+  .iso .iso-tx-enter > .iso-approve { animation: none !important; }
+  .iso .iso-mini__wire--active .iso-coin,
+  .iso .iso-tracker__bar--active .iso-coin { animation: none !important; left: 45%; opacity: 1; }
+}
+
 /* Download PDF prints the page: only the receipt and its map, never the shell around them. */
 @media print {
   .iso-app .iso-side,
@@ -1288,14 +1556,30 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   position: relative;
   display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
   min-height: 440px; padding: 30px;
-  background: var(--paper); color: var(--ink);
-  border: 2px solid var(--ink-deep);
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--surface-line);
+  box-shadow: var(--lift-hero);
   text-decoration: none;
-  transition: transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+  transition: transform var(--t-lift), box-shadow var(--t-lift);
 }
-.iso .iso-chooser__card:hover { color: var(--ink); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
-.iso .iso-chooser__card:active { transform: translate(1px, 1px); box-shadow: none; }
+.iso .iso-chooser__card:hover { color: var(--ink); }
+/* The chooser's cards rise further than a box: 5 px, onto a deeper shadow (prompt 11 §1.1). */
+@media (hover: hover) and (pointer: fine) {
+  .iso .iso-chooser__card:hover { transform: translateY(var(--rise-chooser)); box-shadow: var(--lift-hero-2); }
+  .iso .iso-chooser__card:active { transform: translateY(-1px); box-shadow: var(--lift-hero); }
+}
+.iso .iso-chooser__card:focus-visible { box-shadow: var(--lift-hero-2); }
 .iso .iso-chooser__card:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+/* Prompt 11 Phase 3: the two cards rise in 70 ms apart; the coins bob 5 px on a 3.2 s loop (reduced
+   motion stops them with every .iso-bob). */
+.iso .iso-chooser__card--second { animation-delay: 70ms; }
+.iso .iso-chooser__art.iso-bob { animation: iso-bob-chooser 3.2s ease-in-out infinite; }
+.iso .iso-chooser__art.iso-bob--late { animation-delay: -1.6s; }
+@keyframes iso-bob-chooser { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* Where a view transition can't run (components/solana/invoices/InvoicesChooser.tsx): the chosen card
+   lifts to 1.03 on the deeper shadow for 320 ms, the other fades, then the page opens. */
+.iso .iso-chooser .iso-chooser__card.is-chosen { transform: scale(1.03); box-shadow: var(--lift-hero-2); transition: transform 320ms cubic-bezier(.2, .7, .2, 1), box-shadow 320ms cubic-bezier(.2, .7, .2, 1); }
+.iso .iso-chooser--leaving .iso-chooser__card:not(.is-chosen) { opacity: 0; transition: opacity 320ms cubic-bezier(.2, .7, .2, 1); }
 .iso .iso-chooser__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 /* A title is words, not a number: it may wrap ("Pay an / invoice") and keeps a readable gap between words. */
 .iso .iso-chooser__top .iso-extrude { flex: 1 1 auto; min-width: 0; white-space: normal; word-spacing: .16em; line-height: 1.02; padding-bottom: 8px; }
@@ -1398,9 +1682,10 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-reqline { display: grid; grid-template-columns: minmax(0, 1fr) 84px 150px 44px; gap: 8px; align-items: end; }
 .iso .iso-reqline__amount { grid-column: 1 / -1; margin: -2px 0 0; font-size: var(--iso-13); color: var(--text-2); font-variant-numeric: tabular-nums; }
 .iso .iso-reqline .iso-iconbtn { width: 44px; height: 56px; }
+/* A box inside the composer: a hairline, no shadow (prompt 11 §1.2). */
 .iso .iso-reqpreview {
   display: flex; flex-direction: column; gap: 14px; padding: 22px; min-width: 0;
-  background: var(--white); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-2);
+  background: var(--white); border: 1px solid var(--surface-line);
 }
 .iso .iso-reqpreview__head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .iso .iso-reqpreview__who { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink-deep); }
@@ -1427,7 +1712,7 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 }
 
 /* The pay page someone else opens (app/pay/[slug]): one request, in the receipt style. */
-.iso.iso-paypage { min-height: 100dvh; padding: 40px 16px 64px; background-color: var(--ground); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; color: var(--ink); }
+.iso.iso-paypage { min-height: 100dvh; padding: 40px 16px 64px; background-color: var(--ground-grid); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; color: var(--ink); }
 .iso .iso-paypage__in { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 .iso .iso-paypage__brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; color: var(--ink-deep); text-decoration: none; }
 .iso .iso-paypage__brand img { width: 30px; height: 30px; object-fit: contain; }
@@ -1439,9 +1724,17 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-chooser__card:hover { transform: none; }
 }
 
-/* The chooser's card grows into the page it opens (React ViewTransition, a named pair). Reduced motion:
-   plain navigation, no morph. Global: view-transition pseudo-elements live on the document. */
-::view-transition-group(.iso-inv-morph) { animation-duration: var(--t-scene, 640ms); animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+/* The chooser's card grows into the hero of the page it opens, and back (React ViewTransition, a named
+   pair), in 420 ms (prompt 11 Phase 3). The rest of the page, the card that wasn't chosen with it,
+   cross-fades over the same 420 ms: these navigations carry the `iso-inv` type
+   (components/solana/invoices/InvoicesChooser.tsx), so other view transitions keep the browser's own
+   fade. Reduced motion: plain navigation, no morph. Global: view-transition pseudo-elements live on
+   the document. */
+::view-transition-group(.iso-inv-morph) { animation-duration: 420ms; animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+:root:active-view-transition-type(iso-inv)::view-transition-old(root) { animation: iso-vt-out 420ms cubic-bezier(.2, .7, .2, 1) both; }
+:root:active-view-transition-type(iso-inv)::view-transition-new(root) { animation: iso-vt-in 420ms cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes iso-vt-out { to { opacity: 0; } }
+@keyframes iso-vt-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
@@ -1475,6 +1768,60 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-treasury__zeke { align-self: flex-start; align-items: center; gap: 12px; font-size: var(--iso-14); line-height: 1.55; }
 .iso .iso-treasury__zeke img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: var(--paper); }
 .iso .iso-treasury__zeke > span { flex: 1 1 220px; min-width: 0; }
+
+/* ── Smart Treasury (prompt 11 Phase 4) ──────────────────────────────────
+   Under All accounts: the T-bill pool and stocks on the left, Hold or sweep and the activity in a
+   320 px rail; one column below 1080 px, the rail after. */
+.iso .iso-treasury__cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+.iso .iso-treasury__left, .iso .iso-treasury__rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+@media (max-width: 1079px) { .iso .iso-treasury__cols { grid-template-columns: minmax(0, 1fr); } }
+.iso .iso-note--gold { background: var(--gold-fill); border-color: var(--gold); color: var(--gold-ink); }
+
+/* The T-bill pool: what is held, extruded; today's interest as a live estimate on the right. */
+.iso .iso-tbill__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px 24px; }
+.iso .iso-tbill__what { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.iso .iso-tbill__live { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: right; }
+.iso .iso-tbill__livehead { display: inline-flex; align-items: center; gap: 8px; }
+.iso .iso-tbill__liveval { font-size: 28px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; color: var(--ink-deep); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .iso .iso-tbill__live { align-items: flex-start; text-align: left; } }
+/* A small gold dot that pulses while the figure is live; still with reduced motion. */
+.iso .iso-livedot { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 0 var(--gold); animation: iso-livedot 1.8s ease-out infinite; }
+@keyframes iso-livedot { 0% { box-shadow: 0 0 0 0 rgb(239 196 111 / .7); } 70%, 100% { box-shadow: 0 0 0 7px rgb(239 196 111 / 0); } }
+
+/* Interest per day: one bar a day; the date and amount of the bar under the pointer or focus. */
+.iso .iso-ichart { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+.iso .iso-ichart__plot { display: flex; flex-direction: column; gap: 4px; }
+.iso .iso-ichart__tip { margin: 0; min-height: 20px; font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-ichart__bars { margin: 0; padding: 0; list-style: none; height: 140px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1.5px solid var(--ink-deep); }
+.iso .iso-ichart__bars[data-span='30'] { gap: 2px; }
+.iso .iso-ichart__bars > li { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.iso .iso-ichart__bar { display: block; width: 100%; min-height: 0; padding: 0; border: 0; background: var(--gold); cursor: default; transition: background-color var(--t-ui, 160ms); }
+.iso .iso-ichart__bar:hover, .iso .iso-ichart__bar[data-active] { background: var(--teal); }
+.iso .iso-ichart__bar:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso .iso-ichart__axis { display: flex; justify-content: space-between; }
+.iso .iso-ichart__tiles { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.iso .iso-ichart__tiles > div { padding: 10px 12px; background: var(--white); border: 1px solid var(--surface-line); }
+.iso .iso-ichart__tiles dt { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-ichart__tiles dd { margin: 2px 0 0; font-weight: 800; color: var(--ink-deep); }
+@media (max-width: 480px) { .iso .iso-ichart__tiles { grid-template-columns: minmax(0, 1fr); } }
+
+/* Hold or sweep: Zeke's drafts, each a row a person decides. */
+.iso .iso-drafts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-draft { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; padding: 12px; background: var(--white); border: 1px solid var(--surface-line); }
+.iso .iso-draft__zeke { width: 28px; height: 28px; object-fit: contain; }
+.iso .iso-draft__what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.iso .iso-draft__do, .iso .iso-draft > .iso-tag, .iso .iso-draft__done { grid-column: 2; justify-self: start; }
+.iso .iso-feeskept { display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+.iso .iso-feeskept__sum { font-size: 24px; font-weight: 900; color: var(--ink-deep); }
+
+/* Treasury activity: newest first. */
+.iso .iso-activity { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.iso .iso-activity > li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line-soft); font-size: var(--iso-14); }
+.iso .iso-activity > li:first-child { border-top: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-livedot { animation: none; }
+  .iso .iso-ichart__bar { transition: none; }
+}
 .iso .iso-sheet__amount { font-size: 22px; font-weight: 800; color: var(--ink-deep); }
 @media (max-width: 720px) {
   .iso .iso-treasury__hero { padding: 20px 16px; }

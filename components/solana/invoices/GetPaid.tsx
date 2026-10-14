@@ -15,6 +15,7 @@ import type { requestRow, requestsView } from '@/lib/solana-app/requests';
 import { api, copyText, usd } from '../client';
 import { countryName, minorFromTyped, problemOf, type Payee, type Problem } from '../transfer/shared';
 import { DayWords } from './DayWords';
+import { INV_TYPES } from './InvoicesChooser';
 
 type RequestsDTO = Wire<ReturnType<typeof requestsView>>;
 type Row = Wire<ReturnType<typeof requestRow>>;
@@ -75,7 +76,7 @@ export function GetPaid() {
   return (
     <div className="iso iso-page">
       <PageHead
-        crumbs={[{ label: 'Invoices', href: '/dashboard/invoices' }, { label: 'Get paid' }]}
+        crumbs={[{ label: 'Invoices', href: '/dashboard/invoices', prefetch: true, types: INV_TYPES }, { label: 'Get paid' }]}
         title="Get paid"
         context="Money always lands in your own Payments account. Businesses on Splash pay in the app; anyone else pays from a link."
         actions={
@@ -91,77 +92,79 @@ export function GetPaid() {
         </p>
       ) : null}
 
-      <IsoSurface className="iso-stack iso-rise iso-rise-2" aria-labelledby="gp-list">
-        <div className="iso-row" style={{ justifyContent: 'space-between' }}>
-          <h2 id="gp-list" className="iso-h2">
-            Requests
-          </h2>
-          {data && data.unpaidCount > 0 ? (
-            <span className="iso-small iso-num">
-              Unpaid <strong>{usd(data.unpaidMinor)}</strong>
-              {data.overdueCount > 0 ? ` · ${data.overdueCount} overdue` : ''}
-            </span>
-          ) : null}
-        </div>
-        {!data ? (
-          <div className="iso-skel" style={{ height: 120 }} aria-busy="true" />
-        ) : data.requests.length === 0 ? (
-          <p className="iso-empty">No requests yet. Make one below: a business on Splash pays in the app, anyone else from a link.</p>
-        ) : (
-          <ScrollRegion label="Requests">
-            <table className="iso-table iso-table--stack">
-              <thead>
-                <tr>
-                  <th scope="col">Invoice</th>
-                  <th scope="col">Payer</th>
-                  <th scope="col" className="iso-r">
-                    Amount
-                  </th>
-                  <th scope="col">Due</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">
-                    <span className="iso-sr">Action</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.requests.map((r) => (
-                  <tr key={r.id}>
-                    <td className="iso-mono">{r.number}</td>
-                    <td data-label="Payer">
-                      <strong>{r.payer.name}</strong>
-                      <span className="iso-bill__from">{r.payer.detail}</span>
-                    </td>
-                    <td className="iso-r iso-num" data-label="Amount">
-                      <strong>{usd(r.amountMinor)}</strong>
-                    </td>
-                    <td className="iso-num" data-label="Due">
-                      {r.dueLabel}
-                    </td>
-                    <td data-label="Status">
-                      <Tag tone={r.status.tone} tick={r.status.tone === 'ok'}>
-                        {r.status.label}
-                      </Tag>
-                    </td>
-                    <td className="iso-r iso-table__act">
-                      {r.receiptHref ? (
-                        <Link className="iso-row-btn" href={r.receiptHref}>
-                          Receipt<span className="iso-sr"> for {r.number}</span>
-                        </Link>
-                      ) : (
-                        <button type="button" className="iso-row-btn" onClick={() => setOpenId(r.id)}>
-                          {r.status.key === 'overdue' ? 'Remind' : r.status.key === 'draft' ? 'Send' : 'Open'}
-                          <span className="iso-sr"> {r.number}</span>
-                        </button>
-                      )}
-                    </td>
+      <Morph name="iso-inv-get">
+        <IsoSurface className="iso-stack iso-rise iso-rise-2" aria-labelledby="gp-list">
+          <div className="iso-row" style={{ justifyContent: 'space-between' }}>
+            <h2 id="gp-list" className="iso-h2">
+              Requests
+            </h2>
+            {data && data.unpaidCount > 0 ? (
+              <span className="iso-small iso-num">
+                Unpaid <strong>{usd(data.unpaidMinor)}</strong>
+                {data.overdueCount > 0 ? ` · ${data.overdueCount} overdue` : ''}
+              </span>
+            ) : null}
+          </div>
+          {!data ? (
+            <div className="iso-skel" style={{ height: 120 }} aria-busy="true" />
+          ) : data.requests.length === 0 ? (
+            <p className="iso-empty">No requests yet. Make one below: a business on Splash pays in the app, anyone else from a link.</p>
+          ) : (
+            <ScrollRegion label="Requests">
+              <table className="iso-table iso-table--stack">
+                <thead>
+                  <tr>
+                    <th scope="col">Invoice</th>
+                    <th scope="col">Payer</th>
+                    <th scope="col" className="iso-r">
+                      Amount
+                    </th>
+                    <th scope="col">Due</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">
+                      <span className="iso-sr">Action</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollRegion>
-        )}
-      </IsoSurface>
+                </thead>
+                <tbody>
+                  {data.requests.map((r) => (
+                    <tr key={r.id}>
+                      <td className="iso-mono">{r.number}</td>
+                      <td data-label="Payer">
+                        <strong>{r.payer.name}</strong>
+                        <span className="iso-bill__from">{r.payer.detail}</span>
+                      </td>
+                      <td className="iso-r iso-num" data-label="Amount">
+                        <strong>{usd(r.amountMinor)}</strong>
+                      </td>
+                      <td className="iso-num" data-label="Due">
+                        {r.dueLabel}
+                      </td>
+                      <td data-label="Status">
+                        <Tag tone={r.status.tone} tick={r.status.tone === 'ok'}>
+                          {r.status.label}
+                        </Tag>
+                      </td>
+                      <td className="iso-r iso-table__act">
+                        {r.receiptHref ? (
+                          <Link className="iso-row-btn" href={r.receiptHref}>
+                            Receipt<span className="iso-sr"> for {r.number}</span>
+                          </Link>
+                        ) : (
+                          <button type="button" className="iso-row-btn" onClick={() => setOpenId(r.id)}>
+                            {r.status.key === 'overdue' ? 'Remind' : r.status.key === 'draft' ? 'Send' : 'Open'}
+                            <span className="iso-sr"> {r.number}</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollRegion>
+          )}
+        </IsoSurface>
+      </Morph>
 
       <Composer company={data?.companyName ?? ''} hasAccount={data?.hasAccount ?? true} onMade={(id) => void load().then(() => setOpenId(id))} />
 
@@ -234,110 +237,108 @@ function Composer({ company, hasAccount, onMade }: { company: string; hasAccount
   }
 
   return (
-    <Morph name="iso-inv-get">
-      <IsoSurface hero pad={false} className={`iso-composer iso-composer--${pane} iso-rise iso-rise-3`} aria-labelledby="gp-new">
-        <div className="iso-composer__tabs" style={{ gridColumn: '1 / -1' }}>
+    <IsoSurface hero pad={false} className={`iso-composer iso-composer--${pane} iso-rise iso-rise-3`} aria-labelledby="gp-new">
+      <div className="iso-composer__tabs" style={{ gridColumn: '1 / -1' }}>
+        <Segmented
+          label="Edit or preview the request"
+          options={[
+            { value: 'edit', label: 'Edit' },
+            { value: 'preview', label: 'Preview' },
+          ]}
+          value={pane}
+          onChange={setPane}
+        />
+      </div>
+      <div className="iso-composer__form">
+        <h2 id="gp-new" className="iso-h2">
+          New request
+        </h2>
+        <div className="iso-stack" style={{ gap: 8 }}>
+          <span className="iso-field__label" id="gp-who">
+            Who pays
+          </span>
           <Segmented
-            label="Edit or preview the request"
+            label="Who pays"
             options={[
-              { value: 'edit', label: 'Edit' },
-              { value: 'preview', label: 'Preview' },
+              { value: 'splash', label: 'A business on Splash' },
+              { value: 'external', label: 'Someone else' },
             ]}
-            value={pane}
-            onChange={setPane}
+            value={who}
+            onChange={setWho}
           />
         </div>
-        <div className="iso-composer__form">
-          <h2 id="gp-new" className="iso-h2">
-            New request
-          </h2>
-          <div className="iso-stack" style={{ gap: 8 }}>
-            <span className="iso-field__label" id="gp-who">
-              Who pays
-            </span>
-            <Segmented
-              label="Who pays"
-              options={[
-                { value: 'splash', label: 'A business on Splash' },
-                { value: 'external', label: 'Someone else' },
-              ]}
-              value={who}
-              onChange={setWho}
-            />
-          </div>
-          {who === 'splash' ? (
-            <BusinessPicker payee={payee} onPayee={setPayee} />
-          ) : (
-            <>
-              <div className="iso-composer__pair iso-composer__pair--people">
-                <TextField label="Name" value={name} onChange={setName} autoComplete="organization" maxLength={120} />
-                <TextField label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" maxLength={254} />
-              </div>
-              <p className="iso-small" style={{ margin: 0 }}>
-                You send them a link to a page with your account details. It never shows a Splash address.
-              </p>
-            </>
-          )}
-          <div className="iso-composer__pair">
-            <TextField label="Your invoice number" value={number} onChange={setNumber} autoComplete="off" spellCheck={false} maxLength={32} />
-            <TextField label="Due date" type="date" value={due} onChange={setDue} />
-          </div>
-          <fieldset className="iso-fieldset">
-            <legend className="iso-field__label">Lines</legend>
-            <div className="iso-reqlines">
-              {lines.map((l, i) => {
-                const a = amounts[i];
-                return (
-                  <div key={l.key} className="iso-reqline" role="group" aria-label={`Line ${i + 1}`}>
-                    <TextField label="Description" value={l.description} onChange={(v) => setLine(l.key, { description: v })} maxLength={120} />
-                    <TextField label="Qty" value={l.quantity} onChange={(v) => setLine(l.key, { quantity: v.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" />
-                    <TextField label="Unit price (US$)" value={l.unit} onChange={(v) => setLine(l.key, { unit: v.replace(/[^\d.,]/g, '') })} inputMode="decimal" />
-                    {lines.length > 1 ? (
-                      <button type="button" className="iso-iconbtn" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>
-                        <X size={18} aria-hidden="true" />
-                      </button>
-                    ) : (
-                      <span />
-                    )}
-                    <p className="iso-reqline__amount" aria-live="polite">
-                      {a ? `= ${usd(a)}` : ' '}
-                    </p>
-                  </div>
-                );
-              })}
+        {who === 'splash' ? (
+          <BusinessPicker payee={payee} onPayee={setPayee} />
+        ) : (
+          <>
+            <div className="iso-composer__pair iso-composer__pair--people">
+              <TextField label="Name" value={name} onChange={setName} autoComplete="organization" maxLength={120} />
+              <TextField label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" maxLength={254} />
             </div>
-            <div>
-              <IsoButton variant="link" size="sm" disabledReason={lines.length >= 20 ? 'A request has at most 20 lines.' : null} onClick={() => setLines((ls) => [...ls, newLine()])}>
-                <Plus size={16} aria-hidden="true" /> Add a line
-              </IsoButton>
-            </div>
-          </fieldset>
-          <TextField label="MyInvois reference (optional)" help="Kept with the request. Splash doesn’t submit it for you." value={myInvois} onChange={setMyInvois} autoComplete="off" spellCheck={false} maxLength={64} />
-          <TextField label="Note (optional)" help="On the request and its receipt." value={note} onChange={setNote} maxLength={280} />
-          {problem ? (
-            <p className="iso-note iso-note--danger" role="alert">
-              {problem.message}
+            <p className="iso-small" style={{ margin: 0 }}>
+              You send them a link to a page with your account details. It never shows a Splash address.
             </p>
-          ) : null}
-          <div className="iso-stack" style={{ gap: 8 }}>
-            <div className="iso-row">
-              <IsoButton variant="primary" size="lg" busy={busy === 'send'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(true)}>
-                {busy === 'send' ? 'Sending…' : 'Send request'}
-              </IsoButton>
-              <IsoButton variant="quiet" size="lg" busy={busy === 'draft'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(false)}>
-                Save draft
-              </IsoButton>
-            </div>
-            {reason ? (
-              <span id="gp-why" className="iso-btn-why">
-                {reason}
-              </span>
-            ) : null}
-          </div>
+          </>
+        )}
+        <div className="iso-composer__pair">
+          <TextField label="Your invoice number" value={number} onChange={setNumber} autoComplete="off" spellCheck={false} maxLength={32} />
+          <TextField label="Due date" type="date" value={due} onChange={setDue} />
         </div>
-        <Preview company={company} payerName={payerName} onSplash={who === 'splash'} number={number.trim()} due={due} lines={lines} amounts={amounts} total={total} />
-      </IsoSurface>
-    </Morph>
+        <fieldset className="iso-fieldset">
+          <legend className="iso-field__label">Lines</legend>
+          <div className="iso-reqlines">
+            {lines.map((l, i) => {
+              const a = amounts[i];
+              return (
+                <div key={l.key} className="iso-reqline" role="group" aria-label={`Line ${i + 1}`}>
+                  <TextField label="Description" value={l.description} onChange={(v) => setLine(l.key, { description: v })} maxLength={120} />
+                  <TextField label="Qty" value={l.quantity} onChange={(v) => setLine(l.key, { quantity: v.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" />
+                  <TextField label="Unit price (US$)" value={l.unit} onChange={(v) => setLine(l.key, { unit: v.replace(/[^\d.,]/g, '') })} inputMode="decimal" />
+                  {lines.length > 1 ? (
+                    <button type="button" className="iso-iconbtn" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                  <p className="iso-reqline__amount" aria-live="polite">
+                    {a ? `= ${usd(a)}` : ' '}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <IsoButton variant="link" size="sm" disabledReason={lines.length >= 20 ? 'A request has at most 20 lines.' : null} onClick={() => setLines((ls) => [...ls, newLine()])}>
+              <Plus size={16} aria-hidden="true" /> Add a line
+            </IsoButton>
+          </div>
+        </fieldset>
+        <TextField label="MyInvois reference (optional)" help="Kept with the request. Splash doesn’t submit it for you." value={myInvois} onChange={setMyInvois} autoComplete="off" spellCheck={false} maxLength={64} />
+        <TextField label="Note (optional)" help="On the request and its receipt." value={note} onChange={setNote} maxLength={280} />
+        {problem ? (
+          <p className="iso-note iso-note--danger" role="alert">
+            {problem.message}
+          </p>
+        ) : null}
+        <div className="iso-stack" style={{ gap: 8 }}>
+          <div className="iso-row">
+            <IsoButton variant="primary" size="lg" busy={busy === 'send'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(true)}>
+              {busy === 'send' ? 'Sending…' : 'Send request'}
+            </IsoButton>
+            <IsoButton variant="quiet" busy={busy === 'draft'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(false)}>
+              Save draft
+            </IsoButton>
+          </div>
+          {reason ? (
+            <span id="gp-why" className="iso-btn-why">
+              {reason}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <Preview company={company} payerName={payerName} onSplash={who === 'splash'} number={number.trim()} due={due} lines={lines} amounts={amounts} total={total} />
+    </IsoSurface>
   );
 }
 

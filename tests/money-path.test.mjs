@@ -68,8 +68,11 @@ test('money path panel renders from config only — no hardcoded partner copy', 
 test('money path mounts: the funding flow renders the panel; the treasury says who holds the money itself', async () => {
   // Treasury is the company's own accounts (prompt 10 §7: Payments, Reserve and Investments, vaults #0,
   // #1 and #2 of its own multisig), so it states its own custody: Splash holds no key to any of them.
+  // Prompt 11 §4.6: the page renders it in Risk and rules, its own component since Phase 4.
   const treasury = await readFile(new URL('../components/solana/treasury/Treasury.tsx', import.meta.url), 'utf8');
+  const risk = await readFile(new URL('../components/solana/treasury/RiskRules.tsx', import.meta.url), 'utf8');
   const quote = await readFile(new URL('../components/transfer/StepQuote.tsx', import.meta.url), 'utf8');
-  assert.match(treasury, /holds no key to any of your accounts/);
+  assert.match(treasury, /<RiskRules data=\{d\} \/>/);
+  assert.match(risk, /holds no key to any of your accounts/);
   assert.match(quote, /<MoneyPathPanel compact \/>/);
 });

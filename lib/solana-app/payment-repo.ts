@@ -262,7 +262,7 @@ export function createPostgresPaymentRepo(db: Db): PaymentRepo {
       // The compare-and-set itself: state AND version must still be what we read.
       const updated = await tx
         .update(solanaPayments)
-        .set({ state: target, version, record: encodeRecord(stored), updatedAt: now })
+        .set({ state: target, version, record: encodeRecord(stored), feeAvoidedMinor: stored.feeAvoidedMinor ?? null, updatedAt: now })
         .where(and(eq(solanaPayments.id, id), eq(solanaPayments.state, from), eq(solanaPayments.version, row.version)))
         .returning({ id: solanaPayments.id });
       if (updated.length !== 1) {
@@ -298,7 +298,7 @@ export function createPostgresPaymentRepo(db: Db): PaymentRepo {
       await db.transaction(async (tx) => {
         const inserted = await tx
           .insert(solanaPayments)
-          .values({ id: record.id, orgId: record.orgId, state: record.state, version: 1, record: encodeRecord(stored), createdAt: new Date(record.createdAt), updatedAt: now })
+          .values({ id: record.id, orgId: record.orgId, state: record.state, version: 1, record: encodeRecord(stored), feeAvoidedMinor: stored.feeAvoidedMinor ?? null, createdAt: new Date(record.createdAt), updatedAt: now })
           .onConflictDoNothing()
           .returning({ id: solanaPayments.id });
         if (inserted.length !== 1) {

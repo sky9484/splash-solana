@@ -12,7 +12,7 @@ import { ApiError, php, usd } from '../client';
 export type To = 'bank' | 'splash';
 export type StepId = 'recipient' | 'amount' | 'quote' | 'approve' | 'track';
 export const STEP_ORDER: readonly StepId[] = ['recipient', 'amount', 'quote', 'approve', 'track'];
-export const STEP_LABEL: Record<StepId, string> = { recipient: 'Recipient', amount: 'Amount', quote: 'Quote & send', approve: 'Approve', track: 'Track' };
+export const STEP_LABEL: Record<StepId, string> = { recipient: 'Recipient', amount: 'Amount', quote: 'Route', approve: 'Approve', track: 'Track' };
 
 export type RecipientsDTO = Wire<Awaited<ReturnType<typeof listRecipients>>>;
 export type RecipientRow = RecipientsDTO['recipients'][number];
