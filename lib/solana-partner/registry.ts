@@ -52,7 +52,10 @@ export interface PartnerQuote {
   mock: boolean;
 }
 
-export type PartnerQuoteRequest = { amountUsdcMinor: bigint; amountPhpMinor?: never } | { amountPhpMinor: bigint; amountUsdcMinor?: never };
+export type PartnerQuoteRequest = ({ amountUsdcMinor: bigint; amountPhpMinor?: never } | { amountPhpMinor: bigint; amountUsdcMinor?: never }) & {
+  /** The recipient's bank, by the partner's code: a bank that takes one rail only is paid by it (banks.ts). */
+  bankCode?: string | null;
+};
 
 export interface PartnerDepositAddress {
   network: DeliveryNetwork;
@@ -70,7 +73,8 @@ export interface PartnerPayout {
   amountPhpMinor: bigint;
   /** What must arrive (USDC minor) for the payout to be made in full. */
   expectedUsdcMinor: bigint;
-  rail: PayoutRail;
+  /** 'Splash': a payment into another business's Splash account, with no partner (prompt 10 §5.1). */
+  rail: PayoutRail | 'Splash';
   beneficiary: { bank: string; accountLast4: string };
   deposits: PartnerDepositAddress[];
   status: PartnerPayoutStatus;
@@ -81,7 +85,11 @@ export interface CreatePayoutRequest {
   paymentId: string;
   amountPhpMinor: bigint;
   expectedUsdcMinor: bigint;
-  beneficiary: { bank: string; accountLast4: string };
+  /**
+   * `accountNumber`: the full number, read from the vault just for this request when the recipient has
+   * one (prompt 10 Phase S). A partner uses it to pay; it never comes back in the payout record.
+   */
+  beneficiary: { bank: string; accountLast4: string; accountNumber?: string };
   now?: Date;
 }
 
@@ -96,7 +104,7 @@ export interface PayoutPartner {
 
 export const MOCK_PARTNER_ENTRY: PartnerRegistryEntry = Object.freeze({
   id: 'mock-partner',
-  name: 'Mock partner · devnet',
+  name: 'Test payout partner',
   signed: false,
   sandbox: true,
   acceptedTargets: Object.freeze([
@@ -107,6 +115,25 @@ export const MOCK_PARTNER_ENTRY: PartnerRegistryEntry = Object.freeze({
 });
 
 export const PARTNER_REGISTRY: ReadonlyArray<PartnerRegistryEntry> = Object.freeze([MOCK_PARTNER_ENTRY]);
+
+/**
+ * Where a company can pay, and what is next (prompt 10 §4.2): read by the rate strip and Overview's
+ * "Where you can pay". Malaysia → Philippines is open, in test mode until a partner is signed and
+ * live; Indonesia is next and Vietnam later. No new corridor opens without a partner behind it.
+ */
+export interface Corridor {
+  route: string;
+  /** The currency pair the rate strip shows. */
+  pair: string;
+  status: 'test' | 'live' | 'next' | 'later';
+  detail: string;
+}
+
+export const CORRIDORS: ReadonlyArray<Corridor> = Object.freeze([
+  Object.freeze({ route: 'Malaysia → Philippines', pair: 'USD → PHP', status: (MOCK_PARTNER_ENTRY.signed && !MOCK_PARTNER_ENTRY.sandbox ? 'live' : 'test') as Corridor['status'], detail: 'Any bank by InstaPay or PESONet' }),
+  Object.freeze({ route: 'Malaysia → Indonesia', pair: 'USD → IDR', status: 'next' as const, detail: 'Bank payouts' }),
+  Object.freeze({ route: 'Malaysia → Vietnam', pair: 'USD → VND', status: 'later' as const, detail: 'Bank payouts' }),
+]);
 
 export function getPartnerEntry(id: string): PartnerRegistryEntry | undefined {
   return PARTNER_REGISTRY.find((p) => p.id === id);

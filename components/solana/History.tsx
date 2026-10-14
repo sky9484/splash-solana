@@ -1,14 +1,27 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
-import { dateShort, payHref, php, shortKey, timeShort, usd } from './client';
+import { Tag } from '@/components/iso/Tag';
+import { stationLabel, stationOf, STATIONS, type StationId } from '@/lib/solana-app/stations';
+
+import { dateShort, payHref, php, timeShort, usd } from './client';
+import { DiscardButton } from './DiscardButton';
 import { StatusPill } from './StatusPill';
 import type { CompanyDTO } from './types';
 import { useCompany } from './useCompany';
 
 type Row = CompanyDTO['payments'][number];
+type TreasuryRow = CompanyDTO['treasuryOrders'][number];
+
+/** A treasury order in History's words. T-bills are subscribed and redeemed; stocks are bought and sold. */
+function orderWords(o: TreasuryRow): { what: string; where: string } {
+  const what = o.kind === 'subscribe' ? 'Subscribed to US Treasury bills' : o.kind === 'redeem' ? 'Redeemed US Treasury bills' : o.kind === 'buy' ? `Bought ${o.name}` : `Sold ${o.name}`;
+  const where = o.landsIn === 'investments' ? 'into your Investments account' : o.landsIn === 'payments' ? 'into your Payments account' : 'by bank wire to your company’s bank account';
+  return { what, where };
+}
 type Filter = 'all' | 'waiting' | 'moving' | 'paid' | 'problem';
 
 const FILTERS: Array<{ key: Filter; label: string; test: (p: Row) => boolean }> = [
@@ -36,8 +49,12 @@ function toCsv(rows: Row[]): string {
 export function History() {
   const { state } = useCompany();
   const [filter, setFilter] = useState<Filter>('all');
+  // Overview's pipeline opens History at one station (?station=sent): where those payments are now.
+  const param = useSearchParams()?.get('station') ?? null;
+  const station = STATIONS.some((s) => s.id === param) ? (param as StationId) : null;
   const rows = useMemo(() => (state.status === 'ready' ? state.company.payments : []), [state]);
-  const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test);
+  const orders = state.status === 'ready' ? state.company.treasuryOrders : [];
+  const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test).filter((p) => !station || stationOf(p.state, p.paymentKind) === station);
 
   if (state.status === 'loading') return <p className="sx-muted">Loading payments…</p>;
   if (state.status !== 'ready') {
@@ -60,6 +77,12 @@ export function History() {
 
   return (
     <div className="sx-stack-lg">
+      {station ? (
+        <p className="sx-notice" role="status">
+          Showing payments at <strong>{stationLabel(station)}</strong>.{' '}
+          <Link href="/dashboard/history">Show all payments</Link>
+        </p>
+      ) : null}
       <div className="sx-row" style={{ justifyContent: 'space-between' }}>
         <div className="sx-segmented" role="group" aria-label="Show payments">
           {FILTERS.map((f) => {
@@ -96,15 +119,14 @@ export function History() {
             <caption className="sx-visually-hidden">Payments, newest first</caption>
             <thead>
               <tr>
-                <th scope="col">Supplier</th>
+                <th scope="col">Paid to</th>
                 <th scope="col" className="sx-num-col">
-                  Supplier receives
+                  They receive
                 </th>
                 <th scope="col" className="sx-num-col">
-                  From your vault
+                  You paid
                 </th>
                 <th scope="col">State</th>
-                <th scope="col">Transfer</th>
                 <th scope="col">
                   <span className="sx-visually-hidden">Open</span>
                 </th>
@@ -120,8 +142,9 @@ export function History() {
                       {p.invoiceNumber ?? 'Invoice not confirmed'} · {dateShort(p.createdAt)} {timeShort(p.createdAt)}
                     </span>
                   </td>
-                  <td className="sx-num-col" data-label="Supplier receives">{php(p.amountPhpMinor)}</td>
-                  <td className="sx-num-col" data-label="From your vault">{p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : <span className="sx-muted">No route yet</span>}</td>
+                  {/* A business on Splash gets US$, exactly what was sent; a bank gets pesos. */}
+                  <td className="sx-num-col" data-label="They receive">{p.paymentKind === 'peer' ? (p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : '—') : php(p.amountPhpMinor)}</td>
+                  <td className="sx-num-col" data-label="You paid">{p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : <span className="sx-muted">No route yet</span>}</td>
                   <td>
                     <StatusPill state={p.state} label={p.stateLabel} />
                     {p.problem ? (
@@ -129,22 +152,6 @@ export function History() {
                         {p.problem.message}
                       </span>
                     ) : null}
-                  </td>
-                  <td data-label="Transfer">
-                    {p.execute ? (
-                      p.execute.solscanUrl ? (
-                        <a href={p.execute.solscanUrl} target="_blank" rel="noreferrer">
-                          <span className="sx-mono">{shortKey(p.execute.signature, 5)}</span>
-                          <span className="sx-visually-hidden"> on Solscan (opens in a new tab)</span>
-                        </a>
-                      ) : (
-                        <span className="sx-mono" title={p.execute.signature}>
-                          {shortKey(p.execute.signature, 5)} <span className="sx-muted">(simulated)</span>
-                        </span>
-                      )
-                    ) : (
-                      <span className="sx-muted">Not sent</span>
-                    )}
                   </td>
                   <td>
                     {p.receiptId ? (
@@ -157,6 +164,11 @@ export function History() {
                         <span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
                       </Link>
                     )}
+                    {p.discardable ? (
+                      <span style={{ display: 'block', marginTop: 4 }}>
+                        <DiscardButton paymentId={p.id} name={p.supplierName || 'the supplier'} />
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -164,6 +176,35 @@ export function History() {
           </table>
         </div>
       )}
+
+      {orders.length > 0 && filter === 'all' && !station ? (
+        <section className="sx-card sx-stack" aria-labelledby="history-treasury">
+          <h2 id="history-treasury">Treasury</h2>
+          <ul className="sx-stack" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {orders.map((o) => {
+              const w = orderWords(o);
+              return (
+                <li key={o.id} className="sx-row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span>
+                    <strong>{w.what}</strong> <Tag tone="gold">{o.sweep ? 'Treasury · sweep' : 'Treasury'}</Tag>
+                    <span className="sx-small sx-muted" style={{ display: 'block' }}>
+                      {w.where} · {dateShort(o.at)} {timeShort(o.at)}
+                    </span>
+                  </span>
+                  <span className="sx-row" style={{ gap: 12 }}>
+                    <span className="sx-num">{usd(o.amountMinor)}</span>
+                    {o.receiptId ? (
+                      <Link href={`/dashboard/receipts/${o.receiptId}`}>
+                        Receipt<span className="sx-visually-hidden"> for {w.what}</span>
+                      </Link>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

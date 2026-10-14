@@ -36,7 +36,8 @@ export interface RouterOutput {
   alternative: RouterExplanation | null;
 }
 
-const LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Shortest route', safest: 'Safest' };
+/** Route labels (prompt 10 §5.6): "Fastest" names the route the engine estimates finishes first; no estimate is ever said. */
+const LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Fastest', safest: 'Safest' };
 const ORDER: Policy[] = ['cheapest', 'fastest', 'safest'];
 
 function groupThousands(intPart: string): string {
@@ -69,9 +70,10 @@ function arrivalPhrase(q: RouteQuote): string {
   return "paid out by the partner's bank transfer";
 }
 
+/** How the money gets to the partner, in the words the Transfer map uses (prompt 10 §5.6). */
 function routePhrase(q: RouteQuote): string {
-  if (q.target.network === 'solana') return 'direct on Solana';
-  return q.flags.includes('fast_transfer') ? 'via CCTP V2 Fast Transfer to Polygon' : 'via CCTP V2 to Polygon';
+  if (q.target.network === 'solana') return 'straight to the partner';
+  return "through the partner's lower-cost lane";
 }
 
 function sentence(policy: Policy, q: RouteQuote, home?: HomeLaneNote): string {
@@ -83,7 +85,7 @@ function sentence(policy: Policy, q: RouteQuote, home?: HomeLaneNote): string {
       : ' Solana route chosen: no extra cost.';
   }
   if (q.flags.includes('above_target')) s += ' All-in is above the 0.33% target, so it needs your explicit OK.';
-  if (q.flags.includes('mock_partner')) s += ' Mock partner · devnet: the rate is not a live rate.';
+  if (q.flags.includes('mock_partner')) s += ' Your payout partner is in test mode: this is a test rate, not a live one.';
   return s;
 }
 

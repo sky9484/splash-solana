@@ -1,0 +1,1485 @@
+/* iso-ui
+   Splash Iso UI · look 9 (prompt 10 §2). Every redesigned dashboard screen is
+   built from these classes and the components in components/iso/. Rules:
+   - flat paper surfaces, solid offset ledges (the only elevation), square
+     corners; circles only for coins and the quote ring;
+   - colours only from the `.iso` block in styles/tokens.css;
+   - every selector starts with `.iso` (or `.iso-app`, `.iso-sheet-root`,
+     `.iso-modal-root` for roots that portal or wrap screens not yet rebuilt), so
+     it outranks the older dashboard rules in app/globals.css
+     (`.fintech-dashboard-main input`, `thead th`, …) without !important;
+   - nothing moves on its own except coins and dashes on a wire that carries
+     real (or chosen) movement, and coin art bobbing. prefers-reduced-motion
+     stops all of it (coins sit mid-wire).
+   scripts/check-iso-ui.mjs lints this file and every file marked `// iso-ui`. */
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+.iso {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "kern" 1;
+}
+.iso *,
+.iso *::before,
+.iso *::after { box-sizing: border-box; }
+.iso a { color: var(--teal); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.iso a:hover { color: var(--ink-deep); }
+.iso :focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+/* On ink (the action bar, the ink strip, a ticket's band) the ring is mint: teal on ink would vanish. */
+.iso .iso-actionbar :focus-visible,
+.iso .iso-surface--ink :focus-visible,
+.iso .iso-strip :focus-visible,
+.iso .iso-ticket__band :focus-visible { outline-color: var(--mint); }
+/* The browser's own surfaces carry the palette too: selection, the caret, scrollbars. */
+.iso ::selection { background: var(--mint-wash); color: var(--ink-deep); }
+.iso input,
+.iso textarea { caret-color: var(--teal); }
+.iso,
+.iso * { scrollbar-color: rgb(12 62 72 / .35) transparent; }
+.iso .iso-num { font-variant-numeric: tabular-nums lining-nums; }
+.iso .iso-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.iso .iso-muted { color: var(--text-2); }
+.iso .iso-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* The page ground: the landing's 24 px grid at 5% ink. */
+.iso.iso-ground,
+.iso .iso-ground {
+  background-color: var(--ground);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Page frame (§3.4) ───────────────────────────────────────────────── */
+.iso.iso-page,
+.iso .iso-page {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.iso.iso-page--transfer,
+.iso .iso-page--transfer { max-width: 1180px; }
+.iso .iso-pagehead {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;
+}
+.iso .iso-title {
+  margin: 0;
+  font-size: var(--iso-34);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+  color: var(--ink-deep);
+  hyphens: none;
+  text-wrap: balance;
+}
+.iso .iso-context { margin: 6px 0 0; font-size: 16px; line-height: 1.45; color: var(--text-2); }
+.iso .iso-context strong { color: var(--ink-deep); }
+.iso .iso-h2 { margin: 0; font-size: var(--iso-19); font-weight: 800; letter-spacing: -.01em; color: var(--ink-deep); }
+.iso .iso-h3 { margin: 0; font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-label { font-size: var(--iso-13); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-small { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-body { font-size: var(--iso-15); line-height: 1.55; color: var(--ink); max-width: 68ch; }
+.iso .iso-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.iso .iso-stack { display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.iso .iso-split { display: flex; flex-wrap: wrap; gap: 22px; align-items: stretch; }
+.iso .iso-split > .iso-split__main { flex: 7 1 560px; min-width: 0; }
+.iso .iso-split > .iso-split__side { flex: 5 1 380px; min-width: 0; }
+.iso .iso-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 22px; align-items: start; }
+
+/* ── Surfaces (§2.3 IsoSurface) ──────────────────────────────────────── */
+.iso .iso-surface {
+  position: relative;
+  min-width: 0;
+  background: var(--paper);
+  border: var(--border);
+}
+.iso .iso-surface--pad { padding: 22px 24px; }
+.iso .iso-surface--head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 18px 22px; border-bottom: 1.5px solid var(--line-soft);
+}
+.iso .iso-surface--hero {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid-hero) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-hero) 1px, transparent 1px),
+    var(--hero-wash);
+  background-size: 24px 24px, 24px 24px, 100% 100%;
+  border: var(--border-hero);
+  box-shadow: var(--ledge-hero);
+}
+.iso .iso-surface--ink { background: var(--ink-deep); color: var(--paper-warm); border-color: var(--ink-deep); }
+.iso .iso-surface--ink a { color: var(--mint); }
+.iso .iso-divider { border: 0; border-top: 1px dashed rgb(12 62 72 / .24); margin: 0; }
+
+/* ── Extruded display (§2.2): one per visible state ──────────────────────
+   The prompt's `.iso-display`, named `.iso-extrude` because the landing owns
+   `.iso-display` (unscoped). No class here may share a name with the
+   landing's CSS: tests/iso-tokens.test.mjs checks. */
+.iso .iso-extrude {
+  display: inline-block;
+  font-weight: 900;
+  letter-spacing: -.05em;
+  line-height: .95;
+  color: var(--paper-warm);
+  -webkit-text-stroke: 1.5px var(--ink-deep);
+  paint-order: stroke fill;
+  text-shadow: 2px 2px 0 var(--teal), 4px 4px 0 var(--teal), 6px 6px 0 var(--ink-deep);
+  font-variant-numeric: tabular-nums lining-nums;
+  padding-bottom: 6px;
+  white-space: nowrap;
+}
+.iso .iso-extrude--xl { font-size: var(--iso-extrude); }
+.iso .iso-extrude--lg { font-size: clamp(40px, 4.4vw, 64px); }
+.iso .iso-extrude--md { font-size: clamp(30px, 3vw, 36px); }
+
+/* ── Buttons (§2.3 IsoButton) ────────────────────────────────────────── */
+.iso .iso-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 20px;
+  font: 700 15px/1 var(--font-sans);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1.5px solid var(--ink-deep);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink-deep);
+  touch-action: manipulation;
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso), border-color var(--t-ui), background-color var(--t-ui);
+}
+.iso .iso-btn--lg { min-height: 52px; padding: 0 24px; }
+.iso .iso-btn--sm { min-height: 44px; padding: 0 14px; font-size: var(--iso-14); }
+.iso .iso-btn--block { width: 100%; }
+.iso .iso-btn--primary { background: var(--teal); color: var(--paper-warm); box-shadow: var(--ledge-1); }
+.iso .iso-btn--approve { background: var(--coral); color: var(--ink-deep); box-shadow: var(--ledge-1); }
+.iso .iso-btn--primary:hover,
+.iso .iso-btn--approve:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink-deep); }
+.iso .iso-btn--primary:hover { color: var(--paper-warm); }
+.iso .iso-btn--approve:hover { color: var(--ink-deep); }
+.iso .iso-btn--primary:active,
+.iso .iso-btn--approve:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .iso-btn--quiet { background: var(--paper); color: var(--ink-deep); border-color: var(--line-strong); }
+.iso .iso-btn--quiet:hover { border-color: var(--ink-deep); color: var(--ink-deep); }
+.iso .iso-btn--quiet:active { transform: translate(1px, 1px); }
+.iso .iso-btn--link {
+  min-height: 44px; padding: 0; border: 0; background: none; color: var(--teal);
+  font-weight: 700; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+.iso .iso-btn--link:hover { color: var(--ink-deep); }
+.iso .iso-btn--paper { background: var(--paper-warm); color: var(--ink-deep); border-color: var(--paper-warm); box-shadow: 3px 3px 0 var(--teal); }
+.iso .iso-btn--paper:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--teal); color: var(--ink-deep); }
+.iso .iso-btn--paper:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--teal); }
+.iso .iso-btn--onink { background: transparent; color: var(--paper-warm); border-color: rgb(255 250 241 / .45); }
+.iso .iso-btn--onink:hover { border-color: var(--paper-warm); color: var(--paper-warm); }
+.iso .iso-btn:disabled,
+.iso .iso-btn[aria-disabled="true"] {
+  cursor: not-allowed; transform: none; box-shadow: none;
+  background: var(--paper); color: var(--text-2); border-color: var(--line-strong);
+}
+.iso .iso-btn--approve:disabled,
+.iso .iso-btn--approve[aria-disabled="true"] { background: var(--coral-quiet); color: var(--text-2); border-color: var(--ink-deep); }
+.iso .iso-btn--busy { cursor: progress; transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .iso-btn-why { font-size: var(--iso-13); line-height: 1.4; color: var(--text-2); max-width: 46ch; }
+.iso .iso-btn-wrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+/* A button with no reason beside it: its host takes no box, so the button lays out as if bare. */
+.iso .iso-btn-host { display: contents; }
+/* The row action on a list (Review, Verify, Remind). */
+.iso .iso-row-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 16px;
+  font: 700 14px/1 var(--font-sans); white-space: nowrap; text-decoration: none; cursor: pointer;
+  color: var(--ink-deep); background: var(--paper); border: 1.5px solid var(--ink-deep);
+  transition: transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+}
+.iso .iso-row-btn:hover { transform: translate(-1px, -1px); box-shadow: var(--ledge-1); color: var(--ink-deep); }
+.iso .iso-row-btn:active { transform: translate(1px, 1px); box-shadow: none; }
+/* A small outlined choice (a chip on a page, Zeke's suggestion chips). */
+.iso .iso-chip {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+  background: var(--paper); border: 1.5px solid rgb(12 62 72 / .28); color: var(--ink-deep);
+  font: 600 14px/1 var(--font-sans); white-space: nowrap; cursor: pointer; text-decoration: none;
+}
+.iso .iso-chip:hover { border-color: var(--ink-deep); color: var(--ink-deep); }
+
+/* ── Tags (§2.3 Tag) and the Test mode badge ─────────────────────────── */
+.iso .iso-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  font: 700 12px/1.4 var(--font-sans);
+  white-space: nowrap;
+  border: 1.5px solid currentColor;
+}
+.iso .iso-tag svg { flex: 0 0 auto; }
+.iso .iso-tag--coral { color: var(--coral-ink); background: var(--coral-fill); border-color: var(--coral); }
+.iso .iso-tag--amber { color: var(--amber-ink); background: var(--amber-fill); border-color: var(--amber-line); }
+.iso .iso-tag--ok { color: var(--ok-ink); background: var(--ok-fill); border-color: var(--mint); }
+.iso .iso-tag--ink { color: var(--ink-deep); background: var(--paper); border-color: var(--line-strong); }
+.iso .iso-tag--gold { color: var(--gold-ink); background: var(--gold-fill); border-color: var(--gold); }
+.iso .iso-tag--danger { color: var(--danger-ink); background: var(--danger-fill); border-color: var(--danger-line); }
+.iso .iso-testmode {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: var(--gold); color: var(--ink-deep);
+  font: 800 13px/1.2 var(--font-sans);
+  white-space: nowrap;
+  box-shadow: 2px 2px 0 var(--ink-deep);
+}
+.iso .iso-testmode--inline { padding: 2px 8px; font-size: 12px; box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .iso-ribbon {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: var(--gold-fill); border: 1.5px solid var(--gold); color: var(--gold-ink);
+  font-size: var(--iso-13); font-weight: 700; line-height: 1.45;
+}
+.iso .iso-note {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px 14px; font-size: var(--iso-14); line-height: 1.5;
+  border: 1.5px solid var(--line);
+  background: var(--white);
+}
+.iso .iso-note--amber { background: var(--amber-fill); border-color: var(--amber-line); color: var(--amber-ink); }
+.iso .iso-note--ok { background: var(--ok-fill); border-color: var(--mint); color: var(--ok-ink); }
+.iso .iso-note--danger { background: var(--danger-fill); border-color: var(--danger-line); color: var(--danger-ink); }
+.iso .iso-note--coral { background: var(--coral-fill); border-color: var(--coral); color: var(--coral-ink); }
+.iso .iso-note strong { color: inherit; }
+
+/* ── Route map (§2.3 RouteMap / Station / Wire) ──────────────────────── */
+.iso .iso-routemap {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 4px 2px 8px;
+  scrollbar-width: thin;
+}
+.iso .iso-station {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 0 0 140px;
+  text-align: center;
+  scroll-snap-align: center;
+  transition: opacity var(--t-ui) var(--ease-iso);
+}
+.iso .iso-station--wide { flex-basis: 180px; }
+.iso .iso-station--link { text-decoration: none; color: inherit; cursor: pointer; }
+.iso .iso-station--link:hover .iso-station__label { text-decoration: underline; text-underline-offset: 3px; }
+.iso .iso-station__art { transition: transform .35s var(--ease-iso); }
+.iso .iso-station:hover .iso-station__art { transform: translateY(-4px); }
+.iso .iso-station__label { font-size: var(--iso-15); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-station__amount { font-size: var(--iso-22); font-weight: 900; letter-spacing: -.02em; color: var(--ink-deep); font-variant-numeric: tabular-nums; }
+.iso .iso-station__help { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); max-width: 22ch; }
+.iso .iso-station__tile {
+  display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums;
+  color: rgb(12 62 72 / .62);
+  background: var(--paper);
+  border: 2px solid rgb(12 62 72 / .3);
+}
+.iso .iso-station__tile--live { color: var(--ink-deep); background: var(--white); border-color: var(--ink-deep); box-shadow: var(--ledge-1); }
+.iso .iso-station__tile--coral { color: var(--ink-deep); background: var(--coral-fill); border-color: var(--ink-deep); box-shadow: var(--ledge-1); }
+.iso .iso-station__tile--ok { color: var(--ok-ink); background: var(--ok-fill); border-color: var(--ink-deep); box-shadow: var(--ledge-1); }
+.iso .iso-station__tile--now { color: var(--ink-deep); background: var(--paper); border-color: var(--ink-deep); box-shadow: var(--ledge-1); }
+.iso .iso-station__tile--done { color: var(--paper-warm); background: var(--teal); border-color: var(--ink-deep); }
+.iso .iso-station--skipped { display: none; }
+.iso .iso-station--enter { animation: iso-pop var(--t-sheet) var(--ease-iso) both; }
+
+.iso .iso-wire {
+  position: relative;
+  flex: 1 1 44px;
+  min-width: 32px;
+  height: 30px;
+  align-self: flex-start;
+  margin-top: var(--wire-top, 40px);
+}
+.iso .iso-wire svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.iso .iso-wire line { stroke: rgb(12 62 72 / .3); stroke-width: 3; }
+.iso .iso-wire--done line { stroke: var(--teal); }
+.iso .iso-wire--active line { stroke: var(--ink-deep); stroke-dasharray: 6 8; animation: iso-flow 1.1s linear infinite; }
+.iso .iso-coin {
+  position: absolute; top: 8px; left: 0;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 1.5px solid var(--ink-deep);
+  display: none;
+}
+.iso .iso-wire--active .iso-coin { display: block; animation: iso-travel 2.2s cubic-bezier(.45, .05, .55, .95) infinite; }
+.iso .iso-wire--active .iso-coin + .iso-coin { animation-delay: 1.1s; }
+/* The one gold moment: a coin lands on the bank station when a payment is paid (640 ms, once). */
+.iso .iso-landing-coin {
+  position: absolute; left: 50%; top: -6px;
+  width: 22px; height: 22px; margin-left: -11px;
+  border-radius: 50%; background: var(--gold); border: 2px solid var(--ink-deep);
+  animation: iso-land var(--t-scene) var(--ease-iso) both;
+  pointer-events: none;
+}
+
+/* The isometric block a station stands on (SVG drawn in components/iso/RouteMap.tsx). */
+.iso .iso-block-top { fill: var(--paper); }
+.iso .iso-block-left { fill: var(--mint); }
+.iso .iso-block-right { fill: var(--teal); }
+.iso .iso-block-line { stroke: var(--ink-deep); stroke-width: 1.5; }
+
+/* Coin and vault art, bobbing 6 px. */
+.iso .iso-art { display: block; object-fit: contain; }
+.iso .iso-bob { animation: iso-bob 5s ease-in-out infinite; }
+.iso .iso-bob--slow { animation-duration: 6s; }
+.iso .iso-bob--late { animation-delay: -2.5s; }
+
+/* ── Lanes (§2.3 Lane) ───────────────────────────────────────────────── */
+.iso .iso-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+.iso .iso-lane {
+  position: relative;
+  display: flex; flex-direction: column;
+  width: 100%;
+  min-height: 112px;
+  padding: 14px 18px 16px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid rgb(12 62 72 / .22);
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color var(--t-ui), transform 200ms var(--ease-iso), box-shadow 200ms var(--ease-iso);
+}
+.iso .iso-lane:hover { border-color: var(--ink-deep); }
+.iso .iso-lane[aria-checked="true"] {
+  border: 2px solid var(--ink-deep);
+  background: var(--white);
+  transform: translate(-2px, -2px);
+  box-shadow: var(--ledge-2);
+}
+/* The road sits under the head in the flow, so a head that wraps on a phone pushes it down, never over it. */
+.iso .iso-lane__road {
+  position: relative; order: 1; margin: 12px 4px 0; height: 18px;
+  transform: skewX(-35deg);
+  background: var(--road); border: 1.5px solid rgb(12 62 72 / .3);
+  transition: background-color 250ms, border-color 250ms;
+}
+.iso .iso-lane__edge {
+  position: relative; order: 2; margin: 0 4px; height: 8px;
+  transform: skewX(-35deg);
+  background: var(--road-edge); border: 1.5px solid rgb(12 62 72 / .3); border-top: 0;
+  transition: background-color 250ms;
+}
+.iso .iso-lane[aria-checked="true"] .iso-lane__road { background: var(--mint); border-color: var(--ink-deep); }
+.iso .iso-lane[aria-checked="true"] .iso-lane__edge { background: var(--teal); border-color: var(--ink-deep); }
+.iso .iso-lane__head { position: relative; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.iso .iso-lane__name { font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-lane__labels { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.iso .iso-lane__price { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.iso .iso-lane__sub { position: relative; order: 3; display: block; margin-top: 12px; font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+
+/* Destination and option cards (Transfer step 1, the Invoices chooser). */
+.iso .iso-choice {
+  position: relative;
+  display: flex; flex-direction: column; gap: 6px;
+  width: 100%;
+  padding: 18px 20px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid rgb(12 62 72 / .22);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 200ms var(--ease-iso), box-shadow 200ms var(--ease-iso), border-color var(--t-ui);
+}
+.iso .iso-choice:hover { border-color: var(--ink-deep); color: var(--ink); }
+.iso .iso-choice[aria-checked="true"],
+.iso .iso-choice--on { border: 2px solid var(--ink-deep); background: var(--white); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
+.iso .iso-choice__title { font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-choice__body { font-size: var(--iso-14); line-height: 1.5; color: var(--text-2); }
+
+/* ── Fields (§2.3 Field, AmountField, Combobox, Segmented, MaskedField) ─ */
+.iso .iso-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.iso .iso-field__label { font-size: var(--iso-13); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-field__control {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 0;
+  background: var(--white);
+  color: var(--ink-deep);
+  transition: border-color var(--t-ui);
+}
+.iso .iso-field__control:focus-within { outline: 2.5px solid var(--teal); outline-offset: 1px; border-color: var(--ink-deep); }
+.iso .iso-field__control--invalid { border-color: var(--danger-ink); }
+.iso .iso-field__control--ok { border-color: var(--ok-mark); }
+.iso .iso-field__input,
+.iso .iso-field__control input,
+.iso .iso-field__control textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  font: 500 17px var(--font-sans);
+  color: var(--ink-deep);
+}
+.iso .iso-field__control textarea { min-height: 120px; padding: 12px 0; line-height: 1.5; resize: vertical; }
+.iso .iso-field__control input:focus,
+.iso .iso-field__control input:focus-visible,
+.iso .iso-field__control textarea:focus,
+.iso .iso-field__control textarea:focus-visible { outline: 0; box-shadow: none; background: transparent; border: 0; }
+.iso .iso-field__control input::placeholder,
+.iso .iso-field__control textarea::placeholder { color: var(--text-2); }
+.iso .iso-field__help { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-field__error { font-size: var(--iso-13); line-height: 1.45; color: var(--danger-ink); font-weight: 600; }
+.iso .iso-field__okmark { flex: 0 0 auto; color: var(--ok-mark); }
+.iso .iso-amount .iso-field__input { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.iso .iso-currency {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
+  font: 800 13px/1 var(--font-sans);
+  color: var(--ink-deep);
+  background: var(--paper);
+  border: 1.5px solid var(--line-strong);
+}
+.iso .iso-masked .iso-field__input { font-family: var(--font-mono); font-size: 17px; letter-spacing: .04em; }
+
+/* Segmented control: a group of buttons, one pressed. */
+.iso .iso-seg { display: inline-flex; flex-wrap: wrap; border: 1.5px solid var(--ink-deep); background: var(--paper); }
+.iso .iso-seg__btn {
+  min-height: 44px; padding: 0 16px;
+  font: 700 14px/1 var(--font-sans);
+  background: var(--paper); color: var(--ink-deep);
+  border: 0; border-radius: 0; cursor: pointer;
+}
+.iso .iso-seg__btn + .iso-seg__btn { border-left: 1.5px solid var(--ink-deep); }
+.iso .iso-seg__btn[aria-checked="true"],
+.iso .iso-seg__btn[aria-pressed="true"] { background: var(--teal); color: var(--paper-warm); }
+.iso .iso-seg__btn:disabled { color: var(--text-2); cursor: not-allowed; }
+
+/* Combobox: a text field with a listbox under it (no native select). */
+.iso .iso-combo { position: relative; }
+.iso .iso-combo__list {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
+  max-height: 280px; overflow-y: auto;
+  margin: 0; padding: 4px 0; list-style: none;
+  background: var(--paper);
+  border: 2px solid var(--ink-deep);
+  box-shadow: var(--ledge-1);
+}
+.iso .iso-combo__opt {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  min-height: 44px; padding: 8px 14px;
+  font-size: var(--iso-15); color: var(--ink-deep); cursor: pointer;
+}
+.iso .iso-combo__opt[aria-selected="true"],
+.iso .iso-combo__opt--active { background: var(--mint-wash); }
+.iso .iso-combo__opt[aria-disabled="true"] { color: var(--text-2); cursor: not-allowed; }
+.iso .iso-combo__meta { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-combo__empty { padding: 10px 14px; font-size: var(--iso-14); color: var(--text-2); }
+
+/* A checkbox row (declarations, "I called them"). */
+.iso .iso-check {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px; min-height: 48px;
+  border: 1.5px solid rgb(12 62 72 / .25); background: var(--white);
+  cursor: pointer; font-size: var(--iso-14); line-height: 1.5;
+}
+.iso .iso-check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--teal); flex: 0 0 auto; }
+.iso .iso-check:focus-within { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+
+/* ── Step rail (§2.3 StepRail) ───────────────────────────────────────── */
+.iso .iso-steprail { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.iso .iso-steprail__item { flex: 1 1 140px; min-width: 0; }
+.iso .iso-steprail__step {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 10px 12px;
+  border-top: 3px solid rgb(12 62 72 / .18);
+  font-size: var(--iso-14); font-weight: 600; color: rgb(12 62 72 / .78);
+  text-decoration: none;
+}
+.iso .iso-steprail__step--past { border-top-color: var(--teal); color: var(--teal); }
+.iso a.iso-steprail__step--past:hover { color: var(--ink-deep); background: var(--paper); }
+.iso .iso-steprail__step--now { border-top-color: var(--ink-deep); background: var(--paper); box-shadow: var(--ledge-1); font-weight: 800; color: var(--ink-deep); }
+
+/* ── Ticket (§2.3): the receipt-shaped summary that becomes the approval card ─ */
+.iso .iso-ticket {
+  position: relative;
+  background: var(--paper);
+  border: 2px solid var(--ink-deep);
+  box-shadow: var(--ledge-2);
+}
+.iso .iso-ticket--card { box-shadow: 8px 8px 0 var(--ink-deep); }
+.iso .iso-ticket__band {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 22px;
+  background: var(--ink-deep); color: var(--paper-warm);
+  font-size: var(--iso-14);
+}
+.iso .iso-ticket__body { padding: 24px 26px 8px; display: flex; flex-direction: column; gap: 18px; background: var(--paper); }
+.iso .iso-ticket__foot { padding: 16px 26px 24px; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-ticket__perf {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 18px 0;
+  border-top: 1.5px dashed rgb(12 62 72 / .3);
+  border-bottom: 1.5px dashed rgb(12 62 72 / .3);
+}
+.iso .iso-dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 11px 16px; font-size: var(--iso-15); font-variant-numeric: tabular-nums; }
+.iso .iso-dl dt { color: var(--text-2); }
+.iso .iso-dl dd { margin: 0; font-weight: 700; text-align: right; color: var(--ink-deep); }
+.iso .iso-dl--rows { display: flex; flex-direction: column; gap: 11px; }
+.iso .iso-dl--rows > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.iso .iso-dl--rows dd { margin-left: auto; }
+.iso .iso-dl__total { border-top: 2px solid var(--ink-deep); padding-top: 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.iso .iso-dl__total strong { font-size: 28px; font-weight: 900; color: var(--ink-deep); font-variant-numeric: tabular-nums; }
+
+/* ── Sheet (§2.3): side sheet on desktop, bottom sheet on phone ──────── */
+.iso-sheet-root { position: fixed; inset: 0; z-index: 60; display: flex; justify-content: flex-end; }
+.iso-sheet-root .iso-sheet-backdrop { position: absolute; inset: 0; background: rgb(8 54 64 / .28); animation: iso-fade var(--t-ui) var(--ease-iso) both; }
+.iso-sheet-root .iso-sheet {
+  position: relative;
+  display: flex; flex-direction: column;
+  width: min(520px, 100vw);
+  height: 100%;
+  background: var(--paper);
+  border-left: 2px solid var(--ink-deep);
+  box-shadow: -6px 0 0 var(--ink-deep);
+  animation: iso-slidein var(--t-sheet) var(--ease-iso) both;
+}
+.iso-sheet-root .iso-sheet__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1.5px solid var(--line);
+}
+.iso-sheet-root .iso-sheet__title { margin: 0; font-size: var(--iso-19); font-weight: 800; color: var(--ink-deep); }
+.iso-sheet-root .iso-sheet__body { flex: 1 1 auto; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.iso-sheet-root .iso-sheet__foot { padding: 14px 20px; border-top: 1.5px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.iso-sheet-root .iso-sheet__grab { display: none; }
+.iso .iso-iconbtn {
+  display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center;
+  background: transparent; border: 1.5px solid var(--line-strong); color: var(--ink-deep); cursor: pointer;
+}
+.iso .iso-iconbtn:hover { border-color: var(--ink-deep); }
+@media (max-width: 720px) {
+  .iso-sheet-root { align-items: flex-end; }
+  .iso-sheet-root .iso-sheet {
+    width: 100vw; height: auto; max-height: 92dvh;
+    border-left: 0; border-top: 2px solid var(--ink-deep);
+    box-shadow: 0 -6px 0 var(--ink-deep);
+    animation-name: iso-sheetup;
+  }
+  .iso-sheet-root .iso-sheet__grab { display: block; width: 44px; height: 4px; margin: 8px auto 0; background: var(--line-strong); }
+}
+
+/* The approval moment: the page behind dims and goes inert. */
+.iso-modal-root {
+  position: fixed; inset: 0; z-index: 65;
+  display: flex; align-items: flex-start; justify-content: center;
+  overflow-y: auto; padding: 40px 16px;
+  background: rgb(8 54 64 / .28);
+}
+.iso-modal-root .iso-modal { width: 640px; max-width: 100%; }
+.iso-dimmed { opacity: .4; transition: opacity var(--t-ui); }
+
+/* ── Action bar (§2.3): the sticky bottom bar on Transfer ────────────── */
+.iso .iso-actionbar {
+  position: sticky; bottom: 0; z-index: 25;
+  margin-top: 8px;
+  background: var(--ink-deep); color: var(--paper-warm);
+  border-top: 2px solid var(--ink-deep);
+}
+.iso .iso-actionbar__in {
+  max-width: 1180px; margin: 0 auto;
+  padding: 14px 24px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+}
+.iso .iso-actionbar__sum { font-size: var(--iso-15); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.iso .iso-actionbar__sum strong { color: var(--paper-warm); }
+
+/* ── Quote ring (§2.3 QuoteRing) ─────────────────────────────────────── */
+.iso .iso-ring { display: inline-flex; align-items: center; gap: 8px; font-size: var(--iso-14); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-ring svg { flex: 0 0 auto; }
+.iso .iso-ring__track { stroke: rgb(12 62 72 / .16); }
+.iso .iso-ring__run { stroke: var(--teal); transition: stroke-dashoffset 1s linear; }
+.iso .iso-ring--warn { color: var(--amber-ink); }
+.iso .iso-ring--warn .iso-ring__run { stroke: var(--amber-mark); }
+.iso .iso-ring--coral .iso-ring__run { stroke: var(--coral-ring); }
+/* On the ink band of a ticket the clock reads in paper. */
+.iso .iso-ticket__band .iso-ring { color: var(--paper-warm); }
+.iso .iso-ticket__band .iso-ring__track { stroke: rgb(255 250 244 / .3); }
+.iso .iso-ring--expired { color: var(--amber-ink); }
+.iso .iso-ring--expired .iso-ring__run { stroke: rgb(12 62 72 / .16); }
+.iso .iso-stale { opacity: .45; transition: opacity var(--t-ui); }
+
+/* ── Details (§2.3): the disclosure that holds the allowed crypto words ─ */
+.iso .iso-details { font-size: var(--iso-14); }
+.iso .iso-details > summary,
+.iso .iso-tip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0;
+  list-style: none;
+  background: none; border: 0;
+  color: var(--teal);
+  font: 600 14px/1 var(--font-sans);
+  cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+.iso .iso-details > summary::-webkit-details-marker { display: none; }
+.iso .iso-details > summary:hover,
+.iso .iso-tip:hover { color: var(--ink-deep); }
+.iso .iso-details__body { margin: 4px 0 0; max-width: 72ch; font-size: var(--iso-14); line-height: 1.6; color: rgb(12 62 72 / .9); animation: iso-drop 280ms var(--ease-iso) both; }
+
+/* ── Bars, tables, tabs, lists ───────────────────────────────────────── */
+.iso .iso-bar { display: flex; height: 14px; border: 1.5px solid var(--ink-deep); background: var(--paper); overflow: hidden; }
+.iso .iso-bar > span { display: block; height: 100%; transform-origin: left; animation: iso-grow .9s var(--ease-iso) both; }
+.iso .iso-bar > span + span { border-left: 1.5px solid var(--ink-deep); }
+.iso .iso-bar > span:nth-child(2) { animation-delay: .12s; }
+.iso .iso-bar > span:nth-child(3) { animation-delay: .24s; }
+.iso .iso-swatch { flex: 0 0 14px; width: 14px; height: 14px; margin-top: 4px; border: 1.5px solid var(--ink-deep); }
+.iso .iso-fill-teal { background: var(--teal); }
+.iso .iso-fill-mint { background: var(--mint); }
+.iso .iso-fill-gold { background: var(--gold); }
+.iso .iso-fill-coral { background: var(--coral); }
+
+.iso .iso-table-wrap { overflow-x: auto; }
+.iso .iso-table { width: 100%; border-collapse: collapse; font-size: var(--iso-14); font-variant-numeric: tabular-nums; }
+.iso .iso-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font: 700 13px/1.3 var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-2);
+  border-bottom: 2px solid var(--ink-deep);
+  background: transparent;
+}
+.iso .iso-table td { padding: 14px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--ink); }
+.iso .iso-table .iso-r { text-align: right; }
+.iso .iso-table tr:last-child td { border-bottom: 0; }
+.iso .iso-table strong { color: var(--ink-deep); }
+/* A table that stacks into one card per row on a phone: name across the top, the two amounts side by
+   side, then the status and its link. The header is kept for screen readers only. */
+@media (max-width: 640px) {
+  .iso .iso-table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .iso .iso-table--stack, .iso .iso-table--stack tbody { display: block; }
+  .iso .iso-table--stack tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+  .iso .iso-table--stack tr:last-child { border-bottom: 0; }
+  .iso .iso-table--stack td { display: block; padding: 0; border: 0; }
+  .iso .iso-table--stack td:first-child { grid-column: 1 / -1; }
+  .iso .iso-table--stack td.iso-r { text-align: left; }
+  .iso .iso-table--stack td.iso-r + td.iso-r { text-align: right; }
+  .iso .iso-table--stack td[data-label]::before { content: attr(data-label); display: block; font: 400 var(--iso-13)/1.4 var(--font-sans); color: var(--text-2); }
+  .iso .iso-table--stack .iso-table__act { text-align: right; align-self: center; }
+}
+
+.iso .iso-tabs { display: flex; flex-wrap: wrap; border-bottom: 2px solid var(--ink-deep); }
+.iso .iso-tabs__tab {
+  min-height: 44px; padding: 0 16px;
+  font: 700 14px/1 var(--font-sans);
+  background: transparent; color: var(--text-2);
+  border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; border-radius: 0;
+  cursor: pointer;
+}
+.iso .iso-tabs__tab[aria-selected="true"] { color: var(--ink-deep); border-bottom-color: var(--teal); background: var(--paper); }
+
+.iso .iso-list { margin: 0; padding: 0; list-style: none; }
+.iso .iso-list > li { display: flex; gap: 14px; align-items: flex-start; padding: 16px 22px; border-bottom: 1px solid rgb(12 62 72 / .12); }
+.iso .iso-list > li:last-child { border-bottom: 0; }
+.iso .iso-list__main { flex: 1 1 auto; min-width: 0; }
+.iso .iso-list__title { margin-top: 6px; font-weight: 700; color: var(--ink-deep); }
+.iso .iso-list__detail { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+
+.iso .iso-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 14px 22px;
+  background: var(--ink-deep); color: var(--paper-warm);
+  font-size: var(--iso-13); line-height: 1.5;
+}
+.iso .iso-strip a { color: var(--mint); font-weight: 700; }
+.iso .iso-strip a:hover { color: var(--paper-warm); }
+
+.iso .iso-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 22px; font-size: var(--iso-15); line-height: 1.5; color: var(--ink);
+}
+
+/* A loading placeholder in the final layout's shape (no spinner). */
+.iso .iso-skel { background: linear-gradient(90deg, rgb(12 62 72 / .06), rgb(12 62 72 / .12), rgb(12 62 72 / .06)); background-size: 200% 100%; animation: iso-shimmer 1.4s linear infinite; }
+
+/* ── Motion: rise on load (once), staggered 80 ms ────────────────────── */
+.iso .iso-rise { animation: iso-rise .5s var(--ease-iso) both; }
+.iso .iso-rise-2 { animation-delay: 80ms; }
+.iso .iso-rise-3 { animation-delay: 160ms; }
+.iso .iso-rise-4 { animation-delay: 240ms; }
+.iso .iso-rise-5 { animation-delay: 320ms; }
+.iso .iso-pop { animation: iso-pop var(--t-sheet) var(--ease-iso) both; }
+
+@keyframes iso-flow { to { stroke-dashoffset: -28; } }
+@keyframes iso-travel {
+  0% { left: 0; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: calc(100% - 14px); opacity: 0; }
+}
+@keyframes iso-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes iso-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes iso-pop { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: none; } }
+@keyframes iso-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: none; } }
+@keyframes iso-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes iso-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes iso-slidein { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes iso-sheetup { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes iso-land { 0% { transform: translateY(-48px); opacity: 0; } 60% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes iso-shimmer { to { background-position: -200% 0; } }
+
+/* Reduced motion: no coins travelling, no dashes marching, no bobbing, no
+   count-up or morphs; coins sit mid-wire, and content crossfades (120 ms). */
+@media (prefers-reduced-motion: reduce) {
+  .iso *,
+  .iso-sheet-root *,
+  .iso-modal-root * {
+    animation-duration: 120ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+  .iso .iso-wire--active line,
+  .iso .iso-bob,
+  .iso .iso-skel { animation: none !important; }
+  .iso .iso-wire--active .iso-coin { animation: none !important; left: 45%; opacity: 1; }
+  .iso .iso-wire--active .iso-coin + .iso-coin { display: none; }
+  .iso .iso-rise,
+  .iso .iso-pop,
+  .iso .iso-bar > span,
+  .iso .iso-landing-coin,
+  .iso-sheet-root .iso-sheet,
+  .iso-sheet-root .iso-sheet-backdrop { animation-name: iso-fade !important; }
+  .iso .iso-btn:hover,
+  .iso .iso-row-btn:hover,
+  .iso .iso-lane[aria-checked="true"],
+  .iso .iso-choice--on { transform: none; }
+}
+
+/* ── The shell (prompt 10 Phase 1) ───────────────────────────────────────
+   The sidebar keeps today's dark-teal gradient and its two faint rings; the
+   page ground is look 9's paper with the 24 px grid. The shell root itself is
+   not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
+.iso-app { background-color: #F6F0ED; }
+.iso-app::before { display: none; }
+.iso-app .iso-main {
+  padding: 18px 16px 112px;
+  background-color: #F6F0ED;
+  background-image:
+    linear-gradient(rgb(12 62 72 / .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(12 62 72 / .05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1);
+}
+@media (min-width: 768px) {
+  .iso-app .iso-main { padding: 18px 36px 112px; }
+}
+@media (max-width: 767px) {
+  .iso-app .iso-main { padding-top: 72px; }
+}
+
+/* The sidebar */
+.iso.iso-side {
+  position: fixed; left: 0; top: 0; z-index: 30;
+  height: 100vh; height: 100dvh;
+  width: 264px;
+  flex-direction: column; gap: 18px;
+  padding: 20px 14px 16px;
+  /* On a short window the whole column scrolls, so no item hides inside a nested scroller. */
+  overflow-x: hidden; overflow-y: auto;
+  scrollbar-width: thin;
+  color: var(--paper-warm);
+  background: var(--side-gradient);
+  transition: width var(--t-sheet) var(--ease-iso);
+}
+.iso.iso-side.is-collapsed { width: 80px; padding-inline: 12px; overflow: visible; }
+.iso .iso-side__rings,
+.iso .iso-side__rings::after {
+  position: absolute; right: -90px; bottom: -90px;
+  width: 260px; height: 260px;
+  border-radius: 50%;
+  border: 1px solid rgb(159 207 199 / .14);
+  pointer-events: none;
+}
+.iso .iso-side__rings::after { content: ""; right: -60px; bottom: -60px; width: 380px; height: 380px; }
+.iso.iso-side.is-collapsed .iso-side__rings { display: none; }
+.iso.iso-side > :not(.iso-side__rings) { position: relative; }
+.iso.iso-side :focus-visible { outline: 2.5px solid var(--mint); outline-offset: 2px; }
+
+.iso .iso-logo {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px 6px 0;
+  background: none; border: 0; color: inherit; text-align: left; text-decoration: none;
+  cursor: pointer;
+}
+.iso .iso-logo__tile {
+  display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center;
+  background: var(--paper); box-shadow: var(--ledge-side);
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso);
+}
+.iso .iso-logo:hover .iso-logo__tile { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ledge-dark); }
+.iso .iso-logo:active .iso-logo__tile { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ledge-dark); }
+.iso .iso-logo__tile--sm { flex-basis: 34px; width: 34px; height: 34px; box-shadow: 2px 2px 0 var(--ledge-dark); }
+.iso .iso-logo__mark { width: 70%; height: auto; object-fit: contain; }
+.iso .iso-logo__words { display: flex; flex-direction: column; }
+.iso .iso-logo__words strong,
+.iso .iso-logo--phone strong { font-size: 22px; font-weight: 900; letter-spacing: -.03em; color: var(--paper-warm); }
+.iso .iso-logo__dot { color: var(--mint); }
+.iso .iso-logo__words small { font-size: 12px; font-weight: 600; color: var(--side-label); }
+.iso.iso-side.is-collapsed .iso-logo { justify-content: center; padding-inline: 0; }
+
+.iso .iso-setupcard {
+  display: block;
+  padding: 14px;
+  color: var(--paper-warm);
+  text-decoration: none;
+  background: rgb(255 250 241 / .07);
+  border: 1.5px solid rgb(255 250 241 / .18);
+}
+.iso .iso-setupcard:hover { background: rgb(255 250 241 / .11); color: var(--paper-warm); }
+.iso .iso-setupcard__head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; }
+.iso .iso-setupcard__bar { display: block; margin-top: 8px; height: 6px; background: rgb(255 250 241 / .16); }
+.iso .iso-setupcard__bar > span { display: block; height: 100%; background: var(--mint); }
+.iso .iso-setupcard__next { display: block; margin-top: 8px; font-size: 13px; color: rgb(255 250 241 / .86); }
+
+.iso .iso-sidenav { display: flex; flex-direction: column; gap: 14px; flex: 0 0 auto; margin-inline: -4px; padding: 2px 4px; }
+.iso.iso-side.is-collapsed .iso-sidenav { gap: 10px; }
+.iso .iso-navgroup { display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-navgroup__title { margin: 0 0 6px; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--side-label); }
+.iso .iso-navitem {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 44px; padding: 0 12px;
+  font: 600 14px/1.2 var(--font-sans);
+  color: var(--side-text);
+  text-decoration: none;
+  background: none;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background-color var(--t-ui), transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+}
+.iso .iso-navitem svg { flex: 0 0 18px; color: rgb(159 207 199 / .95); }
+.iso .iso-navitem:hover { background: rgb(255 250 241 / .08); color: var(--paper-warm); }
+.iso .iso-navitem.is-on,
+.iso .iso-navitem[aria-current="page"] {
+  background: var(--paper); color: var(--ink); border-color: var(--paper);
+  box-shadow: var(--ledge-side); transform: translate(-1px, -1px);
+}
+.iso .iso-navitem.is-on svg,
+.iso .iso-navitem[aria-current="page"] svg { color: var(--teal); }
+.iso .iso-navitem.is-locked .iso-navitem__label { opacity: .62; }
+.iso .iso-navitem__label { flex: 1 1 auto; min-width: 0; }
+.iso .iso-navitem__lock { flex: 0 0 auto; }
+.iso .iso-navitem.is-rail { justify-content: center; padding: 0; }
+.iso .iso-navbadge {
+  margin-left: auto;
+  padding: 2px 7px;
+  font: 700 12px/1.4 var(--font-sans);
+  color: var(--paper-warm);
+  border: 1px solid rgb(255 250 241 / .4);
+  white-space: nowrap;
+}
+.iso .iso-navitem.is-on .iso-navbadge { border-color: var(--ink); color: var(--ink); }
+.iso .iso-navbadge--coral,
+.iso .iso-navitem.is-on .iso-navbadge--coral { background: var(--coral); border-color: var(--coral); color: var(--ink-deep); }
+.iso .iso-navbadge--dot { width: 10px; height: 10px; padding: 0; background: var(--amber-line); border: 1.5px solid var(--ink-deep); }
+.iso .iso-navbadge--pip { position: absolute; top: 2px; right: 4px; margin: 0; padding: 0 4px; font-size: 11px; background: var(--coral); border-color: var(--ink-deep); color: var(--ink-deep); }
+.iso .iso-zeke-icon { position: relative; display: inline-flex; flex: 0 0 auto; }
+.iso .iso-zeke-icon svg { flex: 0 0 auto; }
+.iso .iso-zeke-icon__spark { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); }
+/* The collapsed rail's tooltips: the label and the badge, on hover or keyboard focus. */
+.iso .iso-navtip {
+  position: absolute; left: calc(100% + 12px); top: 50%; z-index: 40;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  white-space: nowrap;
+  font: 700 13px/1.2 var(--font-sans);
+  color: var(--ink-deep); background: var(--paper);
+  border: 1.5px solid var(--ink-deep); box-shadow: var(--ledge-1);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-ui);
+}
+.iso .iso-navitem.is-rail:hover .iso-navtip,
+.iso .iso-navitem.is-rail:focus-visible .iso-navtip { opacity: 1; }
+
+.iso .iso-sidefoot { margin-top: auto; display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-testcard { padding: 12px 14px; border: 1.5px solid rgb(255 250 241 / .18); background: rgb(255 250 241 / .06); font-size: 13px; line-height: 1.5; }
+.iso .iso-testcard p { margin: 8px 0 0; color: var(--side-text); }
+.iso .iso-sidefoot__links { display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid rgb(255 250 241 / .14); }
+
+/* Phone: the dark top bar and the grouped menu it opens. */
+.iso.iso-phonebar {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; padding: 0 12px 0 16px;
+  background: var(--side-gradient); color: var(--paper-warm);
+}
+.iso .iso-logo--phone { padding: 0; gap: 10px; }
+.iso .iso-logo--phone strong { font-size: 19px; }
+.iso .iso-phonebar__menu { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; background: none; border: 0; color: var(--paper-warm); cursor: pointer; }
+.iso .iso-phonebar__menu:focus-visible { outline: 2.5px solid var(--mint); outline-offset: 2px; }
+.iso.iso-side.iso-side--phone { display: flex; top: 56px; width: 100%; height: calc(100dvh - 56px); z-index: 45; overflow-y: auto; padding: 18px 16px 24px; }
+
+/* The top row, inside the content area: search, rate strip, Test mode, profile. */
+.iso.iso-toprow {
+  max-width: 1240px; margin: 0 auto 22px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+}
+.iso .iso-search { position: relative; flex: 1 1 280px; min-width: 0; }
+.iso .iso-search__box {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 44px; padding: 0 12px 0 14px;
+  background: var(--paper); border: 1.5px solid var(--line);
+  color: var(--ink);
+}
+.iso .iso-search__box:focus-within { border-color: var(--ink-deep); outline: 2.5px solid var(--teal); outline-offset: 1px; }
+.iso .iso-search__box input {
+  flex: 1 1 auto; min-width: 0; min-height: 40px;
+  padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none;
+  font: 500 14px var(--font-sans); color: var(--ink);
+}
+.iso .iso-search__box input:focus,
+.iso .iso-search__box input:focus-visible { outline: 0; box-shadow: none; border: 0; background: transparent; }
+.iso .iso-search__box input::placeholder { color: var(--text-2); }
+.iso .iso-search__box input::-webkit-search-cancel-button { display: none; }
+.iso .iso-search__key { padding: 1px 7px; font: 700 12px/1.4 var(--font-mono); color: var(--text-2); border: 1.5px solid var(--line); }
+.iso .iso-search__list {
+  position: absolute; z-index: 50; left: 0; right: 0; top: calc(100% + 6px);
+  max-height: 420px; overflow-y: auto;
+  padding: 6px 0;
+  background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-2);
+}
+.iso .iso-search__group { margin: 6px 0 2px; padding: 0 14px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-search__opt { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; cursor: pointer; color: var(--ink-deep); }
+.iso .iso-search__opt--active { background: var(--mint-wash); }
+.iso .iso-search__detail { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-search__empty { margin: 0; padding: 10px 14px; font-size: 14px; color: var(--text-2); }
+
+.iso .iso-ratestrip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  margin: 0; padding: 8px 14px;
+  font-size: 14px; font-variant-numeric: tabular-nums;
+  background: var(--paper); border: 1.5px solid var(--line); color: var(--text-2);
+}
+.iso .iso-ratestrip strong { color: var(--ink-deep); }
+.iso .iso-pagehead .iso-ratestrip { margin-top: 10px; display: inline-flex; }
+.iso .iso-profile { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink); text-decoration: none; }
+.iso a.iso-profile:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.iso .iso-profile__initials { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; background: var(--ink-deep); color: var(--paper-warm); font-weight: 800; }
+.iso .iso-profile__text { display: flex; flex-direction: column; }
+.iso .iso-profile__text strong { color: var(--ink-deep); }
+.iso .iso-profile__text span { font-size: 13px; color: var(--text-2); }
+@media (max-width: 767px) {
+  .iso .iso-desktop-only { display: none !important; }
+  .iso .iso-profile__text { display: none; }
+}
+@media (min-width: 768px) {
+  .iso .iso-phone-only { display: none !important; }
+}
+
+.iso.iso-appnote { max-width: 1240px; margin: 0 auto 18px; }
+.iso.iso-locked {
+  max-width: 520px; margin: 40px auto 0; padding: 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+  background: var(--paper); border: var(--border);
+}
+
+/* ── The floating Zeke (§3.5) ─────────────────────────────────────────── */
+.iso.iso-zk { position: fixed; right: 28px; bottom: 28px; z-index: 55; display: flex; flex-direction: column; align-items: flex-end; }
+.iso.iso-zk.iso-zk--raised { bottom: 104px; }
+/* Above a pinned action bar, by the bar's own height (components/iso/ActionBar.tsx publishes it). */
+html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px) + 24px); }
+/* A page with an action bar ends with it: at the end of the page it rests on the bottom edge. */
+.iso-app .iso-main:has(.iso-actionbar) { padding-bottom: 16px; }
+.iso .iso-zk__launch { display: inline-flex; align-items: center; gap: 10px; padding: 0; background: none; border: 0; cursor: pointer; font: inherit; }
+.iso .iso-zk__launch:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+.iso .iso-zk__tile {
+  position: relative; display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center;
+  background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-1);
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso);
+}
+.iso .iso-zk__tile img { width: 46px; height: 46px; object-fit: contain; }
+.iso .iso-zk__launch:hover .iso-zk__tile { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink-deep); }
+.iso .iso-zk__launch:active .iso-zk__tile { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .iso-zk__count {
+  position: absolute; top: -9px; right: -9px;
+  min-width: 22px; height: 22px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--coral); border: 1.5px solid var(--ink-deep); color: var(--ink-deep);
+  font: 800 12px/1 var(--font-sans);
+}
+.iso .iso-zk__nudge {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px;
+  background: var(--ink-deep); color: var(--paper-warm);
+  font: 600 13px/1.2 var(--font-sans);
+  box-shadow: 2px 2px 0 var(--teal);
+  animation: iso-pop var(--t-sheet) var(--ease-iso) both;
+}
+.iso .iso-zk__panel {
+  position: relative;
+  width: 400px; max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 56px);
+  display: flex; flex-direction: column;
+  background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-hero);
+  animation: iso-pop var(--t-sheet) var(--ease-iso) both;
+}
+.iso .iso-zk__grab { display: none; }
+.iso .iso-zk__head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; background: var(--ink-deep); color: var(--paper-warm); cursor: grab; touch-action: none; }
+.iso .iso-zk__head:active { cursor: grabbing; }
+.iso .iso-zk__face { display: inline-flex; flex: 0 0 40px; width: 40px; height: 40px; align-items: center; justify-content: center; background: var(--paper); }
+.iso .iso-zk__face img { width: 32px; height: 32px; object-fit: contain; }
+.iso .iso-zk__who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-zk__name { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.iso .iso-zk__ai { padding: 1px 6px; border: 1.5px solid rgb(255 250 241 / .5); font-size: 12px; font-weight: 800; }
+.iso .iso-zk__role { font-size: 12px; color: rgb(255 250 241 / .86); }
+.iso .iso-zk__x {
+  display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center;
+  background: transparent; border: 1.5px solid rgb(255 250 241 / .35); color: var(--paper-warm); cursor: pointer; text-decoration: none;
+}
+.iso .iso-zk__x:hover { border-color: var(--paper-warm); color: var(--paper-warm); }
+.iso .iso-zk__head :focus-visible { outline-color: var(--mint); }
+.iso .iso-zk__ctx { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 14px; background: var(--mint-wash); border-bottom: 1.5px solid var(--line); font-size: 13px; color: var(--ink-deep); }
+.iso .iso-zk__ctxdot { width: 8px; height: 8px; background: var(--teal); }
+.iso .iso-zk__thread { display: flex; flex-direction: column; gap: 10px; padding: 14px; min-height: 120px; max-height: 300px; overflow-y: auto; }
+.iso .iso-zk__turn { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.iso .iso-zk__label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-zk__msg { margin: 0; max-width: 88%; padding: 10px 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.iso .iso-zk__msg--zeke { align-self: flex-start; background: var(--white); border: 1.5px solid var(--line); color: var(--ink); }
+.iso .iso-zk__msg--you { align-self: flex-end; background: var(--teal); color: var(--paper-warm); }
+.iso .iso-zk__activity { margin: 0; font-size: 13px; color: var(--text-2); }
+.iso .iso-zk__draft { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 10px 12px; background: var(--paper); border: 1.5px dashed var(--ink-deep); }
+.iso .iso-zk__open { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 700; }
+.iso .iso-zk__chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 12px; }
+.iso .iso-zk__chip {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; flex: 0 0 auto;
+  border: 1.5px solid rgb(12 62 72 / .3); background: var(--paper); color: var(--ink-deep);
+  font: 600 13px/1 var(--font-sans); white-space: nowrap; cursor: pointer;
+}
+.iso .iso-zk__chip:hover { border-color: var(--ink-deep); }
+.iso .iso-zk__compose { display: flex; gap: 8px; padding: 12px; border-top: 1.5px solid var(--line); background: var(--paper); }
+.iso .iso-zk__compose input[type="text"] {
+  flex: 1 1 auto; min-width: 0; min-height: 48px; padding: 0 12px;
+  border: 1.5px solid var(--line-strong); border-radius: 0; background: var(--white);
+  font: 500 15px var(--font-sans); color: var(--ink-deep);
+}
+.iso .iso-zk__compose input[type="text"]:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 1px; border-color: var(--ink-deep); box-shadow: none; }
+.iso .iso-zk__ico {
+  display: inline-flex; flex: 0 0 48px; width: 48px; height: 48px; align-items: center; justify-content: center;
+  border: 1.5px solid var(--line-strong); background: var(--paper); color: var(--ink-deep); cursor: pointer;
+}
+.iso .iso-zk__send { background: var(--teal); border-color: var(--ink-deep); color: var(--paper-warm); box-shadow: 2px 2px 0 var(--ink-deep); }
+.iso .iso-zk__send:disabled { background: var(--paper); color: var(--text-2); box-shadow: none; cursor: not-allowed; }
+.iso .iso-zk__foot { margin: 0; padding: 0 14px 12px; font-size: 12px; line-height: 1.45; color: var(--text-2); }
+@media (max-width: 720px) {
+  .iso.iso-zk { right: 16px; bottom: 16px; }
+  .iso.iso-zk.iso-zk--raised { bottom: 96px; }
+  html[data-iso-actionbar] .iso.iso-zk:not(:has(.iso-zk__panel)) { bottom: calc(var(--iso-actionbar-h, 140px) + 12px); }
+  html[data-iso-actionbar] .iso.iso-zk:has(.iso-zk__panel) { bottom: 0; }
+  .iso.iso-zk:has(.iso-zk__panel) { left: 0; right: 0; bottom: 0; align-items: stretch; }
+  .iso .iso-zk__panel { width: 100%; max-width: 100%; max-height: 88dvh; border-bottom: 0; box-shadow: 0 -6px 0 var(--ink-deep); translate: none !important; }
+  .iso .iso-zk__grab { display: block; position: absolute; left: 50%; top: 6px; z-index: 1; width: 44px; height: 5px; margin-left: -22px; background: rgb(255 250 241 / .5); }
+  .iso .iso-zk__head { padding-top: 18px; cursor: default; }
+  .iso .iso-zk__thread { max-height: 40dvh; }
+}
+
+/* Which shell shows where. Desktop has the sidebar and no phone bar; a phone has the phone bar and
+   its menu. Set last, here, not by utility classes, which the rules above outrank. */
+@media (min-width: 768px) {
+  .iso.iso-phonebar,
+  .iso.iso-side.iso-side--phone { display: none; }
+}
+@media (max-width: 767px) {
+  .iso.iso-side:not(.iso-side--phone) { display: none; }
+}
+
+/* ── Overview (prompt 10 Phase 2) ─────────────────────────────────────── */
+.iso .iso-money { padding: 26px 28px; display: flex; flex-direction: column; gap: 18px; }
+.iso .iso-money__top { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+.iso .iso-money__lead { flex: 1 1 320px; min-width: 0; container-type: inline-size; }
+.iso .iso-money__label { margin: 0 0 12px; font-size: var(--iso-15); font-weight: 700; color: var(--text-2); }
+/* Sized to its own length (--chars, set by the page): a long total shrinks rather than run into the art. */
+.iso .iso-money .iso-extrude--xl { font-size: clamp(30px, calc((100cqi - 8px) / (var(--chars, 12) * .58)), 64px); }
+.iso .iso-money__sentence { margin: 14px 0 0; font-size: var(--iso-15); line-height: 1.5; color: rgb(12 62 72 / .9); font-variant-numeric: tabular-nums; max-width: 60ch; }
+.iso .iso-money__sentence strong { color: var(--ink-deep); }
+.iso .iso-money__short { color: var(--amber-ink); }
+.iso .iso-money__short strong { color: var(--amber-ink); }
+.iso .iso-money__vault { flex: 0 0 auto; width: 210px; height: auto; }
+.iso .iso-money__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.iso .iso-money__row { display: flex; gap: 10px; align-items: flex-start; }
+.iso .iso-money__row > div { display: flex; flex-direction: column; gap: 1px; }
+.iso .iso-money__name { color: var(--ink-deep); }
+.iso .iso-money__amount { font-size: 20px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.iso .iso-money__amount--none { font-size: var(--iso-15); font-weight: 700; color: var(--text-2); }
+.iso .iso-money__promises {
+  display: flex; flex-wrap: wrap; gap: 8px 22px;
+  margin: 0; padding-top: 14px;
+  border-top: 1px dashed rgb(12 62 72 / .24);
+  font-size: var(--iso-13); color: rgb(12 62 72 / .9);
+}
+.iso .iso-money__promises span { display: inline-flex; align-items: center; gap: 6px; }
+.iso .iso-money__promises svg { color: var(--teal); }
+@media (max-width: 640px) {
+  .iso .iso-money { padding: 20px 18px; }
+  /* The art is decorative; on a phone it would sit alone on its own row. */
+  .iso .iso-money__vault { display: none; }
+  /* A peek at the next stop shows the pipeline scrolls. */
+  .iso .iso-ov-pipeline .iso-station { flex-basis: 112px; }
+}
+.iso .iso-needs { display: flex; flex-direction: column; }
+.iso .iso-needs .iso-list .iso-ring { font-size: var(--iso-13); }
+.iso .iso-needs__zeke { margin-top: auto; }
+.iso .iso-paylist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-paylist li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 14px; border: 1.5px solid rgb(12 62 72 / .18); }
+.iso .iso-paylist li.is-open { border-color: var(--teal); background: var(--white); }
+.iso .iso-paylist li > div { display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-paylist strong { color: var(--ink-deep); }
+
+/* ── Transfer (prompt 10 Phase 3) ────────────────────────────────────────
+   Recipient, Amount, Quote & send, Approve, Track. Built from the parts above;
+   these rules only arrange them. */
+.iso .iso-stack-lg { display: flex; flex-direction: column; gap: 22px; }
+/* A title focused by the page on a step change (for screen readers) shows no ring: nothing to act on. */
+.iso .iso-title[tabindex="-1"]:focus { outline: none; }
+
+/* Step 1: where the money goes, two big cards. */
+.iso .iso-dest { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; }
+.iso .iso-dest__card { flex-direction: row; align-items: center; gap: 18px; padding: 20px 22px; }
+.iso .iso-dest__card > span { display: flex; flex-direction: column; gap: 4px; }
+.iso .iso-dest__card[aria-checked="true"] { border: 2px solid var(--ink-deep); background: var(--white); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
+.iso .iso-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.iso .iso-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.iso .iso-field__icon { flex: 0 0 auto; margin-right: 14px; color: var(--text-2); }
+
+/* Saved recipients and directory results: one row each, the action on the right. */
+.iso .iso-recips { border: 1.5px solid var(--line-soft); }
+.iso .iso-recips > li { padding: 0; }
+.iso .iso-recips > li.iso-recips__row,
+.iso .iso-recips__row { display: flex; gap: 14px; align-items: center; width: 100%; padding: 14px 18px; }
+.iso .iso-recips__row--on { background: var(--white); box-shadow: inset 4px 0 0 var(--teal); }
+.iso .iso-recips__name {
+  padding: 0; border: 0; background: none; font: inherit; cursor: pointer; text-align: left;
+  font-weight: 700; color: var(--ink-deep);
+  text-decoration: underline; text-decoration-color: rgb(12 62 72 / .3); text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+.iso .iso-recips__name:hover { text-decoration-color: var(--ink-deep); }
+.iso .iso-recips__meta { margin-top: 6px; gap: 8px 12px; }
+.iso .iso-recips__chosen { flex: 0 0 auto; font-size: var(--iso-13); font-weight: 800; color: var(--teal); }
+
+/* "Pay again": templates as small tickets in a row. */
+.iso .iso-templates { display: flex; flex-direction: column; gap: 8px; }
+.iso .iso-templates__list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px; }
+.iso .iso-templates__item { display: flex; align-items: stretch; border: 1.5px solid var(--ink-deep); background: var(--paper); box-shadow: var(--ledge-1); }
+.iso .iso-templates__use {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px;
+  padding: 8px 14px; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; color: var(--ink);
+}
+.iso .iso-templates__use strong { color: var(--ink-deep); }
+.iso .iso-templates__use span { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-templates__item .iso-iconbtn { border-width: 0 0 0 1.5px; border-color: var(--line-soft); }
+
+/* Step 2: the two amounts, the rate under them, and what they receive. */
+.iso .iso-pair .iso-field__input { font-size: var(--iso-22); font-weight: 800; font-variant-numeric: tabular-nums; }
+.iso .iso-rate { display: flex; align-items: center; gap: 8px; margin: 0; }
+.iso .iso-receives { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.iso .iso-receives__rail { margin-top: 6px; }
+
+/* Step 3. */
+.iso .iso-howto { display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-rules { margin: 0; color: var(--ink); }
+.iso .iso-rules svg { color: var(--teal); }
+.iso .iso-from { border: 1.5px solid var(--line-soft); }
+.iso .iso-from > li { padding: 12px 16px; }
+.iso .iso-ways { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); line-height: 1.5; color: var(--text-2); }
+.iso .iso-ways strong { color: var(--ink-deep); }
+.iso .iso-steps-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-fundsteps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: var(--iso-14); }
+.iso .iso-fundsteps li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1.5px solid var(--line-soft); color: var(--text-2); }
+.iso .iso-fundsteps li[data-state="done"] { color: var(--ok-ink); border-color: var(--mint); background: var(--ok-fill); }
+.iso .iso-fundsteps li[data-state="now"] { color: var(--ink-deep); border-color: var(--ink-deep); background: var(--white); }
+.iso .iso-fundsteps li[data-state="stop"] { color: var(--danger-ink); border-color: var(--danger-line); background: var(--danger-fill); }
+
+/* Step 4: the approval card's rules, and the approve → tick moment (coral to teal, 320 ms, once). */
+.iso .iso-checklist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); }
+.iso .iso-checklist li { display: flex; gap: 8px; align-items: flex-start; color: var(--danger-ink); }
+.iso .iso-checklist li[data-ok] { color: var(--ink); }
+.iso .iso-checklist li[data-ok] svg { color: var(--teal); }
+.iso .iso-approved { display: flex; gap: 12px; align-items: center; margin: 0; font-size: var(--iso-15); }
+.iso .iso-tick {
+  display: inline-flex; flex: 0 0 34px; width: 34px; height: 34px; align-items: center; justify-content: center;
+  border-radius: 50%; border: 2px solid var(--ink-deep); color: var(--paper-warm); background: var(--teal);
+  animation: iso-tick var(--t-sheet) var(--ease-iso) both;
+}
+@keyframes iso-tick { 0% { background: var(--coral); transform: scale(.7); } 60% { background: var(--coral); } 100% { background: var(--teal); transform: none; } }
+
+/* Step 5: stations not reached yet are quieter; the gold coin lands on the bank station. */
+.iso .iso-station--later { opacity: .55; }
+.iso .iso-station--landing { position: relative; }
+.iso .iso-track__foot { justify-content: space-between; gap: 8px 18px; }
+.iso .iso-track__foot .iso-label { display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.iso .iso-proofline { align-items: flex-start; flex-wrap: nowrap; font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-proofline svg { flex: 0 0 auto; margin-top: 2px; color: var(--teal); }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-tick { animation-name: iso-fade !important; }
+  .iso .iso-dest__card[aria-checked="true"] { transform: none; }
+}
+@media (max-width: 640px) {
+  .iso .iso-dest__card { padding: 16px; gap: 14px; }
+  .iso .iso-recips__row { flex-wrap: wrap; }
+  .iso .iso-recips__row > .iso-btn,
+  .iso .iso-recips__row > .iso-btn-host > .iso-btn { margin-left: auto; }
+}
+/* Download PDF prints the page: only the receipt and its map, never the shell around them. */
+@media print {
+  .iso-app .iso-side,
+  .iso .iso-actionbar,
+  .iso .iso-steprail,
+  .iso .iso-toprow,
+  .iso .iso-zk { display: none !important; }
+}
+
+/* ── Balance (prompt 10 §5.10) ─────────────────────────────────────────── */
+/* The figure and its sentence take their own height; the bar and the links follow straight after. */
+.iso .iso-balance .iso-money__lead { flex: 0 0 auto; }
+.iso .iso-balance__links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.iso .iso-balance__link {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;
+  padding: 12px 14px; min-height: 48px;
+  border: 1.5px solid rgb(12 62 72 / .2); background: var(--paper);
+  color: var(--ink); text-decoration: none; font-size: var(--iso-14);
+}
+.iso .iso-balance__link:hover { border-color: var(--ink-deep); color: var(--ink-deep); }
+.iso .iso-balance__link strong { color: var(--ink-deep); }
+.iso .iso-addcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 18px; }
+.iso .iso-addcard { display: flex; flex-direction: column; align-items: flex-start; }
+.iso .iso-addcard__act { margin-top: auto; padding-top: 6px; }
+.iso .iso-swatch--inline { display: inline-block; vertical-align: -2px; margin: 0 4px 0 0; }
+
+/* ── Invoices (prompt 10 Phase 4, frames Flow-Inv-*) ───────────────────── */
+/* Where you are, above a sub-page's title: "Invoices / Pay an invoice / CP-5531". */
+.iso .iso-crumbs { margin: 0 0 6px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--text-2); }
+.iso .iso-crumbs a { color: var(--ink); }
+.iso .iso-crumbs [aria-current="page"] { font-variant-numeric: tabular-nums; }
+
+/* The chooser: two big cards, the whole card is the link; a ledge only on hover (no shadow at rest). */
+.iso .iso-chooser { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 26px; }
+.iso .iso-chooser__card {
+  position: relative;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+  min-height: 440px; padding: 30px;
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink-deep);
+  text-decoration: none;
+  transition: transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+}
+.iso .iso-chooser__card:hover { color: var(--ink); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
+.iso .iso-chooser__card:active { transform: translate(1px, 1px); box-shadow: none; }
+.iso .iso-chooser__card:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+.iso .iso-chooser__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+/* A title is words, not a number: it may wrap ("Pay an / invoice") and keeps a readable gap between words. */
+.iso .iso-chooser__top .iso-extrude { flex: 1 1 auto; min-width: 0; white-space: normal; word-spacing: .16em; line-height: 1.02; padding-bottom: 8px; }
+.iso .iso-chooser__art { flex: 0 0 auto; width: 96px; height: 108px; object-fit: contain; }
+@media (max-width: 640px) { .iso .iso-chooser__art { width: 64px; height: 72px; } }
+.iso .iso-chooser__body { display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-chooser__lede { margin: 0; font-size: var(--iso-17); line-height: 1.55; color: var(--ink); max-width: 44ch; }
+.iso .iso-chooser__tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.iso .iso-chooser__cta { align-self: flex-start; pointer-events: none; }
+
+/* Pay an invoice: the drop zone in the hero wash, Zeke's note beside it. */
+.iso .iso-paydesk { display: flex; flex-wrap: wrap; align-items: center; gap: 22px 30px; padding: 28px 30px; }
+.iso .iso-drop {
+  flex: 1 1 520px; min-width: 0; min-height: 200px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 24px; text-align: center;
+  border: 2px dashed var(--ink-deep); background: rgb(255 250 244 / .85);
+  transition: background var(--t-ui) var(--ease-iso), border-color var(--t-ui) var(--ease-iso);
+}
+.iso .iso-drop--over { border-style: solid; border-color: var(--teal); background: var(--mint-wash); }
+.iso .iso-drop__icon { color: var(--teal); }
+.iso .iso-drop__title { margin: 0; font-size: var(--iso-22); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-drop__acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.iso .iso-drop__paste { width: 100%; display: flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: left; }
+.iso .iso-drop textarea {
+  width: 100%; min-height: 160px; padding: 12px 14px; resize: vertical;
+  font: 400 13px/1.6 var(--font-mono, ui-monospace, monospace); color: var(--ink-deep);
+  background: var(--white); border: 1.5px solid var(--ink); border-radius: 0;
+}
+.iso .iso-drop textarea:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso .iso-zekenote { flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-zekenote img { width: 92px; height: 92px; object-fit: contain; }
+.iso .iso-zekenote strong { font-size: var(--iso-17); color: var(--ink-deep); }
+.iso .iso-zekenote p { margin: 0; font-size: var(--iso-14); line-height: 1.55; }
+
+.iso .iso-tabs__count { margin-left: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.iso .iso-tabpanel:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 4px; }
+.iso .iso-bill__from { display: block; font-size: var(--iso-13); color: var(--text-2); }
+
+/* Check the invoice: the amber panel, the call-back record, the document beside Zeke's draft. */
+.iso .iso-callout { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: 18px 20px; border: 1.5px solid var(--amber-line); background: var(--amber-fill); color: var(--amber-ink); }
+.iso .iso-callout__icon { flex: 0 0 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: var(--paper); border: 1.5px solid var(--amber-line); color: var(--amber-ink); }
+.iso .iso-callout__text { flex: 1 1 420px; margin: 0; font-size: var(--iso-15); line-height: 1.55; }
+.iso .iso-callout__text strong { color: inherit; }
+.iso .iso-callout .iso-btn--quiet { border-color: var(--amber-ink); color: var(--amber-ink); background: var(--paper); }
+.iso .iso-callback { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px 18px; align-items: end; }
+.iso .iso-callback > h2, .iso .iso-callback > .iso-note { grid-column: 1 / -1; }
+.iso .iso-checkgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 22px; align-items: start; }
+.iso .iso-doc { display: flex; flex-direction: column; gap: 10px; padding: 18px 0; }
+.iso .iso-doc > h2, .iso .iso-doc > p { padding: 0 18px; }
+.iso .iso-doc__lines { margin: 0; padding: 0 10px; list-style: none; overflow-x: auto; font: 400 13px/1.75 var(--font-mono, ui-monospace, monospace); color: var(--ink); }
+.iso .iso-doc__line { display: flex; gap: 14px; padding: 2px 8px; }
+.iso .iso-doc__no { flex: 0 0 22px; text-align: right; color: var(--text-2); user-select: none; }
+.iso .iso-doc__text { white-space: pre; }
+.iso .iso-doc__line--field { background: var(--mint-wash); box-shadow: inset 3px 0 0 var(--teal); }
+.iso .iso-doc__line--bank { background: var(--amber-fill); box-shadow: inset 3px 0 0 var(--amber-mark); }
+/* The line the field being looked at came from (hover or focus on the field). */
+.iso .iso-doc__line--focus { outline: 2px solid var(--ink-deep); outline-offset: -2px; }
+.iso .iso-draft { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 22px; }
+.iso .iso-draft__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.iso .iso-checkrow { display: flex; flex-direction: column; gap: 6px; }
+.iso .iso-checkrow__label { font-size: var(--iso-14); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-checkrow__box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px; padding: 8px 8px 8px 16px;
+  background: var(--white); border: 1.5px solid var(--line-strong);
+  font-size: var(--iso-15); color: var(--ink-deep);
+}
+.iso .iso-checkrow__box--ok { border-color: var(--mint); }
+.iso .iso-checkrow__value { min-width: 0; overflow-wrap: anywhere; }
+.iso .iso-checkrow__acts { display: inline-flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.iso .iso-checkrow__help { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-checkrow__help--amber { color: var(--amber-ink); }
+.iso .iso-checkrow__input { flex: 1 1 auto; min-width: 0; min-height: 38px; padding: 0; font: inherit; color: inherit; border: 0; background: transparent; }
+.iso .iso-checkrow__input:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+.iso .iso-tickbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 0 12px;
+  font: 700 13px/1 var(--font-sans);
+  color: var(--ink-deep); background: var(--paper);
+  border: 1.5px solid var(--line-strong); border-radius: 0; cursor: pointer;
+  transition: background var(--t-ui) var(--ease-iso), border-color var(--t-ui) var(--ease-iso);
+}
+.iso .iso-tickbtn:hover { border-color: var(--ink-deep); }
+.iso .iso-tickbtn[aria-pressed="true"] { color: var(--ok-ink); background: var(--ok-fill); border-color: var(--mint); }
+.iso .iso-tickbtn:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso .iso-draft__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 6px; }
+/* A masked number reads as one unit: "•••• •••• 4471" never splits across lines. */
+.iso .iso-callout__text .iso-num, .iso .iso-checkrow__value .iso-num, .iso .iso-checkrow__value .iso-mono { white-space: nowrap; }
+@media (max-width: 640px) {
+  .iso .iso-checkrow__box { flex-wrap: wrap; padding: 8px 8px 8px 14px; }
+  .iso .iso-checkrow__acts { margin-left: auto; }
+}
+
+/* Get paid: the composer beside its live preview, in the receipt style. */
+.iso .iso-composer { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 26px; align-items: start; padding: 26px 28px; }
+.iso .iso-composer__form { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.iso .iso-composer__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.iso .iso-reqlines { display: flex; flex-direction: column; gap: 12px; }
+.iso .iso-reqline { display: grid; grid-template-columns: minmax(0, 1fr) 84px 150px 44px; gap: 8px; align-items: end; }
+.iso .iso-reqline__amount { grid-column: 1 / -1; margin: -2px 0 0; font-size: var(--iso-13); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-reqline .iso-iconbtn { width: 44px; height: 56px; }
+.iso .iso-reqpreview {
+  display: flex; flex-direction: column; gap: 14px; padding: 22px; min-width: 0;
+  background: var(--white); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-2);
+}
+.iso .iso-reqpreview__head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.iso .iso-reqpreview__who { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink-deep); }
+.iso .iso-reqpreview__who img { width: 26px; height: 26px; object-fit: contain; }
+.iso .iso-reqpreview__amount { font-size: clamp(32px, 4vw, 44px); font-weight: 900; letter-spacing: -.03em; line-height: 1.05; color: var(--ink-deep); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.iso .iso-reqpreview dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; font-size: var(--iso-14); border-top: 1.5px dashed rgb(12 62 72 / .3); padding-top: 12px; font-variant-numeric: tabular-nums; }
+.iso .iso-reqpreview dt { color: var(--text-2); }
+.iso .iso-reqpreview dd { margin: 0; text-align: right; color: var(--ink-deep); }
+.iso .iso-reqpreview__cta { pointer-events: none; }
+.iso .iso-composer__tabs { display: none; }
+@media (max-width: 760px) {
+  .iso .iso-composer { padding: 18px 16px; }
+  .iso .iso-composer__tabs { display: block; }
+  .iso .iso-composer--edit .iso-reqpreview { display: none; }
+  .iso .iso-composer--preview .iso-composer__form { display: none; }
+  .iso .iso-reqline { grid-template-columns: minmax(0, 1fr) 72px; }
+  /* The choices share the width and wrap their words; name and email each get a full line. */
+  .iso .iso-composer .iso-seg { display: flex; width: 100%; }
+  .iso .iso-composer .iso-seg__btn { flex: 1 1 0; min-width: 0; padding: 8px 10px; line-height: 1.25; white-space: normal; }
+  .iso .iso-composer__pair--people { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-chooser__card { min-height: 0; padding: 22px; }
+  .iso .iso-paydesk { padding: 20px 16px; }
+  .iso .iso-drop { flex-basis: 100%; }
+}
+
+/* The pay page someone else opens (app/pay/[slug]): one request, in the receipt style. */
+.iso.iso-paypage { min-height: 100dvh; padding: 40px 16px 64px; background-color: var(--ground); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; color: var(--ink); }
+.iso .iso-paypage__in { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.iso .iso-paypage__brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; color: var(--ink-deep); text-decoration: none; }
+.iso .iso-paypage__brand img { width: 30px; height: 30px; object-fit: contain; }
+.iso .iso-paypage__acct { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1.5px solid var(--line-strong); background: var(--white); }
+.iso .iso-paypage__acct code { font: 600 13px/1.5 var(--font-mono, ui-monospace, monospace); color: var(--ink-deep); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-chooser__card, .iso .iso-drop, .iso .iso-tickbtn { transition: none; }
+  .iso .iso-chooser__card:hover { transform: none; }
+}
+
+/* The chooser's card grows into the page it opens (React ViewTransition, a named pair). Reduced motion:
+   plain navigation, no morph. Global: view-transition pseudo-elements live on the document. */
+::view-transition-group(.iso-inv-morph) { animation-duration: var(--t-scene, 640ms); animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+/* ── Treasury (prompt 10 Phase 5, frame Final-Treasury) ───────────────── */
+.iso .iso-ink { color: var(--ink-deep); }
+.iso .iso-neg { color: var(--danger-ink); }
+.iso .iso-bullets { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 7px; font-size: var(--iso-14); line-height: 1.55; color: var(--ink); max-width: 72ch; }
+.iso .iso-actions--end { justify-content: flex-end; }
+.iso .iso-treasury__hero { display: flex; flex-direction: column; gap: 20px; padding: 26px 28px 22px; }
+.iso .iso-treasury__top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.iso .iso-treasury__hero .iso-routemap { justify-content: flex-start; }
+.iso .iso-treasury__hero .iso-extrude--xl { font-size: clamp(36px, 4.6vw, 60px); }
+/* The three arts stand on one line, so the labels and amounts line up under them. */
+.iso .iso-treasury__hero .iso-station__art { height: 84px; width: auto; object-fit: contain; }
+.iso .iso-treasury__reserve { display: flex; flex-direction: column; gap: 10px; font-size: var(--iso-14); }
+.iso .iso-treasury__reserve > .iso-row { gap: 8px; }
+/* The Reserve against its floor: the fill is the Reserve, the post is the floor. */
+.iso .iso-resbar { position: relative; height: 14px; border: 1.5px solid var(--ink-deep); background: var(--paper); }
+.iso .iso-resbar__fill { position: absolute; inset: 0 auto 0 0; background: var(--mint); transform-origin: left; animation: iso-grow .9s var(--ease-iso) both; }
+.iso .iso-resbar__floor { position: absolute; top: -6px; bottom: -6px; width: 3px; margin-left: -3px; background: var(--ink-deep); }
+.iso .iso-tcard { display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-tcard__rate { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; color: var(--ink-deep); }
+.iso .iso-tcard__pct { font-size: 40px; font-weight: 900; letter-spacing: -.03em; line-height: 1; color: var(--ink-deep); }
+.iso .iso-tcard__foot .iso-actions { align-items: flex-start; }
+.iso .iso-tcard__foot { margin-top: auto; padding-top: 14px; border-top: 1px dashed var(--line-strong); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-idle { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--white); border: 1.5px solid var(--line); }
+.iso .iso-idle__draft { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); font-size: var(--iso-14); line-height: 1.5; }
+.iso .iso-stocks td { vertical-align: middle; }
+.iso .iso-sources { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 5px; font-size: var(--iso-13); line-height: 1.5; color: var(--text-2); }
+.iso .iso-treasury__zeke { align-self: flex-start; align-items: center; gap: 12px; font-size: var(--iso-14); line-height: 1.55; }
+.iso .iso-treasury__zeke img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: var(--paper); }
+.iso .iso-treasury__zeke > span { flex: 1 1 220px; min-width: 0; }
+.iso .iso-sheet__amount { font-size: 22px; font-weight: 800; color: var(--ink-deep); }
+@media (max-width: 720px) {
+  .iso .iso-treasury__hero { padding: 20px 16px; }
+  .iso .iso-tcard__pct { font-size: 34px; }
+  .iso .iso-tcard__foot .iso-actions { width: 100%; }
+  .iso .iso-tcard__foot .iso-actions > * { flex: 1 1 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-resbar__fill { animation: none; }
+}

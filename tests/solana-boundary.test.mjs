@@ -93,12 +93,17 @@ const ALLOWED = [
   /'Sui sponsor \(evidence only\)'|Sui gas for allowlist updates only/, // the admin label (prompt 07 §7)
   /separate storage network that runs on Sui/, // the /trust evidence sentence
 ];
+/**
+ * Files that may name Sui outside the evidence layer: the crypto-wallet card's network list (prompt 10
+ * §5.6, the one place a person picks a network), where Sui is shown as "Not available yet".
+ */
+const FILES_ALLOWED = new Set(['lib/solana-app/funding-router.ts']);
 const P = /\bsui\b|zklogin|enoki|@mysten|suiscan|suivision|move::|AdminCap|packageId|suiprivkey|PTB|USDsui|deepbook|memwal/i;
 
 test('the §4.2 grep finds Sui only in the evidence layer', () => {
   const offenders = [];
   for (const file of sourceFiles()) {
-    if (file.startsWith(BOUNDARY) || !/^(app|components|lib)\//.test(file)) continue;
+    if (file.startsWith(BOUNDARY) || FILES_ALLOWED.has(file) || !/^(app|components|lib)\//.test(file)) continue;
     readFileSync(file, 'utf8').split(/\r?\n/).forEach((line, i) => {
       if (P.test(line) && !ALLOWED.some((ok) => ok.test(line))) offenders.push(`${file}:${i + 1}: ${line.trim().slice(0, 120)}`);
     });

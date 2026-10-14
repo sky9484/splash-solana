@@ -105,8 +105,14 @@ export const organizations = pgTable('organizations', {
    *  account). Kept so existing balances keep their key; new orgs are keyed
    *  by their vault (lib/compliance/org-kyb.ts resolveBusinessAccountId). */
   suiBusinessAccountId: text('sui_business_account_id'),
+  /** "Let other Splash businesses find us" (prompt 10 §5.4): off by default. Only an ACTIVE company shows. */
+  discoverable: boolean('discoverable').notNull().default(false),
+  /** Its Splash handle, lower case (drizzle/0035): how another business finds it, "@kuchingmarine". */
+  splashHandle: text('splash_handle'),
   ...timestamps,
-});
+}, (table) => [
+  uniqueIndex('organizations_splash_handle_unique').on(table.splashHandle),
+]);
 
 /**
  * A person. Identity only.
@@ -460,6 +466,51 @@ export const solanaDocuments = pgTable('solana_documents', {
 }, (table) => [
   primaryKey({ name: 'solana_documents_pk', columns: [table.kind, table.id] }),
   index('solana_documents_org_idx').on(table.orgId, table.kind),
+]);
+
+/**
+ * Full bank account numbers, sealed (prompt 10 Phase S; docs/security/PII-STORAGE.md). The one table
+ * that holds them: every other table keeps the record's id and last4. Only
+ * lib/solana-app/bank-secret-store.ts reads or writes it (scripts/check-store-access.mjs).
+ *
+ * `ciphertext` (AES-256-GCM, tag appended), `nonce` and `wrapped_data_key` are base64; shredding
+ * nulls all three and stamps `shredded_at`, while last4, the fingerprint and the dates stay.
+ */
+export const bankAccountSecrets = pgTable('bank_account_secrets', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id').notNull(),
+  /** The recipient: SupplierRecord.id in the company document. */
+  beneficiaryId: text('beneficiary_id').notNull(),
+  ciphertext: text('ciphertext'),
+  nonce: text('nonce'),
+  wrappedDataKey: text('wrapped_data_key'),
+  /** Which master key wrapped the data key (lib/server/kms): a rotation re-wraps every other one. */
+  keyId: text('key_id').notNull(),
+  last4: text('last4').notNull(),
+  /** HMAC-SHA256 of (bank code + number) under the key service's HMAC key, hex. */
+  fingerprint: text('fingerprint').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  replacedAt: timestamp('replaced_at', { withTimezone: true }),
+  shredAfter: timestamp('shred_after', { withTimezone: true }),
+  shreddedAt: timestamp('shredded_at', { withTimezone: true }),
+}, (table) => [
+  index('bank_account_secrets_beneficiary_idx').on(table.orgId, table.beneficiaryId),
+  index('bank_account_secrets_fingerprint_idx').on(table.orgId, table.fingerprint),
+  uniqueIndex('bank_account_secrets_one_current').on(table.orgId, table.beneficiaryId).where(sql`${table.replacedAt} IS NULL`),
+]);
+
+/** Every attempt to see a full number (decision 15): asked, shown or refused, and why. Never the number. */
+export const bankAccountReveals = pgTable('bank_account_reveals', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id').notNull(),
+  beneficiaryId: text('beneficiary_id').notNull(),
+  secretId: text('secret_id'),
+  userId: text('user_id').notNull(),
+  result: text('result').notNull(),
+  reason: text('reason').notNull(),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('bank_account_reveals_org_idx').on(table.orgId, table.at),
 ]);
 
 /** Suppliers — the relationship-first noun (today's "recipients"). */

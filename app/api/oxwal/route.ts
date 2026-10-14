@@ -4,6 +4,7 @@ import { assertCleanBody, ProvenanceViolationError, provenanceViolationResponse 
 import { requireCustomerRequest } from '@/lib/server/customer-auth';
 import { readJsonBody } from '@/lib/server/http';
 import { RATE_LIMITS, clientIp, enforceRateLimit } from '@/lib/server/rate-limit';
+import { ZEKE_PAGE_LABELS } from '@/lib/solana-zeke/context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,8 @@ export const dynamic = 'force-dynamic';
 type OxwalRouteBody = {
   message?: string;
   history?: OxwalAgentRequest['history'];
+  /** The dashboard page the chat is open on. Kept only if it is one of the known page names. */
+  page?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -55,6 +58,8 @@ export async function POST(request: Request) {
         orgId: ctx.orgId,
         actorId: ctx.userId,
         history: Array.isArray(body.history) ? body.history.slice(-12) : [],
+        // A page name from the fixed list, or nothing: free text here would be a prompt the person never typed.
+        page: typeof body.page === 'string' && ZEKE_PAGE_LABELS.has(body.page) ? body.page : undefined,
       })) {
         send(event);
       }

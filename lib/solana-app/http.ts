@@ -4,7 +4,9 @@
  */
 import { z } from 'zod';
 
+import { scrubText } from '../server/log-scrub.ts';
 import { ServiceError } from './errors.ts';
+import { WALLET_ASSETS, WALLET_NETWORKS } from './funding-router.ts';
 import { jsonResponse } from './json.ts';
 import { getPayment } from './service.ts';
 
@@ -31,7 +33,8 @@ export async function handle(fn: () => Promise<unknown> | unknown, status = 200)
     if (e instanceof ServiceError) {
       return jsonResponse({ error: { code: e.code, message: e.message, ...(e.detail ? { detail: e.detail } : {}) } }, { status: e.status });
     }
-    const message = e instanceof Error ? e.message : String(e);
+    // Scrubbed: an unexpected error must not carry a bank number to the browser (prompt 10 §S.1.6).
+    const message = scrubText(e instanceof Error ? e.message : String(e));
     console.error('[api/solana]', e);
     return jsonResponse({ error: { code: 'server_error', message: `Something went wrong on the server: ${message}` } }, { status: 500 });
   }
@@ -61,14 +64,6 @@ export const schemas = {
     })
     .strict()
     .refine((v) => v.sample === true || (typeof v.text === 'string' && v.text.trim().length > 0), { message: 'text or sample required' }),
-  verifyBank: z
-    .object({
-      by: z.string().min(1).max(80),
-      method: z.enum(['call-back', 'supplier-account']),
-      bank: z.string().min(2).max(120),
-      accountLast4: z.string().regex(/^\d{4}$/),
-    })
-    .strict(),
   confirm: z
     .object({
       fields: z
@@ -91,13 +86,24 @@ export const schemas = {
   /** Step 3 of a transfer: bring the route's USDC into the payments vault from outside the vaults. */
   fund: z
     .object({
-      method: z.enum(['wallet_usdc', 'wallet_swap', 'stripe', 'airwallex']),
+      /** A route from lib/solana-app/funding-router.ts: 'bank_card', or 'wallet:<asset>:<network>'. */
+      source: z.string().regex(new RegExp(`^(?:bank_card|wallet:(?:${WALLET_ASSETS.join('|')}):(?:${WALLET_NETWORKS.join('|')}))$`)),
       quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80),
-      asset: z.enum(['USDC', 'USDT', 'PYUSD', 'USD']).optional(),
       fromAddress: z.string().max(64).nullable().optional(),
       sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
       declared: z.literal(true),
-      rehearsal: z.enum(['none', 'kyt_flag']).optional(),
+      rehearsal: z.enum(['none', 'kyt_flag', 'kyt_unavailable']).optional(),
+    })
+    .strict(),
+  /** Balance › Add money: an amount (US$, 6-decimal minor units) and the way in, with no payment attached. */
+  topUp: z
+    .object({
+      source: z.string().regex(new RegExp(`^(?:bank_card|wallet:(?:${WALLET_ASSETS.join('|')}):(?:${WALLET_NETWORKS.join('|')}))$`)),
+      amountMinor: z.string().regex(/^\d{1,16}$/),
+      fromAddress: z.string().max(64).nullable().optional(),
+      sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
+      declared: z.literal(true),
+      rehearsal: z.enum(['none', 'kyt_flag', 'kyt_unavailable']).optional(),
     })
     .strict(),
   select: z
@@ -133,15 +139,93 @@ export const schemas = {
   /** A transfer with no invoice: who, how much (centavos), an optional reference, and the call-back for a new recipient. */
   transfer: z
     .object({
-      recipient: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().max(4) }).strict(),
+      /** A saved recipient, by id (prompt 10 §5.3). Or, as before, the details typed in. */
+      recipientId: z.string().regex(/^sup_[0-9a-f-]{36}$/).optional(),
+      recipient: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().max(4) }).strict().optional(),
       amountPhpMinor: z.string().regex(/^\d{1,15}$/),
       reference: z.string().max(64).nullable().optional(),
       verification: z.object({ by: z.string().min(1).max(80), method: z.enum(['call-back', 'supplier-account']) }).strict().nullable().optional(),
     })
-    .strict(),
+    .strict()
+    .refine((b) => (b.recipientId ? !b.recipient : Boolean(b.recipient)), { message: 'a saved recipient or the details, not both' }),
   invoiceId: id('inv'),
-  /** A saved recipient to take off the verified list, named exactly as the list shows it. */
-  supplierRemove: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().regex(/^\d{4}$/) }).strict(),
+  /** A saved recipient to take off the verified list, by its id (prompt 10 §S.1.0). */
+  supplierRemove: z.object({ id: z.string().regex(/^sup_[0-9a-f-]{36}$/) }).strict(),
+  /** A new bank recipient (prompt 10 §5.3). The account number travels in this body only, once. */
+  recipientCreate: z
+    .object({
+      name: z.string().min(1).max(120),
+      kind: z.enum(['business', 'person']),
+      registration: z.string().max(24).nullable().optional(),
+      personId: z.string().max(40).nullable().optional(),
+      bankCode: z.string().regex(/^[A-Z]{2,6}$/),
+      accountNumber: z.string().min(1).max(32),
+      accountNumberAgain: z.string().min(1).max(32),
+      holderName: z.string().min(1).max(120),
+      addressLine: z.string().min(1).max(160),
+      city: z.string().min(1).max(80),
+      check: z.discriminatedUnion('when', [z.object({ when: z.literal('now'), by: z.string().min(1).max(120) }).strict(), z.object({ when: z.literal('later') }).strict()]),
+    })
+    .strict(),
+  /** "Let other Splash businesses find us" (prompt 10 §5.4). */
+  directorySetting: z.object({ on: z.boolean(), handle: z.string().max(40).nullable().optional() }).strict(),
+  /** A payment to another business on Splash: which business, how much (US$, minor), and a note. */
+  peerTransfer: z
+    .object({
+      payeeOrgId: z.string().min(1).max(80),
+      amountUsdMinor: z.string().regex(/^\d{1,15}$/),
+      note: z.string().max(140).nullable().optional(),
+      reference: z.string().max(64).nullable().optional(),
+    })
+    .strict(),
+  /** "Record the call-back" on a bill (prompt 10 §6.2): who answered, and the number called from the company's own records. */
+  callBack: z.object({ spokeTo: z.string().min(2).max(80), numberCalled: z.string().min(6).max(24) }).strict(),
+  /** "Confirm and pay" a bill: the fields as checked (an invoice only) and which were ticked. A request from a Splash business sends {}. */
+  payBill: z
+    .object({
+      fields: z
+        .object({
+          invoiceNumber: z.string().max(64),
+          supplierName: z.string().max(200),
+          supplierBank: z.string().max(120),
+          supplierAccountLast4: z.string().max(4),
+          amountPhpMinor: z.string().regex(/^\d{1,15}$/),
+          dueDate: z.string().max(10),
+          einvoiceRef: z.string().max(64).nullable().optional(),
+        })
+        .strict()
+        .optional(),
+      confirmed: z.array(z.enum(['invoiceNumber', 'supplierName', 'supplierBank', 'supplierAccountLast4', 'amountPhpMinor', 'dueDate', 'einvoiceRef'])).max(7).optional(),
+    })
+    .strict(),
+  /** Get paid (prompt 10 §6.3): a new request. Lines are quantity × unit price, US$ minor units (6 decimals). */
+  paymentRequest: z
+    .object({
+      payer: z.discriminatedUnion('kind', [
+        // The business that pays, by its directory id; the requester is always the session's company.
+        z.object({ kind: z.literal('splash'), payerOrgId: z.string().min(1).max(80) }).strict(),
+        z.object({ kind: z.literal('external'), name: z.string().min(2).max(120), email: z.string().min(5).max(254) }).strict(),
+      ]),
+      number: z.string().min(1).max(32),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      lines: z
+        .array(z.object({ description: z.string().min(1).max(120), quantity: z.string().regex(/^\d{1,6}$/), unitMinor: z.string().regex(/^\d{1,13}$/) }).strict())
+        .min(1)
+        .max(20),
+      myInvoisRef: z.string().max(64).nullable().optional(),
+      note: z.string().max(280).nullable().optional(),
+      send: z.boolean(),
+    })
+    .strict(),
+  /** "Save as template" on a paid transfer (prompt 10 §5.8). */
+  templateSave: z.object({ paymentId: id('pay') }).strict(),
+  /** The call-back on a recipient passed. */
+  recipientVerify: z.object({ by: z.string().min(1).max(120) }).strict(),
+  /** See a full bank number (prompt 10 §S.1.5): ask for a device challenge, then answer it. */
+  reveal: z.discriminatedUnion('step', [
+    z.object({ step: z.literal('challenge') }).strict(),
+    z.object({ step: z.literal('reveal'), nonce: z.string().regex(/^[0-9a-f]{64}$/), signature: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{64,90}$/) }).strict(),
+  ]),
   /** Step 3 of a transfer: the same details as last time for this recipient, or every answer given again. */
   transferDetails: z.union([
     z.object({ reuse: z.literal(true) }).strict(),
@@ -153,6 +237,7 @@ export const schemas = {
             description: z.string().max(140),
             relationship: z.enum(['supplier', 'related_company', 'contractor']),
             sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
+            /** Optional for a saved recipient whose details were given in the "New bank recipient" sheet. */
             recipient: z
               .object({
                 type: z.enum(['business', 'individual']),
@@ -164,7 +249,8 @@ export const schemas = {
                 addressCountry: z.literal('PH'),
                 accountName: z.string().max(140),
               })
-              .strict(),
+              .strict()
+              .optional(),
           })
           .strict(),
       })
@@ -179,4 +265,20 @@ export const schemas = {
   moveApprove: z
     .object({ signatures: z.array(z.object({ id: z.string().regex(/^(p\d|x)$/), signature: base58 }).strict()).min(1).max(4) })
     .strict(),
+  /** Treasury (prompt 10 §7.4). T-bills are subscribed and redeemed; stocks are bought and sold. Whole cents. */
+  treasuryOrder: z.union([
+    z
+      .object({
+        asset: z.enum(['usdy', 'spy', 'qqq', 'nvda', 'googl', 'tsla']),
+        kind: z.enum(['subscribe', 'redeem', 'buy', 'sell']),
+        amountMinor: z.string().regex(/^\d{1,15}$/),
+        path: z.enum(['market', 'ondo']).optional(),
+      })
+      .strict(),
+    z.object({ sweepDraftId: z.string().regex(/^swp_[0-9a-f]{16}$/), path: z.enum(['market', 'ondo']).optional() }).strict(),
+  ]),
+  orderId: id('ord'),
+  orderApprove: z.object({ signature: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{64,90}$/) }).strict(),
+  sweepRule: z.object({ on: z.boolean(), cushionMinor: z.string().regex(/^\d{1,13}$/).optional() }).strict(),
+  eligibility: z.object({ confirm: z.literal(true) }).strict(),
 };

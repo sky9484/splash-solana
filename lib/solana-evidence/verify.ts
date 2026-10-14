@@ -6,7 +6,7 @@
  */
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 
-import { bundleLeaf, EVIDENCE_BUNDLE_VERSION, EVIDENCE_KIND_CORRIDOR_PAYOUT, walrusBlobIdsRoot, type CorridorPayoutBundle } from './bundle.ts';
+import { bundleLeaf, EVIDENCE_BUNDLE_VERSION, EVIDENCE_KIND_CORRIDOR_PAYOUT, EVIDENCE_KIND_PEER_TRANSFER, EVIDENCE_KIND_RECEIVABLE, EVIDENCE_KIND_TREASURY, PEER_MEMO_PREFIX, walrusBlobIdsRoot, type EvidenceBundle } from './bundle.ts';
 import { rootFromProof, type MerkleProof } from './merkle.ts';
 
 export interface AnchoredRoot {
@@ -85,7 +85,7 @@ export function anchoredRootFromMemo(memo: string, meta: { signature?: string; s
 }
 
 export function verifyBundle(params: {
-  bundle: CorridorPayoutBundle;
+  bundle: EvidenceBundle;
   proof: MerkleProof;
   anchor: AnchoredRoot;
   /** The batch's Walrus blob ids, when the verifier has them: checked against a v2 anchor. */
@@ -96,8 +96,15 @@ export function verifyBundle(params: {
   let leafHex: string | null = null;
   let computedRootHex: string | null = null;
 
-  const shapeOk = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_CORRIDOR_PAYOUT && bundle?.kindName === 'corridor_payout';
-  checks.push({ name: 'bundle_shape', passed: shapeOk, detail: shapeOk ? 'kind 3 corridor payout, v1' : 'not a v1 kind-3 bundle' });
+  // Kind 3, a bank payout; kind 4, a payment into another business's Splash account (its memo names it).
+  const corridor = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_CORRIDOR_PAYOUT && bundle?.kindName === 'corridor_payout';
+  const peer = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_PEER_TRANSFER && bundle?.kindName === 'peer_transfer' && bundle.memo === `${PEER_MEMO_PREFIX}${bundle.paymentId}`;
+  // Kind 5, money received against a request: it landed in the requester's own account.
+  const receivable = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_RECEIVABLE && bundle?.kindName === 'receivable' && bundle.incoming?.to === bundle.payee?.account;
+  // Kind 6, a treasury order: a device approved it; Ondo's redemption goes by wire, never into Payments.
+  const treasury = bundle?.version === EVIDENCE_BUNDLE_VERSION && bundle?.kind === EVIDENCE_KIND_TREASURY && bundle?.kindName === 'treasury' && Boolean(bundle.approval?.signature) && (bundle.order?.landsIn === 'bank_wire') === Boolean(bundle.wire);
+  const shapeOk = corridor || peer || receivable || treasury;
+  checks.push({ name: 'bundle_shape', passed: shapeOk, detail: corridor ? 'kind 3 corridor payout, v1' : peer ? 'kind 4 payment to a Splash business, v1' : receivable ? 'kind 5 money received against a request, v1' : treasury ? 'kind 6 treasury order, v1' : 'not a v1 kind-3, 4, 5 or 6 bundle' });
 
   let leaf: Uint8Array | null = null;
   try {
