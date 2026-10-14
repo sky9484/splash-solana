@@ -47,7 +47,7 @@ const INFORMATION = [
   {
     icon: WalletCards,
     label: 'Custody',
-    text: 'your USDC stays in your business’s own Squads vault on Solana · no Splash key can move it',
+    text: 'your US dollars stay in your company’s own accounts · no Splash key can move them',
   },
   {
     icon: Landmark,
@@ -63,7 +63,7 @@ const INFORMATION = [
   {
     icon: Database,
     label: 'Records & privacy',
-    text: 'evidence encrypted with Seal, stored on Walrus, anchored on Solana · daily Merkle batches',
+    text: 'every payment’s proof is encrypted with Seal, stored on Walrus and recorded, so anyone you share it with can check it · daily batches',
   },
   {
     icon: Users,

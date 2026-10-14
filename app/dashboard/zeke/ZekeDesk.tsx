@@ -338,6 +338,14 @@ export default function ZekeDesk() {
   );
 }
 
+/**
+ * Where a ticket may open: a page inside the dashboard (or the approval queue), nothing else. Its link
+ * arrives on the agent's stream, so it is checked here rather than trusted.
+ */
+export function safeTicketHref(href: string): string {
+  return /^\/(dashboard|queue)(\/|\?|$)/.test(href) ? href : '/dashboard';
+}
+
 /** A draft Zeke prepared: a dashed ticket that opens where a person reads it in full and approves it. */
 function DraftTicket({ title, lines = [], href }: { title: string; lines?: string[]; href: string }) {
   return (
@@ -349,7 +357,7 @@ function DraftTicket({ title, lines = [], href }: { title: string; lines?: strin
           {l}
         </span>
       ))}
-      <Link href={href} className="iso-zk__open">
+      <Link href={safeTicketHref(href)} className="iso-zk__open">
         Open to review
         <ArrowRight size={14} aria-hidden="true" />
       </Link>

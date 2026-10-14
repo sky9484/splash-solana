@@ -9,7 +9,7 @@ import type { Wire } from '@/lib/solana-app/json';
 import type { batchView, listBatches } from '@/lib/solana-app/batch-service';
 
 import { clock, secondsLeft } from './ApprovalCard';
-import { api, ApiError, dateShort, existingDeviceKey, php, shortKey, signPrepared, usd, usdcExact } from './client';
+import { api, ApiError, dateShort, existingDeviceKey, php, shortKey, signPrepared, usd, usdExact } from './client';
 import { notifyCompanyChanged, useCompany } from './useCompany';
 
 type BatchDTO = Wire<ReturnType<typeof batchView>>;
@@ -89,7 +89,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
   if (state.status !== 'ready' || !state.company.vault) {
     return (
       <div className="sx-narrow sx-stack">
-        <p className="sx-lede">{state.status === 'ready' ? 'Set up this device and your vault first.' : state.message}</p>
+        <p className="sx-lede">{state.status === 'ready' ? 'Set up this device and your accounts first.' : state.message}</p>
         <Link className="sx-btn" href={state.status === 'signin' ? '/login' : '/dashboard/setup'}>
           {state.status === 'signin' ? 'Sign in' : 'Set up this device'}
         </Link>
@@ -121,7 +121,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
     setError(null);
     try {
       if (!company.me.canApprove) throw new ApiError('not_an_approver', "This device can't approve for your company yet. Finish setup on it.", 0);
-      if (!(await existingDeviceKey(company.me.keyId))) throw new ApiError('no_device_key', "This browser doesn't hold your device key. Approve from the browser where you set up this device.", 0);
+      if (!(await existingDeviceKey(company.me.keyId))) throw new ApiError('no_device_key', "This browser doesn't hold this device's approval key. Approve from the browser where you set up this device.", 0);
       const prepared = await api<{ messages: Array<{ id: string; messageBase64: string }> }>(`/batches/${batch.id}/prepare`, { body: chunk === undefined ? { rehearsal } : { chunk } });
       const signatures = await signPrepared(company.me.keyId, prepared.messages);
       const r = await api<{ batch: BatchDTO }>(`/batches/${batch.id}/approve`, { body: { signatures } });
@@ -247,20 +247,20 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
           <h2 id="batch-sum">
             {sent ? `${paid} of ${batch.totals.payees} suppliers paid` : `${batch.totals.payees} suppliers in ${chunks} chunk${chunks === 1 ? '' : 's'}`}
           </h2>
-          {batch.simulated ? <Pill tone="sim">Simulated · devnet-ready</Pill> : <Pill tone="pending">Solana devnet</Pill>}
+          {batch.simulated ? <Pill tone="sim">Test mode · simulated</Pill> : <Pill tone="pending">Test mode</Pill>}
         </div>
         <dl className="sx-kv">
           <dt>Suppliers receive</dt>
           <dd className="sx-num">{php(batch.totals.receivePhpMinor)}</dd>
-          <dt>From your vault</dt>
+          <dt>From your Payments account</dt>
           <dd className="sx-num">
             {usd(batch.totals.youPayMinor)} <span className="sx-muted sx-small">including Splash&rsquo;s fee of {usd(batch.totals.feeMinor)}</span>
             <span className="sx-muted sx-small" style={{ display: 'block' }}>
-              Exactly {usdcExact(batch.totals.youPayMinor)}
+              Exactly {usdExact(batch.totals.youPayMinor)}
             </span>
           </dd>
           <dt>Paid by</dt>
-          <dd>{batch.partnerLabel}, one deposit address per supplier</dd>
+          <dd>{batch.partnerLabel}, one payout per supplier</dd>
           {!sent && batch.state === 'quoted' ? (
             <>
               <dt>Quotes expire</dt>
@@ -272,9 +272,9 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
 
       {!sent ? (
         <div className="sx-notice sx-notice-info">
-          <h3>How this batch goes on Solana</h3>
+          <h3>How it moves</h3>
           <p>
-            A Solana transaction holds about {Math.max(...batch.chunks.map((c) => c.payees))} of these payments, so the batch goes in {chunks} chunk{chunks === 1 ? '' : 's'}. One approval on this device signs every chunk. Each chunk pays all its
+            One transfer holds about {Math.max(...batch.chunks.map((c) => c.payees))} of these payments, so the batch goes in {chunks} chunk{chunks === 1 ? '' : 's'}. One approval on this device covers every chunk. Each chunk pays all its
             suppliers or none. If one chunk fails, the others still pay, and you retry only the one that failed.
           </p>
         </div>
@@ -322,7 +322,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
                       {k.status === 'expired' ? ' (expired, never landed)' : k.status === 'failed' ? ' (failed, nothing moved)' : ''}{' '}
                       {k.solscanUrl ? (
                         <a href={k.solscanUrl} target="_blank" rel="noreferrer">
-                          <span className="sx-mono">{shortKey(k.signature, 5)}</span> on Solscan
+                          <span className="sx-mono">{shortKey(k.signature, 5)}</span> · open its record
                         </a>
                       ) : (
                         <span className="sx-mono" title={k.signature}>
@@ -374,7 +374,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
         <div className="sx-notice sx-notice-warn">
           <h3>{batch.state === 'expired' ? 'The quotes expired' : 'This batch does not pass your rules'}</h3>
           <p>
-            {batch.state === 'expired' ? 'Nothing was sent. ' : 'Nothing was sent. Add USDC to your vault or split the file, then quote it again. '}
+            {batch.state === 'expired' ? 'Nothing was sent. ' : 'Nothing was sent. Add money to your Payments account or split the file, then quote it again. '}
             <Link href="/dashboard/batch">Start a new batch</Link>
           </p>
         </div>
@@ -399,7 +399,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
                 Receives
               </th>
               <th scope="col" className="sx-num-col">
-                From your vault
+                From your Payments account
               </th>
               <th scope="col">Chunk</th>
               <th scope="col">Status</th>
@@ -418,7 +418,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
                 <td className="sx-num-col" data-label="Receives">
                   {php(r.amountPhpMinor)}
                 </td>
-                <td className="sx-num-col" data-label="From your vault" title={usdcExact(r.youPayUsdcMinor)}>
+                <td className="sx-num-col" data-label="From your Payments account" title={usdExact(r.youPayUsdcMinor)}>
                   {usd(r.youPayUsdcMinor)}
                 </td>
                 <td data-label="Chunk">{r.chunkIndex === null ? 'Not planned' : r.chunkIndex + 1}</td>
@@ -436,7 +436,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
         </table>
         <div className="sx-row" style={{ marginTop: 12, justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <p className="sx-small sx-muted" style={{ maxWidth: '62ch' }}>
-            Amounts are rounded to the cent. Each transfer is exact to six decimals of USDC, so the rows can add up to a cent more or
+            Amounts are rounded to the cent. Each transfer is exact to a millionth of a dollar, so the rows can add up to a cent more or
             less than the total above. The CSV has every amount exactly.
           </p>
           <button type="button" className="sx-btn sx-btn-ghost sx-btn-sm" onClick={() => downloadCsv(batch)}>

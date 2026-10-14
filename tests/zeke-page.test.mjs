@@ -127,4 +127,9 @@ test('nothing on the Zeke page approves anything, the floating Zeke steps aside,
   assert.equal(floatingZekeHiddenOn('/dashboard/zeke'), true);
   // The AI tag is its own element, never the assistant's name.
   assert.match(code, /\{assistantName\} <Tag tone="ink">AI<\/Tag>/);
+  // A ticket's link arrives on the agent's stream: only a page inside the dashboard (or the queue) opens.
+  assert.match(code, /<Link href=\{safeTicketHref\(href\)\}/);
+  const guard = new RegExp(/return \/(.+)\/\.test\(href\)/.exec(code)[1]);
+  for (const ok of ['/dashboard/transfer?payment=pay_0123456789abcdef&step=quote', '/dashboard/invoices/pay?invoice=inv_1', '/queue']) assert.equal(guard.test(ok), true, ok);
+  for (const bad of ['https://evil.example/dashboard', '//evil.example', 'javascript:alert(1)', '/dashboardx', '/api/solana/treasury/orders']) assert.equal(guard.test(bad), false, bad);
 });

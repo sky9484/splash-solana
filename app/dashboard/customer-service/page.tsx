@@ -36,7 +36,7 @@ const issueTypes = [
 const faqs = [
   { question: 'How long until my transfer settles?', answer: 'It depends on the payout route. The transfer’s status page shows each step as it happens.' },
   { question: 'How do I authorize a batch payout?', answer: 'Upload a CSV in Batch Payout, review preflight, then confirm with your TOTP.' },
-  { question: 'Where are receipts stored?', answer: 'Receipt evidence is encrypted with Seal, stored on Walrus and anchored on Solana. You can download a PDF for your records.' },
+  { question: 'Where are receipts stored?', answer: 'Receipt evidence is encrypted with Seal, stored on Walrus, and its proof is recorded so anyone you share it with can check it. You can download a PDF for your records.' },
 ];
 
 const channels = [

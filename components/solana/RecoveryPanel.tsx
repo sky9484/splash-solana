@@ -25,7 +25,7 @@ export function RecoveryPanel() {
         <h2 id="kit-title">Your recovery kit</h2>
         {kit ? (
           <dl className="sx-kv">
-            <dt>Its key in your vault</dt>
+            <dt>Its key, one of your approvers</dt>
             <dd className="sx-mono" title={kit.publicKey}>
               {shortKey(kit.publicKey, 10)}
             </dd>
@@ -33,7 +33,7 @@ export function RecoveryPanel() {
             <dd>Approve on its own, like a device. It exists so a lost or broken device never locks your company out of its money.</dd>
           </dl>
         ) : (
-          <p className="sx-muted">No vault yet. Account setup makes the kit before the vault.</p>
+          <p className="sx-muted">No accounts yet. Account setup makes the kit before your accounts.</p>
         )}
       </section>
 
@@ -48,8 +48,8 @@ export function RecoveryPanel() {
       <section className="sx-card-quiet sx-stack" aria-labelledby="rotate-title">
         <h2 id="rotate-title">Make a new kit</h2>
         <p>
-          If the paper is lost or seen by someone else, make a new kit and replace the old key in the vault. Replacing it is a change to the vault&rsquo;s members, approved on
-          your devices; once it lands, the old words can no longer approve anything.
+          If the paper is lost or seen by someone else, make a new kit and replace the old key. Replacing it changes who can approve, and it is approved on your devices;
+          once it is done, the old words can no longer approve anything.
         </p>
         <p className="sx-muted">Not in this build yet. Replacing the recovery key is listed under &ldquo;Not verified yet&rdquo;.</p>
       </section>

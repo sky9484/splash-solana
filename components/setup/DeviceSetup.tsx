@@ -33,7 +33,7 @@ type Step = 'kit' | 'check' | 'create' | 'join';
 const OWNER_STEPS: Array<{ key: Step; label: string }> = [
   { key: 'kit', label: 'Recovery kit' },
   { key: 'check', label: 'Check 3 words' },
-  { key: 'create', label: 'Device key and vault' },
+  { key: 'create', label: 'This device and your accounts' },
 ];
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
@@ -126,8 +126,8 @@ export default function DeviceSetup() {
         <section className="sx-card sx-stack" aria-labelledby="pending-title">
           <h2 id="pending-title">This device is registered</h2>
           <p>
-            Its key <span className="sx-mono">{shortKey(status.device?.publicKey)}</span> is on record, but it isn&rsquo;t a member of your company&rsquo;s vault yet, so it
-            can&rsquo;t approve payments. A current vault member adds it with an approval on the vault. Splash can&rsquo;t add it for you.
+            Its key <span className="sx-mono">{shortKey(status.device?.publicKey)}</span> is on record, but it isn&rsquo;t one of your company&rsquo;s approvers yet, so
+            it can&rsquo;t approve payments. A current approver adds it, with an approval of their own. Splash can&rsquo;t add it for you.
           </p>
         </section>
       </div>
@@ -140,8 +140,8 @@ export default function DeviceSetup() {
     return (
       <div className="sx sx-embedded">
         <section className="sx-card sx-stack" aria-labelledby="owner-title">
-          <h2 id="owner-title">Your company&rsquo;s owner sets up the vault first</h2>
-          <p>Once the vault exists, come back here to add this device. Nothing else is needed from you yet.</p>
+          <h2 id="owner-title">Your company&rsquo;s owner sets up your accounts first</h2>
+          <p>Once they exist, come back here to add this device. Nothing else is needed from you yet.</p>
         </section>
       </div>
     );
@@ -149,7 +149,7 @@ export default function DeviceSetup() {
 
   const unsupported = supported === false ? (
     <div className="sx-notice sx-notice-error" role="alert">
-      <p>This browser can&rsquo;t make a device key. Use a recent Chrome, Safari or Firefox.</p>
+      <p>This browser can&rsquo;t make an approval key. Use a recent Chrome, Safari or Firefox.</p>
     </div>
   ) : null;
 
@@ -186,8 +186,8 @@ export default function DeviceSetup() {
         <section className="sx-card sx-stack" aria-labelledby="join-title">
           <h2 id="join-title">Add this device to your company</h2>
           <p>
-            Your company already has a vault. This browser makes a signing key that cannot be copied out of it. Splash gets only its public key and a signature that proves
-            you hold it. A vault member then adds it to the vault before it can approve payments.
+            Your company&rsquo;s accounts already exist. This browser makes an approval key that can&rsquo;t be copied out of it; Splash gets only its public half and
+            proof that you hold it. A current approver then adds it before it can approve payments.
           </p>
           {unsupported}
           <ErrorNote message={error} />
@@ -203,7 +203,7 @@ export default function DeviceSetup() {
   return (
     <div className="sx sx-embedded">
       <div className="sx-stack">
-        <ol className="sx-steps" aria-label="Device and vault steps">
+        <ol className="sx-steps" aria-label="Device and account steps">
           {OWNER_STEPS.map((s, i) => (
             <li key={s.key} aria-current={i === at ? 'step' : undefined} data-done={i < at ? 'true' : undefined}>
               {s.label}
@@ -215,7 +215,7 @@ export default function DeviceSetup() {
           <section className="sx-card sx-stack" aria-labelledby="kit-start">
             <h2 id="kit-start">Make your recovery kit</h2>
             <p>
-              24 words, made in this browser. If you lose this device, they get you back into your company&rsquo;s vault. Have paper and a pen ready; you&rsquo;ll write them
+              24 words, made in this browser. If you lose this device, they get you back into your company&rsquo;s accounts. Have paper and a pen ready; you&rsquo;ll write them
               down next.
             </p>
             <button className="sx-btn" type="button" onClick={() => { setWords(generateRecoveryWords()); setShown(false); setCopied(false); }}>
@@ -227,7 +227,7 @@ export default function DeviceSetup() {
         {step === 'kit' && words && (
           <section className="sx-card sx-stack" aria-labelledby="kit-title">
             <h2 id="kit-title">Your recovery kit</h2>
-            <p>These 24 words are a key to your vault. Write them down on paper and keep them somewhere safe and offline.</p>
+            <p>These 24 words are a key to your accounts. Write them down on paper and keep them somewhere safe and offline.</p>
             <div className="sx-notice sx-notice-warn">
               <p>Anyone with these words can move your money. Splash never sees them and can&rsquo;t show them again or recover them for you.</p>
             </div>
@@ -299,16 +299,16 @@ export default function DeviceSetup() {
 
         {step === 'create' && words && (
           <section className="sx-card sx-stack" aria-labelledby="create-title">
-            <h2 id="create-title">A key for this device, and your vault</h2>
+            <h2 id="create-title">A key for this device, and your accounts</h2>
             <p>
-              This browser makes a signing key that cannot be copied out of it. You use it to approve every payment. Then your company&rsquo;s vault is created with two
-              members: this device and your recovery kit. Either one can approve. Nobody can change the members later, Splash included. Splash pays the network fee, so you
-              don&rsquo;t need SOL.
+              This browser makes an approval key that can&rsquo;t be copied out of it. You use it to approve every payment. Then your company&rsquo;s accounts are created
+              with two approvers: this device and your recovery kit. Either one can approve. Nobody can change the approvers later, Splash included. Processing is included,
+              so there&rsquo;s nothing else to pay for.
             </p>
             {unsupported}
             <ErrorNote message={error} />
             <button className="sx-btn" type="button" onClick={() => proveAndComplete(true)} disabled={busy || supported === false}>
-              {busy ? 'Creating your vault…' : 'Create the key and the vault'}
+              {busy ? 'Creating your accounts…' : 'Create the key and your accounts'}
             </button>
           </section>
         )}
@@ -319,46 +319,47 @@ export default function DeviceSetup() {
 
 function VaultReady({ status, holdsKey }: { status: Status; holdsKey: boolean | null }) {
   const vault = status.vault!;
-  const [copied, setCopied] = useState(false);
   const kit = vault.members.find((m) => m.role === 'recovery_kit_a');
   return (
     <div className="sx-stack-lg">
       {holdsKey === false ? (
         <div className="sx-notice sx-notice-warn" role="status">
           <p>
-            This browser doesn&rsquo;t hold your device key. Approve payments from the device you set up with, or use your recovery kit to add this one to the vault.
+            This browser doesn&rsquo;t hold this device&rsquo;s approval key. Approve payments from the device you set up with, or use your recovery kit to add this one.
           </p>
         </div>
       ) : null}
       <section className="sx-card sx-stack" aria-labelledby="ready-title">
         <div className="sx-row" style={{ justifyContent: 'space-between' }}>
-          <h2 id="ready-title">Your vault is ready</h2>
-          {vault.simulated ? <span className="sx-pill sx-pill-sim">Simulated · devnet-ready</span> : <span className="sx-pill sx-pill-ok">On devnet</span>}
+          <h2 id="ready-title">Your accounts are ready</h2>
+          {vault.simulated ? <span className="sx-pill sx-pill-sim">Test mode · simulated</span> : <span className="sx-pill sx-pill-ok">Test mode</span>}
         </div>
         <dl className="sx-kv">
-          <dt>Vault address</dt>
-          <dd><span className="sx-mono">{vault.vaultPda}</span></dd>
-          <dt>Members</dt>
+          <dt>Account ID</dt>
+          <dd>
+            In <Link href="/dashboard/settings/account">Settings › Account details</Link>
+          </dd>
+          <dt>Who can approve</dt>
           <dd>
             This device <span className="sx-mono">{shortKey(status.device?.publicKey)}</span> and your recovery kit <span className="sx-mono">{shortKey(kit?.publicKey)}</span>
           </dd>
           <dt>Approvals needed</dt>
           <dd>{vault.threshold} of {vault.members.length}: either key can approve</dd>
-          <dt>Who can change members</dt>
+          <dt>Who can change the approvers</dt>
           <dd>Nobody. Config authority: none</dd>
         </dl>
         <div className="sx-row">
           <Link className="sx-btn" href="/dashboard">Go to your dashboard</Link>
-          <button type="button" className="sx-btn sx-btn-ghost" onClick={async () => setCopied(await copyText(vault.vaultPda))}>
-            {copied ? 'Copied' : 'Copy vault address'}
-          </button>
+          <Link className="sx-btn sx-btn-ghost" href="/dashboard/settings/account">
+            See your account ID
+          </Link>
         </div>
       </section>
       <section className="sx-card-quiet sx-stack" aria-labelledby="walk-title">
         <h2 id="walk-title">Walk-away kit</h2>
         <p>
-          Your 24 words and your vault address are all you need to reach your money without Splash. The words control a member key of the vault, so they can approve and move
-          funds on their own. Splash keeps no copy.
+          Your 24 words and your account ID (Settings › Account details) are all you need to reach your money without Splash. The words control one of your approvers&rsquo;
+          keys, so they can approve and move money on their own. Splash keeps no copy.
         </p>
         <p className="sx-small sx-muted">Restoring the words into a wallet app has not been tested in this build yet.</p>
       </section>
