@@ -22,7 +22,7 @@ Built for Colosseum (submission 12 Oct 2026). First corridor: Malaysia to the Ph
 | **Payout partner** | **Mock** ("Mock partner · devnet"): its peso rate is a fixed reference, not a live rate, and it pays no real bank. It stays a mock until a sandbox agreement is approved. |
 | Wallet screening (KYT) | **Stub**, labelled as such on every approval card and funds check. |
 | Funding from outside the vaults (bank or card top-ups, USDT or PYUSD swapped to USDC) | **Sandbox stand-ins**, labelled so on every screen: offline they credit the payments vault after a simulated funds check, and their charges are sandbox estimates. No agreement with any provider is signed. |
-| Treasury investments (T-bills via Ondo's USDY, US stocks and ETFs via Ondo) | **Test mode only**, until legal sign-off in Malaysia: orders are approved on a device and settled by a simulator. Every rate and past return is dated and sourced (`lib/treasury/reference.ts`). See `docs/solana-build/TREASURY.md`. |
+| Treasury investments (T-bills: Ondo's USDY; US stocks and ETFs through Splash's stock partner) | **Test mode only**, until legal sign-off in Malaysia: orders are approved on a device and settled by a simulator. Every rate and past return is dated and sourced (`lib/treasury/reference.ts`). See `docs/solana-build/TREASURY.md`. |
 | The run mode | **Offline by default**: every screen and receipt says "Test mode". The same code runs on devnet with `SPLASH_SOLANA_MODE=devnet`. |
 
 ## The problem
@@ -121,12 +121,16 @@ The browser walkthrough (`tests/solana-ui.e2e.mjs`) drives an installed Chrome o
 - **The Philippine bank list.** Recipient forms use a static list of banks and codes, not one from a real payout partner.
 - **AWS KMS switched on.** Full bank numbers are sealed with a local key in development; switching on AWS KMS before the first real customer is described in `docs/security/PII-STORAGE.md`.
 - **Sui's CCTP V2 status.** Not checked for this build.
-- **Ondo adapters.** The T-bills and stocks adapters (`usdy-sim`, `ondo-stocks-sim`) are mocks; no live adapter builds a transaction for the Investments account.
+- **Investment adapters.** The T-bills adapter (`usdy-sim`) and the stock partner's adapter (`treasurers-stocks-sim`) are mocks; no live adapter builds a transaction for the Investments account. No agreement with the stock partner is signed, and its real integration is not built.
 - **Live USDY rate.** The T-bills rate is a dated reference (3.75% a year, as of 13 Oct 2026, from ondo.finance/usdy), not a live feed; past 35 days it shows "Rate out of date".
-- **Ondo onboarding for direct subscriptions.** Subscribing straight from Ondo (and Ondo's own mint and redeem for stocks) needs the company onboarded with Ondo; in test mode it is simulated.
+- **Ondo onboarding for direct subscriptions.** Subscribing to T-bills straight from Ondo needs the company onboarded with Ondo; in test mode it is simulated.
 - **The USDY mint on Solana.** Taken from Ondo's own address list (`A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6`) and shown in Treasury's Technical details; nothing reads or moves it on-chain yet. The stock tokens' addresses are not checked and not used.
 - **The 40-day hold.** Ondo's USDY page doesn't state a holding period after a subscription; 40 days (Business Module v15.1) is kept as the cautious assumption.
 - **Ondo's wire-out redemption.** Redeeming with Ondo sends US dollars by bank wire to the company's bank, outside Splash (Ondo's documentation says so); in test mode it is simulated and never credits the Payments account.
+- **Treasury's booked price and interest (prompt 11).** The T-bill price is the simulator's: it is booked once a day, rising from 13 Oct 2026 at the dated rate. It is not Ondo's official price, and no feed reads that price. A browser walk can't move the clock, and a company's first day has no booked interest. So the interest chart with bars in it was seen in a browser only with the page's own treasury read given what `lib/treasury/history.ts` books for the units held as if bought 40 days earlier (`docs/design/p9/evidence/phase5/desktop-90`, `-91`), and the quarterly "Bring US$… interest back" draft and "Not now" holding sweep-out back for 7 days are covered by unit tests with a fake clock only.
+- **Fees kept inside Splash (prompt 11).** The fee a bank payout would have charged is priced by the simulator's routes when an inside-Splash payment is quoted. A live payout partner's fee may differ. Payments quoted before this change carry no figure and are left out.
+- **Browsers.** The Invoices morph, the reduced-motion states and the 390 px layouts were checked in Chromium (desktop and phone-sized viewports), including one local production build with throwaway settings. They were not checked in Safari, in Firefox, on a real phone, or on a deployed host.
+- **Passkeys.** Approvals are signed with the device key Splash creates in the browser, not a WebAuthn passkey, so the approve button says "Confirming with this device's key…".
 - **A returned bank payout keeps Splash's fee.** The partner returns what it received; Splash's fee isn't part of that. Whether to refund the fee on a return is not decided.
 
 ## Prior work

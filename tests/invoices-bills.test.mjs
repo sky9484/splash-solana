@@ -17,7 +17,7 @@ import { createDeviceKey, createMemoryDeviceKeyStore, signWithDeviceKey } from '
 import { deriveRecoveryKey, generateRecoveryWords, signPossessionChallenge } from '../lib/solana/recovery-kit.ts';
 import { resetKms } from '../lib/server/kms/index.ts';
 import { revealBankNumber, revealChallenge } from '../lib/server/bank-details.ts';
-import { billCounts, billsView, checkView, dismissBill, payBill, recordCallBack } from '../lib/solana-app/bills.ts';
+import { billCounts, billsView, checkView, dismissBill, payBill, readyBankBills, recordCallBack } from '../lib/solana-app/bills.ts';
 import { resetRuntime, runtime } from '../lib/solana-app/runtime.ts';
 import * as svc from '../lib/solana-app/service.ts';
 import { resetStore, store } from '../lib/solana-app/store.ts';
@@ -163,6 +163,27 @@ test('the inbox: To check, Ready to pay, Waiting for approval, Paid, each from t
   row = (await billsView(org.id)).rows[0];
   assert.deepEqual({ tab: row.tab, status: row.status.label, tone: row.status.tone, href: row.action.href }, { tab: 'waiting', status: 'Waiting for approval', tone: 'coral', href: `/dashboard/transfer?payment=${p.id}&step=approve` });
   assert.deepEqual(await billCounts(org.id), { check: 0, ready: 0, waiting: 1, paid: 0 });
+});
+
+test('Transfer’s Step 2 chip (prompt 11 §2.3): only checked bank invoices ready to pay, from this company; paying one reuses its open payment', async () => {
+  const { org } = await company();
+  const other = await company('Penang Imports Sdn Bhd');
+  const { invoice } = await svc.readInvoiceDraft(org.id, { sample: true });
+  assert.deepEqual(await readyBankBills(org.id), [], 'a bill still to check isn’t offered');
+  recordCallBack(org.id, invoice.id, { by: 'Aisyah', spokeTo: 'Rhea', numberCalled: '+63 2 8700 1100' });
+  const fields = Object.fromEntries(Object.entries(invoice.draft.fields).map(([k, v]) => [k, String(v)]));
+  const p = await payBill(org.id, invoice.id, { by: 'Aisyah', fields, confirmed: invoice.draft.needsConfirmation });
+  const f = invoice.draft.fields;
+  assert.deepEqual(await readyBankBills(org.id), [{ id: invoice.id, number: f.invoiceNumber, supplier: f.supplierName, bank: f.supplierBank, bankCode: 'BDO', last4: f.supplierAccountLast4, amountPhpMinor: f.amountPhpMinor }]);
+  assert.deepEqual(await readyBankBills(other.org.id), [], 'another company sees none of it');
+  // The chip pays through payBill: the invoice's open payment is quoted again, not a second payment.
+  const again = await payBill(org.id, invoice.id, { by: 'Aisyah' });
+  assert.equal(again.id, p.id);
+  assert.equal((await runtime().payments.listByOrg(org.id)).filter((x) => x.invoiceId === invoice.id).length, 1);
+  // Once it waits for approval it's no longer offered.
+  const view = await svc.paymentView(p.id);
+  await svc.selectRoute(p.id, { quoteId: view.cards[0].quoteId });
+  assert.deepEqual(await readyBankBills(org.id), []);
 });
 
 test('due dates within three days, and past them, are amber; "Not this one" takes a bill out of the inbox', async () => {

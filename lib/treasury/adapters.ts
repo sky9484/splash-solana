@@ -3,17 +3,21 @@
  * test mode the company approves an off-chain order on its device and the simulator plays the other
  * side. Two mocks:
  *
- *   usdy-sim         T-bills (USDY, issued by Ondo). Subscribe on the market (no hold, the price moves
- *                    with the order) or straight from Ondo (units held 40 days, UNCONFIRMED: see
- *                    reference.ts). Redeem on the market (US dollars back into the Payments account) or
- *                    with Ondo (US dollars by bank wire to the company's bank account, outside Splash:
- *                    never into the Payments account).
- *   ondo-stocks-sim  US stocks and ETFs via Ondo, bought and sold on the market. Ondo's own mint and
- *                    redeem needs the company onboarded with Ondo; until then an order is capped at what
- *                    the market allows (the 0.30% price-moved limit) and the sheet says why.
+ *   usdy-sim               T-bills (USDY, issued by Ondo), at the price booked that day (history.ts).
+ *                          Subscribe on the market (no hold, the price moves with the order) or straight
+ *                          from Ondo (units held 40 days, UNCONFIRMED: see reference.ts). Redeem on the
+ *                          market (US dollars back into the Payments account) or with Ondo (US dollars
+ *                          by bank wire to the company's bank account, outside Splash: never into the
+ *                          Payments account).
+ *   treasurers-stocks-sim  US stocks and ETFs, bought and sold through Treasurers, Splash's stock partner
+ *                          (prompt 11 §4.5, decision 11), which sends the order to each stock token's
+ *                          issuer (named only in Technical details). On the market only; an order is
+ *                          capped at what the market allows (the 0.30% price-moved limit) and the sheet
+ *                          says why. The real Treasurers integration is not built: a simulator.
  *
  * Integers only. Units are counted in millionths (UNIT); prices are US$ minor units per whole unit.
  */
+import { bookedPrice, utcDay } from './history.ts';
 import { stockRef, TBILLS, UNIT, type AssetId } from './reference.ts';
 
 export type OrderKind = 'subscribe' | 'redeem' | 'buy' | 'sell';
@@ -44,8 +48,11 @@ export interface OrderQuote {
 }
 
 export interface InvestmentAdapter {
-  readonly name: 'usdy-sim' | 'ondo-stocks-sim';
-  quote(req: { asset: AssetId; kind: OrderKind; path: OrderPath; amountMinor: bigint }): OrderQuote;
+  readonly name: 'usdy-sim' | 'treasurers-stocks-sim';
+  /** Who a person is told carries the order: Ondo issues the T-bill note; stocks go through Treasurers. */
+  readonly partnerLabel: 'Ondo' | 'Treasurers';
+  /** `now`: the day whose booked price a T-bill order uses (history.ts); stocks keep one test price. */
+  quote(req: { asset: AssetId; kind: OrderKind; path: OrderPath; amountMinor: bigint; now?: Date }): OrderQuote;
 }
 
 const ceilDiv = (n: bigint, d: bigint) => (n <= 0n ? 0n : (n + d - 1n) / d);
@@ -62,9 +69,11 @@ function market(depthMinor: bigint, amountMinor: bigint) {
 
 export const usdySim: InvestmentAdapter = {
   name: 'usdy-sim',
-  quote({ kind, path, amountMinor }) {
+  partnerLabel: 'Ondo',
+  quote({ kind, path, amountMinor, now = new Date() }) {
     if (kind !== 'subscribe' && kind !== 'redeem') throw new Error('T-bills are subscribed and redeemed');
-    const priceMinor = TBILLS.testPriceMinor;
+    // The price booked today (prompt 11 §4.2): the books and every order use the same one.
+    const priceMinor = bookedPrice(utcDay(now));
     const base = { asset: 'usdy' as const, kind, path, amountMinor, unitsMicro: unitsFor(amountMinor, priceMinor), priceMinor };
     if (path === 'market') {
       return { ...base, ...market(TBILLS.testDepthMinor, amountMinor), holdDays: 0, landsIn: kind === 'subscribe' ? 'investments' : 'payments' };
@@ -74,11 +83,12 @@ export const usdySim: InvestmentAdapter = {
   },
 };
 
-export const ondoStocksSim: InvestmentAdapter = {
-  name: 'ondo-stocks-sim',
+export const stocksSim: InvestmentAdapter = {
+  name: 'treasurers-stocks-sim',
+  partnerLabel: 'Treasurers',
   quote({ asset, kind, path, amountMinor }) {
     if (kind !== 'buy' && kind !== 'sell') throw new Error('Stocks are bought and sold');
-    if (path !== 'market') throw new Error('Ondo’s own mint and redeem needs the company onboarded with Ondo');
+    if (path !== 'market') throw new Error('Stocks are bought and sold on the market, through Treasurers');
     const ref = stockRef(asset);
     if (!ref) throw new Error(`Not a stock: ${asset}`);
     return {
@@ -96,12 +106,12 @@ export const ondoStocksSim: InvestmentAdapter = {
 };
 
 export function adapterFor(asset: AssetId): InvestmentAdapter {
-  return asset === 'usdy' ? usdySim : ondoStocksSim;
+  return asset === 'usdy' ? usdySim : stocksSim;
 }
 
-/** The current TEST price of an asset. */
-export function testPrice(asset: AssetId): bigint {
-  if (asset === 'usdy') return TBILLS.testPriceMinor;
+/** An asset's TEST price on the day of `now`: T-bills at the price booked that day (history.ts), stocks at one fixed test price. */
+export function testPrice(asset: AssetId, now: Date = new Date()): bigint {
+  if (asset === 'usdy') return bookedPrice(utcDay(now));
   const ref = stockRef(asset);
   if (!ref) throw new Error(`Not an asset: ${asset}`);
   return ref.testPriceMinor;

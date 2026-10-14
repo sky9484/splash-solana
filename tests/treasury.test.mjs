@@ -143,6 +143,15 @@ test('the sweep job drafts at most once a day, replaces an unapproved draft the 
   assert.doesNotMatch(cron, /approveOrder|prepareOrder|settleTestOrder/);
 });
 
+test('with sweep off, Zeke’s idle figure is the page’s Available to invest, not the Payments account less what waits', async () => {
+  const env = await company();
+  await svc.fund(env.org.id);
+  const v = await inv.treasuryView(env.org.id, OWNER);
+  assert.equal(v.sweep.on, false);
+  const usd = (minor) => `US$${(BigInt(minor) / 1_000_000n).toLocaleString('en-US')}.${((BigInt(minor) % 1_000_000n) / 10_000n).toString().padStart(2, '0')}`;
+  assert.equal(v.zeke, `${usd(v.available.totalMinor)} is available to invest: what’s left after what’s waiting and your reserve’s floor. Sweep is off, so I won’t draft a move, and I never pick an investment for you.`);
+});
+
 test('a sweep draft opens as its own order and is marked approved once a person approves it', async () => {
   const env = await company();
   await svc.fund(env.org.id);
@@ -158,6 +167,9 @@ test('a sweep draft opens as its own order and is marked approved once a person 
   assert.equal(r.bundle.sweep.draftId, draft.id);
   assert.equal(r.bundle.sweep.cushionMinor, $(5_000));
   await assert.rejects(() => inv.prepareOrder(env.org.id, { asset: 'usdy', kind: 'subscribe', amountMinor: 0n, sweepDraftId: draft.id }, 'Aisyah'), (e) => e.code === 'wrong_state');
+  // Zeke says today's sweep is decided, not that nothing needed drafting.
+  const v = await inv.treasuryView(env.org.id, OWNER);
+  assert.equal(v.zeke, 'Today’s sweep into T-bills, US$20,000.00, is approved. I’ll look again tomorrow, and I never pick an investment for you.');
 });
 
 /* ── Orders ───────────────────────────────────────────────────────────── */
@@ -181,7 +193,8 @@ test('subscribe on the market, then redeem on the market: no hold, the money com
   await svc.fund(env.org.id);
   inv.confirmEligibility(env.org.id, OWNER);
   const start = await balances(env);
-  const q = await inv.quoteOrder(env.org.id, { asset: 'usdy', kind: 'subscribe', amountMinor: $(10_000) });
+  // On the day the rate is dated the booked price is the test price itself (prompt 11 §4.2, history.ts).
+  const q = await inv.quoteOrder(env.org.id, { asset: 'usdy', kind: 'subscribe', amountMinor: $(10_000) }, new Date(`${TBILLS.rate.asOf}T12:00:00Z`));
   assert.equal(q.request.path, 'market', 'the planner picks the market within the 0.30% limit');
   assert.equal(q.words.units, '8,896.79 units at US$1.1240 (test price)');
   assert.match(q.words.how, /^On the market · no hold · price moved by 0\.04% \(limit 0\.30%\)$/);
@@ -356,10 +369,10 @@ const T_BILLS_BANNED = /\b(?:buy|buying|sell|selling|withdraw(?:al)?s?|yields?|A
 const DEPOSIT = /\bdeposits?\b/gi;
 
 test('claims: the T-bills card and its sheets never say Buy, Sell, Deposit, Withdraw, yield, APR, APY or earn; "Not a bank deposit" stays', async () => {
-  const page = readFileSync(new URL('../components/solana/treasury/Treasury.tsx', import.meta.url), 'utf8');
-  const card = page.slice(page.indexOf('{/* ── US Treasury bills ── */}'), page.indexOf('{/* ── US stocks and ETFs ── */}'));
+  // Prompt 11 §4.2: the T-bill pool card is its own file, with its chart.
+  const card = ['TbillCard.tsx', 'InterestChart.tsx'].map((f) => readFileSync(new URL(`../components/solana/treasury/${f}`, import.meta.url), 'utf8')).join('\n');
   assert.ok(card.length > 1000, 'found the T-bills card');
-  const text = card.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  const text = card.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(text, T_BILLS_BANNED);
   assert.match(text, /Not a bank deposit; its value can fall\./);
   for (const m of text.matchAll(DEPOSIT)) assert.match(text.slice(Math.max(0, m.index - 5), m.index + m[0].length), /bank deposits?$/i, 'deposit only as a bank deposit');
@@ -380,7 +393,8 @@ test('claims: the T-bills card and its sheets never say Buy, Sell, Deposit, With
   assert.match(sheet, /subscribe: \(\) => 'Subscribe to US Treasury bills'/);
   assert.match(sheet, /redeem: \(\) => 'Redeem US Treasury bills'/);
   assert.match(sheet, /tbill: 'Not a bank deposit; its value can fall\.'/);
-  // Dividends are never called a yield, anywhere on the page.
+  // Dividends are never called a yield, anywhere on the page (prompt 11: the page is several files now).
+  const page = ['Treasury.tsx', 'TbillCard.tsx', 'InterestChart.tsx', 'Stocks.tsx', 'HoldSweep.tsx', 'RiskRules.tsx'].map((f) => readFileSync(new URL(`../components/solana/treasury/${f}`, import.meta.url), 'utf8')).join('\n');
   assert.doesNotMatch(page.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ''), /\byields?\b|\bAPY\b|\bAPR\b|\bearn/i);
 });
 

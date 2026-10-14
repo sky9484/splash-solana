@@ -1,0 +1,82 @@
+{
+  "base": "http://localhost:3200",
+  "takenAt": "2026-10-14T20:24:17.783Z",
+  "widths": [
+    1440,
+    390
+  ],
+  "shots": [
+    {
+      "name": "01-overview",
+      "url": "/dashboard"
+    },
+    {
+      "name": "02-transfer-bank-1-recipient",
+      "url": "/dashboard/transfer"
+    },
+    {
+      "name": "03-transfer-bank-2-amount",
+      "url": "/dashboard/transfer?to=bank&step=amount"
+    },
+    {
+      "name": "04-transfer-bank-3-route",
+      "url": "/dashboard/transfer?to=bank&step=quote&payment=pay_33f0f681e0485e27"
+    },
+    {
+      "name": "05-transfer-bank-4-approve",
+      "url": "/dashboard/transfer?to=bank&step=approve&payment=pay_33f0f681e0485e27"
+    },
+    {
+      "name": "06-transfer-bank-5-track",
+      "url": "/dashboard/transfer?payment=pay_68e78784097fb49f&step=track"
+    },
+    {
+      "name": "07-transfer-splash-1-recipient",
+      "url": "/dashboard/transfer?to=splash"
+    },
+    {
+      "name": "08-transfer-splash-2-amount",
+      "url": "/dashboard/transfer?to=splash&step=amount"
+    },
+    {
+      "name": "09-transfer-splash-3-route",
+      "url": "/dashboard/transfer?to=splash&step=quote&payment=pay_65d9594602fa8aa9"
+    },
+    {
+      "name": "10-invoices-chooser",
+      "url": "/dashboard/invoices"
+    },
+    {
+      "name": "11-invoices-pay",
+      "url": "/dashboard/invoices/pay"
+    },
+    {
+      "name": "12-invoices-check",
+      "url": "/dashboard/invoices/pay?invoice=inv_03d495151c84b9a3"
+    },
+    {
+      "name": "13-invoices-get-paid",
+      "url": "/dashboard/invoices/get"
+    },
+    {
+      "name": "14-balance",
+      "url": "/dashboard/fund"
+    },
+    {
+      "name": "15-treasury-hold",
+      "url": "/dashboard/treasury"
+    },
+    {
+      "name": "16-treasury-sweep",
+      "url": "/dashboard/treasury"
+    },
+    {
+      "name": "17-zeke",
+      "url": "/dashboard/zeke"
+    },
+    {
+      "name": "18-zeke-floating-open",
+      "url": "/dashboard"
+    }
+  ]
+}

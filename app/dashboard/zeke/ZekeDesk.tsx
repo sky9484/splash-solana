@@ -100,7 +100,7 @@ export default function ZekeDesk() {
         title={
           <span className="iso-desk__title">
             <span className="iso-desk__face" aria-hidden="true">
-              <Image className="iso-bob iso-bob--slow" src="/cinematic/agent-bot-cut.png" alt="" width={56} height={56} priority />
+              <Image src="/cinematic/agent-bot-cut.png" alt="" width={56} height={56} priority />
             </span>
             {assistantName} <Tag tone="ink">AI</Tag>
           </span>

@@ -966,7 +966,10 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   const now = opts.now ?? new Date();
   const paymentId = opts.paymentId ?? `pay_${randomHex(8)}`;
   const kind: 'bank' | 'peer' = paysPeer(inv) ? 'peer' : 'bank';
-  const { engine, router, payout } = kind === 'peer' ? await pricePeer(vault, inv, paymentId, now, opts.allowShort ?? false) : await priceBank(org, vault, inv, paymentId, now, opts.allowShort ?? false);
+  const priced = kind === 'peer' ? await pricePeer(vault, inv, paymentId, now, opts.allowShort ?? false) : await priceBank(org, vault, inv, paymentId, now, opts.allowShort ?? false);
+  const { engine, router, payout } = priced;
+  // Prompt 11 §4.3: recorded at quote time; null on a bank payout.
+  const feeAvoidedMinor = priced.feeAvoidedMinor;
 
   const fresh = (d: PaymentRecord) => {
     // A proposal abandoned with approvals on it (its quote ran out): they belong to that quote, not the
@@ -984,6 +987,7 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
     d.engine = engine;
     d.router = router;
     d.payout = payout;
+    d.feeAvoidedMinor = feeAvoidedMinor;
     d.selectedQuoteId = null;
     d.policy = null;
     d.approval = null;
@@ -1029,6 +1033,7 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
     executedRoute: null,
     receiptId: null,
     problem: null,
+    feeAvoidedMinor,
   };
   const drafted = await repo().create(record, 'invoice confirmed');
   return cas(() => repo().transition(drafted.id, { from: 'draft', version: drafted.version }, 'quoted', undefined, 'quoted', now));
@@ -1096,7 +1101,8 @@ async function priceBank(org: OrgRecord, vault: NonNullable<OrgRecord['vault']>,
   const allQuotes = POLICIES.flatMap((p) => engine.ranked[p]);
   const router = explainRoutes({ picks: engine.picks, ranked: engine.ranked, homeLane: engine.homeLane, selected: 'cheapest' });
   assertRouterRefersToEngineQuote(router, allQuotes);
-  return { engine, router, payout };
+  // A bank payout pays its fee; only an inside-Splash payment keeps one (prompt 11 §4.3).
+  return { engine, router, payout, feeAvoidedMinor: null };
 }
 
 /**
@@ -1159,7 +1165,38 @@ async function pricePeer(vault: NonNullable<OrgRecord['vault']>, inv: InvoiceRec
     status: 'AWAITING_DEPOSIT',
     createdAt: nowIso(now),
   };
-  return { engine, router, payout };
+  return { engine, router, payout, feeAvoidedMinor: bankFeeFor(amount, now) };
+}
+
+/** Any well-formed deposit address: only a bank route's price is read here; nothing is sent to it. */
+const PRICING_DEPOSITS = { solana: '11111111111111111111111111111111', polygon: `0x${'0'.repeat(40)}` };
+
+/**
+ * Prompt 11 §4.3, "Fees kept inside Splash": what the cheapest bank payout of the same US$ amount would
+ * have charged (route, payout partner and Splash fees), priced by the same engine and partner at the
+ * moment an inside-Splash payment is quoted. null when no bank route prices it: nothing is recorded
+ * rather than a guess, and nothing is estimated later.
+ */
+export function bankFeeFor(amountUsdcMinor: bigint, now: Date): bigint | null {
+  try {
+    const rt = runtime();
+    const partnerQuotes = (['solana', 'polygon'] as const).map((network) => rt.partner.quote({ amountUsdcMinor }, { network, now }));
+    const engine = quoteRoutes({
+      paymentId: 'fee-avoided',
+      amount: { amountUsdcMinor },
+      // Priced as if the account held enough: this is a price, not a payment.
+      senderBalanceUsdcMinor: amountUsdcMinor * 2n + 1_000_000_000n,
+      partner: rt.partner.entry,
+      partnerQuotes,
+      deposits: PRICING_DEPOSITS,
+      now,
+      homeChain: 'solana',
+    });
+    const q = engine.picks.cheapest;
+    return q ? q.costs.routeMinor + q.costs.partnerMinor + q.costs.splashMinor : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Why approvals started again, in words: the rate moved (You pay changed), or the quote ran out. */
@@ -2360,6 +2397,8 @@ export async function paymentView(paymentId: string) {
     rehearsal: p.rehearsal,
     timeline: p.timeline,
     finalized: p.execution.finalizedAt !== null,
+    /** When the chain confirmed the transfer: for a payment inside Splash, when it was in their account. */
+    confirmedAt: p.execution.confirmedAt,
     signatures: p.signatures.map((s) => ({ ...s, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
     trace: paymentTrace(p),
     partnerEvents: p.partnerEvents.map((e) => ({ status: e.status, at: e.at, bankReference: e.bankReference ?? null })),

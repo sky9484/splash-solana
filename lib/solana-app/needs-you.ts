@@ -47,6 +47,8 @@ export interface DueIn {
   /** "16 Oct". */
   dueLabel: string;
   amountPhpMinor: bigint;
+  /** A bill from a business on Splash, asked in US dollars: its amount (its amountPhpMinor is 0). */
+  amountUsdMinor?: bigint | null;
 }
 
 export interface OverdueIn {
@@ -76,9 +78,13 @@ export interface NeedsInput {
   dueSoon: DueIn[];
   overdue: OverdueIn[];
   sweep: SweepIn | null;
+  /** Prompt 11 §4.4: the quarter's interest, drafted to come back (Zeke drafts; a person approves). */
+  quarter?: { amount: string; months: string; href: string } | null;
   setup: SetupIn[];
   /** Formats a PHP total of the due bills. */
   php: (minor: bigint) => string;
+  /** Formats a US dollar total of the due bills asked in US dollars. */
+  usd: (minor: bigint) => string;
 }
 
 export const NEEDS_LIMIT = 5;
@@ -123,13 +129,17 @@ export function needsYou(input: NeedsInput): { rows: NeedRow[]; more: NeedRow[];
 
   if (input.dueSoon.length > 0) {
     const sorted = [...input.dueSoon].sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
-    const total = sorted.reduce((n, d) => n + d.amountPhpMinor, 0n);
+    // Each currency summed on its own: a bill asked in US dollars is never counted as ₱0.00.
+    const phpTotal = sorted.reduce((n, d) => (d.amountUsdMinor != null ? n : n + d.amountPhpMinor), 0n);
+    const usdTotal = sorted.reduce((n, d) => n + (d.amountUsdMinor ?? 0n), 0n);
+    const anyPhp = sorted.some((d) => d.amountUsdMinor == null);
+    const total = [anyPhp ? input.php(phpTotal) : null, usdTotal > 0n || !anyPhp ? input.usd(usdTotal) : null].filter(Boolean).join(' and ');
     const names = sorted.slice(0, 2).map((d) => `${d.supplierName}, ${d.dueLabel}`);
     const more = sorted.length > 2 ? ` and ${sorted.length - 2} more` : '';
     rows.push({
       kind: 'due',
       tag: { tone: 'ink', label: 'Due this week' },
-      title: `${sorted.length} ${sorted.length === 1 ? 'invoice' : 'invoices'} · ${input.php(total)}`,
+      title: `${sorted.length} ${sorted.length === 1 ? 'invoice' : 'invoices'} · ${total}`,
       detail: `${names.join(' · ')}${more}`,
       action: { label: 'Plan', href: INVOICE_LINKS.pay },
     });
@@ -152,6 +162,16 @@ export function needsYou(input: NeedsInput): { rows: NeedRow[]; more: NeedRow[];
       title: `Sweep drafted · ${input.sweep.amount} ${input.sweep.kind === 'subscribe' ? 'into T-bills' : 'back from T-bills'}`,
       detail: 'From your sweep rule. Nothing moves until a person approves it.',
       action: { label: 'Review', href: input.sweep.href },
+    });
+  }
+
+  if (input.quarter) {
+    rows.push({
+      kind: 'sweep',
+      tag: { tone: 'gold', label: 'Zeke drafted' },
+      title: `Interest drafted · ${input.quarter.amount} back from T-bills`,
+      detail: `Last quarter’s interest (${input.quarter.months}). Nothing moves until a person approves it.`,
+      action: { label: 'Review', href: input.quarter.href },
     });
   }
 

@@ -12,7 +12,7 @@ import { ApiError, php, usd } from '../client';
 export type To = 'bank' | 'splash';
 export type StepId = 'recipient' | 'amount' | 'quote' | 'approve' | 'track';
 export const STEP_ORDER: readonly StepId[] = ['recipient', 'amount', 'quote', 'approve', 'track'];
-export const STEP_LABEL: Record<StepId, string> = { recipient: 'Recipient', amount: 'Amount', quote: 'Quote & send', approve: 'Approve', track: 'Track' };
+export const STEP_LABEL: Record<StepId, string> = { recipient: 'Recipient', amount: 'Amount', quote: 'Route', approve: 'Approve', track: 'Track' };
 
 export type RecipientsDTO = Wire<Awaited<ReturnType<typeof listRecipients>>>;
 export type RecipientRow = RecipientsDTO['recipients'][number];
@@ -34,6 +34,27 @@ export interface AmountDraft {
   sourceOfFunds: 'business_revenue' | 'owner_capital' | 'loan_or_facility' | 'customer_payment' | null;
   /** A business on Splash: on both receipts. */
   note: string;
+}
+
+/** A route as the server prices it: only what its tags need. */
+export interface LaneLike {
+  quoteId: string;
+  labels: readonly string[];
+  policies: readonly string[];
+  youPayUsdcMinor: string;
+}
+
+/**
+ * A route's tags (prompt 11 §2.3), from the server's labels, which follow its policies. "Cheapest"
+ * stays only when the route costs less than every other route shown: when two routes cost the same,
+ * neither is called the cheapest (prompt 11 Phase 5 review).
+ */
+export function laneTags(card: LaneLike, lanes: readonly LaneLike[]): Array<{ label: string; policy: string }> {
+  const others = lanes.filter((l) => l.quoteId !== card.quoteId);
+  const mine = BigInt(card.youPayUsdcMinor);
+  return card.labels
+    .map((label, i) => ({ label, policy: card.policies[i] ?? '' }))
+    .filter((t) => t.policy !== 'cheapest' || others.every((o) => BigInt(o.youPayUsdcMinor) > mine));
 }
 
 export type Problem = { code: string; message: string; detail?: Record<string, unknown> };

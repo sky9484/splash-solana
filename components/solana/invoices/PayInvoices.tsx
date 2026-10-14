@@ -16,6 +16,7 @@ import { api, php, usd } from '../client';
 import type { PaymentDTO } from '../types';
 import { problemOf, type Problem } from '../transfer/shared';
 import { CheckInvoice } from './CheckInvoice';
+import { INV_TYPES } from './InvoicesChooser';
 
 type Row = Wire<BillRow>;
 interface BillsDTO {
@@ -124,7 +125,7 @@ function Inbox() {
   return (
     <div className="iso iso-page">
       <PageHead
-        crumbs={[{ label: 'Invoices', href: '/dashboard/invoices' }, { label: 'Pay an invoice' }]}
+        crumbs={[{ label: 'Invoices', href: '/dashboard/invoices', prefetch: true, types: INV_TYPES }, { label: 'Pay an invoice' }]}
         title="Pay an invoice"
         context="Zeke reads each invoice and shows where every field came from. You check it, then approve the payment."
         actions={
@@ -183,7 +184,7 @@ function Inbox() {
             )}
           </div>
           <div className="iso-zekenote">
-            <Image className="iso-bob" src="/cinematic/agent-bot-cut.png" alt="" width={92} height={92} />
+            <Image src="/cinematic/agent-bot-cut.png" alt="" width={92} height={92} />
             <strong>Zeke reads; you check.</strong>
             <p>It reads with no tools, so a document can&rsquo;t make it do anything. New bank details always wait for a phone call-back.</p>
             <p className="iso-small">Forward invoices by email · coming soon</p>

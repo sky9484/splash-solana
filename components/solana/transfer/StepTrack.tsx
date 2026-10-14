@@ -1,13 +1,13 @@
 // iso-ui
-// iso-ui states: 2
 'use client';
 
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { CircleCheck, Download, FileCheck2, Share2 } from 'lucide-react';
+import { Check, CircleCheck, Download, FileCheck2, Share2 } from 'lucide-react';
+import clsx from 'clsx';
 
-import { IsoButton, IsoDisplay, IsoSurface, RouteMap, Station, Tag, Wire, type StationArt, type WireState } from '@/components/iso';
-import { PageHead } from '@/components/dashboard/PageHead';
+import { IsoButton, IsoSurface, Tag } from '@/components/iso';
+import LocalTime from '@/components/LocalTime';
 import { pipelineFor, stationOf, type StationId } from '@/lib/solana-app/stations';
 import type { CorridorPayoutBundle } from '@/lib/solana-evidence/bundle';
 import type { MerkleProof } from '@/lib/solana-evidence/merkle';
@@ -16,9 +16,10 @@ import { anchoredRootFromMemo, verifyBundle } from '@/lib/solana-evidence/verify
 import { api, copyText, php, shareReceiptLink, usd } from '../client';
 import type { PaymentDTO, ReceiptDTO } from '../types';
 import { notifyCompanyChanged } from '../useCompany';
+import { TxGrid } from './SoFar';
 import type { PayeeLabel } from './StepQuote';
 import { TechnicalDetails } from './TechnicalDetails';
-import { phpWhole, problemOf, shortName, usdWhole, type Problem } from './shared';
+import { problemOf, shortName, type Problem } from './shared';
 
 /** Where the payment can't go on from, and the one thing to do (§5.8). */
 const STOPPED = ['quote_expired', 'rejected_by_policy', 'proposal_failed', 'execute_failed', 'partner_failed'] as const;
@@ -29,12 +30,15 @@ const SETTLED = ['anchored', ...STOPPED];
 
 const LABEL: Record<StationId, string> = { draft: 'Draft', waiting: 'Approved', sent: 'Sent', partner: 'With partner', paid: 'Paid to bank', recording: 'Recording proof', recorded: 'Proof recorded', stopped: 'Stopped' };
 
+/** A moment in the reader's own time zone, day first on a 24-hour clock as elsewhere in the app: "14 Oct, 09:12". */
+const at = (iso: string) => <LocalTime value={iso} locale="en-GB" options={{ day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }} />;
+
 /**
- * Step 5, Track (prompt 10 §5.8, frame Flow-T5-Track): the route map again, now driven by the
- * payment's real state through lib/solana-app/stations.ts, the one mapping Overview and History use.
- * Coins move only on the link the payment is on, and only while it is on it: never on a timer. When
- * it is paid, one gold coin drops onto the bank (once). The receipt says "Recording proof" until the
- * proof is recorded; only then can it be verified and shared.
+ * Step 5, Track (prompt 11 §2.3; prompt 10 §5.8): the six stations, Approved, Sent, With partner, Paid
+ * to bank, Recording proof and Proof recorded, driven by the payment's real state through
+ * lib/solana-app/stations.ts (the one mapping Overview and History use). A coin moves only on the
+ * segment the payment is on, and only while it is on it: never on a timer. Then the receipt, which
+ * verifies once the proof is recorded, and on the right what happened, with times, and what's next.
  */
 export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onRetry }: { payment: PaymentDTO; payee: PayeeLabel; onPayment: (p: PaymentDTO) => void; onAnother: () => void; onRequote: () => void; onRetry: () => void }) {
   const peer = payment.kind === 'peer';
@@ -44,12 +48,10 @@ export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onR
   const stopped = (STOPPED as readonly string[]).includes(payment.state);
   // A stopped payment shows how far it got: the bank returned it after the partner had it; an execute
   // that failed had been approved. Before approval nothing was reached.
-  const at = stopped ? ids.indexOf(REACHED[payment.state] ?? ('none' as StationId)) : ids.indexOf(station);
+  const reached = stopped ? ids.indexOf(REACHED[payment.state] ?? ('none' as StationId)) : ids.indexOf(station);
   const paidAt = ids.indexOf('paid');
 
-  // Read the payment until nothing more happens without a person. Each answer moves the map.
-  const [seen, setSeen] = useState(at);
-  const [drop, setDrop] = useState(false);
+  // Read the payment until nothing more happens without a person. Each answer moves the tracker.
   useEffect(() => {
     if (SETTLED.includes(payment.state)) return;
     let stop = false;
@@ -68,115 +70,87 @@ export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onR
       window.clearTimeout(t);
     };
   }, [payment, onPayment, station]);
-  // The gold coin drops once, when this page sees the payment reach the bank.
-  useEffect(() => {
-    if (at === seen) return;
-    /* eslint-disable react-hooks/set-state-in-effect -- the coin answers a state change seen here */
-    if (seen < paidAt && at >= paidAt) setDrop(true);
-    setSeen(at);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [at, seen, paidAt]);
 
   const short = shortName(payee.name);
-  const conf = payment.invoice.confirmed;
-  const card = [...payment.cards, ...(payment.compare ? [payment.compare] : [])].find((c) => c.quoteId === payment.selectedQuoteId) ?? null;
-  const receiveMinor = peer ? (payment.approval?.receiveUsdMinor ?? card?.receivePhpMinor ?? '0') : (payment.approval?.receivePhpMinor ?? conf?.amountPhpMinor ?? '0');
-  const amount = peer ? usdWhole(receiveMinor) : phpWhole(receiveMinor);
-  const amountFull = peer ? usd(receiveMinor) : php(receiveMinor);
-  const paid = at >= paidAt && !stopped;
+  const paid = reached >= paidAt && !stopped;
   const recorded = payment.state === 'anchored';
-  const approvers = payment.approvals.approvedBy.map((a) => a.name).join(' and ') || 'you';
   const waiting = payment.state === 'proposed';
-
-  const title = stopped ? stoppedTitle(payment.state, short) : paid ? `${short} has been paid` : `${amount} is on its way to ${short}`;
-  const line = stopped
-    ? null
-    : waiting
-      ? `${payment.approvals.approved} of ${payment.approvals.threshold} approved · waiting for ${payment.approvals.waitingFor.map((w) => w.name).join(' and ')}`
-      : station === 'sent'
-        ? peer
-          ? 'Sent from your Payments account.'
-          : 'Sent from your Payments account. The partner pays their bank next.'
-        : station === 'partner'
-          ? `With the payout partner, who pays ${payee.bank} by ${payment.approval?.arrives.split(',')[0] ?? 'bank transfer'}.`
-          : station === 'paid'
-            ? peer
-              ? `In ${short}’s Splash account. Recording the proof.`
-              : `In ${short}’s bank account. Recording the proof.`
-            : station === 'recording'
-              ? 'Paid. Recording the proof for this payment.'
-              : 'Paid, and the proof is recorded. This receipt verifies.';
-
-  const art = (id: StationId, tone: 'done' | 'now' | 'quiet'): StationArt => {
-    switch (id) {
-      case 'waiting':
-        return { kind: 'tile', value: tone === 'quiet' ? '1' : '✓', tone: tone === 'quiet' ? 'quiet' : tone === 'now' && waiting ? 'coral' : 'done' };
-      case 'sent':
-        return { kind: 'coin', coin: 'usd', size: 64 };
-      case 'partner':
-        return { kind: 'block', glyph: 'partner', size: 84 };
-      case 'paid':
-        return peer ? { kind: 'block', glyph: 'business', size: 84 } : { kind: 'coin', coin: 'php', size: 64, late: true };
-      case 'recording':
-        return { kind: 'proof', tone: 'quiet' };
-      default:
-        return { kind: 'proof', tone: tone === 'quiet' ? 'quiet' : 'ok' };
-    }
-  };
-  const help: Record<StationId, string> = {
-    draft: '',
-    waiting: waiting ? `${payment.approvals.approved} of ${payment.approvals.threshold} approved` : `by ${approvers}`,
-    sent: 'from your Payments account',
-    partner: 'payout partner, Philippines',
-    paid: peer ? 'their Splash account' : `${payee.bank ?? ''} •••• ${payee.last4 ?? ''}`,
-    recording: 'one record for this payment',
-    recorded: 'this receipt verifies',
-    stopped: '',
-  };
-  // The link the money is on: from where it is to the next station, only while it travels there.
+  const title = stopped ? stoppedTitle(payment.state, short) : recorded ? 'Paid, with proof recorded' : paid ? (peer ? 'Paid into their Splash account' : 'Paid to the bank') : 'On its way';
+  // The segment the money is on: from where it is to the next station, only while it travels there.
   const moving = !stopped && (station === 'sent' || (station === 'partner' && !peer));
-  const wire = (i: number): WireState => (i < at ? 'done' : i === at && moving ? 'active' : 'quiet');
 
-  return (
+  const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
+  const [receiptProblem, setReceiptProblem] = useState<Problem | null>(null);
+  const read = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${payment.receiptId}:${payment.state}`;
+    if (!payment.receiptId || read.current === key) return;
+    read.current = key;
+    api<{ receipt: ReceiptDTO }>(`/receipts/${payment.receiptId}`)
+      .then((r) => setReceipt(r.receipt))
+      .catch((e) => setReceiptProblem(problemOf(e)));
+  }, [payment.receiptId, payment.state]);
+
+  const main = (
     <>
-      <PageHead title={title} context={line} actions={recorded ? <Tag tone="ok" tick>Paid · proof recorded</Tag> : paid ? <Tag tone="ok" tick>Paid</Tag> : stopped ? <Tag tone="danger">Stopped</Tag> : waiting ? <Tag tone="coral">Waiting approval</Tag> : <Tag tone="ink">On its way</Tag>} />
-
-      <IsoSurface hero pad className="iso-rise iso-rise-2 iso-stack" aria-label="Where the payment is">
-        <RouteMap label={`Where ${amountFull} to ${payee.name} is`} wireTop={40}>
+      <IsoSurface pad className="iso-stack" aria-labelledby="t5-title">
+        <div className="iso-row" style={{ justifyContent: 'space-between' }}>
+          <h2 id="t5-title" className="iso-h2" data-step-heading>
+            {title}
+          </h2>
+          {recorded ? (
+            <Tag tone="ok" tick>
+              Proof recorded
+            </Tag>
+          ) : paid ? (
+            <Tag tone="ok" tick>
+              Paid
+            </Tag>
+          ) : stopped ? (
+            <Tag tone="danger">Stopped</Tag>
+          ) : waiting ? (
+            <Tag tone="coral">Waiting approval</Tag>
+          ) : (
+            <Tag tone="ink">On its way</Tag>
+          )}
+        </div>
+        <ol className="iso-tracker" style={{ ['--n' as string]: ids.length }} aria-label={`Where ${peer ? usd(payment.approval?.receiveUsdMinor ?? '0') : php(payment.approval?.receivePhpMinor ?? '0')} to ${payee.name} is`}>
           {ids.map((id, i) => {
-            const tone = stopped ? (i <= at ? 'done' : 'quiet') : i < at ? 'done' : i === at ? 'now' : 'quiet';
-            const stationLabel = id === 'waiting' && waiting ? 'Waiting approval' : id === 'paid' && peer ? 'In their account' : LABEL[id];
+            // Arriving is a done thing: once the money is in, "Paid to bank" / "In their account" is ticked
+            // and recording the proof is what happens now (prompt 11 Phase 5 review).
+            const nowAt = recorded ? ids.length : station === 'paid' ? reached + 1 : reached;
+            const tone = stopped ? (i <= reached ? 'done' : 'later') : i < nowAt ? 'done' : i === nowAt ? 'now' : 'later';
+            const label = id === 'waiting' && waiting ? 'Waiting approval' : id === 'paid' && peer ? 'In their account' : LABEL[id];
             return (
               <Fragment key={id}>
-                {i > 0 ? <Wire state={wire(i - 1)} /> : null}
-                <Station art={art(id, tone)} label={stationLabel} help={help[id]} current={i === at} className={[tone === 'quiet' ? 'iso-station--later' : '', id === 'paid' ? 'iso-station--landing' : ''].join(' ').trim() || undefined}>
-                  {id === 'paid' && drop ? <span className="iso-landing-coin" aria-hidden="true" onAnimationEnd={() => setDrop(false)} /> : null}
-                  {id === 'paid' ? (
-                    <span className="iso-sr">{tone === 'quiet' ? 'not yet' : 'done'}</span>
+                <li className={clsx('iso-tracker__st', `iso-tracker__st--${tone}`)} aria-current={tone === 'now' ? 'step' : undefined}>
+                  <span className="iso-tracker__dot" aria-hidden="true">
+                    {tone === 'done' ? <Check size={13} strokeWidth={3} /> : null}
+                  </span>
+                  <span className="iso-tracker__label">{label}</span>
+                  <span className="iso-sr">{tone === 'done' ? ': done' : tone === 'now' ? ': now' : ': not yet'}</span>
+                  {i < ids.length - 1 ? (
+                    <span className={clsx('iso-tracker__bar', i < reached && 'iso-tracker__bar--done', i === reached && moving && 'iso-tracker__bar--active')} aria-hidden="true">
+                      <span className="iso-coin" />
+                    </span>
                   ) : null}
-                </Station>
+                </li>
               </Fragment>
             );
           })}
-        </RouteMap>
-        <div className="iso-row iso-track__foot">
-          <span className="iso-label">
-            {short} gets <IsoDisplay size="md">{amountFull}</IsoDisplay>
-          </span>
-          <span className="iso-small" aria-live="polite">
-            Coins move only on the line the payment is on, and only when it really moves. This page updates by itself.
-          </span>
-        </div>
+        </ol>
+        <p className="iso-small" style={{ margin: 0 }} aria-live="polite">
+          {peer ? 'Straight into their own Splash account: no payout partner.' : payment.simulated ? 'In this demo the payout partner is a test partner.' : `Paid out by ${payment.partnerLabel}.`} This page updates by itself.
+        </p>
       </IsoSurface>
 
       {stopped ? <Stopped state={payment.state} problem={payment.problem} short={short} onRequote={onRequote} onRetry={onRetry} /> : null}
 
-      <div className="iso-grid-2 iso-rise iso-rise-3">
-        {payment.receiptId ? <Receipt payment={payment} short={short} recorded={recorded} /> : <ReceiptPending peer={peer} />}
-        <WhatsNext payment={payment} done={recorded || paid} stopped={stopped} onAnother={onAnother} />
-      </div>
+      {payment.receiptId ? <Receipt payment={payment} payee={payee} receipt={receipt} problem={receiptProblem} recorded={recorded} /> : <ReceiptPending peer={peer} paid={paid} />}
     </>
   );
+
+  return <TxGrid main={main} rail={<Rail payment={payment} receipt={receipt} peer={peer} stopped={stopped} done={recorded || paid} onAnother={onAnother} />} />;
 }
 
 function stoppedTitle(state: string, short: string): string {
@@ -206,35 +180,23 @@ function Stopped({ state, problem, short, onRequote, onRetry }: { state: string;
   );
 }
 
-function ReceiptPending({ peer }: { peer: boolean }) {
+function ReceiptPending({ peer, paid }: { peer: boolean; paid: boolean }) {
   return (
     <IsoSurface pad className="iso-stack" aria-labelledby="t5-receipt">
       <h2 id="t5-receipt" className="iso-h2">
         Receipt
       </h2>
       <p className="iso-small" style={{ margin: 0 }}>
-        {peer ? 'The receipt is ready once the money is in their account.' : 'The receipt is ready once the partner reports the bank has paid.'} One record holds the approval, the transfer and the proof.
+        {paid ? 'The receipt is ready once the proof is recorded.' : peer ? 'The receipt is ready once the money is in their account.' : 'The receipt is ready once the partner reports the bank has paid.'} One record holds the approval, the transfer and the proof.
       </p>
     </IsoSurface>
   );
 }
 
-/** The receipt summary: Verify and Share only once the proof is recorded (§5.8). */
-function Receipt({ payment, short, recorded }: { payment: PaymentDTO; short: string; recorded: boolean }) {
-  const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
+/** The receipt: Verify and Share only once the proof is recorded (§5.8). */
+function Receipt({ payment, payee, receipt, problem, recorded }: { payment: PaymentDTO; payee: PayeeLabel; receipt: ReceiptDTO | null; problem: Problem | null; recorded: boolean }) {
   const [verdict, setVerdict] = useState<null | 'ok' | 'bad'>(null);
   const [shared, setShared] = useState<null | 'copied' | 'failed'>(null);
-  const [problem, setProblem] = useState<Problem | null>(null);
-  const read = useRef<string | null>(null);
-
-  useEffect(() => {
-    const key = `${payment.receiptId}:${payment.state}`;
-    if (!payment.receiptId || read.current === key) return;
-    read.current = key;
-    api<{ receipt: ReceiptDTO }>(`/receipts/${payment.receiptId}`)
-      .then((r) => setReceipt(r.receipt))
-      .catch((e) => setProblem(problemOf(e)));
-  }, [payment.receiptId, payment.state]);
 
   function verify() {
     if (!receipt || receipt.anchor.status !== 'anchored') return;
@@ -257,97 +219,114 @@ function Receipt({ payment, short, recorded }: { payment: PaymentDTO; short: str
 
   const s = receipt?.summary ?? null;
   const peer = payment.kind === 'peer';
+  const rate = payment.cards.find((c) => c.quoteId === payment.selectedQuoteId)?.rate ?? null;
   return (
-    <IsoSurface className="iso-stack iso-receipt" aria-labelledby="t5-receipt">
-      <div className="iso-surface--head">
+    <IsoSurface pad className="iso-stack iso-receipt" aria-labelledby="t5-receipt">
+      <div className="iso-row" style={{ justifyContent: 'space-between' }}>
         <h2 id="t5-receipt" className="iso-h2">
-          Receipt <span className="iso-mono">{payment.invoice.confirmed?.invoiceNumber}</span>
+          Receipt
         </h2>
-        <Link className="iso-small" href={`/dashboard/receipts/${payment.receiptId}`}>
-          Full receipt
-        </Link>
+        <IsoButton variant="quiet" onClick={verify} disabledReason={recorded && receipt ? null : 'Opens once the proof is recorded.'}>
+          <CircleCheck size={16} aria-hidden="true" /> Verify receipt
+        </IsoButton>
       </div>
-      <div className="iso-surface--pad iso-stack">
-        {!s ? (
-          problem ? (
-            <p className="iso-note iso-note--danger" role="alert">
-              {problem.message}
-            </p>
-          ) : (
-            <div className="iso-skel" style={{ height: 120 }} aria-busy="true" aria-label="Loading the receipt" />
-          )
+      {!s ? (
+        problem ? (
+          <p className="iso-note iso-note--danger" role="alert">
+            {problem.message}
+          </p>
         ) : (
-          <dl className="iso-dl iso-dl--rows iso-num">
+          <div className="iso-skel" style={{ height: 120 }} aria-busy="true" aria-label="Loading the receipt" />
+        )
+      ) : (
+        <dl className="iso-dl iso-dl--rows iso-num iso-receipt__rows">
+          <div>
+            <dt>Invoice</dt>
+            <dd className="iso-mono">{s.invoiceNumber}</dd>
+          </div>
+          <div>
+            <dt>Paid to</dt>
+            <dd>{s.supplierName}</dd>
+          </div>
+          <div>
+            <dt>{peer ? 'Into' : 'Bank'}</dt>
+            <dd>{peer ? 'Their Splash account' : `${s.bank} •••• ${s.accountLast4}`}</dd>
+          </div>
+          <div>
+            <dt>They received</dt>
+            <dd>
+              <strong>{peer ? usd(s.receiveUsdMinor ?? '0') : php(s.receivePhpMinor)}</strong>
+            </dd>
+          </div>
+          <div>
+            <dt>You paid</dt>
+            <dd>{usd(s.youPayUsdcMinor)}</dd>
+          </div>
+          {peer ? (
+            s.note ? (
+              <div>
+                <dt>Note</dt>
+                <dd>{s.note}</dd>
+              </div>
+            ) : null
+          ) : (
             <div>
-              <dt>{short} received</dt>
+              <dt>Rate</dt>
               <dd>
-                <strong>{peer ? usd(s.receiveUsdMinor ?? '0') : php(s.receivePhpMinor)}</strong>
+                {rate ?? '—'}
+                {payment.simulated ? ' (test rate)' : ''}
               </dd>
             </div>
+          )}
+          <div>
+            <dt>Approved by</dt>
+            <dd>{payment.approvals.approvedBy.map((a) => a.name).join(' and ') || '—'}, on a device</dd>
+          </div>
+          {peer ? null : (
             <div>
-              <dt>You paid</dt>
-              <dd>{usd(s.youPayUsdcMinor)}</dd>
+              <dt>Bank reference</dt>
+              <dd className="iso-mono">{s.bankReference ?? '—'}</dd>
             </div>
-            {peer ? (
-              s.note ? (
-                <div>
-                  <dt>Note</dt>
-                  <dd>{s.note}</dd>
-                </div>
-              ) : null
-            ) : (
-              <>
-                <div>
-                  <dt>Rate</dt>
-                  <dd>{payment.cards.find((c) => c.quoteId === payment.selectedQuoteId)?.rate ?? '—'}{payment.simulated ? ' (test rate)' : ''}</dd>
-                </div>
-                <div>
-                  <dt>Bank reference</dt>
-                  <dd className="iso-mono">{s.bankReference ?? '—'}</dd>
-                </div>
-              </>
-            )}
-            <div>
-              <dt>Approved by</dt>
-              <dd>{payment.approvals.approvedBy.map((a) => a.name).join(' and ') || '—'}, on a device</dd>
-            </div>
-          </dl>
-        )}
-        <div className="iso-row iso-proofline">
-          <FileCheck2 size={18} aria-hidden="true" />
-          <span>
-            <strong>{recorded ? 'Proof recorded.' : 'Recording proof.'}</strong> {recorded ? 'This receipt can be checked against the proof recorded for it.' : 'One record for this payment. Verify and Share open once it’s recorded.'}
-          </span>
-        </div>
-        <div className="iso-actions">
-          <IsoButton variant="primary" size="sm" onClick={verify} disabledReason={recorded && receipt ? null : 'Opens once the proof is recorded.'}>
-            <CircleCheck size={16} aria-hidden="true" /> Verify this receipt
-          </IsoButton>
-          <IsoButton variant="quiet" size="sm" onClick={() => void share()} disabledReason={recorded ? null : 'Opens once the proof is recorded.'}>
-            <Share2 size={16} aria-hidden="true" /> {shared === 'copied' ? 'Auditor link copied' : 'Share with auditor'}
-          </IsoButton>
-          <IsoButton variant="quiet" size="sm" onClick={() => window.print()}>
-            <Download size={16} aria-hidden="true" /> Download PDF
-          </IsoButton>
-        </div>
-        {verdict ? (
-          <p className={verdict === 'ok' ? 'iso-note iso-note--ok' : 'iso-note iso-note--danger'} role="status">
-            {verdict === 'ok' ? 'Verified. This record matches the proof recorded for it.' : 'This record doesn’t match the proof recorded for it. Open the full receipt to see which check failed.'}
-          </p>
-        ) : null}
-        {shared === 'failed' ? (
-          <p className="iso-note iso-note--danger" role="alert">
-            The link couldn’t be copied. Open the full receipt to share it.
-          </p>
-        ) : null}
-        <TechnicalDetails payment={payment} bankReference={s?.bankReference ?? null} />
+          )}
+        </dl>
+      )}
+      <div className="iso-row iso-proofline">
+        <FileCheck2 size={18} aria-hidden="true" />
+        <span>
+          <strong>{recorded ? 'Proof recorded.' : 'Recording proof.'}</strong> {recorded ? 'Verify to check nothing was changed since.' : 'One record for this payment. Verify and Share open once it’s recorded.'}
+        </span>
       </div>
+      {verdict ? (
+        <p className={verdict === 'ok' ? 'iso-note iso-note--ok' : 'iso-note iso-note--danger'} role="status">
+          {verdict === 'ok' ? 'This receipt verifies. It matches the proof recorded for it.' : 'This record doesn’t match the proof recorded for it. Open the full receipt to see which check failed.'}
+        </p>
+      ) : null}
+      <div className="iso-actions">
+        <IsoButton variant="link" onClick={() => void share()} disabledReason={recorded ? null : 'Opens once the proof is recorded.'}>
+          <Share2 size={16} aria-hidden="true" /> {shared === 'copied' ? 'Auditor link copied' : 'Share with auditor'}
+        </IsoButton>
+        <IsoButton variant="link" onClick={() => window.print()}>
+          <Download size={16} aria-hidden="true" /> Download PDF
+        </IsoButton>
+        {payment.receiptId ? (
+          <Link className="iso-btn iso-btn--link" href={`/dashboard/receipts/${payment.receiptId}`}>
+            Full receipt
+          </Link>
+        ) : null}
+      </div>
+      {shared === 'failed' ? (
+        <p className="iso-note iso-note--danger" role="alert">
+          The link couldn’t be copied. Open the full receipt to share it.
+        </p>
+      ) : null}
+      <TechnicalDetails payment={payment} bankReference={s?.bankReference ?? null} />
+      <span className="iso-sr">Paid to {payee.name}.</span>
     </IsoSurface>
   );
 }
 
-/** "What's next": nothing needs you, or the one thing that does. */
-function WhatsNext({ payment, done, stopped, onAnother }: { payment: PaymentDTO; done: boolean; stopped: boolean; onAnother: () => void }) {
+/** The right rail on Track: what happened so far, with times, and what's next. */
+function Rail({ payment, receipt, peer, stopped, done, onAnother }: { payment: PaymentDTO; receipt: ReceiptDTO | null; peer: boolean; stopped: boolean; done: boolean; onAnother: () => void }) {
   const [saved, setSaved] = useState<null | 'saved' | Problem>(null);
   async function save() {
     try {
@@ -357,24 +336,48 @@ function WhatsNext({ payment, done, stopped, onAnother }: { payment: PaymentDTO;
       setSaved(problemOf(e));
     }
   }
+  const t = payment.timeline;
+  const recorded = payment.state === 'anchored';
+  const events: Array<{ what: string; at: string | null }> = [];
+  if (t.approvedAt || payment.approvals.approved > 0) events.push({ what: 'Approved', at: t.approvedAt ?? null });
+  if (t.sentAt) events.push({ what: 'Sent', at: t.sentAt });
+  if (!peer && t.receivedAt) events.push({ what: 'With partner', at: t.receivedAt });
+  // Inside Splash there's no partner to report "paid": the money is in their account when the chain confirms it.
+  const paidMoment = peer ? (payment.confirmedAt ?? t.paidAt ?? null) : (t.paidAt ?? null);
+  if (paidMoment) events.push({ what: peer ? 'In their account' : 'Paid to bank', at: paidMoment });
+  if (t.returnedAt) events.push({ what: 'Returned by the bank', at: t.returnedAt });
+  if (payment.receiptId) events.push({ what: 'Recording proof', at: receipt?.bundle.receipt.issuedAt ?? null });
+  if (recorded) events.push({ what: 'Proof recorded', at: null });
   const waiting = payment.state === 'proposed';
   return (
-    <IsoSurface pad className="iso-stack" aria-labelledby="t5-next">
-      <h2 id="t5-next" className="iso-h2">
+    <IsoSurface pad className="iso-stack" aria-labelledby="t5-happened">
+      <h2 id="t5-happened" className="iso-h3">
+        What happened
+      </h2>
+      {events.length === 0 ? (
+        <p className="iso-small" style={{ margin: 0 }}>
+          Nothing yet.
+        </p>
+      ) : (
+        <ol className="iso-happened">
+          {events.map((e) => (
+            <li key={e.what}>
+              <strong>{e.what}</strong>
+              {e.at ? <span className="iso-small">{at(e.at)}</span> : null}
+            </li>
+          ))}
+        </ol>
+      )}
+      <hr className="iso-divider" />
+      <h2 id="t5-next" className="iso-h3">
         What’s next
       </h2>
       <p className="iso-body" style={{ margin: 0 }}>
-        {stopped ? 'This payment needs you: see what happened above.' : waiting ? `Nothing for you. ${payment.approvals.waitingFor.map((w) => w.name).join(' and ')} approves next.` : done ? 'Nothing needs you.' : 'Nothing needs you. This page updates by itself, and Overview shows it too.'}
+        {stopped ? 'This payment needs you: see what happened on the left.' : waiting ? `Nothing for you. ${payment.approvals.waitingFor.map((w) => w.name).join(' and ')} approves next.` : done ? (recorded ? 'Nothing. The receipt is ready to verify and share.' : 'Nothing needs you. The proof is being recorded.') : 'Nothing needs you. This page updates by itself, and Overview shows it too.'}
       </p>
       <div className="iso-actions">
-        <IsoButton variant="primary" onClick={onAnother}>
-          Pay another
-        </IsoButton>
         <IsoButton variant="quiet" onClick={() => void save()} disabledReason={saved === 'saved' ? 'Saved as a template.' : null}>
           {saved === 'saved' ? 'Saved as a template' : 'Save as template'}
-        </IsoButton>
-        <IsoButton variant="link" href="/dashboard">
-          Back to Overview
         </IsoButton>
       </div>
       {saved && saved !== 'saved' ? (
@@ -382,6 +385,9 @@ function WhatsNext({ payment, done, stopped, onAnother }: { payment: PaymentDTO;
           {saved.message}
         </p>
       ) : null}
+      <IsoButton variant="quiet" block onClick={onAnother}>
+        Start a new transfer
+      </IsoButton>
     </IsoSurface>
   );
 }

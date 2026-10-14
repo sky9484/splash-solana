@@ -329,10 +329,37 @@ async function createPage(call, subscribe, viewport) {
     throw new Error(`Tabbed ${max} times without reaching ${what}`);
   }
 
+  /** A real pointer (CDP Input events): moves the mouse to (x, y) in the viewport, so :hover applies. */
+  async function mouse(x, y, type = 'mouseMoved') {
+    await call('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
+  }
+
   /** Emulate CSS media features, e.g. [{ name: 'prefers-reduced-motion', value: 'reduce' }]. */
   async function emulateMedia(features) {
     await call('Emulation.setEmulatedMedia', { features });
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, requests, errors, stuck, sleep };
+  /**
+   * Record what the page paints, frame by frame (CDP screencast), while `act` runs: for motion that a
+   * screenshot can't show (prompt 11 Phase 3, the Invoices morph). Frames are JPEG, with the time each
+   * was painted.
+   */
+  async function record(act, { everyNthFrame = 1, quality = 70 } = {}) {
+    const frames = [];
+    const stop = subscribe((msg) => {
+      if (msg.method !== 'Page.screencastFrame') return;
+      frames.push({ at: msg.params.metadata.timestamp, data: msg.params.data });
+      void call('Page.screencastFrameAck', { sessionId: msg.params.sessionId }).catch(() => {});
+    });
+    await call('Page.startScreencast', { format: 'jpeg', quality, everyNthFrame, maxWidth: width, maxHeight: height });
+    try {
+      await act();
+    } finally {
+      await call('Page.stopScreencast');
+      stop();
+    }
+    return frames;
+  }
+
+  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, record, requests, errors, stuck, sleep };
 }

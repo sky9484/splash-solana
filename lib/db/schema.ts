@@ -400,6 +400,8 @@ export const solanaPayments = pgTable('solana_payments', {
   state: text('state').notNull(),
   version: integer('version').notNull(),
   record: jsonb('record').notNull(),
+  /** Prompt 11 §4.3: an inside-Splash payment's avoided payout fee, US$ minor units, set at quote time. */
+  feeAvoidedMinor: bigint('fee_avoided_minor', { mode: 'bigint' }),
   ...timestamps,
 }, (table) => [
   index('solana_payments_org_idx').on(table.orgId, table.createdAt),
