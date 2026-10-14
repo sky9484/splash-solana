@@ -339,5 +339,27 @@ async function createPage(call, subscribe, viewport) {
     await call('Emulation.setEmulatedMedia', { features });
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, requests, errors, stuck, sleep };
+  /**
+   * Record what the page paints, frame by frame (CDP screencast), while `act` runs: for motion that a
+   * screenshot can't show (prompt 11 Phase 3, the Invoices morph). Frames are JPEG, with the time each
+   * was painted.
+   */
+  async function record(act, { everyNthFrame = 1, quality = 70 } = {}) {
+    const frames = [];
+    const stop = subscribe((msg) => {
+      if (msg.method !== 'Page.screencastFrame') return;
+      frames.push({ at: msg.params.metadata.timestamp, data: msg.params.data });
+      void call('Page.screencastFrameAck', { sessionId: msg.params.sessionId }).catch(() => {});
+    });
+    await call('Page.startScreencast', { format: 'jpeg', quality, everyNthFrame, maxWidth: width, maxHeight: height });
+    try {
+      await act();
+    } finally {
+      await call('Page.stopScreencast');
+      stop();
+    }
+    return frames;
+  }
+
+  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, record, requests, errors, stuck, sleep };
 }

@@ -1570,6 +1570,16 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 }
 .iso .iso-chooser__card:focus-visible { box-shadow: var(--lift-hero-2); }
 .iso .iso-chooser__card:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+/* Prompt 11 Phase 3: the two cards rise in 70 ms apart; the coins bob 5 px on a 3.2 s loop (reduced
+   motion stops them with every .iso-bob). */
+.iso .iso-chooser__card--second { animation-delay: 70ms; }
+.iso .iso-chooser__art.iso-bob { animation: iso-bob-chooser 3.2s ease-in-out infinite; }
+.iso .iso-chooser__art.iso-bob--late { animation-delay: -1.6s; }
+@keyframes iso-bob-chooser { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* Where a view transition can't run (components/solana/invoices/InvoicesChooser.tsx): the chosen card
+   lifts to 1.03 on the deeper shadow for 320 ms, the other fades, then the page opens. */
+.iso .iso-chooser .iso-chooser__card.is-chosen { transform: scale(1.03); box-shadow: var(--lift-hero-2); transition: transform 320ms cubic-bezier(.2, .7, .2, 1), box-shadow 320ms cubic-bezier(.2, .7, .2, 1); }
+.iso .iso-chooser--leaving .iso-chooser__card:not(.is-chosen) { opacity: 0; transition: opacity 320ms cubic-bezier(.2, .7, .2, 1); }
 .iso .iso-chooser__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 /* A title is words, not a number: it may wrap ("Pay an / invoice") and keeps a readable gap between words. */
 .iso .iso-chooser__top .iso-extrude { flex: 1 1 auto; min-width: 0; white-space: normal; word-spacing: .16em; line-height: 1.02; padding-bottom: 8px; }
@@ -1714,9 +1724,17 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-chooser__card:hover { transform: none; }
 }
 
-/* The chooser's card grows into the page it opens (React ViewTransition, a named pair). Reduced motion:
-   plain navigation, no morph. Global: view-transition pseudo-elements live on the document. */
-::view-transition-group(.iso-inv-morph) { animation-duration: var(--t-scene, 640ms); animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+/* The chooser's card grows into the hero of the page it opens, and back (React ViewTransition, a named
+   pair), in 420 ms (prompt 11 Phase 3). The rest of the page, the card that wasn't chosen with it,
+   cross-fades over the same 420 ms: these navigations carry the `iso-inv` type
+   (components/solana/invoices/InvoicesChooser.tsx), so other view transitions keep the browser's own
+   fade. Reduced motion: plain navigation, no morph. Global: view-transition pseudo-elements live on
+   the document. */
+::view-transition-group(.iso-inv-morph) { animation-duration: 420ms; animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+:root:active-view-transition-type(iso-inv)::view-transition-old(root) { animation: iso-vt-out 420ms cubic-bezier(.2, .7, .2, 1) both; }
+:root:active-view-transition-type(iso-inv)::view-transition-new(root) { animation: iso-vt-in 420ms cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes iso-vt-out { to { opacity: 0; } }
+@keyframes iso-vt-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

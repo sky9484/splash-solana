@@ -16,6 +16,7 @@ import { api, php, usd } from '../client';
 import type { PaymentDTO } from '../types';
 import { problemOf, type Problem } from '../transfer/shared';
 import { CheckInvoice } from './CheckInvoice';
+import { INV_TYPES } from './InvoicesChooser';
 
 type Row = Wire<BillRow>;
 interface BillsDTO {
@@ -124,7 +125,7 @@ function Inbox() {
   return (
     <div className="iso iso-page">
       <PageHead
-        crumbs={[{ label: 'Invoices', href: '/dashboard/invoices' }, { label: 'Pay an invoice' }]}
+        crumbs={[{ label: 'Invoices', href: '/dashboard/invoices', prefetch: true, types: INV_TYPES }, { label: 'Pay an invoice' }]}
         title="Pay an invoice"
         context="Zeke reads each invoice and shows where every field came from. You check it, then approve the payment."
         actions={
