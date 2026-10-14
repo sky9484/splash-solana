@@ -34,14 +34,14 @@ export default async function SetupPage() {
         Finish setting up this workspace
       </h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]">
-        Five steps; the last one is optional. Money movement unlocks when verification completes —
+        Six steps; the last two are optional. Money movement unlocks when verification completes —
         everything else here is yours to finish at your own pace.
       </p>
 
       <section className="mt-8" aria-labelledby="device-vault-heading">
-        <h2 id="device-vault-heading" className="text-lg font-bold text-[#1F4452]">This device and your vault</h2>
+        <h2 id="device-vault-heading" className="text-lg font-bold text-[#1F4452]">This device and your accounts</h2>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#326273]">
-          Approvals are signed on this device. Splash never holds your keys.
+          You approve on this device. Splash never holds your keys.
         </p>
         <div className="mt-4">
           <DeviceSetup />
@@ -64,7 +64,7 @@ export default async function SetupPage() {
             <h2 className="text-lg font-bold text-[#1F4452]">Setup is unavailable on this machine</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]">
               No database is configured, so setup state cannot be read or written here. Start the
-              local dev database (scripts/dev-db.mjs) or point DATABASE_URL at a cluster.
+              local dev database (scripts/dev-db.mjs) or point DATABASE_URL at a database server.
             </p>
           </section>
         )}

@@ -19,6 +19,8 @@ const eslintConfig = defineConfig([
     // Agent worktrees are whole checkouts nested in this one, with their own
     // .next build output; they are linted in their own checkout, not here.
     ".claude/**",
+    // Installed agent skills (skills-lock.json): third-party instructions and tooling, not app code.
+    ".agents/**",
   ]),
   // One module owns Sui (prompt 07 §4.1): the evidence layer, Seal + Walrus.
   // Nothing else may import a Mysten package — settlement is Solana. The

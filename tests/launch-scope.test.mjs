@@ -75,6 +75,11 @@ const LIVE = {
   ADMIN_SESSION_SECRET: 'a'.repeat(32),
   CRON_SECRET: 'c'.repeat(32),
   DATABASE_URL: 'postgresql://user:pw@db.example/splash?sslmode=verify-full',
+  // Bank numbers on AWS KMS in ap-southeast-1 (prompt 10 Phase S): production refuses the local key.
+  PII_KMS: 'aws',
+  PII_AWS_KMS_KEY_ARN: 'arn:aws:kms:ap-southeast-1:123456789012:key/0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b',
+  PII_AWS_HMAC_KEY_ARN: 'arn:aws:kms:ap-southeast-1:123456789012:key/1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809',
+
   NEXT_PUBLIC_APP_URL: 'https://v1.splashz.xyz',
   ADMIN_PASSWORD: 'not-the-demo-value-either',
   EMAIL_TRANSPORT: 'resend',

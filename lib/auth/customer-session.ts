@@ -11,7 +11,7 @@ export type CustomerSession = {
   email: string;
   name: string;
   organization: string;
-  /** Legacy display label. Kept literal so existing UI (DashboardHeader) is
+  /** Legacy display label. Kept literal so existing UI (the shell's profile chip) is
    *  unchanged; it is NOT an authorization signal. */
   role: 'business_admin';
   /**

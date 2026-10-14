@@ -156,8 +156,8 @@ export function createMemoryPaymentRepo(): PaymentRepo {
       if (!row || !froms(expect).includes(row.state) || (expect.version !== undefined && expect.version !== row.version)) {
         throw new StateConflictError(id, describe(expect), row ? { state: row.state, version: row.version } : null);
       }
-      assertTransition(row.state, to);
       const draft = decodeRecord<PaymentRecord>(row.record);
+      assertTransition(row.state, to, draft.kind ?? 'bank');
       mutate?.(draft);
       const version = row.version + 1;
       const stored = stamp(draft, to, version, now);
@@ -254,8 +254,8 @@ export function createPostgresPaymentRepo(db: Db): PaymentRepo {
       }
       const from = row.state as PaymentState;
       const target = to ?? from;
-      if (to) assertTransition(from, to);
       const draft = decodeRecord<PaymentRecord>(row.record);
+      if (to) assertTransition(from, to, draft.kind ?? 'bank');
       mutate?.(draft);
       const version = row.version + 1;
       const stored = stamp(draft, target, version, now);

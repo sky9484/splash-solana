@@ -17,6 +17,7 @@ import { createDeviceKey, createMemoryDeviceKeyStore, signWithDeviceKey } from '
 import { deriveRecoveryKey, generateRecoveryWords } from '../lib/solana/recovery-kit.ts';
 import { loadCompany, saveCompany } from '../lib/solana-app/company.ts';
 import { countDocuments, createPostgresDocStore } from '../lib/solana-app/doc-store.ts';
+import { createPostgresSecretStore } from '../lib/solana-app/bank-secret-store.ts';
 import { toWire } from '../lib/solana-app/json.ts';
 import { createPostgresPaymentRepo } from '../lib/solana-app/payment-repo.ts';
 import { resetRuntime, runtime } from '../lib/solana-app/runtime.ts';
@@ -44,6 +45,9 @@ function boot(db) {
   const rt = runtime();
   rt.payments = createPostgresPaymentRepo(db);
   rt.docs = createPostgresDocStore(db);
+  // Sealed bank numbers live in the same database (prompt 10 Phase S): a supplier saved by a paid invoice
+  // keeps its number across the restart, as it does in production.
+  rt.secrets = createPostgresSecretStore(db);
   return rt;
 }
 

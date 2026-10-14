@@ -1,3 +1,5 @@
+// copy: technical
+// Links to a transaction on the explorers: "Technical details" only (prompt 10 §0.6). Not imported anywhere yet.
 import { solanaTxUrl } from '@/lib/explorer';
 import { ExternalLink } from 'lucide-react';
 

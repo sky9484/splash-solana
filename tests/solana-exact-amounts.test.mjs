@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const { usd, usdcExact } = await import('../components/solana/client.ts');
+const { usd, usdcExact, usdExact } = await import('../components/solana/client.ts');
 
 test('usdcExact writes every unit of USDC, grouped, with no rounding', () => {
   assert.equal(usdcExact(5_416_082_957n), '5,416.082957 USDC');
@@ -13,6 +13,12 @@ test('usdcExact writes every unit of USDC, grouped, with no rounding', () => {
   assert.equal(usdcExact(1n), '0.000001 USDC');
   assert.equal(usdcExact(0n), '0.000000 USDC');
   assert.equal(usdcExact(-2_000_000n), '−2.000000 USDC');
+});
+
+test('usdExact is the same exact figure in the dashboard’s words (prompt 10 §0.6: US dollars)', () => {
+  assert.equal(usdExact(5_416_082_957n), 'US$5,416.082957');
+  assert.equal(usdExact('1'), 'US$0.000001');
+  assert.equal(usdExact(-2_000_000n), '−US$2.000000');
 });
 
 test('rows rounded to the cent can drift from their rounded total, which is why the screen explains it', () => {
@@ -26,7 +32,7 @@ test('rows rounded to the cent can drift from their rounded total, which is why 
 
 test('the batch screen shows the exact total, explains the rounding, and exports integers', async () => {
   const src = await readFile(new URL('../components/solana/BatchFlow.tsx', import.meta.url), 'utf8');
-  assert.match(src, /Exactly \{usdcExact\(batch\.totals\.youPayMinor\)\}/);
+  assert.match(src, /Exactly \{usdExact\(batch\.totals\.youPayMinor\)\}/);
   assert.match(src, /Amounts are rounded to the cent\./);
   assert.match(src, /'you_pay_usdc_minor'/);
   assert.match(src, /r\.youPayUsdcMinor, r\.splashFeeMinor/, 'the CSV writes the integers, not formatted strings');

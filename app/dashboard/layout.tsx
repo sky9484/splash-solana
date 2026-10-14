@@ -28,8 +28,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const setupRedirect = setupRedirectFor(pathname, isSetupExempt(pathname) ? null : setup);
   if (setupRedirect) redirect(setupRedirect);
 
-  // The Solana rail the shell shows: the network, the run mode, and the vault account setup recorded.
-  // A vault made offline is simulated: it is on no network, so it gets no Solscan link.
+  // The run mode the shell reads for its Test mode badge. The account IDs themselves live in
+  // Settings › Account details. A vault made offline is simulated: it is on no network, so no Solscan link.
   const solanaEnv = readSolanaEnv();
   const recorded = setup && 'vault' in setup ? setup.vault : null;
   const solana = {
@@ -51,9 +51,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // nothing redirects, mirroring how the gates themselves behave in dev.
   let locks: { termsDone: boolean; moneyBlocked: boolean; custodyOn: boolean; reason: string } | undefined;
   let needsIntent = false;
+  // Account setup's steps, for the sidebar's progress card (it disappears when they are all done).
+  let setupSteps: Array<{ id: string; title: string; done: boolean }> | null = null;
   try {
     const onboarding = await readOnboardingState(session);
     needsIntent = onboarding.intent === null;
+    setupSteps = onboarding.steps.map(({ id, title, done }) => ({ id, title, done }));
     locks = {
       termsDone: onboarding.steps[0].done,
       moneyBlocked: kyb.blocked,
@@ -68,5 +71,5 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // One line on purpose: tests/oxwal-frontend.test.mjs pins the shape
   // {children}</DashboardShell> as the no-second-wrapper contract.
   // sweepOn needs no database, so it is resolved even when `locks` is not.
-  return <DashboardShell session={session} kyb={kyb} locks={locks} sweepOn={sweepAccountEnabled()} launchScope={launchScope()} solana={solana}>{children}</DashboardShell>;
+  return <DashboardShell session={session} kyb={kyb} locks={locks} sweepOn={sweepAccountEnabled()} launchScope={launchScope()} solana={solana} setup={setupSteps}>{children}</DashboardShell>;
 }

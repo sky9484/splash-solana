@@ -73,7 +73,7 @@ export default async function AdminPaymentsPage() {
                 ) : (
                   <ul className="space-y-1">
                     {p.transactions.map((t) => (
-                      <li key={t.signature} className="flex items-baseline gap-2 text-xs">
+                      <li key={`${t.purpose}:${t.signature}`} className="flex items-baseline gap-2 text-xs">
                         <span className="w-16 font-semibold text-[#326273]">{STEP_LABEL[t.step]}</span>
                         <Addr value={t.signature} href={t.solscanUrl} />
                         {t.simulated ? <span className="text-[#326273]">simulated</span> : null}

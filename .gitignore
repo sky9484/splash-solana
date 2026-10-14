@@ -83,3 +83,6 @@ next-env.d.ts
 .tmp-*.mjs
 # the browser walkthrough's own dev server output (next.config.ts NEXT_DIST_DIR)
 /.next-e2e/
+
+# A failed walkthrough step saves its screen here (tests/solana-ui.e2e.mjs); never a deliverable.
+/docs/solana-build/screenshots/FAILED.webp

@@ -70,24 +70,22 @@ async function refused(res, label) {
   assert.equal(body.code, 'not_in_launch_scope', label);
 }
 
-test('customer routes: funding and rate holds refuse, and nothing is deferred', async () => {
+test('customer routes: rate holds refuse, the retired funding API is gone, and nothing is deferred', async () => {
   // The earlier build's transfer, batch and treasury routes are gone (prompt 07 §4.2).
-  const cases = [
-    ['@/app/api/funding/sessions/route', '/api/funding/sessions', { amountUsd: 100 }],
-    ['@/app/api/rate-holds/route', '/api/rate-holds', { targetCurrency: 'PHP', amountUsd: 100 }],
-  ];
-  for (const [mod, url, body] of cases) {
-    const route = await import(mod);
-    await refused(await route.POST(post(url, body)), url);
-  }
+  const holds = await import('@/app/api/rate-holds/route');
+  await refused(await holds.POST(post('/api/rate-holds', { targetCurrency: 'PHP', amountUsd: 100 })), '/api/rate-holds');
+  // Prompt 10 Phase 3 (CRIT-1): the legacy funding API answers 410 in every scope (was: 403 here).
+  const sessions = await import('@/app/api/funding/sessions/route');
+  assert.equal((await sessions.POST(post('/api/funding/sessions', { amountUsd: 100 }))).status, 410);
   assert.equal(scope.deferred.length, 0, 'no settlement was handed to after()');
 });
 
-test('funding webhooks refuse once their secret checks out', async () => {
+test('funding webhooks: retired, they answer 410 whatever the secret', async () => {
+  // Prompt 10 Phase 3 (CRIT-1); was: 403 in the stablecoin scope once the secret checked out.
   const deposits = await import('@/app/api/funding/deposits/route');
-  await refused(await deposits.POST(post('/api/funding/deposits', { sessionId: 's' }, { 'x-funding-webhook-secret': process.env.FUNDING_WEBHOOK_SECRET })), 'funding/deposits');
+  assert.equal((await deposits.POST(post('/api/funding/deposits', { sessionId: 's' }, { 'x-funding-webhook-secret': process.env.FUNDING_WEBHOOK_SECRET }))).status, 410);
   const usd = await import('@/app/api/funding/usd-deposits/route');
-  await refused(await usd.POST(post('/api/funding/usd-deposits', { sessionId: 's' }, { 'x-funding-webhook-secret': process.env.FUNDING_WEBHOOK_SECRET })), 'funding/usd-deposits');
+  assert.equal((await usd.POST(post('/api/funding/usd-deposits', { sessionId: 's' }, { 'x-funding-webhook-secret': process.env.FUNDING_WEBHOOK_SECRET }))).status, 410);
   // The four cron jobs this checked (audit-batch, update-peg, accrue-yield,
   // settle-withdrawals) were Sui settlement and treasury, removed on this build.
 });

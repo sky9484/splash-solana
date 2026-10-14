@@ -1,18 +1,19 @@
 /**
- * Step 3 of a transfer, "Quote & Send" (Sky, 13 Oct): where the USDC for this payment comes from.
+ * Transfer, Step 3: "Money comes from" (prompt 10 §5.6). A plan, from funding-planner.ts:
  *
- *   Pay from your vaults     the payments vault, topped up from the treasury with a move if it is
- *                            short. That money was checked when it arrived, so it is ready now.
- *   Fund it another way      USD (Stripe, Airwallex) or a stablecoin from another wallet. The money
- *                            lands in the company's own payments vault first, never with Splash, and
- *                            only counts after a funds check: the source is screened and a person
- *                            declares where the money comes from. That is the extra step, and the
- *                            provider's or swap venue's charge is shown before anything is sent.
+ *   Covered                    the Payments account pays it.
+ *   Move from your reserve     the reserve covers what's missing: a move between the company's own
+ *                              accounts, in the same approval sequence (treasury-service.ts).
+ *   Add money another way      a bank or card top-up, or a crypto wallet (funding-router.ts). The money
+ *                              lands in the company's own Payments account first, never with Splash,
+ *                              and only counts after a funds check: the source is screened (an unknown
+ *                              result holds it: screening fails closed) and a person declares where the
+ *                              money comes from. The third party's charge is shown before anything is
+ *                              sent; Splash's fee to add money is US$0.
  *
- * Either way the payout itself is unchanged: it leaves the payments vault with one approval on the
- * device. The vault only ever receives USDC: another stablecoin is swapped before it lands (D-7 holds).
- * Stripe, Airwallex and the swap are sandbox stand-ins in this build, labelled so; no agreement with
- * either provider is signed (DECISIONS D-P6-1).
+ * Either way the payout itself is unchanged: it leaves the Payments account with one approval on the
+ * device. Every outside source is a mock in this build (Phase A's adapter table), labelled test mode,
+ * and refused on devnet.
  */
 import { PublicKey } from '@solana/web3.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -20,6 +21,8 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { isSimulator } from '../solana/simulator.ts';
 import { createKytStub } from '../route-engine/policy.ts';
 import { ServiceError } from './errors.ts';
+import { chargeOn, planFunding, priceRoutes, type FundingPlan } from './funding-planner.ts';
+import { createTestModeFundingRouter, type FundingRoute, type FundingSourceId } from './funding-router.ts';
 import { isCommitted } from './payment-machine.ts';
 import { runtime } from './runtime.ts';
 import { findQuote, getOrg, getPayment, requireVault, treasuryVaultPda } from './service.ts';
@@ -31,60 +34,23 @@ export const OFFLINE_FUNDS_CHECK_MS = 2_500;
 
 export { SOURCE_OF_FUNDS, type SourceOfFunds };
 
+/** Integer charge in basis points, rounded up (re-exported for the tests and the screens). */
+export const chargeFor = chargeOn;
+
 /**
- * The ways to bring USDC in. `chargeBps` is a sandbox estimate of the provider's or swap venue's
- * charge, never Splash's: Splash adds nothing to funding (its fee is the 0.10% on the payout).
+ * How a funding is named, for today's methods and for records saved before prompt 10 (which named the
+ * providers). No provider or brand name reaches a screen (§5.6, tests/claims.test.mjs).
  */
-export const FUNDING_METHODS: Record<FundingMethod, { label: string; detail: string; kind: 'stablecoin' | 'usd'; assets: Array<PaymentFunding['asset']>; chargeBps: number; chargeLabel: string; provider: string | null; sandboxOnly: boolean }> = {
-  wallet_usdc: {
-    label: 'USDC from another wallet',
-    detail: 'Sent on Solana from a wallet your company controls. No swap, no charge from Splash.',
-    kind: 'stablecoin',
-    assets: ['USDC'],
-    chargeBps: 0,
-    chargeLabel: 'No swap',
-    provider: null,
-    sandboxOnly: false,
-  },
-  wallet_swap: {
-    label: 'USDT or PYUSD from another wallet',
-    detail: 'Swapped to USDC before it reaches your vault. The swap venue charges for the swap.',
-    kind: 'stablecoin',
-    assets: ['USDT', 'PYUSD'],
-    chargeBps: 20,
-    chargeLabel: 'Swap charge',
-    provider: null,
-    sandboxOnly: true,
-  },
-  stripe: {
-    label: 'USD by card or bank, through Stripe',
-    detail: 'Stripe takes the USD and delivers USDC to your payments vault.',
-    kind: 'usd',
-    assets: ['USD'],
-    chargeBps: 150,
-    chargeLabel: 'Stripe’s charge',
-    provider: 'Stripe',
-    sandboxOnly: true,
-  },
-  airwallex: {
-    label: 'USD from your Airwallex account',
-    detail: 'Airwallex converts the USD and delivers USDC to your payments vault.',
-    kind: 'usd',
-    assets: ['USD'],
-    chargeBps: 50,
-    chargeLabel: 'Airwallex’s charge',
-    provider: 'Airwallex',
-    sandboxOnly: true,
-  },
+export const FUNDING_METHODS: Record<FundingMethod, { label: string; kind: 'stablecoin' | 'usd' }> = {
+  bank_card: { label: 'Bank or card top-up · test mode', kind: 'usd' },
+  wallet: { label: 'From a crypto wallet', kind: 'stablecoin' },
+  wallet_usdc: { label: 'From a crypto wallet', kind: 'stablecoin' },
+  wallet_swap: { label: 'From a crypto wallet', kind: 'stablecoin' },
+  stripe: { label: 'Bank or card top-up · test mode', kind: 'usd' },
+  airwallex: { label: 'Bank or card top-up · test mode', kind: 'usd' },
 };
 
-const METHOD_IDS = Object.keys(FUNDING_METHODS) as FundingMethod[];
-
-/** The charge on top, rounded up to the cent's minor unit: integers only, never a float. */
-export function chargeFor(amountMinor: bigint, bps: number): bigint {
-  if (bps <= 0) return 0n;
-  return (amountMinor * BigInt(bps) + 9_999n) / 10_000n;
-}
+const router = createTestModeFundingRouter();
 
 function newId(): string {
   const b = new Uint8Array(8);
@@ -99,18 +65,20 @@ function fundingsOf(org: OrgRecord): PaymentFunding[] {
 
 export function fundingView(f: PaymentFunding) {
   const m = FUNDING_METHODS[f.method];
+  const route = f.sourceId ? router.routes({ destination: 'x' }).find((r) => r.id === f.sourceId) : null;
   return {
     id: f.id,
     paymentId: f.paymentId,
     method: f.method,
-    methodLabel: m.label,
-    provider: m.provider,
+    sourceId: f.sourceId ?? null,
+    methodLabel: route?.label ?? m.label,
     asset: f.asset,
+    network: f.network ?? null,
     fromAddress: f.fromAddress,
     amountMinor: f.amountMinor.toString(),
     chargeMinor: f.chargeMinor.toString(),
     chargeBps: f.chargeBps,
-    chargeLabel: m.chargeLabel,
+    chargeLabel: route?.chargeLabel ?? (f.chargeBps > 0 ? 'Charge (estimate)' : 'No charge'),
     sourceOfFunds: f.sourceOfFunds,
     sourceOfFundsLabel: SOURCE_OF_FUNDS[f.sourceOfFunds],
     declaredBy: f.declaredBy,
@@ -118,6 +86,8 @@ export function fundingView(f: PaymentFunding) {
     state: f.state,
     checkUntil: f.checkUntil,
     check: f.check,
+    /** The funds check in a person's words (the screening provider's own label stays in `check`). */
+    checkWords: !f.check ? 'Screening where it comes from' : f.check.unknown ? 'Screening couldn’t answer: held until it does' : f.check.flagged ? 'Screening flagged where it comes from: held' : f.simulated ? 'Screened: clear (test screening)' : 'Screened: clear',
     signature: f.signature,
     simulated: f.simulated,
     createdAt: f.createdAt,
@@ -127,7 +97,25 @@ export function fundingView(f: PaymentFunding) {
 
 export type FundingView = ReturnType<typeof fundingView>;
 
-/** What Step 3 shows: the two vaults, what this route costs, and every way to bring the USDC in. */
+function planView(plan: FundingPlan) {
+  const s = (v: bigint) => v.toString();
+  if (plan.kind === 'covered') return { kind: plan.kind, needMinor: s(plan.needMinor), paymentsNowMinor: s(plan.paymentsNowMinor), paymentsAfterMinor: s(plan.paymentsAfterMinor) };
+  if (plan.kind === 'reserve') return { kind: plan.kind, needMinor: s(plan.needMinor), moveMinor: s(plan.moveMinor), paymentsNowMinor: s(plan.paymentsNowMinor), reserveNowMinor: s(plan.reserveNowMinor), reserveAfterMinor: s(plan.reserveAfterMinor), paymentsAfterMinor: s(plan.paymentsAfterMinor) };
+  return {
+    kind: plan.kind,
+    needMinor: s(plan.needMinor),
+    shortMinor: s(plan.shortMinor),
+    paymentsNowMinor: s(plan.paymentsNowMinor),
+    reserveNowMinor: s(plan.reserveNowMinor),
+    options: plan.options.map((o) => ({ ...routeView(o), amountMinor: s(o.amountMinor), chargeMinor: s(o.chargeMinor), totalMinor: s(o.totalMinor), approvalMinor: o.approvalMinor === null ? null : s(o.approvalMinor) })),
+  };
+}
+
+function routeView(r: FundingRoute) {
+  return { id: r.id, kind: r.kind, label: r.label, asset: r.asset, network: r.network, available: r.available, unavailableReason: r.unavailableReason, testMode: r.testMode, steps: r.steps, chargeBps: r.chargeBps, chargeLabel: r.chargeLabel, splashFeeBps: r.splashFeeBps, exactApproval: r.exactApproval };
+}
+
+/** What Step 3 shows: the two accounts, the plan for this route's cost, and every way to bring money in. */
 export async function fundingOptions(orgId: string, paymentId: string, quoteId?: string | null) {
   const p = await getPayment(paymentId);
   if (p.orgId !== orgId) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
@@ -138,113 +126,132 @@ export async function fundingOptions(orgId: string, paymentId: string, quoteId?:
   const q = quoteId ? findQuote(p, quoteId) : null;
   const neededMinor = q?.source.amountMinor ?? null;
   const [paymentsMinor, treasuryMinor] = await Promise.all([rt.chain.getUsdcBalance(vault.vaultPda), rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda))]);
+  const routes = router.routes({ destination: vault.vaultPda }).map((r) => (offline || !r.testMode ? r : { ...r, available: false, unavailableReason: 'Test mode only: not connected on devnet.' }));
+  const plan = neededMinor === null ? null : planFunding({ needMinor: neededMinor, paymentsMinor, reserveMinor: treasuryMinor, paymentsAccount: vault.vaultPda, routes });
+  // "Add money another way" prices every way in for what the Payments account is short of, even when the
+  // reserve could cover it: the person may still choose to bring money in.
+  const shortMinor = neededMinor !== null && neededMinor > paymentsMinor ? neededMinor - paymentsMinor : 0n;
   return {
-    vaults: {
-      paymentsMinor: paymentsMinor.toString(),
-      treasuryMinor: treasuryMinor.toString(),
-      paymentsAddress: vault.vaultPda,
-    },
+    vaults: { paymentsMinor: paymentsMinor.toString(), treasuryMinor: treasuryMinor.toString() },
     neededMinor: neededMinor?.toString() ?? null,
-    methods: METHOD_IDS.map((id) => {
-      const m = FUNDING_METHODS[id];
-      const available = offline || !m.sandboxOnly;
-      return {
-        id,
-        label: m.label,
-        detail: m.detail,
-        kind: m.kind,
-        assets: m.assets,
-        provider: m.provider,
-        chargeBps: m.chargeBps,
-        chargeLabel: m.chargeLabel,
-        chargeMinor: neededMinor === null ? null : chargeFor(neededMinor, m.chargeBps).toString(),
-        sandbox: m.sandboxOnly,
-        available,
-        unavailableReason: available ? null : 'Sandbox only in this build; not connected on devnet.',
-      };
-    }),
+    plan: plan ? planView(plan) : null,
+    routes: routes.map(routeView),
+    shortMinor: shortMinor.toString(),
+    priced: priceRoutes(routes, shortMinor).map((o) => ({ id: o.id, amountMinor: o.amountMinor.toString(), chargeMinor: o.chargeMinor.toString(), totalMinor: o.totalMinor.toString(), approvalMinor: o.approvalMinor === null ? null : o.approvalMinor.toString() })),
     sourcesOfFunds: Object.entries(SOURCE_OF_FUNDS).map(([value, label]) => ({ value, label })),
     fundings: fundingsOf(org).filter((f) => f.paymentId === paymentId).map(fundingView),
     simulated: offline,
   };
 }
 
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
 export async function startFunding(
   orgId: string,
   paymentId: string,
   input: {
-    method: FundingMethod;
+    source: FundingSourceId;
     quoteId: string;
-    asset?: PaymentFunding['asset'];
     fromAddress?: string | null;
     sourceOfFunds: SourceOfFunds;
     declared: boolean;
     by: string;
-    rehearsal?: 'none' | 'kyt_flag';
+    /** Offline rehearsals: a flagged source, or screening that couldn't answer (both are held). */
+    rehearsal?: 'none' | 'kyt_flag' | 'kyt_unavailable';
   },
   now = new Date(),
 ): Promise<PaymentFunding> {
   const p = await getPayment(paymentId);
   if (p.orgId !== orgId) throw new ServiceError('payment_not_found', 'That payment is not on the server for this company.', 404);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. Nothing more to fund.', 409);
+  if (p.state === 'discarded') throw new ServiceError('wrong_state', 'This payment was discarded. Start a new one to fund it.', 409);
   const org = getOrg(orgId);
   const vault = requireVault(org);
-  const m = FUNDING_METHODS[input.method];
-  if (!m) throw new ServiceError('bad_request', 'Choose how the money comes in.');
-  if (!input.declared) throw new ServiceError('declaration_required', 'Tick the declaration about where this money comes from first.', 422);
-  if (!SOURCE_OF_FUNDS[input.sourceOfFunds]) throw new ServiceError('bad_request', 'Say where this money comes from.');
   const q = findQuote(p, input.quoteId);
   if (!q) throw new ServiceError('bad_request', 'That route is not one of this payment’s quotes. Get a new quote.', 400);
-
-  const asset = input.asset ?? m.assets[0]!;
-  if (!m.assets.includes(asset)) throw new ServiceError('bad_request', `${m.label} takes ${m.assets.join(' or ')}.`);
-  let fromAddress: string | null = null;
-  if (m.kind === 'stablecoin') {
-    const raw = (input.fromAddress ?? '').trim();
-    try {
-      fromAddress = new PublicKey(raw).toBase58();
-    } catch {
-      throw new ServiceError('bad_request', 'Enter the Solana address of the wallet you are sending from.', 422);
-    }
-    if (fromAddress !== raw) throw new ServiceError('bad_request', 'Enter the Solana address of the wallet you are sending from.', 422);
-    if (fromAddress === vault.vaultPda || fromAddress === treasuryVaultPda(vault.multisigPda)) {
-      throw new ServiceError('bad_request', 'That is one of your own vaults. To pay from your vaults, choose “Pay from your vaults”.', 422);
-    }
-  }
+  const route = checkedRoute(vault.vaultPda, input);
+  const fromAddress = sendingWallet(route, input.fromAddress, vault);
 
   const rt = runtime();
-  if (!isSimulator(rt.chain)) {
-    if (m.sandboxOnly) throw new ServiceError('sandbox_only', `${m.label} is a sandbox stand-in in this build and is not connected on devnet.`, 409);
-    throw new ServiceError('devnet_fund_manual', 'On devnet, send the USDC from your wallet to your payments vault, then check again.', 409, {
-      vaultAddress: vault.vaultPda,
-      amountMinor: q.source.amountMinor.toString(),
-    });
-  }
+  if (!isSimulator(rt.chain)) throw new ServiceError('sandbox_only', `${route.label} is test mode only in this build and is not connected on devnet.`, 409);
 
   // One funding per payment at a time: a second request returns the one under way (or done).
   const live = fundingsOf(org).find((f) => f.paymentId === p.id && f.state !== 'held');
   if (live) return live;
 
-  // Screen what the money comes from: the sending wallet, or the provider's account for USD.
-  const screened = fromAddress ?? `${m.provider ?? 'provider'}:${orgId}`;
+  // Bring in what the Payments account is missing for this route (the whole cost if it is empty).
+  const paymentsMinor = await rt.chain.getUsdcBalance(vault.vaultPda);
+  const amountMinor = q.source.amountMinor > paymentsMinor ? q.source.amountMinor - paymentsMinor : 0n;
+  if (amountMinor === 0n) throw new ServiceError('bad_request', 'Your Payments account already covers this payment. Nothing to add.', 409);
+  return openFunding(org, route, { paymentId: p.id, amountMinor, fromAddress, input, now });
+}
+
+/** The way in a person chose, if it exists, is available, and comes with the declaration. */
+function checkedRoute(destination: string, input: { source: FundingSourceId; declared: boolean; sourceOfFunds: SourceOfFunds }): FundingRoute {
+  const route = router.routes({ destination }).find((r) => r.id === input.source);
+  if (!route) throw new ServiceError('bad_request', 'Choose how the money comes in.');
+  if (!route.available) throw new ServiceError('bad_request', route.unavailableReason ?? 'That way in is not available.', 422);
+  if (!input.declared) throw new ServiceError('declaration_required', 'Tick the declaration about where this money comes from first.', 422);
+  if (!SOURCE_OF_FUNDS[input.sourceOfFunds]) throw new ServiceError('bad_request', 'Say where this money comes from.');
+  return route;
+}
+
+/** A wallet route's sending address, in its network's own format, and never one of the company's own accounts. */
+function sendingWallet(route: FundingRoute, raw0: string | null | undefined, vault: NonNullable<OrgRecord['vault']>): string | null {
+  let fromAddress: string | null = null;
+  if (route.kind === 'wallet') {
+    const raw = (raw0 ?? '').trim();
+    if (route.network === 'solana') {
+      try {
+        fromAddress = new PublicKey(raw).toBase58();
+      } catch {
+        fromAddress = null;
+      }
+      if (!fromAddress || fromAddress !== raw) throw new ServiceError('bad_request', 'Enter the address of the wallet you are sending from.', 422);
+      if (fromAddress === vault.vaultPda || fromAddress === treasuryVaultPda(vault.multisigPda)) {
+        throw new ServiceError('bad_request', 'That is one of your own accounts. To pay from them, choose your Payments account or your reserve.', 422);
+      }
+    } else {
+      if (!EVM_ADDRESS.test(raw)) throw new ServiceError('bad_request', 'Enter the address of the wallet you are sending from (0x…).', 422);
+      fromAddress = raw;
+    }
+  }
+  return fromAddress;
+}
+
+/** A funding under its check: screened, declared, priced, and not yet counted. */
+function openFunding(
+  org: OrgRecord,
+  route: FundingRoute,
+  opts: { paymentId: string | null; amountMinor: bigint; fromAddress: string | null; input: { sourceOfFunds: SourceOfFunds; by: string; rehearsal?: 'none' | 'kyt_flag' | 'kyt_unavailable' }; now: Date },
+): PaymentFunding {
+  const { input, now, fromAddress, amountMinor } = opts;
+  const orgId = org.id;
+  // Screen what the money comes from: the sending wallet, or the top-up for a bank or card payment.
+  const screened = fromAddress ?? `top-up:${orgId}`;
   const kyt = createKytStub(input.rehearsal === 'kyt_flag' ? [screened] : []).screen(screened, 'solana');
+  const unknown = input.rehearsal === 'kyt_unavailable';
   const at = now.toISOString();
   const f: PaymentFunding = {
     id: newId(),
     orgId,
-    paymentId: p.id,
-    method: input.method,
-    asset,
+    paymentId: opts.paymentId,
+    method: route.kind === 'bank_card' ? 'bank_card' : 'wallet',
+    sourceId: route.id,
+    asset: route.asset === 'USD' ? 'USD' : route.asset === 'USDT' ? 'USDT' : 'USDC',
+    network: route.network,
     fromAddress,
-    amountMinor: q.source.amountMinor,
-    chargeMinor: chargeFor(q.source.amountMinor, m.chargeBps),
-    chargeBps: m.chargeBps,
+    amountMinor,
+    chargeMinor: chargeOn(amountMinor, route.chargeBps),
+    chargeBps: route.chargeBps,
     sourceOfFunds: input.sourceOfFunds,
     declaredBy: input.by.trim() || org.personName,
     declaredAt: at,
     state: 'checking',
     checkUntil: new Date(now.getTime() + OFFLINE_FUNDS_CHECK_MS).toISOString(),
-    check: { resultId: kyt.resultId, label: kyt.label, flagged: kyt.verdict === 'flagged' },
+    check: unknown
+      ? { resultId: kyt.resultId, label: 'Screening could not answer: held until it does', flagged: false, unknown: true }
+      : { resultId: kyt.resultId, label: kyt.label, flagged: kyt.verdict === 'flagged' },
     signature: null,
     simulated: true,
     createdAt: at,
@@ -254,28 +261,86 @@ export async function startFunding(
   return f;
 }
 
+/** A top-up from Balance: at least US$1, at most US$1,000,000 in one go (test mode). */
+export const TOP_UP_MIN_MINOR = 1_000_000n;
+export const TOP_UP_MAX_MINOR = 1_000_000_000_000n;
+
 /**
- * Where a funding stands. Once its check has run: a flagged source is held (nothing reaches the vault),
- * a clear one lands in the payments vault. Reading it twice never credits twice.
+ * Balance › Add money (prompt 10 §5.10): every way in, priced for the amount a person chooses, with no
+ * payment attached. The same shape as a payment's options, so the same sheet shows both.
+ */
+export async function topUpOptions(orgId: string, amountMinor: bigint) {
+  const org = getOrg(orgId);
+  const vault = requireVault(org);
+  const rt = runtime();
+  const offline = isSimulator(rt.chain);
+  const [paymentsMinor, treasuryMinor] = await Promise.all([rt.chain.getUsdcBalance(vault.vaultPda), rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda))]);
+  const routes = router.routes({ destination: vault.vaultPda }).map((r) => (offline || !r.testMode ? r : { ...r, available: false, unavailableReason: 'Test mode only: not connected on devnet.' }));
+  const amount = amountMinor > 0n ? amountMinor : 0n;
+  return {
+    vaults: { paymentsMinor: paymentsMinor.toString(), treasuryMinor: treasuryMinor.toString() },
+    neededMinor: null,
+    plan: null,
+    routes: routes.map(routeView),
+    shortMinor: amount.toString(),
+    priced: priceRoutes(routes, amount).map((o) => ({ id: o.id, amountMinor: o.amountMinor.toString(), chargeMinor: o.chargeMinor.toString(), totalMinor: o.totalMinor.toString(), approvalMinor: o.approvalMinor === null ? null : o.approvalMinor.toString() })),
+    sourcesOfFunds: Object.entries(SOURCE_OF_FUNDS).map(([value, label]) => ({ value, label })),
+    fundings: fundingsOf(org).filter((x) => x.paymentId === null).slice(-5).map(fundingView),
+    simulated: offline,
+  };
+}
+
+/** Add money to the Payments account from Balance: the same funds check and declaration as a payment's. */
+export async function startTopUp(
+  orgId: string,
+  input: { source: FundingSourceId; amountMinor: bigint; fromAddress?: string | null; sourceOfFunds: SourceOfFunds; declared: boolean; by: string; rehearsal?: 'none' | 'kyt_flag' | 'kyt_unavailable' },
+  now = new Date(),
+): Promise<PaymentFunding> {
+  const org = getOrg(orgId);
+  const vault = requireVault(org);
+  if (input.amountMinor < TOP_UP_MIN_MINOR) throw new ServiceError('bad_request', 'Add at least US$1.00.', 422);
+  if (input.amountMinor > TOP_UP_MAX_MINOR) throw new ServiceError('bad_request', 'Add at most US$1,000,000.00 at a time.', 422);
+  if (input.amountMinor % 10_000n !== 0n) throw new ServiceError('bad_request', 'Give the amount in whole cents.', 422);
+  const route = checkedRoute(vault.vaultPda, input);
+  const fromAddress = sendingWallet(route, input.fromAddress, vault);
+  if (!isSimulator(runtime().chain)) throw new ServiceError('sandbox_only', `${route.label} is test mode only in this build and is not connected on devnet.`, 409);
+  // One top-up under its check at a time: a second request returns the one under way.
+  const live = fundingsOf(org).find((x) => x.paymentId === null && (x.state === 'checking' || x.state === 'crediting'));
+  if (live) return live;
+  return openFunding(org, route, { paymentId: null, amountMinor: input.amountMinor, fromAddress, input, now });
+}
+
+/**
+ * Where a funding stands. Once its check has run: a flagged source, or one screening couldn't answer
+ * for, is held (nothing reaches the account: screening fails closed); a clear one lands in the
+ * Payments account. The funding is claimed ('crediting') before the credit is awaited, so two reads at
+ * once credit once (FUNDING-AUDIT.md §8 step 9).
  */
 export async function refreshFunding(orgId: string, fundingId: string, now = new Date()): Promise<PaymentFunding> {
   const org = getOrg(orgId);
   const f = fundingsOf(org).find((x) => x.id === fundingId);
   if (!f) throw new ServiceError('funding_not_found', 'That funding is not on the server for this company.', 404);
   if (f.state !== 'checking' || now.getTime() < Date.parse(f.checkUntil)) return f;
-  if (f.check?.flagged) {
+  if (f.check?.flagged || f.check?.unknown) {
     f.state = 'held';
     f.settledAt = now.toISOString();
     return f;
   }
   const vault = requireVault(org);
   const chain = runtime().chain;
-  // Only the offline simulator stands in for Stripe, Airwallex or the other wallet (startFunding refuses on devnet).
-  if (!isSimulator(chain)) throw new ServiceError('sandbox_only', 'This funding is a sandbox stand-in and cannot complete on devnet.', 409);
-  const receipt = await chain.fundUsdc(vault.vaultPda, f.amountMinor);
+  // Only the offline simulator stands in for an outside source (startFunding refuses on devnet).
+  if (!isSimulator(chain)) throw new ServiceError('sandbox_only', 'This funding is test mode only and cannot complete on devnet.', 409);
+  f.state = 'crediting';
+  let receipt: Awaited<ReturnType<typeof chain.fundUsdc>>;
+  try {
+    receipt = await chain.fundUsdc(vault.vaultPda, f.amountMinor);
+  } catch (e) {
+    f.state = 'checking';
+    throw e;
+  }
   f.state = 'in_vault';
   f.signature = receipt.signature;
   f.settledAt = now.toISOString();
-  org.fundings.push({ signature: receipt.signature, amountMinor: f.amountMinor, at: f.settledAt, simulated: true, note: `${FUNDING_METHODS[f.method].label} for ${f.paymentId} (sandbox)` });
+  org.fundings.push({ signature: receipt.signature, amountMinor: f.amountMinor, at: f.settledAt, simulated: true, note: f.paymentId ? `${fundingView(f).methodLabel} for ${f.paymentId}` : `${fundingView(f).methodLabel} · top-up` });
   return f;
 }
