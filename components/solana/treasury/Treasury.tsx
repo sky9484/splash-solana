@@ -499,7 +499,7 @@ export function Treasury({ prefillMoveMinor, back, sweepId }: { prefillMoveMinor
             <li>Subject to legal sign-off in Malaysia.</li>
           </ul>
         </IsoSurface>
-        <div className="iso-split__side iso-strip iso-treasury__zeke iso-rise iso-rise-5">
+        <div className="iso-split__side iso-surface iso-surface--ink iso-strip iso-treasury__zeke iso-rise iso-rise-5">
           <Image src="/cinematic/agent-bot-cut.png" alt="" width={40} height={40} />
           <span>
             <strong>Zeke:</strong> {d.zeke}

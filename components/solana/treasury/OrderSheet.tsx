@@ -358,7 +358,7 @@ function OrderApproval({ company, preview, name, sweep, fromLine, onCancel, onDo
                 </p>
                 <div className="iso-actions">
                   {done.receiptId ? (
-                    <IsoButton variant="quiet" size="lg" href={`/dashboard/receipts/${done.receiptId}`}>
+                    <IsoButton variant="quiet" href={`/dashboard/receipts/${done.receiptId}`}>
                       See the receipt
                     </IsoButton>
                   ) : null}
@@ -373,7 +373,7 @@ function OrderApproval({ company, preview, name, sweep, fromLine, onCancel, onDo
                   <IsoButton ref={approveRef} variant="approve" size="lg" onClick={() => void approve()} busy={busy}>
                     {busy ? 'Approving on this device…' : 'Approve on this device'}
                   </IsoButton>
-                  <IsoButton variant="quiet" size="lg" onClick={onCancel} disabled={busy}>
+                  <IsoButton variant="quiet" onClick={onCancel} disabled={busy}>
                     Back
                   </IsoButton>
                 </div>

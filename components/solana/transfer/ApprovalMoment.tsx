@@ -208,7 +208,7 @@ export function ApprovalMoment({
               </p>
               <div className="iso-actions">
                 {waiting.length > 0 ? (
-                  <IsoButton variant="quiet" size="lg" onClick={() => void remind()} busy={busy === 'remind'}>
+                  <IsoButton variant="quiet" onClick={() => void remind()} busy={busy === 'remind'}>
                     <BellRing size={16} aria-hidden="true" /> Remind {waiting.length === 1 ? waiting[0]!.name.split(' ')[0] : 'them'}
                   </IsoButton>
                 ) : null}
@@ -228,7 +228,7 @@ export function ApprovalMoment({
                 <IsoButton ref={approveRef} variant="approve" size="lg" onClick={() => void approve()} busy={busy === 'approve'} disabledReason={busy ? null : why && left > 0 ? why : null}>
                   {busy === 'approve' ? 'Approving on this device…' : left === 0 && !peer ? 'Get a new quote and approve' : 'Approve on this device'}
                 </IsoButton>
-                <IsoButton variant="quiet" size="lg" onClick={onCancel} disabled={busy !== null}>
+                <IsoButton variant="quiet" onClick={onCancel} disabled={busy !== null}>
                   Cancel
                 </IsoButton>
               </div>
