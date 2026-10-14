@@ -324,7 +324,7 @@ function Composer({ company, hasAccount, onMade }: { company: string; hasAccount
               <IsoButton variant="primary" size="lg" busy={busy === 'send'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(true)}>
                 {busy === 'send' ? 'Sending…' : 'Send request'}
               </IsoButton>
-              <IsoButton variant="quiet" size="lg" busy={busy === 'draft'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(false)}>
+              <IsoButton variant="quiet" busy={busy === 'draft'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(false)}>
                 Save draft
               </IsoButton>
             </div>

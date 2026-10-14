@@ -1,8 +1,9 @@
 // Splash Iso UI (prompt 10 §2.5): the redesigned files keep to look 9. Checked: everything under
 // components/iso/**, styles/iso-ui.css, and any file a phase rebuilt (its first line is `// iso-ui`,
 // or `/* iso-ui` in CSS). In those files it fails on:
-//   - a blurred shadow (box-shadow / boxShadow with a blur radius, Tailwind shadow-*, drop-shadow,
-//     a blur() filter): look 9's only elevation is a solid offset ledge;
+//   - a blurred shadow written out (box-shadow / boxShadow with a blur radius, Tailwind shadow-*,
+//     drop-shadow, a blur() filter): a box floats only on the --lift-* tokens in styles/tokens.css
+//     (prompt 11 §1.1), and everything else keeps look 9's solid offset ledges;
 //   - a native <select>: a choice is a Combobox or a Segmented control;
 //   - a colour that isn't a token: a hex or an rgb() whose colour isn't in the `.iso` block of
 //     styles/tokens.css;

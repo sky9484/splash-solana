@@ -6,20 +6,23 @@ import { MotionConfig } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 
-import { IsoButton, StepRail } from '@/components/iso';
+import { IsoButton } from '@/components/iso';
 import { PageHead } from '@/components/dashboard/PageHead';
+import { stationOf } from '@/lib/solana-app/stations';
 import type { Wire } from '@/lib/solana-app/json';
 import type { TransferTemplate } from '@/lib/solana-app/store';
 
 import { api, php, usd } from '../client';
 import type { CompanyDTO, FundingOptionsDTO, PaymentDTO } from '../types';
 import { notifyCompanyChanged, useCompany } from '../useCompany';
-import { ApprovalMoment } from './ApprovalMoment';
+import { StepApprove } from './ApprovalMoment';
+import { type SoFarRow } from './SoFar';
 import { StepAmount } from './StepAmount';
 import { StepQuote, type PayeeLabel, type Rehearsal } from './StepQuote';
-import { StepRecipient } from './StepRecipient';
+import { bankLine, StepRecipient } from './StepRecipient';
 import { StepTrack } from './StepTrack';
-import { problemOf, shortName, STEP_LABEL, STEP_ORDER, transferHref, type AmountDraft, type Payee, type Problem, type RecipientRow, type RecipientsDTO, type StepId, type To } from './shared';
+import { QuoteClock, TransferHeader, type HeaderFacts, type TransferStatus } from './TransferHeader';
+import { countryName, problemOf, shortName, STEP_ORDER, transferHref, type AmountDraft, type EstimateDTO, type Payee, type Problem, type RecipientRow, type RecipientsDTO, type StepId, type To } from './shared';
 
 type Template = Wire<TransferTemplate>;
 
@@ -28,8 +31,10 @@ const TEMPLATE_ID = /^tpl_[0-9a-f]{16}$/;
 /** Nothing has been sent: a new amount or recipient drops this draft (its record stays, "discarded"). */
 const DISCARDABLE = ['draft', 'quoted', 'checked', 'quote_expired', 'rejected_by_policy', 'proposal_failed'];
 const BEFORE_APPROVAL = ['draft', 'quoted', 'checked', 'quote_expired', 'rejected_by_policy'];
-/** Where the approval moment can stand open: waiting for this device or the next approver, or just approved. */
+/** Where the approval step can stand open: waiting for this device or the next approver, or just approved. */
 const APPROVAL_OPEN = ['checked', 'proposed', 'execute_failed', 'approved', 'executed', 'confirmed', 'partner_paid', 'evidenced', 'evidence_failed', 'anchored'];
+const STOPPED = ['quote_expired', 'rejected_by_policy', 'proposal_failed', 'execute_failed', 'partner_failed'];
+const APPROVED = ['approved', 'executed', 'confirmed', 'partner_paid', 'evidenced', 'evidence_failed', 'anchored'];
 
 const asTo = (v: string | null): To | null => (v === 'bank' || v === 'splash' ? v : null);
 const asStep = (v: string | null): StepId | null => ((STEP_ORDER as readonly string[]).includes(v ?? '') ? (v as StepId) : null);
@@ -54,20 +59,33 @@ function payeeOf(p: PaymentDTO): PayeeLabel {
   return { name: c?.supplierName ?? '', bank: c?.supplierBank ?? null, last4: c?.supplierAccountLast4 ?? null };
 }
 
+/** The header's status chip, from where the payment is (prompt 11 §2.1). */
+function statusOf(step: StepId, p: PaymentDTO | null): TransferStatus {
+  if (!p || step === 'recipient' || step === 'amount' || step === 'quote') return 'Draft';
+  if (STOPPED.includes(p.state)) return 'Stopped';
+  if (p.state === 'checked') return 'Waiting for you';
+  if (p.state === 'proposed') return 'Waiting for approval';
+  if (step === 'approve' || p.state === 'approved') return 'Approved';
+  const st = stationOf(p.state as never, p.kind === 'peer' ? 'peer' : 'bank');
+  return st === 'paid' || st === 'recording' || st === 'recorded' ? 'Paid' : 'On its way';
+}
+
 /**
- * Transfer (prompt 10 Phase 3): five steps, Recipient, Amount, Quote & send, Approve, Track, to a bank
- * account in the Philippines or to another business on Splash. The URL carries where you are
+ * Transfer (prompt 11 Phase 2; prompt 10 Phase 3): five steps, Recipient, Amount, Route, Approve,
+ * Track, to a bank account in the Philippines or to another business on Splash, under one intent
+ * header that says what the payment is on every step. Steps 1–3 have the "So far" rail with the one
+ * main action; Approve is full width; Track has what happened. The URL carries where you are
  * (`?to=bank|splash&step=…&payment=…`), so Back, a refresh and a shared link all land on the same
- * step; past steps in the rail link back until the payment is approved. Splash holds no key that can
- * move the money: a person approves every payment on their device.
+ * step. One state machine; the engine, the quote, the approval and the tracking are unchanged. Splash
+ * holds no key that can move the money: a person approves every payment on their device.
  */
 export function TransferFlow() {
   const { state } = useCompany();
   if (state.status === 'loading') {
     return (
       <div className="iso iso-page iso-page--transfer" aria-busy="true">
-        <div className="iso-skel" style={{ height: 52 }} />
-        <div className="iso-skel" style={{ height: 220 }} />
+        <div className="iso-skel" style={{ height: 180 }} />
+        <div className="iso-skel" style={{ height: 320 }} />
       </div>
     );
   }
@@ -113,24 +131,29 @@ function Flow({ company }: { company: CompanyDTO }) {
   const [payment, setPayment] = useState<PaymentDTO | null>(null);
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [funding, setFunding] = useState<FundingOptionsDTO | null>(null);
+  const [estimate, setEstimate] = useState<EstimateDTO | null>(null);
   const [busy, setBusy] = useState<null | 'amount' | 'requote' | 'review'>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [loadProblem, setLoadProblem] = useState<Problem | null>(null);
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [rehearsal, setRehearsal] = useState<Rehearsal>('none');
+  // What was typed on step 2 before going back to step 1: kept for the same recipient (prompt 11 §2.2).
+  const [kept, setKept] = useState<{ key: string; draft: AmountDraft } | null>(null);
 
-  /** Move to another step: the URL changes (Back works), the page goes to the top, the title takes focus. */
+  /** Move to another step: the URL changes (Back works), the page goes to the top, the step's heading takes focus. */
   const go = useCallback((next: { to?: To | null; step?: StepId | null; payment?: string | null; template?: null }, mode: 'push' | 'replace' = 'push') => {
     const url = transferHref(new URLSearchParams(window.location.search), next);
     window.history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url);
     setProblem(null);
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0 });
-      const title = document.querySelector<HTMLElement>('.iso-page--transfer .iso-title');
-      if (title) {
-        title.tabIndex = -1;
-        title.focus({ preventScroll: true });
-      }
+      requestAnimationFrame(() => {
+        const heading = document.querySelector<HTMLElement>('.iso-page--transfer [data-step-heading]');
+        if (heading) {
+          heading.tabIndex = -1;
+          heading.focus({ preventScroll: true });
+        }
+      });
     });
   }, []);
 
@@ -228,8 +251,8 @@ function Flow({ company }: { company: CompanyDTO }) {
     if (urlPayment) {
       if (!payment || payment.id !== urlPayment) return urlStep === 'track' ? 'track' : 'quote';
       const fromState = stepForState(payment.state);
-      // The approval moment stays open after the approval (its tick, then "Track it"), and on a 2-of-N
-      // account while the other approver is awaited.
+      // The approval step stays open after the approval ("Approved. Sending now.", then Track), and on a
+      // 2-of-N account while the other approver is awaited.
       if (urlStep === 'approve') return payment.approval && APPROVAL_OPEN.includes(payment.state) ? 'approve' : fromState;
       if (urlStep === 'quote' && BEFORE_APPROVAL.includes(payment.state)) return 'quote';
       if (urlStep === 'track') return 'track';
@@ -238,8 +261,7 @@ function Flow({ company }: { company: CompanyDTO }) {
     if (urlStep === 'amount' && urlTo && (urlTo === 'bank' ? recipient?.payable : payee)) return 'amount';
     return 'recipient';
   })();
-  const to: To | null = payment && urlPayment ? (payment.kind === 'peer' ? 'splash' : 'bank') : urlTo;
-  const index = STEP_ORDER.indexOf(step);
+  const to: To = payment && urlPayment ? (payment.kind === 'peer' ? 'splash' : 'bank') : urlTo;
   const sent = payment ? !BEFORE_APPROVAL.includes(payment.state) : false;
 
   // A bill came from Pay an invoice (prompt 10 §6.2): its recipient and amount were checked there, so
@@ -247,19 +269,10 @@ function Flow({ company }: { company: CompanyDTO }) {
   const source = payment?.invoice.source ?? null;
   const fromBill = source === 'sample' || source === 'paste' || source === 'upload' || source === 'request';
   const back = fromBill && source !== 'request' && payment ? `/dashboard/invoices/pay?invoice=${payment.invoice.id}` : fromBill ? '/dashboard/invoices/pay' : null;
-  const rail = STEP_ORDER.map((s, i) => ({
-    label: STEP_LABEL[s],
-    href:
-      i < index && !sent && (s === 'recipient' || s === 'amount' || (s === 'quote' && payment))
-        ? back && s !== 'quote'
-          ? back
-          : transferHref(params, s === 'quote' ? { step: 'quote' } : { step: s, payment: null })
-        : undefined,
-  }));
+  const backTo = (s: StepId): string | null => (sent ? null : back ?? transferHref(params, { step: s, payment: null }));
 
   /* ---------------------------------------------------------------- actions */
   async function makePayment(d: AmountDraft) {
-    if (!to) return;
     const key = JSON.stringify({ to, r: recipient?.id ?? null, p: payee?.orgId ?? null, php: to === 'bank' ? d.phpMinor : null, usd: to === 'splash' ? d.usdMinor : null, ref: d.reference, note: d.note });
     const detailsKey = JSON.stringify([d.purpose, d.description, d.relationship, d.sourceOfFunds]);
     setBusy('amount');
@@ -295,6 +308,26 @@ function Flow({ company }: { company: CompanyDTO }) {
       setDraft(d);
       setMade({ key, detailsKey });
       go({ to, step: 'quote', payment: q.payment.id });
+    } catch (e) {
+      setProblem(problemOf(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** "Use invoice …" on Step 2: that invoice's own payment, on Step 3, so the invoice is never paid twice. */
+  async function payBill(billId: string) {
+    setBusy('amount');
+    setProblem(null);
+    try {
+      if (payment && DISCARDABLE.includes(payment.state)) await api(`/payments/${payment.id}/discard`, { body: {} }).catch(() => undefined);
+      const res = await api<{ payment: PaymentDTO }>(`/invoices/${billId}/pay`, { body: {} });
+      setPayment(res.payment);
+      setQuoteId(laneFor(res.payment, null));
+      setFunding(null);
+      setDraft(null);
+      setMade(null);
+      go({ to: 'bank', step: 'quote', payment: res.payment.id });
     } catch (e) {
       setProblem(problemOf(e));
     } finally {
@@ -355,6 +388,7 @@ function Flow({ company }: { company: CompanyDTO }) {
     setPayee(null);
     setQuoteId(null);
     setFunding(null);
+    setEstimate(null);
     notifyCompanyChanged();
     go({ to: null, step: null, payment: null, template: null });
   }
@@ -363,76 +397,125 @@ function Flow({ company }: { company: CompanyDTO }) {
   const onFundingChanged = useCallback(() => {
     if (paymentId) void loadFunding(paymentId, quoteId);
   }, [paymentId, quoteId, loadFunding]);
+  const onTrack = useCallback(() => go({ step: 'track' }), [go]);
 
-  const label = payment ? payeeOf(payment) : { name: recipient?.name ?? payee?.name ?? '', bank: recipient?.bank ?? null, last4: recipient?.accountLast4 ?? null };
-  // While the approval card is open, the page behind it is inactive: dimmed, inert, out of reach.
-  const inactiveBehind = Boolean(step === 'approve' && payment?.approval);
+  /* ---------------------------------------------------------------- the header and So far, from server state */
+  const ready = payment && payment.id === urlPayment ? payment : null;
+  const label: PayeeLabel = useMemo(
+    () => (ready ? payeeOf(ready) : to === 'bank' ? { name: recipient?.name ?? '', bank: recipient?.bank ?? null, last4: recipient?.accountLast4 ?? null } : { name: payee?.name ?? '', bank: null, last4: null }),
+    [ready, to, recipient, payee],
+  );
+  const peer = to === 'splash';
+  const amountKey = `${to}:${recipient?.id ?? payee?.orgId ?? ''}`;
+  const lanes = ready ? [...ready.cards, ...(ready.compare ? [ready.compare] : [])] : [];
+  const card = ready ? (lanes.find((c) => c.quoteId === (step === 'quote' ? quoteId : (ready.selectedQuoteId ?? quoteId))) ?? ready.cards[0] ?? null) : null;
+  const est = step === 'amount' ? estimate : null;
+  const reference = ready?.invoice.confirmed?.invoiceNumber ?? (draft?.reference || null);
+  const peerInfo = ready?.invoice.peer ?? null;
+  const testMode = company.mode === 'offline' || company.cluster !== 'mainnet-beta';
+
+  const facts: HeaderFacts = useMemo(() => {
+    const receive = card ? (peer ? usd(card.receivePhpMinor) : php(card.receivePhpMinor)) : est ? (peer ? usd(est.usdMinor) : est.phpMinor ? php(est.phpMinor) : null) : null;
+    const youPay = card ? usd(card.youPayUsdcMinor) : est ? `about ${usd(est.usdMinor)}` : null;
+    const paidOutBy = peer ? 'Inside Splash' : card ? card.arrives : (est?.rail ?? 'Bank');
+    const quote =
+      step === 'recipient' || step === 'amount' || !card ? (
+        'At step 3'
+      ) : peer ? (
+        'No conversion'
+      ) : step === 'track' ? (
+        `Locked at ${card.rate}`
+      ) : (
+        <QuoteClock expiresAt={step === 'approve' && ready?.approval ? ready.approval.quoteExpiresAt : card.expiresAt} />
+      );
+    const sub = !label.name
+      ? 'Choose who you are paying to start'
+      : peer
+        ? [countryName(peerInfo?.payeeCountry ?? payee?.country ?? null), peerInfo?.payeeHandle || payee?.handle ? `@${peerInfo?.payeeHandle ?? payee?.handle}` : null, 'into their own Splash account', reference].filter(Boolean).join(' · ')
+        : [label.bank && label.last4 ? bankLine({ bank: label.bank, accountLast4: label.last4 }) : null, reference].filter(Boolean).join(' · ');
+    return { status: statusOf(step, ready), title: label.name ? `Pay ${label.name}` : 'Send a payout', sub, receive, youPay, paidOutBy, quote, testMode };
+  }, [card, est, peer, step, ready, label, peerInfo, payee, reference, testMode]);
+
+  const approvedBy = ready ? ready.approvals.approvedBy.map((a) => a.name).join(' and ') : '';
+  const rows: SoFarRow[] = [
+    { label: 'Paying', value: label.name || null, sub: peer ? 'into their own Splash account' : label.bank && label.last4 ? `${label.bank} •••• ${label.last4}` : undefined },
+    { label: 'They receive', value: facts.receive },
+    { label: 'Route', value: ready && card && ready.selectedQuoteId && !BEFORE_APPROVAL.slice(0, 2).includes(ready.state) && ready.state !== 'quote_expired' ? `${peer ? 'Inside Splash' : card.labels.join(' · ') || 'Other route'} · ${usd(card.youPayUsdcMinor)}` : null },
+    { label: 'Approval', value: ready && (APPROVED.includes(ready.state) || ready.approvals.approved > 0) ? `Approved by ${approvedBy || 'you'}` : null },
+  ];
+
+  const lead = (
+    <>
+      {templates && templates.length > 0 ? <Templates templates={templates} onUse={(t) => void startFromTemplate(t)} onRemoved={(id) => setTemplates(templates.filter((x) => x.id !== id))} /> : null}
+      {problem ? (
+        <p className="iso-note iso-note--danger" role="alert">
+          {problem.message}
+        </p>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="iso iso-page iso-page--transfer">
-      <div className={inactiveBehind ? 'iso-dimmed iso-stack-lg' : 'iso-stack-lg'} inert={inactiveBehind ? true : undefined}>
-        <StepRail steps={rail} current={index} label="Transfer steps" />
+      <TransferHeader step={step} facts={facts} backTo={backTo} />
 
+      <div key={step} className="iso-tx-enter">
         {step === 'recipient' ? (
-          <>
-            <PageHead title="Who are you paying?" context="Pick where the money goes. Each has its own steps." />
-            {templates && templates.length > 0 ? <Templates templates={templates} onUse={(t) => void startFromTemplate(t)} onRemoved={(id) => setTemplates(templates.filter((x) => x.id !== id))} /> : null}
-            {problem ? (
-              <p className="iso-note iso-note--danger" role="alert">
-                {problem.message}
-              </p>
-            ) : null}
-            <StepRecipient
-              company={company}
-              to={urlTo}
-              onTo={(t) => go({ to: t, step: 'recipient', payment: null }, 'replace')}
-              recipients={recipients}
-              onRecipients={setRecipients}
-              recipient={recipient}
-              onRecipient={setRecipient}
-              payee={payee}
-              onPayee={setPayee}
-              onContinue={() => go({ step: 'amount', payment: null })}
-            />
-          </>
+          <StepRecipient
+            company={company}
+            to={urlTo}
+            onTo={(t) => go({ to: t, step: 'recipient', payment: null }, 'replace')}
+            recipients={recipients}
+            onRecipients={setRecipients}
+            recipient={recipient}
+            onRecipient={setRecipient}
+            payee={payee}
+            onPayee={setPayee}
+            onContinue={() => go({ step: 'amount', payment: null })}
+            rows={rows}
+            lead={lead}
+          />
         ) : null}
 
-        {step === 'amount' && to ? (
-          <>
-            <PageHead title={to === 'bank' ? `How much does ${shortName(label.name)} get?` : `How much are you sending ${shortName(label.name)}?`} context={to === 'bank' ? 'Type either amount; the other follows. The exact cost comes on the next step.' : 'They get exactly what you send. No Splash fee between Splash businesses.'} />
-            <StepAmount
-              key={`${to}:${recipient?.id ?? payee?.orgId ?? ''}`}
-              company={company}
-              kind={to === 'bank' ? 'bank' : 'peer'}
-              recipient={recipient}
-              payee={payee}
-              options={recipients?.detailsOptions ?? null}
-              draft={draft}
-              busy={busy === 'amount'}
-              problem={problem}
-              onBack={() => go({ step: 'recipient' })}
-              onNext={(d) => void makePayment(d)}
-            />
-          </>
+        {step === 'amount' ? (
+          <StepAmount
+            key={amountKey}
+            company={company}
+            kind={to === 'bank' ? 'bank' : 'peer'}
+            recipient={recipient}
+            payee={payee}
+            options={recipients?.detailsOptions ?? null}
+            draft={draft ?? (kept?.key === amountKey ? kept.draft : null)}
+            busy={busy === 'amount'}
+            problem={problem}
+            rows={rows}
+            onEstimate={setEstimate}
+            onUseBill={(id) => void payBill(id)}
+            onBack={(d) => {
+              setKept({ key: amountKey, draft: d });
+              go({ step: 'recipient' });
+            }}
+            onNext={(d) => void makePayment(d)}
+          />
         ) : null}
 
-        {(step === 'quote' || step === 'approve') && urlPayment ? (
-          payment && payment.id === urlPayment ? (
+        {step === 'quote' && urlPayment ? (
+          ready ? (
             <StepQuote
-              payment={payment}
+              payment={ready}
               payee={label}
               quoteId={quoteId}
               onQuoteId={setQuoteId}
               funding={funding}
               onFundingChanged={onFundingChanged}
-              sourceOfFunds={draft?.sourceOfFunds ?? payment.invoice.details?.sourceOfFunds ?? null}
+              sourceOfFunds={draft?.sourceOfFunds ?? ready.invoice.details?.sourceOfFunds ?? null}
               busy={busy === 'requote' || busy === 'review' ? busy : null}
               problem={problem}
-              ticketAway={inactiveBehind}
               rehearsal={rehearsal}
               onRehearsal={setRehearsal}
+              rows={rows}
+              back={back ? { label: 'Back to the invoice', href: back } : { label: 'Back to amount', onClick: () => go({ step: 'amount', payment: null }) }}
               onRequote={() => void requote()}
-              onBack={() => go({ step: 'amount', payment: null })}
               onReview={() => void review()}
             />
           ) : (
@@ -440,25 +523,22 @@ function Flow({ company }: { company: CompanyDTO }) {
           )
         ) : null}
 
+        {step === 'approve' && urlPayment ? (
+          ready && ready.approval ? (
+            <StepApprove company={company} payment={ready} plan={funding?.plan ?? null} onPayment={onPayment} onTrack={onTrack} />
+          ) : (
+            <Loading problem={loadProblem} />
+          )
+        ) : null}
+
         {step === 'track' && urlPayment ? (
-          payment && payment.id === urlPayment ? (
-            <StepTrack payment={payment} payee={label} onPayment={onPayment} onAnother={another} onRequote={() => void requote()} onRetry={() => go({ step: 'approve' })} />
+          ready ? (
+            <StepTrack payment={ready} payee={label} onPayment={onPayment} onAnother={another} onRequote={() => void requote()} onRetry={() => go({ step: 'approve' })} />
           ) : (
             <Loading problem={loadProblem} />
           )
         ) : null}
       </div>
-
-      {inactiveBehind && payment ? (
-        <ApprovalMoment
-          company={company}
-          payment={payment}
-          plan={funding?.plan ?? null}
-          onPayment={onPayment}
-          onCancel={() => go({ step: 'quote' })}
-          onTrack={() => go({ step: 'track' })}
-        />
-      ) : null}
     </div>
   );
 }
@@ -496,7 +576,7 @@ function Templates({ templates, onUse, onRemoved }: { templates: Template[]; onU
     }
   }
   return (
-    <section className="iso-templates iso-rise" aria-labelledby="t1-templates">
+    <section className="iso-templates" aria-labelledby="t1-templates">
       <h2 id="t1-templates" className="iso-label">
         Pay again
       </h2>

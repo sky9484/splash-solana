@@ -28,7 +28,7 @@ function classes({ variant = 'quiet', size = 'md', block, busy, className }: Com
 /**
  * The one button. `primary` (teal, paper text), `approve` (coral, ink text: approval only),
  * `quiet` (paper, outline), `link`; `paper` and `onink` sit on the ink action bar. Hover lifts 1 px,
- * press pushes it 2 px into its ledge. 48 px tall (52 px for a step's main action).
+ * press pushes it 2 px into its ledge. 40 px tall; the screen's one main action is `lg`, 48 px (prompt 11 §1.3).
  */
 export function IsoButton(props: ButtonProps | LinkProps) {
   const reasonId = useId();

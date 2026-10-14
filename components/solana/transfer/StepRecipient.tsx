@@ -1,24 +1,35 @@
 // iso-ui
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { Search, UserPlus } from 'lucide-react';
+import clsx from 'clsx';
 
-import { ActionBar, IsoBlock, IsoButton, IsoSurface, Tag, TextField } from '@/components/iso';
+import { IsoButton, IsoSurface, Segmented, Tag, TextField } from '@/components/iso';
 import { radioKeys, tabStop } from '@/components/iso/radio';
 
 import { api, copyText } from '../client';
 import type { CompanyDTO } from '../types';
 import { NewRecipientSheet, RecipientSheet } from './RecipientSheets';
-import { countryName, problemOf, shortName, type Payee, type Problem, type RecipientRow, type RecipientsDTO, type To } from './shared';
+import { SoFar, TxGrid, type SoFarRow } from './SoFar';
+import { countryName, problemOf, type Payee, type Problem, type RecipientRow, type RecipientsDTO, type To } from './shared';
 
-const DESTINATIONS: To[] = ['bank', 'splash'];
+const SUFFIX = /^(?:inc\.?|incorporated|corp\.?|corporation|co\.?|company|ltd\.?|limited|llc|plc|sdn|bhd\.?|pt|the)$/i;
+
+/** "Manila Freight Services Inc." → "MF": the tile on a recipient's row. */
+export function initials(name: string): string {
+  const words = name.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w && !SUFFIX.test(w));
+  return (words.slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?').slice(0, 2);
+}
+
+/** A bank recipient's second line: "BDO Unibank •••• 4471 · Philippines" (every bank on the list is in the Philippines). */
+export const bankLine = (r: Pick<RecipientRow, 'bank' | 'accountLast4'>) => `${r.bank} •••• ${r.accountLast4} · Philippines`;
 
 /**
- * Step 1, "Who are you paying?" (prompt 10 §5.1, §5.3, §5.4; frame Flow-T1-Recipient): a bank account
- * in the Philippines, from the saved and checked list or a new one, or another business on Splash,
- * found in the directory. Only a checked recipient can be paid; a payee on Splash is a verified
- * company that chose to be found.
+ * Step 1, "Who are you paying?" (prompt 11 §2.3): a bank account in the Philippines, from the saved and
+ * checked list or a new one, or another business on Splash, found in the directory. One click picks a
+ * row; a double-click (or Enter on the picked row) picks it and goes on to the amount. Only a checked
+ * recipient can be paid; a business on Splash is a verified company that chose to be found.
  */
 export function StepRecipient({
   company,
@@ -31,9 +42,11 @@ export function StepRecipient({
   payee,
   onPayee,
   onContinue,
+  rows,
+  lead,
 }: {
   company: CompanyDTO;
-  to: To | null;
+  to: To;
   onTo: (to: To) => void;
   recipients: RecipientsDTO | null;
   onRecipients: (r: RecipientsDTO) => void;
@@ -42,6 +55,9 @@ export function StepRecipient({
   payee: Payee | null;
   onPayee: (p: Payee | null) => void;
   onContinue: () => void;
+  rows: SoFarRow[];
+  /** "Pay again" and any problem, above the card. */
+  lead?: ReactNode;
 }) {
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
@@ -59,7 +75,7 @@ export function StepRecipient({
     };
   }, [to, recipients, onRecipients]);
 
-  const rows = useMemo(() => {
+  const shown = useMemo(() => {
     const all = recipients?.recipients ?? [];
     const q = query.trim().toLowerCase();
     return q ? all.filter((r) => `${r.name} ${r.bank} ${r.accountLast4}`.toLowerCase().includes(q)) : all;
@@ -74,55 +90,38 @@ export function StepRecipient({
     if (recipient?.id === r.id) onRecipient(r);
   }
 
-  const summary =
-    to === 'splash' ? (
-      payee ? (
-        <>
-          Paying <strong>{shortName(payee.name)}</strong> · into their Splash account
-        </>
-      ) : (
-        'Find the business you’re paying.'
-      )
-    ) : recipient ? (
-      <>
-        Paying <strong>{recipient.name}</strong> · {recipient.bank} •••• {recipient.accountLast4} · {recipient.payable ? recipient.status.replace(/^Verified \d+ \w+ /, 'checked ') : 'not checked yet'}
-      </>
-    ) : (
-      'Choose who you’re paying.'
-    );
-  const blocked = to === 'splash' ? (payee ? null : 'Choose a business first.') : !recipient ? 'Choose a recipient first.' : recipient.payable ? null : 'Check their bank details first: only checked recipients can be paid.';
+  const blocked =
+    to === 'splash'
+      ? payee
+        ? null
+        : 'Pick a business to continue'
+      : !recipient
+        ? 'Pick a recipient to continue'
+        : recipient.payable
+          ? null
+          : `Check ${recipient.name}’s bank details first: only checked recipients can be paid.`;
 
-  return (
+  const main = (
     <>
-      <div className="iso-dest iso-rise iso-rise-2" role="radiogroup" aria-label="Where the money goes" onKeyDown={radioKeys(DESTINATIONS, to, onTo)}>
-        <button type="button" role="radio" aria-checked={to === 'bank'} tabIndex={tabStop('bank', DESTINATIONS, to)} data-radio-value="bank" className="iso-choice iso-dest__card" onClick={() => onTo('bank')}>
-          <IsoBlock glyph="bank" size={64} />
-          <span>
-            <span className="iso-choice__title">A bank account</span>
-            <span className="iso-choice__body">Pesos to a supplier’s bank in the Philippines, by InstaPay or PESONet.</span>
-          </span>
-        </button>
-        <button type="button" role="radio" aria-checked={to === 'splash'} tabIndex={tabStop('splash', DESTINATIONS, to)} data-radio-value="splash" className="iso-choice iso-dest__card" onClick={() => onTo('splash')}>
-          <IsoBlock glyph="business" size={64} />
-          <span>
-            <span className="iso-choice__title">A business on Splash</span>
-            <span className="iso-choice__body">Straight to their Splash account. No Splash fee.</span>
-          </span>
-        </button>
-      </div>
-
-      {to === 'bank' ? (
-        <IsoSurface className="iso-rise iso-rise-3" aria-labelledby="t1-saved">
-          <div className="iso-surface--head">
-            <h2 id="t1-saved" className="iso-h2">
-              Saved bank recipients
-            </h2>
-            <IsoButton variant="quiet" size="sm" onClick={() => setAdding(true)} disabled={!recipients}>
-              <UserPlus size={16} aria-hidden="true" /> Add a new recipient
-            </IsoButton>
-          </div>
+      {lead}
+      <IsoSurface pad={false} className="iso-pickcard" aria-labelledby="t1-title">
+        <div className="iso-surface--head">
+          <h2 id="t1-title" className="iso-h2" data-step-heading>
+            Who are you paying?
+          </h2>
+          <Segmented
+            label="Who you’re paying"
+            value={to}
+            onChange={onTo}
+            options={[
+              { value: 'bank', label: 'Bank account' },
+              { value: 'splash', label: 'Splash business' },
+            ]}
+          />
+        </div>
+        {to === 'bank' ? (
           <div className="iso-surface--pad iso-stack">
-            {recipients && recipients.recipients.length > 0 ? (
+            {recipients && recipients.recipients.length > 4 ? (
               <TextField label="Search recipients" value={query} onChange={setQuery} type="search" autoComplete="off" placeholder="Name, bank or last 4 digits" end={<Search size={18} aria-hidden="true" className="iso-field__icon" />} />
             ) : null}
             {loadProblem ? (
@@ -140,112 +139,151 @@ export function StepRecipient({
                 <p className="iso-small" style={{ margin: 0 }}>
                   Add the first one: their bank, the full account number typed twice, and a call-back on a number you already have.
                 </p>
-                <div>
-                  <IsoButton variant="primary" onClick={() => setAdding(true)}>
-                    Add a new recipient
-                  </IsoButton>
-                </div>
               </div>
-            ) : rows.length === 0 ? (
+            ) : shown.length === 0 ? (
               <p className="iso-small" role="status">
                 No saved recipient matches “{query.trim()}”.
               </p>
             ) : (
-              <ul className="iso-list iso-recips" aria-label="Saved bank recipients">
-                {rows.map((r) => {
-                  const chosen = recipient?.id === r.id;
-                  return (
-                    <li key={r.id} className={chosen ? 'iso-recips__row iso-recips__row--on' : 'iso-recips__row'}>
-                      <div className="iso-list__main">
-                        <button type="button" className="iso-recips__name" onClick={() => setOpenId(r.id)} aria-label={`${r.name}: details`}>
-                          {r.name}
-                        </button>
-                        <div className="iso-list__detail iso-num">
-                          {r.bank} <span className="iso-num">•••• {r.accountLast4}</span>
-                        </div>
-                        <div className="iso-row iso-recips__meta">
-                          <Tag tone={r.payable ? 'ok' : 'amber'} tick={r.payable}>
-                            {r.status}
-                          </Tag>
-                          <span className="iso-small">{r.lastPaid}</span>
-                        </div>
-                      </div>
-                      {chosen ? (
-                        <span className="iso-recips__chosen" aria-label={`${r.name} is selected`}>
-                          Selected
-                        </span>
-                      ) : r.payable ? (
-                        <IsoButton
-                          variant="quiet"
-                          size="sm"
-                          aria-label={`Pay ${r.name}`}
-                          onClick={() => {
-                            onRecipient(r);
-                            onContinue();
-                          }}
-                        >
-                          Pay
-                        </IsoButton>
-                      ) : (
-                        <IsoButton variant="quiet" size="sm" aria-label={`Verify ${r.name} first`} onClick={() => setOpenId(r.id)}>
-                          Verify first
-                        </IsoButton>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <p className="iso-small" style={{ margin: 0 }}>
-              Only checked recipients can be paid. Changed bank details always need a fresh call-back.
-            </p>
-          </div>
-          {recipients ? (
-            <>
-              <NewRecipientSheet
-                open={adding}
-                onClose={() => setAdding(false)}
-                banks={recipients.banks}
-                personName={company.me.personName}
-                onSaved={(r) => {
-                  replace(r);
-                  setAdding(false);
-                  if (r.payable) onRecipient(r);
-                }}
-              />
-              <RecipientSheet
-                recipient={open}
-                open={open !== null}
-                onClose={() => setOpenId(null)}
-                company={company}
-                onChanged={replace}
-                onRemoved={(id) => {
-                  onRecipients({ ...recipients, recipients: recipients.recipients.filter((x) => x.id !== id) });
-                  if (recipient?.id === id) onRecipient(null);
-                  setOpenId(null);
-                }}
-                onPay={(r) => {
-                  setOpenId(null);
+              <PickList
+                label="Saved bank recipients"
+                items={shown.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  line: bankLine(r),
+                  tag: r.payable ? (
+                    <Tag tone="ok" tick>
+                      Verified
+                    </Tag>
+                  ) : (
+                    <Tag tone="amber">Not checked</Tag>
+                  ),
+                  details: (
+                    <button type="button" className="iso-pick__more" aria-label={`${r.name}: details`} onClick={() => setOpenId(r.id)}>
+                      Details
+                    </button>
+                  ),
+                }))}
+                chosen={recipient?.id ?? null}
+                onPick={(id) => onRecipient(recipients.recipients.find((x) => x.id === id) ?? null)}
+                onGo={(id) => {
+                  const r = recipients.recipients.find((x) => x.id === id) ?? null;
                   onRecipient(r);
-                  onContinue();
+                  if (r?.payable) onContinue();
                 }}
               />
-            </>
-          ) : null}
-        </IsoSurface>
-      ) : null}
-
-      {to === 'splash' ? <FindBusiness payee={payee} onPayee={onPayee} onContinue={onContinue} onBank={() => onTo('bank')} /> : null}
-
-      <ActionBar summary={summary} label="Who you’re paying">
-        <IsoButton variant="onink" href="/dashboard">
-          Cancel
-        </IsoButton>
-        <IsoButton variant="paper" size="lg" onClick={onContinue} disabledReason={to ? blocked : 'Choose where the money goes first.'}>
-          Continue
-        </IsoButton>
-      </ActionBar>
+            )}
+            <div className="iso-row">
+              <IsoButton variant="quiet" onClick={() => setAdding(true)} disabled={!recipients}>
+                <UserPlus size={16} aria-hidden="true" /> New recipient
+              </IsoButton>
+              <span className="iso-small">Double-click a saved recipient to go straight to the amount. Only checked recipients can be paid.</span>
+            </div>
+          </div>
+        ) : (
+          <FindBusiness payee={payee} onPayee={onPayee} onContinue={onContinue} onBank={() => onTo('bank')} />
+        )}
+        {to === 'bank' && recipients ? (
+          <>
+            <NewRecipientSheet
+              open={adding}
+              onClose={() => setAdding(false)}
+              banks={recipients.banks}
+              personName={company.me.personName}
+              onSaved={(r) => {
+                replace(r);
+                setAdding(false);
+                if (r.payable) onRecipient(r);
+              }}
+            />
+            <RecipientSheet
+              recipient={open}
+              open={open !== null}
+              onClose={() => setOpenId(null)}
+              company={company}
+              onChanged={replace}
+              onRemoved={(id) => {
+                onRecipients({ ...recipients, recipients: recipients.recipients.filter((x) => x.id !== id) });
+                if (recipient?.id === id) onRecipient(null);
+                setOpenId(null);
+              }}
+              onPay={(r) => {
+                setOpenId(null);
+                onRecipient(r);
+                onContinue();
+              }}
+            />
+          </>
+        ) : null}
+      </IsoSurface>
     </>
+  );
+
+  return (
+    <TxGrid
+      main={main}
+      rail={
+        <SoFar
+          rows={rows}
+          action={
+            <IsoButton variant="primary" size="lg" block onClick={onContinue} disabledReason={blocked}>
+              Continue to amount
+            </IsoButton>
+          }
+        />
+      }
+    />
+  );
+}
+
+interface PickItem {
+  id: string;
+  name: string;
+  line: string;
+  tag: ReactNode;
+  details?: ReactNode;
+}
+
+/**
+ * Recipients as rows (prompt 11 §2.3): the initials tile, the name, its line and a tag. A radio group:
+ * the arrows move the pick; one click picks; a double-click, or Enter on the picked row, goes on.
+ */
+function PickList({ label, items, chosen, onPick, onGo }: { label: string; items: PickItem[]; chosen: string | null; onPick: (id: string) => void; onGo: (id: string) => void }) {
+  const ids = items.map((i) => i.id);
+  return (
+    <div className="iso-picks" role="radiogroup" aria-label={label} onKeyDown={radioKeys(ids, chosen, onPick)}>
+      {items.map((it) => {
+        const on = it.id === chosen;
+        return (
+          <div key={it.id} className={clsx('iso-pick', on && 'iso-pick--on')}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={on}
+              tabIndex={tabStop(it.id, ids, chosen)}
+              data-radio-value={it.id}
+              className="iso-pick__main"
+              onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                // Enter or Space on the row already picked (a keyboard click has no pointer detail) goes on.
+                if (on && e.detail === 0) onGo(it.id);
+                else onPick(it.id);
+              }}
+              onDoubleClick={() => onGo(it.id)}
+            >
+              <span className="iso-pick__tile" aria-hidden="true">
+                {initials(it.name)}
+              </span>
+              <span className="iso-pick__text">
+                <span className="iso-pick__name">{it.name}</span>
+                <span className="iso-pick__line iso-num">{it.line}</span>
+              </span>
+              <span className="iso-pick__tag">{it.tag}</span>
+            </button>
+            {it.details}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -285,77 +323,41 @@ function FindBusiness({ payee, onPayee, onContinue, onBank }: { payee: Payee | n
     setCopied(await copyText(`${window.location.origin}/signup`));
   }
 
+  // The business picked stays listed when the search is cleared.
+  const list = hits ?? (payee ? [payee] : []);
+  const line = (h: Payee) => [countryName(h.country), h.handle ? `@${h.handle}` : null, 'into their own Splash account'].filter(Boolean).join(' · ');
   return (
-    <IsoSurface className="iso-rise iso-rise-3" aria-labelledby="t1-find">
-      <div className="iso-surface--head">
-        <h2 id="t1-find" className="iso-h2">
-          Find a business on Splash
-        </h2>
-      </div>
-      <div className="iso-surface--pad iso-stack">
-        <TextField label="Company name, Splash handle or registration number" value={q} onChange={setQ} type="search" autoComplete="off" spellCheck={false} end={<Search size={18} aria-hidden="true" className="iso-field__icon" />} />
-        {problem ? (
-          <p className="iso-note iso-note--danger" role="alert">
-            {problem.message}
-          </p>
-        ) : null}
-        {payee && !hits ? <BusinessCard hit={payee} chosen onPay={onContinue} /> : null}
-        {hits && hits.length > 0 ? (
-          <ul className="iso-list iso-recips" aria-label="Businesses on Splash">
-            {hits.map((h) => (
-              <li key={h.orgId}>
-                <BusinessCard
-                  hit={h}
-                  chosen={payee?.orgId === h.orgId}
-                  onPay={() => {
-                    onPayee(h);
-                    onContinue();
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <p className="iso-small" role="status" aria-live="polite" style={{ margin: 0 }}>
-          {hits && hits.length === 0 ? `No business on Splash matches “${q.trim()}”. ` : null}
-          Only verified companies that chose “Let other Splash businesses find us” show here. Not listed?{' '}
-          <button type="button" className="iso-btn iso-btn--link" onClick={() => void invite()}>
-            {copied ? 'Invite link copied' : 'Invite them'}
-          </button>{' '}
-          or{' '}
-          <button type="button" className="iso-btn iso-btn--link" onClick={onBank}>
-            pay their bank instead
-          </button>
-          .
+    <div className="iso-surface--pad iso-stack">
+      <TextField label="Company name, Splash handle or registration number" value={q} onChange={setQ} type="search" autoComplete="off" spellCheck={false} end={<Search size={18} aria-hidden="true" className="iso-field__icon" />} />
+      {problem ? (
+        <p className="iso-note iso-note--danger" role="alert">
+          {problem.message}
         </p>
-      </div>
-    </IsoSurface>
-  );
-}
-
-function BusinessCard({ hit, chosen, onPay }: { hit: Payee; chosen: boolean; onPay: () => void }) {
-  return (
-    <div className={chosen ? 'iso-recips__row iso-recips__row--on' : 'iso-recips__row'}>
-      <IsoBlock glyph="business" size={48} />
-      <div className="iso-list__main">
-        <div className="iso-list__title">{hit.name}</div>
-        <div className="iso-list__detail">
-          {[countryName(hit.country), hit.handle ? `@${hit.handle}` : null].filter(Boolean).join(' · ')}
-          {hit.country || hit.handle ? ' · ' : ''}gets paid into its own Splash account
-        </div>
-        <div className="iso-row iso-recips__meta">
-          <Tag tone="ok" tick>
-            Verified company
-          </Tag>
-        </div>
-      </div>
-      {chosen ? (
-        <span className="iso-recips__chosen">Selected</span>
-      ) : (
-        <IsoButton variant="quiet" size="sm" aria-label={`Pay ${hit.name}`} onClick={onPay}>
-          Pay
-        </IsoButton>
-      )}
+      ) : null}
+      {list.length > 0 ? (
+        <PickList
+          label="Businesses on Splash"
+          items={list.map((h) => ({ id: h.orgId, name: h.name, line: line(h), tag: <Tag tone="ok">No payout fee</Tag> }))}
+          chosen={payee?.orgId ?? null}
+          onPick={(id) => onPayee(list.find((h) => h.orgId === id) ?? null)}
+          onGo={(id) => {
+            onPayee(list.find((h) => h.orgId === id) ?? null);
+            onContinue();
+          }}
+        />
+      ) : null}
+      <p className="iso-small" role="status" aria-live="polite" style={{ margin: 0 }}>
+        {hits && hits.length === 0 ? `No business on Splash matches “${q.trim()}”. ` : null}
+        Only verified companies that chose “Let other Splash businesses find us” show here. Not listed?{' '}
+        <button type="button" className="iso-btn iso-btn--link" onClick={() => void invite()}>
+          {copied ? 'Invite link copied' : 'Invite them'}
+        </button>{' '}
+        or{' '}
+        <button type="button" className="iso-btn iso-btn--link" onClick={onBank}>
+          pay their bank instead
+        </button>
+        .
+      </p>
     </div>
   );
 }

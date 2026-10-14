@@ -130,6 +130,54 @@ async function run(page, email) {
       el.click();
     });
   };
+  /** Transfer's intent header (prompt 11 §2.1), as the page shows it. */
+  const header = () =>
+    page.evaluate(() => {
+      const h = document.querySelector('.iso-txhead');
+      if (!h) return null;
+      const facts = Object.fromEntries([...h.querySelectorAll('.iso-txhead__metrics > div')].map((d) => [d.querySelector('dt').innerText.trim(), d.querySelector('dd').innerText.trim()]));
+      return { status: h.querySelector('[data-testid=tx-status]').innerText.trim(), title: h.querySelector('#tx-title').innerText.trim(), sub: h.querySelector('.iso-txhead__sub').innerText.trim(), step: h.querySelector('.iso-txhead__stepline').innerText.replace(/\s+/g, ' ').trim(), links: [...h.querySelectorAll('.iso-txhead__seglink')].map((a) => a.getAttribute('aria-label')), facts };
+    });
+  /** Money as the app writes it (lib/solana-zeke/router.ts formatUsd, half-up to cents; formatPhp). */
+  const usdText = (minor) => {
+    const cents = (BigInt(minor) + 5_000n) / 10_000n;
+    return `US$${(cents / 100n).toLocaleString('en-US')}.${String(cents % 100n).padStart(2, '0')}`;
+  };
+  const phpText = (minor) => `₱${(BigInt(minor) / 100n).toLocaleString('en-US')}.${String(BigInt(minor) % 100n).padStart(2, '0')}`;
+  const STEP_NAMES = { recipient: 'Recipient', amount: 'Amount', quote: 'Route', approve: 'Approve', track: 'Track' };
+  /**
+   * Prompt 11 §2.1: every value in the header comes from server state. Reads the payment the URL names
+   * from the server and checks what they receive, what you pay, the rail, the quote's clock (or its
+   * lock at step 5), the step, the status, and that only steps 2 and 3 link back.
+   */
+  const headerMatchesServer = async (step, status) => {
+    await page.waitFor((want) => document.querySelector('.iso-txhead__stepline')?.innerText.includes(want), [STEP_NAMES[step]], { what: `the header on ${step}` });
+    const id = await page.evaluate(() => new URLSearchParams(location.search).get('payment'));
+    const p = await page.evaluate(async (pid) => (await (await fetch(`/api/solana/payments/${pid}`, { cache: 'no-store' })).json()).payment, id);
+    const lanes = [...p.cards, ...(p.compare ? [p.compare] : [])];
+    const picked = step === 'quote' ? await page.evaluate(() => document.querySelector('.iso-route[aria-checked="true"]')?.dataset.radioValue ?? null) : p.selectedQuoteId;
+    const card = lanes.find((c) => c.quoteId === picked) ?? p.cards[0];
+    const peer = p.kind === 'peer';
+    const h = await header();
+    assert.equal(h.facts['They receive'], peer ? usdText(card.receivePhpMinor) : phpText(card.receivePhpMinor), `${step}: They receive`);
+    assert.equal(h.facts['You pay'], usdText(card.youPayUsdcMinor), `${step}: You pay`);
+    assert.equal(h.facts['Paid out by'], peer ? 'Inside Splash' : card.arrives, `${step}: Paid out by`);
+    if (peer) assert.equal(h.facts.Quote, 'No conversion', `${step}: Quote`);
+    else if (step === 'track') assert.equal(h.facts.Quote, `Locked at ${card.rate}`, `${step}: Quote`);
+    else assert.match(h.facts.Quote, /^(New quote in \d:\d\d|Quote ran out)$/, `${step}: Quote`);
+    const n = ['recipient', 'amount', 'quote', 'approve', 'track'].indexOf(step) + 1;
+    assert.equal(h.step, `Step ${n} of 5 ${STEP_NAMES[step]}`);
+    if (status) assert.match(h.status, status, `${step}: status ${h.status}`);
+    // Back: steps 2 and 3 link back to the steps before them; Approve and Track never do.
+    assert.deepEqual(h.links, step === 'quote' ? ['Back to recipient', 'Back to amount'] : step === 'amount' ? ['Back to recipient'] : [], `${step}: back links`);
+    return h;
+  };
+  /** Approve on this device, then Track opens by itself (prompt 11 §2.3). */
+  const approveThenTrack = async (timeoutMs = 60_000) => {
+    await page.click('button', 'Approve on this device');
+    await page.waitFor(() => /step=track/.test(location.search) || [...document.querySelectorAll('.iso-approved')].some((e) => /^Approved\. Sending now\./.test(e.innerText.trim())), [], { what: '"Approved. Sending now."', timeoutMs });
+    await page.waitFor(() => /step=track/.test(location.search), [], { what: 'Track to open by itself', timeoutMs: 30_000 });
+  };
   /** One width only: a state that exists only on a desktop (the collapsed rail) or on a phone (its menu). */
   const shotOne = async (name, width) => {
     console.log(`[walk] ${new Date().toISOString().slice(11, 19)} ${name} (${width})`);
@@ -283,35 +331,40 @@ async function run(page, email) {
   await page.waitFor(() => document.querySelectorAll('.iso-tickbtn[aria-pressed="true"][aria-label$=": checked"]').length === 5, [], { what: 'five ticks' });
   await shot('check-invoice-verified');
   await tap('Confirm and pay');
-  // The handoff: Transfer's Step 3, with the recipient, the amount, the invoice number and the invoice.
+  // The handoff: Transfer's Step 3 (prompt 11 §2.3, "Pick a route"), under the intent header with the
+  // recipient, the amount, the invoice number and the invoice.
   await page.waitFor(() => location.pathname === '/dashboard/transfer' && /step=quote/.test(location.search) && /payment=pay_/.test(location.search), [], { what: 'Transfer Step 3' });
-  await page.find('heading', 'How ₱560,000 reaches Manila Freight', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   const handoff = (await page.text('main')).join('\n');
-  assert.match(handoff, /Invoice INV-0412/, 'the invoice and its number are there');
+  assert.match(handoff, /INV-0412/, 'the invoice and its number are there');
   assert.match(handoff, /Manila Freight/, 'the recipient is there');
   assert.match(handoff, /BDO Unibank, Inc\./, 'with the bank the invoice named');
   assert.match(handoff, /₱560,000/, 'the amount is there');
+  assert.match((await header()).title, /^Pay Manila Freight/, 'the header names who is paid');
+  await headerMatchesServer('quote', /^Draft$/);
   await shot('invoice-handoff-quote');
+  await page.find('button', 'Review and approve', { enabled: true, timeoutMs: 60_000 });
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
-  const invoiceCard = (await page.text('.iso-modal')).join('\n');
-  assert.match(invoiceCard, /Drafted by Zeke · a person approves/);
+  await headerMatchesServer('approve', /^Waiting for you$/);
+  const invoiceCard = (await page.text('.iso-approve')).join('\n');
+  assert.match(invoiceCard, /Zeke drafted this payment\. Zeke can’t approve; only you can\./);
   assert.match(invoiceCard, /INV-0412/);
   assert.match(invoiceCard, /₱560,000\.00/);
   // The payment now waits for approval: Zeke's one nudge and the Overview badge, from the server's count.
-  await page.press('Escape');
-  await page.waitFor(() => !document.querySelector('.iso-modal-root'), [], { what: 'the approval moment to close' });
+  // Approve is a step of its own now and Zeke steps aside while it is open, so look from Overview.
+  const approveUrl = await page.evaluate(() => location.pathname + location.search);
+  await page.goto(`${BASE}/dashboard`);
   await page.waitFor(() => /1 draft needs your approval/.test(document.querySelector('.iso-zk__nudge')?.textContent ?? ''), [], { what: "Zeke's nudge" });
   assert.equal(await page.evaluate(() => document.querySelector('a.iso-navitem[href="/dashboard"] .iso-navbadge')?.textContent.trim()), '1');
   await shotOne('zeke-nudge', 'desktop');
-  await page.click('button', 'Review and approve');
+  await page.goto(`${BASE}${approveUrl}`);
   await page.find('heading', 'Approve this payment');
   await shot('approve-card');
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
-  await page.click('button', 'Track it');
-  await page.find('heading', 'Manila Freight has been paid', { timeoutMs: 60_000 });
+  await approveThenTrack();
+  await page.find('heading', 'Paid, with proof recorded', { timeoutMs: 60_000 });
   await page.find('text', /^Proof recorded\./, { timeoutMs: 60_000 });
+  await headerMatchesServer('track', /^Paid$/);
   await shot('done-evidence');
 
   // Receipt: verify, trace on Solscan, then tamper.
@@ -355,15 +408,19 @@ async function run(page, email) {
   assert.match((await page.text('[role=tabpanel]')).join('\n'), /Paid · proof recorded/);
   await shot('invoices-paid');
 
-  // Transfer (prompt 10 Phase 3): Recipient, Amount, Quote & send, Approve, Track. A new bank
-  // recipient (the full number typed twice, checked by call-back), then the amount, the route, the
-  // approval moment and the map driven by the payment's real state, to a verified receipt.
+  // Transfer (prompt 11 Phase 2; prompt 10 Phase 3): Recipient, Amount, Route, Approve, Track, under one
+  // intent header whose figures are the server's. A new bank recipient (the full number typed twice,
+  // checked by call-back), then the amount, the route, the approval and the tracker driven by the
+  // payment's real state, to a verified receipt.
   const TIME_WORDS = /\b(\d+\s*(?:s|sec|seconds?|min|minutes?|hours?|days?)\b|same day|arrives? by|instant(?:ly)?|in minutes|faster)/i;
   await page.goto(`${BASE}/dashboard/transfer`);
   await page.find('heading', 'Who are you paying?');
   await page.find('text', 'Manila Freight Services Inc.');
+  const h1 = await header();
+  assert.deepEqual([h1.status, h1.title, h1.step, h1.links], ['Draft', 'Send a payout', 'Step 1 of 5 Recipient', []]);
+  assert.deepEqual(h1.facts, { 'They receive': 'Set at step 2', 'You pay': 'Not yet', 'Paid out by': 'Bank', Quote: 'At step 3' });
   await shot('transfer-recipient');
-  await page.click('button', 'Add a new recipient');
+  await page.click('button', 'New recipient');
   await page.find('heading', 'New bank recipient');
   await page.fill('Business name', 'Cebu Logistics Inc.');
   await page.fill('SEC or DTI registration number', 'CS202054321');
@@ -397,24 +454,79 @@ async function run(page, email) {
   await page.press('Escape');
   await page.waitFor(() => !document.querySelector('.iso-sheet-root'), [], { what: 'the sheet to close on Esc' });
 
-  await page.click('button', 'Continue');
-  await page.find('heading', 'How much does Cebu Logistics get?');
+  // The new recipient is picked: the header names them before any amount.
+  await page.waitFor(() => document.getElementById('tx-title')?.innerText.trim() === 'Pay Cebu Logistics Inc.', [], { what: 'the header to name the new recipient' });
+  await page.click('button', 'Continue to amount');
+  await page.find('heading', 'How much?');
   await page.fill('They receive', '75,000');
-  await page.find('text', 'Paid out by PESONet');
+  // Step 2's header: the amount, "about" what you pay, and the rail, from the server's estimate.
+  await page.waitFor(() => /PESONet/.test(document.querySelector('.iso-txhead__metrics')?.innerText ?? ''), [], { what: 'Paid out by PESONet in the header' });
+  const h2 = await header();
+  assert.equal(h2.facts['They receive'], '₱75,000.00');
+  assert.match(h2.facts['You pay'], /^about US\$1,30\d\.\d\d$/);
+  assert.deepEqual([h2.step, h2.links, h2.facts.Quote], ['Step 2 of 5 Amount', ['Back to recipient'], 'At step 3']);
   await page.fill('What was bought', 'Pallets and stretch film');
   await choose('How you know them', 'Supplier');
   await choose('Where this money comes from', 'Business revenue');
+  // Prompt 11 §1.3: on a phone, with the field at the bottom of the window (where the list used to open
+  // under the sticky action bar), the list opens in a portal above everything, inside the window, and
+  // its last option takes the click: nothing covers it.
+  await page.setViewport(...PHONE);
+  await page.evaluate(() => {
+    const label = [...document.querySelectorAll('label')].find((l) => l.innerText.trim() === 'Where this money comes from');
+    const input = document.getElementById(label.htmlFor);
+    input.scrollIntoView({ block: 'end' });
+    // The field still has focus from the choice above; a person taps it again, which opens the list.
+    input.blur();
+    input.focus();
+  });
+  await page.waitFor(() => document.querySelectorAll('[role=listbox] [role=option]').length > 1, [], { what: 'the open list' });
+  await page.sleep(300);
+  const lastOption = await page.evaluate(() => {
+    const list = document.querySelector('[role=listbox]');
+    const opts = [...list.querySelectorAll('[role=option]')];
+    const last = opts[opts.length - 1];
+    last.scrollIntoView({ block: 'nearest' });
+    const r = last.getBoundingClientRect();
+    const box = list.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { label: last.querySelector('span').innerText.replace(/\s+/g, ' ').trim(), onTop: last.contains(hit), inWindow: box.top >= 0 && box.bottom <= innerHeight, outsideMain: !list.closest('main'), z: getComputedStyle(list).zIndex, side: list.dataset.side };
+  });
+  assert.ok(lastOption.outsideMain, 'the list is drawn in a portal, outside the page');
+  assert.equal(lastOption.z, '70');
+  assert.ok(lastOption.inWindow, `the list stays inside the window (${lastOption.side} the field)`);
+  assert.ok(lastOption.onTop, `nothing covers the last option, ${lastOption.label}`);
+  await page.evaluate(() => {
+    const opts = [...document.querySelectorAll('[role=listbox] [role=option]')];
+    opts[opts.length - 1].click();
+  });
+  await page.waitFor((want) => [...document.querySelectorAll('input[role=combobox]')].some((i) => i.value === want), [lastOption.label], { what: 'the last option chosen' });
+  await page.setViewport(...DESKTOP);
+  await choose('Where this money comes from', 'Business revenue');
   await page.fill('Reference on their bank statement (optional)', 'PO-1201');
-  await page.find('text', 'This payment fits your limits');
+  await page.find('text', 'Fits your rules');
   await shot('transfer-amount');
+  // Back from step 2 lands on step 1, and forward again keeps the amount.
+  await page.click('button', 'Back to recipient');
+  await page.find('heading', 'Who are you paying?');
+  await page.click('button', 'Continue to amount');
+  await page.find('heading', 'How much?');
+  await page.waitFor(() => /₱75,000\.00/.test(document.querySelector('.iso-txhead__metrics')?.innerText ?? ''), [], { what: 'the amount kept' });
   await page.click('button', 'See routes and cost');
-  await page.find('heading', 'How ₱75,000 reaches Cebu Logistics', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   await page.find('text', /^Passed \d+ of \d+ rules/);
-  // Lanes say "Cheapest" and "Fastest" only, never a network or a time; the map draws stepCount links.
+  await headerMatchesServer('quote', /^Draft$/);
+  // Lanes say "Cheapest", "Fastest" or "Other route", never a network or a time. Each lane's small route
+  // line runs You → (lower-cost lane) → Partner → bank, and coins move only on the picked one.
   const laneNames = (await page.text('.iso-lane__name')).map((t) => t.replace(/^·\s*/, '').trim());
-  assert.ok(laneNames.length >= 1 && laneNames.every((n) => n === 'Cheapest' || n === 'Fastest'), `lane names: ${laneNames}`);
-  const chosenSteps = Number(/(\d) steps/.exec((await page.text('.iso-lane[aria-checked="true"] .iso-lane__sub')).join(''))?.[1]);
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-routemap .iso-wire').length), chosenSteps, 'one link on the map per step');
+  assert.ok(laneNames.length >= 1 && laneNames.every((n) => ['Cheapest', 'Fastest', 'Other route'].includes(n)), `lane names: ${laneNames}`);
+  const mini = await page.evaluate(() => [...document.querySelectorAll('.iso-route')].map((r) => ({ on: r.getAttribute('aria-checked') === 'true', stops: [...r.querySelectorAll('.iso-mini__label')].map((x) => x.innerText.trim()), wires: r.querySelectorAll('.iso-mini__wire').length, moving: r.querySelectorAll('.iso-mini__wire--active').length })));
+  assert.equal(mini.filter((m) => m.on).length, 1, 'one lane picked');
+  for (const m of mini) {
+    assert.equal(m.stops[0], 'You');
+    assert.equal(m.wires, m.stops.length - 1, 'one link between each two stops');
+    assert.equal(m.moving, m.on ? m.wires : 0, 'coins only on the picked lane');
+  }
   assert.doesNotMatch((await page.text('main')).join('\n'), TIME_WORDS, 'no time or speed words on Transfer');
   await shot('transfer-quote');
   // "How it moves" (§5.6), opened: the one place on Step 3 that names how a route travels.
@@ -428,30 +540,37 @@ async function run(page, email) {
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-zk__panel button')].filter((b) => /approve/i.test(b.textContent)).length), 0, 'no approve button in the floating panel');
   await shot('zeke-open-transfer');
   await page.click('button', 'Close Zeke');
+  // Back from step 3 lands on step 2 with the same amount; forward again quotes afresh.
+  await page.click('button', 'Back to amount');
+  await page.find('heading', 'How much?');
+  await page.waitFor(() => /₱75,000\.00/.test(document.querySelector('.iso-txhead__metrics')?.innerText ?? ''), [], { what: 'the amount kept on the way back' });
+  await page.click('button', 'See routes and cost');
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
+  await page.find('button', 'Review and approve', { enabled: true, timeoutMs: 60_000 });
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
-  // The approval moment: the page behind is inert, focus is in the card, and Esc goes back.
-  assert.ok(await page.evaluate(() => !!document.querySelector('.iso-page--transfer [inert]')), 'the page behind is inert');
-  assert.ok(await page.evaluate(() => !!document.activeElement?.closest('.iso-modal')), 'focus is in the card');
-  await page.press('Escape');
-  await page.waitFor(() => !document.querySelector('.iso-modal-root'), [], { what: 'Esc to cancel the approval moment' });
-  await page.click('button', 'Review and approve');
-  await page.find('heading', 'Approve this payment');
-  const card = (await page.text('.iso-modal')).join('\n');
-  assert.match(card, /Prepared by .+ · a person approves/);
+  // The approval (prompt 11 §2.3): its own step, full width, no So far rail; focus on the step's
+  // heading; no way back from here (the header has no links, and there is no back link).
+  await page.waitFor(() => /step=approve/.test(location.search), [], { what: 'step 4 in the URL' });
+  await headerMatchesServer('approve', /^Waiting for you$/);
+  assert.ok(await page.evaluate(() => document.activeElement?.id === 't4-title'), 'focus is on the step heading');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-sofar, .iso-sofar__back').length), 0, 'no So far rail and no back link on Approve');
+  const card = (await page.text('.iso-approve')).join('\n');
+  assert.match(card, /Prepared by .+\. Zeke can’t approve; only you can\./);
   assert.match(card, /Checked by call-back/);
   assert.match(card, /PO-1201/);
   assert.match(card, /Purchase of goods: Pallets and stretch film/);
-  assert.match(card, /Rules checked: (\d+) of \1/);
+  assert.match(card, /(\d+) of \1 pass/);
+  // The approve button is the only coral on the page's content (the header's current step aside).
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-tx, .iso-approve')].flatMap((r) => [...r.querySelectorAll('.iso-btn--approve')]).length), 1);
   await shot('transfer-approve');
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
+  await approveThenTrack();
   await shot('transfer-approved');
-  await page.click('button', 'Track it');
-  await page.find('heading', 'Cebu Logistics has been paid', { timeoutMs: 60_000 });
+  await page.find('heading', 'Paid, with proof recorded', { timeoutMs: 60_000 });
   await page.find('text', /^Proof recorded\./, { timeoutMs: 60_000 });
-  await page.click('button', 'Verify this receipt');
-  await page.find('text', /^Verified\. This record matches the proof recorded for it\./);
+  await headerMatchesServer('track', /^Paid$/);
+  await page.click('button', 'Verify receipt');
+  await page.find('text', /^This receipt verifies\. It matches the proof recorded for it\./);
   assert.doesNotMatch((await page.text('main')).join('\n'), TIME_WORDS, 'no time or speed words on the track step');
   await shot('transfer-track-paid');
   await page.click('button', 'Save as template');
@@ -507,13 +626,26 @@ async function run(page, email) {
   await page.evaluate(() => document.querySelectorAll('.iso-tickbtn[aria-label$=": mark as checked"]').forEach((b) => b.click()));
   await page.waitFor(() => document.querySelectorAll('.iso-tickbtn[aria-pressed="true"][aria-label$=": checked"]').length === 5, [], { what: 'five ticks on a phone' });
   await tap('Confirm and pay');
-  await page.find('heading', 'How ₱120,000 reaches Manila Freight', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
+  await headerMatchesServer('quote', /^Draft$/);
+  // Prompt 11 §2.2: on a phone the main action is pinned to the bottom of the screen, and reachable.
+  await page.find('button', 'Review and approve', { enabled: true, timeoutMs: 60_000 });
+  const pinned = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('.iso-sofar__cta button')].find((x) => /Review and approve/.test(x.innerText));
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const bar = b.closest('.iso-sofar__cta').getBoundingClientRect();
+    return { fixed: getComputedStyle(b.closest('.iso-sofar__cta')).position, barBottom: Math.round(innerHeight - bar.bottom), inBar: r.top >= bar.top && r.bottom <= bar.bottom, onTop: b.contains(hit), zekeAbove: (() => { const z = document.querySelector('.iso.iso-zk'); return !z || z.getBoundingClientRect().bottom <= bar.top + 1; })() };
+  });
+  assert.equal(pinned.fixed, 'fixed', 'the main action is pinned on a phone');
+  assert.equal(pinned.barBottom, 0, 'its bar sits on the bottom edge of the screen');
+  assert.ok(pinned.inBar, 'the action is in that bar');
+  assert.ok(pinned.onTop, 'nothing covers it');
+  assert.ok(pinned.zekeAbove, 'the floating Zeke sits above the pinned bar');
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
-  await page.click('button', 'Track it');
-  await page.find('heading', 'Manila Freight has been paid', { timeoutMs: 60_000 });
+  await approveThenTrack();
+  await page.find('heading', /^(Paid to the bank|Paid, with proof recorded)$/, { timeoutMs: 60_000 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `no sideways scroll at 390 px (${overflow}px over)`);
   await page.setViewport(...DESKTOP);
@@ -521,31 +653,43 @@ async function run(page, email) {
   // A business on Splash (prompt 10 §5.4): found in the directory, paid straight into its own Splash
   // account, in US dollars, with no Splash fee and no quote clock.
   await page.goto(`${BASE}/dashboard/transfer?to=splash`);
-  await page.find('heading', 'Find a business on Splash');
+  await page.find('heading', 'Who are you paying?');
   await page.fill('Company name, Splash handle or registration number', '@kuchingmarine');
   await page.find('text', 'Kuching Marine Supply');
-  await page.find('text', 'Verified company');
+  await page.find('text', 'No payout fee');
   await shot('transfer-splash-find');
-  await page.click('button', 'Pay Kuching Marine Supply');
-  await page.find('heading', 'How much are you sending Kuching Marine Supply?');
+  // Double-click a business: picked, and straight on to the amount (prompt 11 §2.3).
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.iso-pick__main')].find((b) => /Kuching Marine Supply/.test(b.innerText));
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }));
+    row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+  });
+  await page.find('heading', 'How much?');
+  assert.ok(await page.evaluate(() => /step=amount/.test(location.search)), 'a double-click lands on step 2');
+  const hs = await header();
+  assert.deepEqual([hs.title, hs.facts['Paid out by']], ['Pay Kuching Marine Supply', 'Inside Splash']);
   await page.fill('Amount', '1,500');
   await page.fill('Note', 'Spare parts, October');
-  await page.find('text', 'This payment fits your limits');
+  await page.find('text', 'Fits your rules');
   await shot('transfer-splash-amount');
-  await page.click('button', 'See the cost');
-  await page.find('heading', 'How US$1,500 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-pagehead .iso-ring').length), 0, 'no quote clock: there is no rate to run out');
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-routemap .iso-wire').length), 1, 'two stations, one link');
+  await page.click('button', 'See routes and cost');
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
+  await headerMatchesServer('quote', /^Draft$/);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-txhead .iso-ring, .iso-tx .iso-ring').length), 0, 'no quote clock: there is no rate to run out');
+  assert.deepEqual((await page.text('.iso-lane__name')).map((t) => t.trim()), ['Inside Splash'], 'one lane');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-route .iso-mini__wire').length), 1, 'two stops, one link');
   await page.find('text', 'No Splash fee between Splash businesses.');
   await shot('transfer-splash-quote');
+  await page.find('button', 'Review and approve', { enabled: true, timeoutMs: 60_000 });
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
-  assert.match((await page.text('.iso-modal')).join('\n'), /Into Kuching Marine Supply’s Splash account|Into Kuching Marine Supply's Splash account/);
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
-  await page.click('button', 'Track it');
-  await page.find('heading', 'Kuching Marine Supply has been paid', { timeoutMs: 60_000 });
+  await headerMatchesServer('approve', /^Waiting for you$/);
+  assert.match((await page.text('.iso-approve')).join('\n'), /Into Kuching Marine Supply’s Splash account|Into Kuching Marine Supply's Splash account/);
+  await approveThenTrack();
+  await page.find('heading', /^(Paid into their Splash account|Paid, with proof recorded)$/, { timeoutMs: 60_000 });
   await page.find('text', 'In their account');
+  await headerMatchesServer('track', /^Paid$/);
   await shot('transfer-splash-paid');
 
   // Pay again from the template, for more than the Payments account holds: the reserve covers what is
@@ -553,61 +697,64 @@ async function run(page, email) {
   await page.goto(`${BASE}/dashboard/transfer`);
   await page.find('heading', 'Pay again');
   await page.click('button', /^Cebu Logistics/);
-  await page.find('heading', 'How much does Cebu Logistics get?');
+  await page.find('heading', 'How much?');
   await page.fill('They receive', '1,000,000');
-  await page.find('text', 'Paid out by PESONet');
+  await page.waitFor(() => /PESONet/.test(document.querySelector('.iso-txhead__metrics')?.innerText ?? ''), [], { what: 'Paid out by PESONet in the header' });
   await page.click('button', 'See routes and cost');
-  await page.find('heading', 'How ₱1,000,000 reaches Cebu Logistics', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   await page.find('text', 'Moves first');
+  await headerMatchesServer('quote', /^Draft$/);
   await shot('transfer-reserve-plan');
+  await page.find('button', 'Review and approve', { enabled: true, timeoutMs: 60_000 });
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
-  assert.match((await page.text('.iso-modal')).join('\n'), /moves from your reserve first/);
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 90_000 });
-  await page.click('button', 'Track it');
-  await page.find('heading', 'Cebu Logistics has been paid', { timeoutMs: 60_000 });
+  assert.match((await page.text('.iso-approve')).join('\n'), /moves from your reserve first/);
+  await approveThenTrack(90_000);
+  await page.find('heading', /^(Paid to the bank|Paid, with proof recorded)$/, { timeoutMs: 60_000 });
   await shot('transfer-reserve-paid');
 
   // The bank path with the keyboard only (prompt 10 §5.9): no clicks from Step 1 to the receipt.
   const focused = (test) => new Function(`const el = document.activeElement; return !!el && (${test});`);
   await page.goto(`${BASE}/dashboard/transfer`);
   await page.find('heading', 'Who are you paying?');
-  await page.tabTo(focused("el.getAttribute('aria-label') === 'Pay Cebu Logistics Inc.'"), { what: 'Pay Cebu Logistics Inc.' });
+  // A recipient row is a radio: Enter picks it, Enter on the picked row goes on (prompt 11 §2.3).
+  await page.tabTo(focused("el.getAttribute('role') === 'radio' && /Cebu Logistics Inc\\./.test(el.innerText)"), { what: 'the Cebu Logistics Inc. row' });
   await page.press('Enter');
-  await page.find('heading', 'How much does Cebu Logistics get?');
+  await page.waitFor(() => document.getElementById('tx-title')?.innerText.trim() === 'Pay Cebu Logistics Inc.', [], { what: 'the row picked' });
+  await page.press('Enter');
+  await page.find('heading', 'How much?');
+  // The step's heading has the focus on arrival.
+  assert.ok(await page.evaluate(() => document.activeElement?.hasAttribute('data-step-heading')), 'focus on the step heading');
   await page.tabTo(focused("el.id && document.querySelector('label[for=\"' + el.id + '\"]')?.innerText.trim() === 'They receive'"), { what: 'They receive' });
   await page.type('20,000');
-  await page.find('text', 'Paid out by InstaPay');
+  await page.waitFor(() => /InstaPay/.test(document.querySelector('.iso-txhead__metrics')?.innerText ?? ''), [], { what: 'Paid out by InstaPay in the header' });
   // A button, not anything whose text contains the words: the page itself does, when it has the focus.
   await page.tabTo(focused("el.tagName === 'BUTTON' && /See routes and cost/.test(el.innerText)"), { what: 'See routes and cost' });
   await page.press('Enter');
-  await page.find('heading', 'How ₱20,000 reaches Cebu Logistics', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   // Step 3 first works out where the money comes from (here, a move from the reserve); the button is
-  // ready once the reason beside it is gone. A key pressed before that would land on nothing.
-  await page.waitFor(() => !document.querySelector('.iso-actionbar .iso-btn-why') && [...document.querySelectorAll('.iso-actionbar button')].some((b) => /Review and approve/.test(b.innerText) && !b.disabled), [], { what: 'Review and approve to be ready' });
+  // ready once the reason under it is gone. A key pressed before that would land on nothing.
+  await page.waitFor(() => !document.querySelector('.iso-sofar__cta .iso-btn-why') && [...document.querySelectorAll('.iso-sofar__cta button')].some((b) => /Review and approve/.test(b.innerText) && !b.disabled), [], { what: 'Review and approve to be ready' });
   await page.waitIdle({ quietMs: 500 });
   await page.tabTo(focused("el.tagName === 'BUTTON' && /Review and approve/.test(el.innerText)"), { what: 'Review and approve' });
   await page.press('Enter');
   await page.find('heading', 'Approve this payment');
-  assert.ok(await page.evaluate(() => /Approve on this device/.test(document.activeElement?.innerText ?? '')), 'focus starts on the approve button');
+  assert.ok(await page.evaluate(() => document.activeElement?.id === 't4-title'), 'focus starts on the step heading');
+  await page.tabTo(focused("el.tagName === 'BUTTON' && /Approve on this device/.test(el.innerText)"), { what: 'Approve on this device' });
   await page.press('Enter');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
-  await page.waitFor(() => /Track it/.test(document.activeElement?.innerText ?? ''), [], { what: 'focus on Track it' });
-  await page.press('Enter');
-  await page.find('heading', 'Cebu Logistics has been paid', { timeoutMs: 60_000 });
+  await page.waitFor(() => /step=track/.test(location.search), [], { what: 'Track to open by itself', timeoutMs: 60_000 });
+  await page.find('heading', /^(On its way|Paid to the bank|Paid, with proof recorded)$/, { timeoutMs: 60_000 });
 
   // A failure, rehearsed in test mode: the bank returns the payment. One sentence, one thing to do.
   await page.goto(`${BASE}/dashboard/transfer`);
   await page.click('button', /^Cebu Logistics/);
   await page.click('button', 'See routes and cost');
-  await page.find('heading', 'How ₱75,000 reaches Cebu Logistics', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   await page.evaluate(() => [...document.querySelectorAll('summary')].find((s) => /Rehearse a problem/.test(s.innerText))?.click());
   await tap('The bank returns it');
   await tap('Review and approve');
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
-  await page.click('button', 'Track it');
+  await page.find('heading', 'Approve this payment');
+  await approveThenTrack();
   await page.find('heading', 'The bank returned the payment to Cebu Logistics', { timeoutMs: 60_000 });
   await page.find('text', /^The bank returned it: what the partner received comes back to your Payments account/);
   await shot('transfer-returned');
@@ -616,7 +763,7 @@ async function run(page, email) {
   await page.goto(`${BASE}/dashboard/transfer`);
   await page.click('button', /^Cebu Logistics/);
   await page.click('button', 'See routes and cost');
-  await page.find('heading', 'How ₱75,000 reaches Cebu Logistics', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   await page.evaluate(() => [...document.querySelectorAll('summary')].find((s) => /Rehearse a problem/.test(s.innerText))?.click());
   await tap('Screening flags them');
   await tap('Review and approve');
@@ -761,14 +908,14 @@ async function run(page, email) {
   await shot('zeke-open-invoices');
   await page.click('button', 'Close Zeke');
   await tap('Pay Kuching Marine Supply');
-  await page.find('heading', 'How US$3,450 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
   assert.match((await page.text('main')).join('\n'), /KMS-0094/);
+  await headerMatchesServer('quote', /^Draft$/);
+  await page.find('button', 'Review and approve', { enabled: true, timeoutMs: 60_000 });
   await page.click('button', 'Review and approve');
   await page.find('heading', 'Approve this payment');
-  await page.click('button', 'Approve on this device');
-  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
-  await page.click('button', 'Track it');
-  await page.find('heading', 'Kuching Marine Supply has been paid', { timeoutMs: 60_000 });
+  await approveThenTrack();
+  await page.find('heading', 'Paid, with proof recorded', { timeoutMs: 60_000 });
   await page.find('text', /^Proof recorded\./, { timeoutMs: 60_000 });
   await shot('request-paid-in-app');
 
@@ -917,7 +1064,8 @@ async function run(page, email) {
   await page.goto(`${BASE}/dashboard/invoices/pay`);
   await page.waitFor(() => /KMS-0101/.test(document.querySelector('[role=tabpanel]')?.innerText ?? ''), [], { what: 'the new request in the inbox' });
   await tap('Pay Kuching Marine Supply');
-  await page.find('heading', 'How US$100 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
+  assert.equal((await header()).facts['They receive'], 'US$100.00');
   const draftedFor = await page.evaluate(() => new URLSearchParams(location.search).get('payment'));
   assert.match(draftedFor ?? '', /^pay_[0-9a-f]{16}$/);
 
@@ -941,7 +1089,8 @@ async function run(page, email) {
   await shot('zeke-page');
   await page.click('link', 'Open to review');
   await page.waitFor((id) => location.pathname === '/dashboard/transfer' && new URLSearchParams(location.search).get('payment') === id, [draftedFor], { what: 'Transfer, on the drafted payment' });
-  await page.find('heading', 'How US$100 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
+  await page.find('heading', 'Pick a route', { timeoutMs: 60_000 });
+  assert.equal((await header()).title, 'Pay Kuching Marine Supply');
 
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.
