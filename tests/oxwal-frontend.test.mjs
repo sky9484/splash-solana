@@ -91,8 +91,11 @@ test('the Zeke desk is the streaming surface and avoids browser money storage', 
   // And the desk is wired to that engine rather than a private copy of it.
   assert.match(page, /useOxwalThread\(/);
   assert.doesNotMatch(page, /fetch\('\/api\//, 'the desk must not open its own agent connection');
-  assert.match(page, /OxWalComposer/);
-  assert.match(page, /What's on the agenda today\?/);
+  // Prompt 10 §7A: the desk's own composer (look 9), with attach; no inline approving.
+  assert.match(page, /className="iso-zk__compose iso-desk__compose"/);
+  assert.match(page, /aria-label="Attach an invoice or a payout sheet"/);
+  assert.match(page, /What should we look at\?/);
+  assert.match(page, /allowInlineApproval: false/);
   assert.match(page, /href="\/queue"/);
   assert.doesNotMatch(page, /localStorage|sessionStorage/);
   assert.doesNotMatch(engine, /localStorage|sessionStorage/);

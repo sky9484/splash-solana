@@ -106,5 +106,6 @@ test('renaming cannot hide that this is an AI', async () => {
     new URL('../app/dashboard/zeke/ZekeDesk.tsx', import.meta.url),
     'utf8',
   );
-  assert.match(page, /AI assistant/);
+  // Prompt 10 §7A: the page's title is the name with an "AI" tag beside it, its own element.
+  assert.match(page, /\{assistantName\} <Tag tone="ink">AI<\/Tag>/);
 });

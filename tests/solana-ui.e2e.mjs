@@ -874,6 +874,20 @@ async function run(page, email) {
   assert.equal(await page.evaluate(() => document.querySelectorAll('section[aria-labelledby="history-treasury"] li').length), 7, 'seven settled orders');
   await shot('history-treasury');
 
+  // The Zeke page (prompt 10 §7A): the counters, "Waiting for you" and "Today" from server state, the
+  // roster read from the code, and nothing on the page that approves.
+  await page.goto(`${BASE}/dashboard/zeke`);
+  await page.find('heading', 'What should we look at?');
+  await page.waitFor(() => /Read (an invoice|\d+ invoices)/.test(document.querySelector('section[aria-labelledby="zk-log"]')?.innerText ?? ''), [], { what: 'Zeke’s log for today' });
+  const zekeCounts = await page.evaluate(() => [...document.querySelectorAll('.iso-desk__count dd')].map((d) => d.innerText.trim()));
+  assert.equal(zekeCounts.length, 3);
+  assert.ok(zekeCounts.every((c) => /^\d+$/.test(c)), `the counters come from the server: ${zekeCounts.join(', ')}`);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].filter((b) => /approve/i.test(b.innerText)).length), 0, 'no approve control on the Zeke page');
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-zk')), null, 'the floating Zeke steps aside');
+  await page.find('text', 'It can only read and draft. It can’t approve, pay or change a rule.');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('section[aria-labelledby="zk-team"] tbody tr').length), 7, 'every part of Zeke, from the code');
+  await shot('zeke-page');
+
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.
   // 2. In every Solana API request body, no free-text value contains any single recovery word. Enum
