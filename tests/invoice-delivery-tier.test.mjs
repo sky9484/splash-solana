@@ -86,7 +86,8 @@ test('the transfer page names no fund-holding tier of its own; the invoice read 
   // /dashboard/transfer is the Solana pay flow: the payout partner's deposit is the only destination,
   // and it carries no delivery tier at all.
   const page = await source('app/dashboard/transfer/page.tsx');
-  const flow = await source('components/solana/PayFlow.tsx');
+  // Prompt 10 Phase 4: an invoice is paid through the same Transfer flow, opened from Pay an invoice.
+  const flow = (await source('components/solana/transfer/TransferFlow.tsx')) + (await source('components/solana/invoices/PayInvoices.tsx')) + (await source('components/solana/invoices/CheckInvoice.tsx'));
   assert.doesNotMatch(page + flow, /'SWEEP_ACCOUNT'/, 'the page names no fund-holding tier of its own');
 
   // The page is a client component and cannot read the custody phase, so the

@@ -84,14 +84,21 @@ test('offline flow: onboard, fund, invoice, quote, approve with the device key, 
 
   const payment = await svc.quote(org.id, invoice.id);
   const view = await svc.paymentView(payment.id);
-  assert.ok(view.cards.length >= 1 && view.cards.length <= 3);
+  // Prompt 10 §5.6: two lanes at most, labelled Cheapest and Fastest; a route winning both is one card,
+  // and the best other route rides along as `compare` (was: up to three cards, one forced "Via Polygon").
+  assert.ok(view.cards.length >= 1 && view.cards.length <= 2);
+  for (const c of view.cards) assert.match(c.label, /^(Cheapest|Fastest|Cheapest and fastest)$/);
   assert.equal(view.zeke.suggests, 'Cheapest');
-  const direct = view.cards.find((c) => c.kind === 'solana_direct');
-  assert.ok(direct, 'a Solana direct route is offered');
-  assert.equal(direct.solNote, "You don't need SOL");
-  const cctp = view.cards.find((c) => c.kind !== 'solana_direct');
-  assert.ok(cctp, 'the CCTP lane gets a card');
-  assert.equal(cctp.solNote, 'Needs 0.01 SOL in the vault (test pending)');
+  const offered = [...view.cards, ...(view.compare ? [view.compare] : [])];
+  const direct = offered.find((c) => c.kind === 'solana_direct');
+  assert.ok(direct, 'the route straight to the partner is offered');
+  assert.equal(direct.solNote, 'Splash pays the network fee');
+  assert.equal(direct.steps, 2, 'two links on the map');
+  const cctp = offered.find((c) => c.kind !== 'solana_direct');
+  assert.ok(cctp, 'the lower-cost lane is offered, as a lane or as the route to compare');
+  assert.equal(cctp.solNote, 'Your account pays a small network fee (test mode)');
+  assert.equal(cctp.steps, 3, 'three links: it leaves one network and lands on another');
+  assert.equal(cctp.lowerCostLane, true);
 
   const selected = await svc.selectRoute(payment.id, { quoteId: direct.quoteId });
   assert.equal(selected.state, 'checked');
@@ -286,7 +293,8 @@ test('CCTP route (offline) and the problem rehearsals: screening flag, partner r
   const ks = await svc.selectRoute(k.id, { quoteId: (await svc.paymentView(k.id)).cards[0].quoteId, rehearsal: 'kyt_flag' });
   assert.equal(ks.state, 'rejected_by_policy');
   assert.equal(ks.problem.code, 'kyt_flagged');
-  assert.match(ks.problem.message, /Screening flagged this supplier's wallet/);
+  // Prompt 10 §5.8 (was /Screening flagged this supplier's wallet/): the rule is named, with who can act.
+  assert.match(ks.problem.message, /The screening rule stopped it: screening flagged where this payment goes.*owner can ask support/);
 
   // Partner return rehearsal: returned webhook, money back in the vault (simulated), invoice free again.
   const r = await svc.selectRoute(k.id, { quoteId: (await svc.paymentView(k.id)).cards.find((c) => c.kind === 'solana_direct').quoteId, rehearsal: 'partner_return' });
@@ -296,7 +304,7 @@ test('CCTP route (offline) and the problem rehearsals: screening flag, partner r
   await svc.deliverPartnerEvents(k.id);
   const returned = await svc.getPayment(k.id);
   assert.equal(returned.state, 'partner_failed');
-  assert.match(returned.problem.message, /Money is back in your Solana balance/);
+  assert.match(returned.problem.message, /What it received is back in your Payments account/);
   const back = await runtime().chain.getUsdcBalance(vault.vaultPda);
   assert.equal(before - back, returned.approval.costs.splashMinor, 'the payout came back; the fee leg did not');
 });

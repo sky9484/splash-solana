@@ -5,7 +5,7 @@ export const metadata = { title: 'Devices · Splash' };
 
 export default function DevicesPage() {
   return (
-    <SolanaDashPage kicker="Settings" title="Devices" description="The keys that can approve a payment from your vault, as they are on Solana.">
+    <SolanaDashPage kicker="Settings" title="Devices" description="The keys that can approve a payment from your accounts, as they are recorded.">
       <DevicesPanel />
     </SolanaDashPage>
   );

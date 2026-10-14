@@ -1,0 +1,47 @@
+{
+  "server": "next dev (isolated, port 3200)",
+  "measuredAt": "2026-10-14",
+  "throttle": "4x CPU, 390x844 @2x",
+  "rows": [
+    {
+      "page": "overview-load",
+      "url": "/dashboard",
+      "frames": 160,
+      "seconds": 2.44,
+      "fps": 65.1,
+      "worstGapMs": 165,
+      "framesOver33ms": 4,
+      "longTasksOver50ms": 10
+    },
+    {
+      "page": "treasury-move-sheet",
+      "url": "/dashboard/treasury",
+      "frames": 263,
+      "seconds": 3.49,
+      "fps": 75,
+      "worstGapMs": 18,
+      "framesOver33ms": 0,
+      "longTasksOver50ms": 0
+    },
+    {
+      "page": "zeke-page",
+      "url": "/dashboard/zeke",
+      "frames": 259,
+      "seconds": 3.49,
+      "fps": 73.9,
+      "worstGapMs": 74,
+      "framesOver33ms": 1,
+      "longTasksOver50ms": 12
+    }
+  ],
+  "reduced": [
+    {
+      "page": "overview",
+      "runningAnimations": []
+    },
+    {
+      "page": "treasury",
+      "runningAnimations": []
+    }
+  ]
+}

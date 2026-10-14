@@ -19,7 +19,7 @@ export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perP
   const suppliers = state.status === 'ready' ? state.company.suppliers : [];
   const used = state.status === 'ready' ? state.company.limits.usedTodayUsdcMinor : null;
   const rules: Array<{ text: React.ReactNode; tags: Tag[] }> = [
-    { text: "Every supplier payment needs this device's signature. Nothing pays on its own.", tags: [{ text: 'Locked · always on', tone: 'locked' }, { text: 'Enforced by your vault', tone: 'vault' }] },
+    { text: 'Every supplier payment needs an approval on this device. Nothing pays on its own.', tags: [{ text: 'Locked · always on', tone: 'locked' }, { text: 'Enforced by your own accounts', tone: 'vault' }] },
     { text: <>Per payment up to {usd(perPaymentMinor)}.</>, tags: [{ text: 'Enforced by Splash', tone: 'splash' }] },
     {
       text: (
@@ -53,10 +53,10 @@ export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perP
     },
     { text: 'An invoice is paid once. A second payment of the same invoice is blocked.', tags: [{ text: 'Enforced by Splash', tone: 'splash' }] },
     { text: `A quote lasts at most ${quoteTtlSec} seconds. An expired quote can't be approved.`, tags: [{ text: 'Enforced by Splash', tone: 'splash' }] },
-    { text: "Every supplier deposit address is screened before you approve.", tags: [{ text: 'Enforced by Splash', tone: 'splash' }, { text: 'Stub, not a real screening', tone: 'stub' }] },
-    { text: "Splash's fee sponsor pays the network fee and can't send SOL or USDC anywhere.", tags: [{ text: 'Enforced by the fee sponsor', tone: 'splash' }] },
-    { text: <>Two people approve payments above {usd(10_000_000_000n)}.</>, tags: [{ text: 'Planned on Solana · two-device vault', tone: 'planned' }] },
-    { text: 'Zeke may pay for data services up to US$50 a month (Weather API only).', tags: [{ text: 'Planned · mandate', tone: 'planned' }] },
+    { text: 'Every account a supplier is paid into is screened before you approve.', tags: [{ text: 'Enforced by Splash', tone: 'splash' }, { text: 'Stub, not a real screening', tone: 'stub' }] },
+    { text: 'Processing is included. The account Splash pays processing from can’t send money anywhere.', tags: [{ text: 'Enforced by Splash', tone: 'splash' }] },
+    { text: <>Two people approve payments above {usd(10_000_000_000n)}.</>, tags: [{ text: 'Planned · two approvers', tone: 'planned' }] },
+    { text: 'Not built yet: Zeke could buy listed data (weather only) up to US$50 a month, only if your company’s owner turns it on.', tags: [{ text: 'Planned · needs the owner', tone: 'planned' }] },
   ];
   return (
     <ul className="sx-rules">

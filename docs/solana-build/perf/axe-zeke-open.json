@@ -1,0 +1,98 @@
+[
+  {
+    "page": "overview",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "transfer-step1",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "transfer-step3",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "balance",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "invoices",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "invoices-pay",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "invoices-get",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "treasury",
+    "form": "desktop",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "overview",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "transfer-step1",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "transfer-step3",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "balance",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "invoices",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "invoices-pay",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "invoices-get",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  },
+  {
+    "page": "treasury",
+    "form": "mobile",
+    "zeke": "open",
+    "violations": []
+  }
+]

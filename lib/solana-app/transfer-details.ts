@@ -15,6 +15,8 @@
  * payment already sent (the travel rule is about what accompanied THIS payment).
  */
 import { ServiceError } from './errors.ts';
+import { isCommitted } from './payment-machine.ts';
+import { runtime } from './runtime.ts';
 import { SOURCE_OF_FUNDS } from './source-of-funds.ts';
 import { getInvoice, getOrg } from './service.ts';
 import type { InvoiceRecord, OrgRecord, TransferDetails } from './store.ts';
@@ -31,6 +33,8 @@ export const RELATIONSHIPS: Record<TransferDetails['relationship'], string> = {
 };
 
 export type DetailsInput = Omit<TransferDetails, 'reused' | 'givenBy' | 'givenAt'>;
+/** As a form sends it: a saved recipient's own details may be left out (they come from the record). */
+export type DetailsForm = Omit<DetailsInput, 'recipient'> & { recipient?: DetailsInput['recipient'] };
 
 /** One recipient, however its name is spaced or cased. */
 export function recipientKey(c: { supplierName: string; supplierBank: string; supplierAccountLast4: string }): string {
@@ -73,8 +77,23 @@ export function previousDetails(orgId: string, invoiceId: string): TransferDetai
   return savedFor(getOrg(orgId), inv);
 }
 
+/**
+ * The answers went with the payment once it was sent: they are part of its record and can no longer
+ * change (and a discarded transfer takes no new answers). Checked before every change.
+ */
+export async function assertDetailsEditable(orgId: string, invoiceId: string): Promise<void> {
+  transferOf(orgId, invoiceId);
+  const payments = (await runtime().payments.listByOrg(orgId)).filter((p) => p.invoiceId === invoiceId);
+  if (payments.some((p) => isCommitted(p.state))) {
+    throw new ServiceError('wrong_state', 'This transfer has been sent. The details that went with it are part of its record and can no longer change.', 409);
+  }
+  if (payments.length > 0 && payments.every((p) => p.state === 'discarded')) {
+    throw new ServiceError('wrong_state', 'This transfer was discarded. Start a new transfer to give its details.', 409);
+  }
+}
+
 /** Record the answers for this transfer, either the same as last time or given again in full. */
-export function setTransferDetails(orgId: string, invoiceId: string, input: { reuse: true } | { details: DetailsInput }, by: string, now = new Date()): TransferDetails {
+export function setTransferDetails(orgId: string, invoiceId: string, input: { reuse: true } | { details: DetailsForm }, by: string, now = new Date()): TransferDetails {
   const org = getOrg(orgId);
   const inv = transferOf(orgId, invoiceId);
   let details: TransferDetails;
@@ -83,7 +102,9 @@ export function setTransferDetails(orgId: string, invoiceId: string, input: { re
     if (!prev) throw new ServiceError('bad_request', 'There are no earlier details for this recipient. Answer the questions instead.', 409);
     details = { ...prev, recipient: { ...prev.recipient }, reused: true, givenBy: by, givenAt: now.toISOString() };
   } else {
-    const d = input.details;
+    // A saved recipient's own details (given once, in the "New bank recipient" sheet) fill the gap.
+    const saved = org.suppliers.find((s) => recipientKey({ supplierName: s.name, supplierBank: s.bank, supplierAccountLast4: s.accountLast4 }) === recipientKey(inv.confirmed!));
+    const d = { ...input.details, recipient: input.details.recipient ?? saved?.partnerRecipient } as DetailsInput;
     const missing = missingDetails(d);
     if (missing.length) throw new ServiceError('bad_request', `Still needed for the payout partner: ${missing.join(', ')}.`, 422, { missing });
     const r = d.recipient;

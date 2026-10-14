@@ -77,10 +77,11 @@ test('a recipient cannot be created with a fund-holding tier in Phase 0 either',
 /* ── The treasury ──────────────────────────────────────────────────────── */
 
 test('the treasury page shows no demo balance or transaction as confirmed, and no yield', async () => {
-  // Sky, 13 Oct: treasury is back, as the company's own operating cash in vault #1 of its multisig
-  // (lib/solana-app/treasury-service.ts). It is not the Sui build's Smart Treasury: no yield, no rate,
-  // no ledger of Splash's, and every balance is read from the chain.
-  const page = (await source('app/dashboard/treasury/page.tsx')) + (await source('components/solana/TreasuryDesk.tsx'));
+  // Sky, 13 Oct, and prompt 10 §7: Treasury is the company's own accounts (Payments, Reserve and
+  // Investments, vaults #0, #1 and #2 of its multisig). It is not the Sui build's Smart Treasury: no
+  // yield or APY wording, no ledger of Splash's, and every balance is read by the server (one read,
+  // GET /api/solana/treasury). The T-bills rate is printed only with its date and source (§7.1).
+  const page = (await source('app/dashboard/treasury/page.tsx')) + (await source('components/solana/treasury/Treasury.tsx')) + (await source('components/solana/treasury/OrderSheet.tsx')) + (await source('components/solana/treasury/MoveSheet.tsx'));
 
   assert.doesNotMatch(page, /SEED_HISTORY/, 'the six hardcoded transactions are gone');
   assert.doesNotMatch(page, /useState\(11140/, 'no hardcoded available balance');
@@ -92,21 +93,28 @@ test('the treasury page shows no demo balance or transaction as confirmed, and n
 
   assert.doesNotMatch(page, /fetch\(['`]\/api\/treasury/, 'nothing reads the old treasury ledger');
   assert.doesNotMatch(page, /useState\(\d/, 'no number the page made up');
-  assert.doesNotMatch(page, /\byield\b|\bAPY\b|USDY|interest|T-bill/i, 'no yield or rate wording');
-  assert.match(page, /useCompany\(\)/, 'every balance comes from the company read (the chain)');
-  assert.match(page, /t\.balanceMinor/, 'the treasury balance is the vault #1 token account');
-  assert.match(page, /Splash holds no key to either/, 'it says who can move the money');
+  assert.doesNotMatch(page, /\byield\b|\bAPY\b|\bAPR\b|\bearn/i, 'no yield wording');
+  assert.match(page, /api<\{ treasury: TreasuryDTO \}>\('\/treasury'\)/, 'every figure comes from the server’s treasury read');
+  assert.match(page, /t\.rate\.asOfLong/, 'the rate is printed with its date');
+  assert.match(page, /t\.rate\.sourceUrl/, 'and its source');
+  assert.match(page, /holds no key to any of your accounts/, 'it says who can move the money');
 });
 
 test('the overview presents no made-up treasury numbers, in any phase', async () => {
   // The overview is the vaults' balances, read from their token accounts (prompt 07 §6.2). The treasury
-  // line is vault #1's balance from the same company read; never a yield, a rate or a projection.
+  // line (now "Reserve") is vault #1's balance; never a yield, a rate or a projection.
+  // Prompt 10 Phase 2: the page reads one aggregator (GET /api/solana/overview) instead of
+  // useCompany(), and the aggregator reads vault #1's token account. Same intent, new place.
   const overview = (await source('app/dashboard/page.tsx')) + (await source('components/solana/Overview.tsx'));
   assert.doesNotMatch(overview, /useState\(\d/, 'no number the page made up');
   assert.doesNotMatch(overview, /\/api\/treasury/, 'the overview reads no treasury ledger');
   assert.doesNotMatch(overview, /\byield\b|\bAPY\b|USDY|interest/i, 'no yield or rate wording');
-  assert.match(overview, /c\.treasury\.balanceMinor/, 'the treasury figure is the company read');
-  assert.match(overview, /useCompany\(\)/, 'every figure comes from the company read');
+  assert.match(overview, /api<OverviewDTO>\('\/overview'\)/, 'every figure comes from the one overview read');
+  // Phase 5: Overview, Balance and Treasury share one reading of the accounts (money-position.ts).
+  const aggregator = (await source('lib/solana-app/overview.ts')) + (await source('lib/solana-app/money-position.ts'));
+  assert.match(aggregator, /accountBalances\(org\)/, 'the overview reads the shared account balances');
+  assert.match(aggregator, /getUsdcBalance\(treasuryVaultPda\(org\.vault\.multisigPda\)\)/, 'the reserve figure is vault #1’s token account');
+  assert.doesNotMatch(aggregator, /\/api\/treasury|\byield\b|\bAPY\b|USDY|interest/i, 'the aggregator reads no treasury ledger and states no rate');
 
   // The treasury route that served the numbers is gone on the Solana build
   // (prompt 07 §4.2), so nothing can serve them in any phase.

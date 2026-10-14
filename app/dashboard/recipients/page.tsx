@@ -12,6 +12,7 @@ import type { RecipientRecord } from '@/lib/server/operations';
 import { useLaunchScope } from '@/components/dashboard/CustodyPhaseContext';
 import { LAUNCH_SCOPE_WHY } from '@/lib/launch-scope-rules';
 import type { WalletProvider } from '@/lib/payments/stablecoin-lane';
+import { WALLET_METHOD_LABEL, WalletAddressField, WalletNetworkBadge } from '@/components/technical/WalletRecipient';
 
 /** Labels for WALLET_PROVIDERS (lib/payments/stablecoin-lane.ts); the Record
  *  type fails the build if a provider is added there and not named here. */
@@ -19,12 +20,12 @@ const WALLET_PROVIDER_LABELS: Record<WalletProvider, string> = {
   PHANTOM: 'Phantom',
   SOLFLARE: 'Solflare',
   BACKPACK: 'Backpack',
-  OTHER: 'Another Solana wallet',
+  OTHER: 'Another wallet',
 };
 const WALLET_PROVIDER_OPTIONS = Object.entries(WALLET_PROVIDER_LABELS) as Array<[WalletProvider, string]>;
 
 function walletProviderLabel(value: string | null | undefined): string {
-  return value && value in WALLET_PROVIDER_LABELS ? WALLET_PROVIDER_LABELS[value as WalletProvider] : 'Solana wallet';
+  return value && value in WALLET_PROVIDER_LABELS ? WALLET_PROVIDER_LABELS[value as WalletProvider] : 'Crypto wallet';
 }
 
 const corridorBreakdown = [
@@ -83,7 +84,7 @@ export default function RecipientsPage() {
   async function addWalletRecipient() {
     setFormError('');
     if (!walletForm.name.trim() || !walletForm.walletAddress.trim()) {
-      setFormError('Name and Solana wallet address are required.');
+      setFormError('Give the recipient’s name and their wallet’s address.');
       return;
     }
     setSaving(true);
@@ -134,7 +135,7 @@ export default function RecipientsPage() {
         <div className="rounded-xl border border-[#326273]/10 bg-white p-4">
           <h2 className="text-lg font-semibold text-[#326273]">Add new recipient</h2>
           <div role="radiogroup" aria-label="How they are paid" className="mt-3 inline-flex rounded-lg border border-[#326273]/15 bg-[#F6F0ED] p-1">
-            {([['BANK', 'Business bank account', Building2], ['WALLET', 'Crypto wallet · USDC on Solana', Wallet]] as const).filter(([value]) => bankOpen || value === 'WALLET').map(([value, label, Icon]) => (
+            {([['BANK', 'Business bank account', Building2], ['WALLET', WALLET_METHOD_LABEL, Wallet]] as const).filter(([value]) => bankOpen || value === 'WALLET').map(([value, label, Icon]) => (
               <button
                 key={value}
                 type="button"
@@ -147,7 +148,7 @@ export default function RecipientsPage() {
               </button>
             ))}
           </div>
-          {!bankOpen ? <p className="mt-2 text-[13px] text-[#326273]/90">{LAUNCH_SCOPE_WHY} Recipients are Solana wallets for now.</p> : null}
+          {!bankOpen ? <p className="mt-2 text-[13px] text-[#326273]/90">{LAUNCH_SCOPE_WHY} Recipients are crypto wallets for now.</p> : null}
           {method === 'WALLET' ? (
             <div className="mt-3 space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
@@ -175,21 +176,7 @@ export default function RecipientsPage() {
                     <option value="VN">Vietnam</option>
                   </select>
                 </Field>
-                <Field label="Their Solana wallet address" htmlFor="wallet-address" className="md:col-span-2">
-                  <input
-                    id="wallet-address"
-                    value={walletForm.walletAddress}
-                    onChange={(e) => setWalletForm((f) => ({ ...f, walletAddress: e.target.value.trim() }))}
-                    placeholder="e.g. 7xKX…9fQp (32 to 44 letters and digits)"
-                    spellCheck={false}
-                    autoComplete="off"
-                    className="w-full rounded-lg border border-[#326273]/20 bg-[#F6F0ED] px-3 py-2 font-mono text-sm text-[#326273] focus:border-[#5C9EAD] focus:outline-none"
-                    aria-describedby="wallet-address-help"
-                  />
-                  <p id="wallet-address-help" className="mt-1 text-[12px] leading-5 text-[#326273]/90">
-                    A <strong>Solana</strong> address: 32 to 44 letters and digits, with no 0x. Copy it exactly; capital letters matter. An Ethereum address will not work, and USDC sent to the wrong network is lost.
-                  </p>
-                </Field>
+                <WalletAddressField value={walletForm.walletAddress} onChange={(v) => setWalletForm((f) => ({ ...f, walletAddress: v }))} />
                 <Field label="Their wallet" htmlFor="wallet-provider">
                   <select
                     id="wallet-provider"
@@ -329,7 +316,7 @@ export default function RecipientsPage() {
                           <span className={`rounded-full px-2 py-0.5 font-semibold ${r.screeningVerdict === 'CLEAR' || r.screeningVerdict === 'ATTESTED' ? 'bg-[#6FB4A0]/15 text-[#1F4452]' : 'bg-[#E39774]/15 text-[#9F5839]'}`}>
                             {r.screeningVerdict === 'CLEAR' ? 'Screened' : r.screeningVerdict === 'ATTESTED' ? 'Attested by admin' : r.screeningVerdict === 'ERROR' ? 'Screening failed' : 'Not screened'}
                           </span>
-                          <span className="rounded-full bg-[#5C9EAD]/10 px-2 py-0.5 font-semibold text-[var(--info)]">USDC · Solana</span>
+                          <WalletNetworkBadge />
                         </div>
                       ) : (
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-[#326273]/90">
@@ -400,7 +387,7 @@ export default function RecipientsPage() {
             <QuickLinksCard
               className="mt-3"
               links={[
-                { label: 'Pay an invoice', href: '/dashboard/invoices', icon: Send },
+                { label: 'Pay an invoice', href: '/dashboard/invoices/pay', icon: Send },
                 { label: 'Transfer', href: '/dashboard/transfer', icon: Send },
                 { label: 'Batch payout', href: '/dashboard/batch', icon: Layers },
                 { label: 'Balance', href: '/dashboard/fund', icon: Wallet },

@@ -117,7 +117,7 @@ export default function PayInvoiceClient({ slug, invoice }: { slug: string; invo
                   <h2 className="text-lg font-black">Paid by bank?</h2>
                   <p className="mt-1 text-sm text-foreground/60">
                     Let {invoice.issuerOrg} know directly.{' '}
-                    {invoice.usdc ? 'This page confirms USDC payments on Solana only.' : `${invoice.issuerOrg} has not set up USDC payments on Solana yet, so pay them directly.`}
+                    {invoice.usdc ? 'This page confirms crypto wallet payments only.' : `${invoice.issuerOrg} hasn’t set up crypto wallet payments yet, so pay them directly.`}
                   </p>
                 </div>
               ) : paid ? (

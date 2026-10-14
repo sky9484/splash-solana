@@ -1,73 +1,79 @@
+// iso-ui
 'use client';
 
 import Image from 'next/image';
-import { useState, type ReactNode } from 'react';
-import FloatingCopilot from '@/components/FloatingCopilot';
-import DashboardHeader from '@/components/DashboardHeader';
-import { CustodyPhaseContext, LaunchScopeContext, SweepSwitchContext } from '@/components/dashboard/CustodyPhaseContext';
-import type { CustomerSession } from '@/lib/auth/customer-session';
-import type { LaunchScope } from '@/lib/launch-scope-rules';
-import SolanaRail from '@/components/dashboard/SolanaRail';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import {
-  Bot,
   FileText,
   History,
+  Landmark,
   Layers,
-  LayoutDashboard,
-  ListChecks,
+  LayoutGrid,
+  LifeBuoy,
   Lock,
   LogOut,
   Menu,
-  Phone,
+  MessageSquare,
   Send,
   Settings,
-  Vault,
-  UserCircle,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkle,
+  UserRound,
   Wallet,
   X,
   type LucideIcon,
-  ShieldAlert,
 } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import clsx from 'clsx';
 
-// ─── Nav structure ────────────────────────────────────────────────────────────
+import FloatingCopilot from '@/components/FloatingCopilot';
+import { holdOverlay } from '@/components/iso';
+import { CustodyPhaseContext, LaunchScopeContext, SweepSwitchContext } from '@/components/dashboard/CustodyPhaseContext';
+import type { CustomerSession } from '@/lib/auth/customer-session';
+import { badgeFor, isActive, NAV_GROUPS, setupCard, type NavIcon, type NavItem, type SetupStepLite } from '@/lib/dashboard/nav';
+import type { LaunchScope } from '@/lib/launch-scope-rules';
 
-type NavItem = { label: string; href: string; icon: LucideIcon; badge?: string };
-type NavGroup = { title: string; items: NavItem[] };
+import { ShellTopRow } from './ShellTopRow';
+import { NavShellContext, useNavShellData } from './useNavShell';
 
-const navGroups: NavGroup[] = [
-  {
-    title: 'Getting started',
-    items: [{ label: 'Account setup', href: '/dashboard/setup', icon: ListChecks }],
-  },
-  {
-    title: 'Payments',
-    items: [
-      { label: 'Overview',     href: '/dashboard',          icon: LayoutDashboard },
-      { label: 'Invoices',     href: '/dashboard/invoices', icon: FileText },
-      { label: 'Transfer',     href: '/dashboard/transfer', icon: Send },
-      { label: 'Batch payout', href: '/dashboard/batch',    icon: Layers },
-      { label: 'Zeke',         href: '/dashboard/zeke',     icon: Bot, badge: 'AI' },
-    ],
-  },
-  {
-    title: 'Money',
-    items: [
-      { label: 'Treasury', href: '/dashboard/treasury', icon: Vault },
-      { label: 'Balance',  href: '/dashboard/fund',     icon: Wallet },
-      { label: 'History',  href: '/dashboard/history',  icon: History },
-    ],
-  },
-  {
-    title: 'Contacts',
-    items: [
-      { label: 'Recipients', href: '/dashboard/recipients', icon: UserCircle },
-    ],
-  },
-];
+/*
+ * The dashboard's shell (prompt 10 Phase 1, look 9). The sidebar keeps its dark-teal gradient and
+ * its collapse, locks and phone overlay; it is regrouped as Overview, then Pay, Money, Contacts and
+ * Control (lib/dashboard/nav.ts), with the badges the server counts. Account setup is a card that
+ * disappears when it is done. There is no top navigation header: a top row inside the content area
+ * holds search, the rate strip, the one Test mode badge and the profile. Zeke floats on every page
+ * except its own.
+ */
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
+/** The Zeke icon: a speech bubble with a small spark, built from two library glyphs. */
+function ZekeIcon({ size = 18, className }: { size?: number; className?: string }) {
+  return (
+    <span className={clsx('iso-zeke-icon', className)} style={{ width: size, height: size }} aria-hidden="true">
+      <MessageSquare size={size} />
+      <Sparkle size={Math.round(size * 0.46)} className="iso-zeke-icon__spark" />
+    </span>
+  );
+}
+
+const ICONS: Record<Exclude<NavIcon, 'zeke'>, LucideIcon> = {
+  overview: LayoutGrid,
+  transfer: Send,
+  invoices: FileText,
+  batch: Layers,
+  balance: Wallet,
+  treasury: Landmark,
+  history: History,
+  recipients: UserRound,
+  rules: ShieldCheck,
+};
+
+function NavGlyph({ icon }: { icon: NavIcon }) {
+  if (icon === 'zeke') return <ZekeIcon />;
+  const Icon = ICONS[icon];
+  return <Icon size={18} aria-hidden="true" />;
+}
 
 type DashboardShellProps = {
   children: ReactNode;
@@ -87,16 +93,17 @@ type DashboardShellProps = {
   /** The launch scope (lib/server/launch-scope.ts), resolved by the same
    *  layout. Needs no database, so it locks even when `locks` is absent. */
   launchScope?: LaunchScope;
-  /** The Solana rail, resolved by the same layout: the network, the run mode, and this company's
-   *  vault (address and its Solscan page) once account setup has made it. */
+  /** The run mode, resolved by the same layout: offline and devnet are both "Test mode" to a customer. */
   solana?: { mode: 'offline' | 'devnet'; cluster: 'devnet' | 'mainnet-beta'; vault: { address: string; solscanUrl: string | null } | null };
+  /** Account setup's steps (lib/server/onboarding.ts), for the card above the nav. Null: unreadable. */
+  setup?: SetupStepLite[] | null;
 };
 
 /** The pages a USDC-only launch does not open: paying an invoice, a transfer or a batch is a payout to
  *  a bank in local currency (the payout partner's leg), which that scope leaves closed, and a move
  *  between vaults goes through the same gates. Their routes answer 403. */
 const OUT_OF_STABLECOIN_SCOPE = ['/dashboard/invoices', '/dashboard/transfer', '/dashboard/batch', '/dashboard/treasury'];
-const SCOPE_REASON = 'Payouts to a supplier’s bank are not open on this launch yet. Your vault and its balance are.';
+const SCOPE_REASON = 'Payouts to a supplier’s bank are not open on this launch yet. Your account and its balance are.';
 
 /** Why a page is closed, and where to go instead. The launch scope answers
  *  first: no verification or setup step opens what this launch leaves out. */
@@ -105,7 +112,7 @@ function pageLock(
   locks: DashboardShellProps['locks'],
   scope: LaunchScope | undefined,
 ): { reason: string; href: string; action: string } | null {
-  if (scope === 'stablecoin' && OUT_OF_STABLECOIN_SCOPE.includes(href)) {
+  if (scope === 'stablecoin' && OUT_OF_STABLECOIN_SCOPE.some((p) => href === p || href.startsWith(`${p}/`))) {
     return { reason: SCOPE_REASON, href: '/dashboard', action: 'Back to overview' };
   }
   const reason = locks ? lockReasonFor(href, locks) : null;
@@ -117,7 +124,7 @@ function pageLock(
  * state: Zeke cannot move money regardless (three independent gates prove
  * it) and Overview is a read. Everything that spends follows the KYB gate:
  * paying an invoice, a transfer, a batch, and a move between the company's
- * own vaults (Treasury). Recipients only need the terms.
+ * own accounts (Treasury). Recipients only need the terms.
  */
 function lockReasonFor(
   href: string,
@@ -129,7 +136,7 @@ function lockReasonFor(
   const spend = ['/dashboard/invoices', '/dashboard/transfer', '/dashboard/batch', '/dashboard/treasury'];
   const termsOnly = ['/dashboard/recipients'];
   const termsReason = 'Accept the terms in Account setup to start here.';
-  // Treasury is the company's own second vault, not a custody product: it follows the same gates as a payment.
+  // Treasury is the company's own second account, not a custody product: it follows the same gates as a payment.
   if (spend.includes(href)) {
     if (locks.moneyBlocked) return locks.reason;
     return locks.termsDone ? null : termsReason;
@@ -141,11 +148,37 @@ function lockReasonFor(
   return null;
 }
 
-export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope, solana }: DashboardShellProps) {
-  const [collapsed,  setCollapsed]  = useState(false);
+/** The page's own lock: a sub-page (Invoices › Pay) is closed when its section is. */
+function lockForPath(pathname: string, locks: DashboardShellProps['locks'], scope: LaunchScope | undefined) {
+  const section = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.href !== '/dashboard' && (pathname === i.href || pathname.startsWith(`${i.href}/`)));
+  return pageLock(section?.href ?? pathname, locks, scope);
+}
+
+export default function DashboardShell({ children, session, kyb, locks, sweepOn, launchScope, solana, setup }: DashboardShellProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
+  const shell = useNavShellData();
+  const card = setupCard(setup);
+  // Test mode: the offline simulator or devnet, with the test payout partner. Mainnet is refused in config.
+  const testMode = !solana || solana.mode === 'offline' || solana.cluster !== 'mainnet-beta';
+
+  // A page change closes the phone menu.
+  useEffect(() => {
+    setMobileOpen(false); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [pathname]);
+  // The open phone menu covers the page: the floating Zeke steps aside, and Esc closes the menu.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const release = holdOverlay('sheet');
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMobileOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      release();
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [mobileOpen]);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -153,268 +186,199 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
     router.refresh();
   }
 
-  return (
-    <div className="fintech-dashboard-shell flex min-h-screen splash-page-bg">
-
-      {/* ── Desktop top header ───────────────────────────────── */}
-      <DashboardHeader collapsed={collapsed} session={session} onLogout={logout} />
-
-      {/* ── Desktop sidebar ──────────────────────────────────── */}
-      <aside
-        className={`fintech-dashboard-sidebar hidden flex-col bg-[#1F4452] p-4 text-white transition-all duration-300 md:flex fixed left-0 top-0 z-30 h-screen ${
-          collapsed ? 'w-20' : 'w-60'
-        }`}
+  const navItem = (item: NavItem, variant: 'side' | 'phone') => {
+    const { label, href, icon } = item;
+    const lock = pageLock(href, locks, launchScope);
+    const active = isActive(href, pathname);
+    const badge = badgeFor(item.badge, shell?.counts ?? null);
+    const rail = variant === 'side' && collapsed;
+    const accessible = [label, badge ? `, ${badge.label}` : '', lock ? ` (locked: ${lock.reason})` : ''].join('');
+    return (
+      <Link
+        key={href}
+        href={lock ? lock.href : href}
+        aria-current={active ? 'page' : undefined}
+        aria-disabled={lock ? true : undefined}
+        aria-label={rail ? accessible : undefined}
+        className={clsx('iso-navitem', active && 'is-on', lock && 'is-locked', rail && 'is-rail')}
+        onClick={variant === 'phone' ? () => setMobileOpen(false) : undefined}
       >
-        {/* Logo / collapse toggle */}
-        <button
-          type="button"
-          onClick={() => setCollapsed((v) => !v)}
-          className={`mb-6 flex items-center rounded-xl transition-colors hover:bg-white/10 ${
-            collapsed ? 'mx-auto justify-center p-2' : 'gap-3 px-2 py-2'
-          }`}
-          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-        >
-          <Image
-            src="/splash-main-icon.png"
-            alt="Splash"
-            width={48}
-            height={47}
-            className="h-auto w-8 shrink-0 object-contain"
-            loading="eager"
-            unoptimized
-          />
-          {!collapsed && (
-            <span className="grid text-left">
-              <strong className="text-xl font-semibold tracking-tight text-white">
-                Splash<span className="text-[#bfe6ee]">.</span>
-              </strong>
-              {/* 12px is the floor; in capitals with wide tracking it took three lines. */}
-              <small className="text-[12px] font-medium text-white/80">Global settlement engine</small>
+        <NavGlyph icon={icon} />
+        {rail ? null : <span className="iso-navitem__label">{label}</span>}
+        {rail ? null : lock ? <Lock size={13} aria-hidden="true" className="iso-navitem__lock" /> : null}
+        {badge && !rail ? (
+          badge.kind === 'dot' ? (
+            <span className="iso-navbadge iso-navbadge--dot" role="img" aria-label={badge.label} />
+          ) : (
+            <span className={clsx('iso-navbadge', badge.kind === 'count' && badge.tone === 'coral' && 'iso-navbadge--coral')} aria-label={badge.label}>
+              {badge.text}
             </span>
-          )}
-        </button>
+          )
+        ) : null}
+        {badge && rail && badge.kind === 'count' && badge.tone === 'coral' ? <span className="iso-navbadge iso-navbadge--pip" aria-hidden="true">{badge.text}</span> : null}
+        {rail ? (
+          <span className="iso-navtip" aria-hidden="true">
+            {label}
+            {badge && badge.kind !== 'dot' ? ` · ${badge.text}` : badge ? ' · not verified' : ''}
+            {lock ? ' · locked' : ''}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
 
-        {/* Nav groups */}
-        {/* min-h-0: the nav scrolls inside the sidebar instead of running under the Solana card on a short screen. */}
-        <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-          {navGroups.map((group) => (
-            <div key={group.title}>
-              {!collapsed && (
-                <div className="mb-1 px-2 text-[12px] font-semibold uppercase tracking-widest text-white/80">
-                  {group.title}
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {group.items.map(({ label, href, icon: Icon, badge }) => {
-                  const active = href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
-                  const lock = pageLock(href, locks, launchScope);
-                  const lockReason = lock?.reason ?? null;
-                  return (
-                    <Link
-                      key={href}
-                      href={lock ? lock.href : href}
-                      aria-disabled={lockReason ? true : undefined}
-                      title={lockReason ?? (collapsed ? label : undefined)}
-                      className={`relative flex items-center rounded-lg px-2 py-[7px] text-sm transition-colors ${
-                        collapsed ? 'justify-center' : 'gap-3'
-                      } ${
-                        active
-                          ? collapsed
-                            ? 'bg-white text-[#1F4452] shadow-sm'
-                            : 'bg-white pl-3 text-[#1F4452] shadow-sm'
-                          : 'text-white/80 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {active && !collapsed && <span aria-hidden="true" className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-[#5C9EAD]" />}
-                      <Icon size={18} className={active ? 'text-[#5C9EAD]' : ''} />
-                      {!collapsed && (
-                        <>
-                          <span className={`flex-1 font-medium ${lockReason ? 'opacity-50' : ''}`}>{label}</span>
-                          {lockReason && <Lock size={13} aria-hidden="true" className={active ? 'text-[#1F4452]/70' : 'text-white/80'} />}
-                          {badge && (
-                            <span
-                              className={`rounded-full px-1.5 py-0.5 text-[13px] font-semibold ${
-                                badge === 'New' ? 'bg-[#E39774]/25' : 'bg-[#5C9EAD]/20'
-                              } ${
-                                // On the dark rail, warm white on the accent's tint (the light coral
-                                // was 4.1:1 there); on the white active pill, ink.
-                                active ? 'text-[#1F4452]' : badge === 'New' ? 'text-[#fffaf6]' : 'text-white'
-                              }`}
-                            >
-                              {badge}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+  const groups = (variant: 'side' | 'phone') =>
+    NAV_GROUPS.map((group) => (
+      <div key={group.title ?? 'top'} className="iso-navgroup">
+        {group.title && !(variant === 'side' && collapsed) ? <p className="iso-navgroup__title">{group.title}</p> : null}
+        {group.items.map((item) => navItem(item, variant))}
+      </div>
+    ));
 
-        {/* Bottom items: the network, and this company's vault on it */}
-        {!collapsed && solana ? <SolanaRail {...solana} /> : null}
+  const setupLink = card ? (
+    <Link href="/dashboard/setup" className="iso-setupcard">
+      <span className="iso-setupcard__head">
+        <span>Account setup</span>
+        <span className="iso-num">
+          {card.done} of {card.total}
+        </span>
+      </span>
+      <span className="iso-setupcard__bar" aria-hidden="true">
+        <span style={{ width: `${card.pct}%` }} />
+      </span>
+      <span className="iso-setupcard__next">Next: {card.next}</span>
+    </Link>
+  ) : null;
 
-        <div className="space-y-0.5 border-t border-white/10 pt-4">
-          <Link
-            href="/dashboard/settings"
-            title={collapsed ? 'Settings' : undefined}
-            className={`flex items-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-white/10 hover:text-white ${
-              collapsed ? 'justify-center' : 'gap-3'
-            } ${
-              pathname === '/dashboard/settings'
-                ? 'bg-white/15 text-white'
-                : 'text-white/80'
-            }`}
-          >
-            <Settings size={18} />
-            {!collapsed && <span className="font-medium">Settings</span>}
+  const footer = (variant: 'side' | 'phone') => {
+    const rail = variant === 'side' && collapsed;
+    return (
+      <div className="iso-sidefoot">
+        {testMode && !rail ? (
+          <div className="iso-testcard">
+            <span className="iso-testmode iso-testmode--inline">Test mode</span>
+            <p>No real money moves. Only your team can approve a payment; Splash can&rsquo;t.</p>
+          </div>
+        ) : null}
+        <div className="iso-sidefoot__links">
+          <Link href="/dashboard/settings" aria-current={pathname.startsWith('/dashboard/settings') && !pathname.startsWith('/dashboard/settings/policy') ? 'page' : undefined} aria-label={rail ? 'Settings' : undefined} className={clsx('iso-navitem', rail && 'is-rail')}>
+            <Settings size={18} aria-hidden="true" />
+            {rail ? <span className="iso-navtip" aria-hidden="true">Settings</span> : <span className="iso-navitem__label">Settings</span>}
           </Link>
-          <Link
-            href="/dashboard/customer-service"
-            title={collapsed ? 'Support' : undefined}
-            className={`flex items-center rounded-lg px-2 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white ${
-              collapsed ? 'justify-center' : 'gap-3'
-            }`}
-          >
-            <Phone size={18} />
-            {!collapsed && <span className="font-medium">Support</span>}
+          <Link href="/dashboard/customer-service" aria-label={rail ? 'Support' : undefined} className={clsx('iso-navitem', rail && 'is-rail')}>
+            <LifeBuoy size={18} aria-hidden="true" />
+            {rail ? <span className="iso-navtip" aria-hidden="true">Support</span> : <span className="iso-navitem__label">Support</span>}
           </Link>
-          <button
-            type="button"
-            onClick={logout}
-            title={collapsed ? 'Log out' : undefined}
-            className={`flex w-full items-center rounded-lg px-2 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-[#E39774] ${
-              collapsed ? 'justify-center' : 'gap-3'
-            }`}
-          >
-            <LogOut size={18} />
-            {!collapsed && <span className="font-medium">Log out</span>}
+          <button type="button" onClick={() => void logout()} aria-label={rail ? 'Log out' : undefined} className={clsx('iso-navitem', rail && 'is-rail')}>
+            <LogOut size={18} aria-hidden="true" />
+            {rail ? <span className="iso-navtip" aria-hidden="true">Log out</span> : <span className="iso-navitem__label">Log out</span>}
           </button>
         </div>
-      </aside>
+      </div>
+    );
+  };
 
-      {/* ── Mobile top header ─────────────────────────────────── */}
-      <header className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between bg-[#1F4452] px-4 py-3 md:hidden">
-        <div className="flex items-center gap-3">
-          <Image
-            src="/splash-main-icon.png"
-            alt="Splash"
-            width={48}
-            height={47}
-            className="h-auto w-7 object-contain"
-            loading="eager"
-            unoptimized
-          />
-          <span className="text-lg font-semibold text-white">
-            Splash<span className="text-[#bfe6ee]">.</span>
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setMobileOpen((v) => !v)}
-          className="text-white"
-          aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
-          aria-expanded={mobileOpen}
-        >
-          {mobileOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </header>
+  const lock = lockForPath(pathname, locks, launchScope);
 
-      {/* ── Mobile overlay ────────────────────────────────────── */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-[#1F4452] pt-16 md:hidden">
-          <div className="flex h-full flex-col p-6">
-            <nav className="flex-1 space-y-1 overflow-y-auto">
-              {navGroups.flatMap((g) => g.items).map(({ label, href, icon: Icon }) => (
-                <Link
-                  key={href}
-                  onClick={() => setMobileOpen(false)}
-                  href={pageLock(href, locks, launchScope)?.href ?? href}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-white transition-colors hover:bg-white/10 ${
-                    pathname === href ? 'bg-white/15' : ''
-                  }`}
-                >
-                  <Icon size={20} />
-                  <span className={`font-medium ${pageLock(href, locks, launchScope) ? 'opacity-50' : ''}`}>{label}</span>
-                  {pageLock(href, locks, launchScope) ? <Lock size={14} aria-hidden="true" className="ml-auto text-white/80" /> : null}
-                </Link>
-              ))}
-            </nav>
-            <button
-              type="button"
-              onClick={() => { setMobileOpen(false); logout(); }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-white transition-colors hover:bg-white/10 hover:text-[#E39774]"
-            >
-              <LogOut size={20} />
-              <span className="font-medium">Log out</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Main content ──────────────────────────────────────── */}
-      {/* Mobile top pad = 60 px (mobile header); desktop = 76 px (desktop header + gap) */}
-      <main
-        className={`fintech-dashboard-main relative z-0 min-w-0 flex-1 overflow-x-hidden transition-all duration-300 p-4 pt-[60px] pb-16 md:px-8 md:pb-8 md:pt-[76px] ${
-          collapsed ? 'md:ml-20' : 'md:ml-60'
-        }`}
-      >
-        {solana ? (
-          <p role="note" className="mb-4 rounded-lg border border-[#5C9EAD]/30 bg-[#5C9EAD]/10 px-4 py-2 text-[13px] font-medium text-[#1F4452]">
-            {solana.mode === 'offline' ? (
-              <><strong>Simulated · devnet-ready.</strong> Every transaction runs in a local simulator, and the payout partner is a mock that pays no real bank.</>
-            ) : (
-              <><strong>{solana.cluster === 'mainnet-beta' ? 'Solana' : 'Solana devnet'} · Mock partner.</strong> Test USDC only; the payout partner is a mock that pays no real bank.</>
+  return (
+    <NavShellContext value={shell}>
+      <div className="fintech-dashboard-shell iso-app flex min-h-screen">
+        {/* ── Desktop sidebar ──────────────────────────────────── */}
+        <aside className={clsx('iso iso-side hidden md:flex', collapsed && 'is-collapsed')} aria-label="Dashboard">
+          <span className="iso-side__rings" aria-hidden="true" />
+          {/* The logo is the collapse toggle, as before. */}
+          <button type="button" className="iso-logo" onClick={() => setCollapsed((v) => !v)} aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'} aria-expanded={!collapsed}>
+            <span className="iso-logo__tile">
+              <Image src="/splash-main-icon.png" alt="" width={48} height={47} className="iso-logo__mark" loading="eager" unoptimized />
+            </span>
+            {collapsed ? null : (
+              // The button's name is what it does (collapse or expand); the brand words are decoration to a screen reader.
+              <span className="iso-logo__words" aria-hidden="true">
+                <strong>
+                  Splash<span className="iso-logo__dot">.</span>
+                </strong>
+                <small>Global settlement engine</small>
+              </span>
             )}
-          </p>
-        ) : null}
-        {kyb?.blocked ? (
-          <div
-            role="status"
-            className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-[var(--warn)] bg-[var(--warn-bg)] px-4 py-3"
-          >
-            <ShieldAlert aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--warn)]" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-bold text-[#8b6418]">Read-only workspace</p>
-              <p className="mt-0.5 text-[13px] font-medium text-[#326273]/90">{kyb.reason}</p>
-            </div>
-            <Link
-              href="/settings/kyb"
-              className="rounded-md bg-[#1F4452] px-3 py-1.5 text-[13px] font-bold text-white"
-            >
-              Verification
-            </Link>
+          </button>
+
+          {collapsed ? null : setupLink}
+
+          <nav aria-label="Main" className="iso-sidenav">
+            {groups('side')}
+          </nav>
+
+          {footer('side')}
+        </aside>
+
+        {/* ── Phone: the dark top bar, and the menu it opens ─────── */}
+        <header className="iso iso-phonebar md:hidden">
+          <Link href="/dashboard" className="iso-logo iso-logo--phone" aria-label="Splash, Overview">
+            <span className="iso-logo__tile iso-logo__tile--sm">
+              <Image src="/splash-main-icon.png" alt="" width={48} height={47} className="iso-logo__mark" loading="eager" unoptimized />
+            </span>
+            <strong>
+              Splash<span className="iso-logo__dot">.</span>
+            </strong>
+          </Link>
+          <button type="button" className="iso-phonebar__menu" onClick={() => setMobileOpen((v) => !v)} aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={mobileOpen} aria-controls="iso-phone-menu">
+            {mobileOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
+          </button>
+        </header>
+        {mobileOpen ? (
+          <div id="iso-phone-menu" className="iso iso-side iso-side--phone md:hidden">
+            <span className="iso-side__rings" aria-hidden="true" />
+            {setupLink}
+            <nav aria-label="Main" className="iso-sidenav">
+              {groups('phone')}
+            </nav>
+            {footer('phone')}
           </div>
         ) : null}
-        {pageLock(pathname, locks, launchScope) ? (
-          <section className="dash-surface mx-auto mt-10 max-w-lg p-8 text-center">
-            <Lock aria-hidden="true" className="mx-auto h-8 w-8 text-[#326273]/70" />
-            <h2 className="mt-4 text-lg font-bold text-[#1F4452]">Not open yet</h2>
-            <p className="mt-2 text-sm leading-relaxed text-[#326273]">{pageLock(pathname, locks, launchScope)?.reason}</p>
-            <Link
-              href={pageLock(pathname, locks, launchScope)?.href ?? '/dashboard/setup'}
-              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#1F4452] px-5 text-sm font-semibold text-white transition hover:bg-[#326273]"
-            >
-              {pageLock(pathname, locks, launchScope)?.action}
-            </Link>
-          </section>
-        ) : (
-          // The same custodyOn the Treasury padlock reads, for pages that
-          // cannot import the server gate (StepDelivery's fund-holding tiers),
-          // and the sweep switch the transfer routes also enforce.
-          <SweepSwitchContext value={sweepOn ?? false}>
-            <CustodyPhaseContext value={locks?.custodyOn ?? false}>
-              <LaunchScopeContext value={launchScope ?? 'full'}>{children}</LaunchScopeContext>
-            </CustodyPhaseContext>
-          </SweepSwitchContext>
-        )}
-      </main>
 
-      {/* ── Floating AI Copilot widget ────────────────────────── */}
-      <FloatingCopilot />
-    </div>
+        {/* ── Main content ──────────────────────────────────────── */}
+        {/* Top pad: the phone bar (56 px) on a phone, none on a desktop (the top row is in the flow).
+            Bottom pad 112 px everywhere: Zeke's floating button covers the bottom 92 px. */}
+        <main className={clsx('fintech-dashboard-main iso-main relative z-0 min-w-0 flex-1 overflow-x-hidden', collapsed ? 'md:ml-20' : 'md:ml-[264px]')}>
+          <ShellTopRow data={shell} person={session.name} role={session.userRole} company={session.organization} testMode={testMode} />
+          {kyb?.blocked ? (
+            <div className="iso iso-appnote" role="status">
+              <p className="iso-note iso-note--amber">
+                <ShieldAlert size={18} aria-hidden="true" />
+                <span>
+                  <strong>Read-only for now.</strong> {kyb.reason}{' '}
+                  <Link href="/settings/kyb">Business verification</Link>
+                </span>
+              </p>
+            </div>
+          ) : null}
+          {lock ? (
+            <section className="iso iso-locked">
+              <Lock size={28} aria-hidden="true" />
+              <h2 className="iso-h2">Not open yet</h2>
+              <p className="iso-body">{lock.reason}</p>
+              <Link href={lock.href} className="iso-btn iso-btn--primary">
+                {lock.action}
+              </Link>
+            </section>
+          ) : (
+            // The same custodyOn the Treasury padlock reads, for pages that
+            // cannot import the server gate (StepDelivery's fund-holding tiers),
+            // and the sweep switch the transfer routes also enforce.
+            <SweepSwitchContext value={sweepOn ?? false}>
+              <CustodyPhaseContext value={locks?.custodyOn ?? false}>
+                <LaunchScopeContext value={launchScope ?? 'full'}>{children}</LaunchScopeContext>
+              </CustodyPhaseContext>
+            </SweepSwitchContext>
+          )}
+        </main>
+
+        {/* ── Zeke, floating on every page but its own ─────────── */}
+        {/* It reads the page's query (Transfer's step), so it waits for the URL on its own. */}
+        <Suspense fallback={null}>
+          <FloatingCopilot waiting={shell?.counts.approvals ?? 0} />
+        </Suspense>
+      </div>
+    </NavShellContext>
   );
 }

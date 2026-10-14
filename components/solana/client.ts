@@ -90,6 +90,11 @@ export function base64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
+/** A server challenge (text) approved with this device's key: the base58 signature the server checks. */
+export async function approveTextWithDevice(keyId: string, text: string): Promise<string> {
+  return bs58.encode(await signBytesWithDevice(keyId, new TextEncoder().encode(text)));
+}
+
 /** Sign each prepared transaction message with the device key. Returns base58 signatures. */
 export async function signPrepared(keyId: string, messages: Array<{ id: string; messageBase64: string }>) {
   const out: Array<{ id: string; signature: string }> = [];
@@ -121,6 +126,13 @@ export function usdcExact(minor: string | bigint): string {
   const abs = v < 0n ? -v : v;
   const whole = (abs / 1_000_000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `${v < 0n ? '−' : ''}${whole}.${(abs % 1_000_000n).toString().padStart(6, '0')} USDC`;
+}
+
+/** "US$5,416.082957": the same exact figure, in the dashboard's words (prompt 10 §0.6: US dollars). */
+export function usdExact(minor: string | bigint): string {
+  // usdcExact's figure without its five-character unit suffix.
+  const figure = usdcExact(minor).slice(0, -5);
+  return figure.startsWith('−') ? `−US$${figure.slice(1)}` : `US$${figure}`;
 }
 
 export function php(minor: string | bigint): string {

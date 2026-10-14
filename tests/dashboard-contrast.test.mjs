@@ -56,25 +56,22 @@ test('the dashboard stylesheet is read the way the browser paints it', () => {
   );
 });
 
-test('the check finds the dashboard’s surfaces: the gradient page and the glow over it, the sidebars, cards and fields', (t) => {
+test('the check finds the dashboard’s surfaces: the paper ground, the sidebar, paper surfaces, cards and fields', (t) => {
   const white = [255, 255, 255];
-  const stops = { top: [236, 227, 222], middle: [239, 230, 225], bottom: [229, 216, 209] };
+  // Prompt 10 Phase 1 (look 9): the page is the paper ground (#F6F0ED) with its grid; the glow that
+  // used to sit fixed over a gradient page is gone. The sidebar keeps its dark-teal gradient.
+  const ground = [246, 240, 237];
   const expected = {
-    'the page, top of its gradient': stops.top,
-    'the page, middle': stops.middle,
-    'the page, bottom': stops.bottom,
-    // .fintech-dashboard-shell::before, fixed to the window: its glow's brightest point over the page.
-    'the page under its fixed glow, at the bottom of the gradient': over([92, 158, 173, 0.08], stops.bottom),
-    // .fintech-dashboard-sidebar's own glow, at its brightest over the top of the rail.
-    'the sidebar rail under its glow': over([159, 207, 199, 0.1], [36, 85, 99]),
-    // Buttons, avatars, the mobile header: not the sidebar, whose own background wins.
+    'the page: the paper ground': ground,
+    'the sidebar, at the top of its gradient': [36, 85, 99],
+    'a redesigned surface: paper': [255, 250, 244],
+    // Buttons, avatars: an ink element lifted towards white (the screens not yet rebuilt).
     'an ink element (bg-[#1F4452], lifted towards white)': over([31, 68, 82, 0.85], white),
-    'a .dash-surface card on the page': over([255, 253, 249, 0.93], stops.top),
-    'a field in the dashboard (the field rule)': over([255, 253, 247, 0.92], over([255, 253, 249, 0.93], stops.top)),
+    'a .dash-surface card on the ground': over([255, 253, 249, 0.93], ground),
+    'a field in the dashboard (the field rule)': over([255, 253, 247, 0.92], over([255, 253, 249, 0.93], ground)),
   };
-  for (const [label, colour] of Object.entries(expected)) {
-    assert.ok(RESULT.surfacesSeen.has(hex(colour)), `${label} ${hex(colour)} was not found`);
-  }
+  const missing = Object.entries(expected).filter(([, colour]) => !RESULT.surfacesSeen.has(hex(colour))).map(([label, colour]) => `${label} ${hex(colour)}`);
+  assert.deepEqual(missing, [], 'every surface is found');
   const { words, icons, fields, sizes } = RESULT.checked;
   t.diagnostic(`${PAGES.length} pages, ${RESULT.files.length} files: ${words} word colours, ${icons} icon colours, ${fields} field edges, ${sizes} sizes, on ${RESULT.surfacesSeen.size} surfaces`);
   assert.ok(PAGES.length >= 15, `only ${PAGES.length} dashboard pages were found`);

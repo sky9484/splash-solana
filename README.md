@@ -21,8 +21,9 @@ Built for Colosseum (submission 12 Oct 2026). First corridor: Malaysia to the Ph
 | Evidence storage and encryption (Walrus, Seal) | **Real adapters.** Offline, a stand-in store seals records with a server key and says so. |
 | **Payout partner** | **Mock** ("Mock partner · devnet"): its peso rate is a fixed reference, not a live rate, and it pays no real bank. It stays a mock until a sandbox agreement is approved. |
 | Wallet screening (KYT) | **Stub**, labelled as such on every approval card and funds check. |
-| Funding from outside the vaults (Stripe, Airwallex, USDT or PYUSD swapped to USDC) | **Sandbox stand-ins**, labelled so on every screen: offline they credit the payments vault after a simulated funds check, and their charges are sandbox estimates. No agreement with either provider is signed. |
-| The run mode | **Offline by default**: every screen and receipt says "Simulated · devnet-ready". The same code runs on devnet with `SPLASH_SOLANA_MODE=devnet`. |
+| Funding from outside the vaults (bank or card top-ups, USDT or PYUSD swapped to USDC) | **Sandbox stand-ins**, labelled so on every screen: offline they credit the payments vault after a simulated funds check, and their charges are sandbox estimates. No agreement with any provider is signed. |
+| Treasury investments (T-bills via Ondo's USDY, US stocks and ETFs via Ondo) | **Test mode only**, until legal sign-off in Malaysia: orders are approved on a device and settled by a simulator. Every rate and past return is dated and sourced (`lib/treasury/reference.ts`). See `docs/solana-build/TREASURY.md`. |
+| The run mode | **Offline by default**: every screen and receipt says "Test mode". The same code runs on devnet with `SPLASH_SOLANA_MODE=devnet`. |
 
 ## The problem
 - The World Bank's Remittance Prices Worldwide puts the average cost of sending money from Malaysia to the Philippines at **3.92%**, with banks charging **up to 9.56%** and **1.49%** hidden in the exchange rate (Q3 2025, US$200 and US$500 sends; retail prices, so a floor for business payments).
@@ -112,6 +113,21 @@ The browser walkthrough (`tests/solana-ui.e2e.mjs`) drives an installed Chrome o
 - **Kora on devnet.** Kora's RPC method names and config keys come from its source code; they haven't been called against a running Kora.
 - **SAS schema creation.** SAS instructions decode with sas-lib's own parsers; the schema has not been created on the deployed program, so anchors are SPL Memos today.
 - **CCTP V2 from a vault.** A burn executed by Squads with an ephemeral event account is untested on-chain. The vault needs about 0.01 SOL for the event account's rent on that route, so "you don't need SOL" holds only for the direct route today.
+- **Inbound CCTP.** Money arriving from another chain into a company's account through CCTP is not built or tested; only money in from a Solana wallet or another Splash business is.
+- **Swap provider.** Paying in USDT or PYUSD swaps through a sandbox stand-in; no swap provider is integrated.
+- **On-ramp.** Bank or card top-ups are sandbox stand-ins; no on-ramp partner is integrated.
+- **Collection partner.** A payment request's "Pay by bank transfer" is hidden: there is no collection partner. Requests are paid from a crypto wallet or by another Splash business.
+- **Matching money in on devnet.** A transfer into a requester's account is matched to its request in the simulator; on devnet nothing watches the account yet.
+- **The Philippine bank list.** Recipient forms use a static list of banks and codes, not one from a real payout partner.
+- **AWS KMS switched on.** Full bank numbers are sealed with a local key in development; switching on AWS KMS before the first real customer is described in `docs/security/PII-STORAGE.md`.
+- **Sui's CCTP V2 status.** Not checked for this build.
+- **Ondo adapters.** The T-bills and stocks adapters (`usdy-sim`, `ondo-stocks-sim`) are mocks; no live adapter builds a transaction for the Investments account.
+- **Live USDY rate.** The T-bills rate is a dated reference (3.75% a year, as of 13 Oct 2026, from ondo.finance/usdy), not a live feed; past 35 days it shows "Rate out of date".
+- **Ondo onboarding for direct subscriptions.** Subscribing straight from Ondo (and Ondo's own mint and redeem for stocks) needs the company onboarded with Ondo; in test mode it is simulated.
+- **The USDY mint on Solana.** Taken from Ondo's own address list (`A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6`) and shown in Treasury's Technical details; nothing reads or moves it on-chain yet. The stock tokens' addresses are not checked and not used.
+- **The 40-day hold.** Ondo's USDY page doesn't state a holding period after a subscription; 40 days (Business Module v15.1) is kept as the cautious assumption.
+- **Ondo's wire-out redemption.** Redeeming with Ondo sends US dollars by bank wire to the company's bank, outside Splash (Ondo's documentation says so); in test mode it is simulated and never credits the Payments account.
+- **A returned bank payout keeps Splash's fee.** The partner returns what it received; Splash's fee isn't part of that. Whether to refund the fee on a return is not decided.
 
 ## Prior work
 This repo starts from the Splash Sui build (`sky9484/phase1` @ `3f78f5a`, 26 Sep 2026), imported unchanged in the first commit so the Solana build could reuse the UI system, copy guards, money helpers and policy code. That commit is prior work. Everything after it is the Solana build, made for this hackathon. See `docs/prior-work/PRIOR_WORK.md`.

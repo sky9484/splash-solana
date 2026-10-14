@@ -8,6 +8,7 @@ const TABS = [
   { href: '/dashboard/settings/policy', label: 'Payment rules' },
   { href: '/dashboard/settings/devices', label: 'Devices' },
   { href: '/dashboard/settings/recovery', label: 'Recovery kit' },
+  { href: '/dashboard/settings/account', label: 'Account details' },
 ];
 
 /** The settings sections, one row of tabs; the current one is marked for screen readers too. */

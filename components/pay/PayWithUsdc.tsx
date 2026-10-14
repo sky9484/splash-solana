@@ -1,4 +1,7 @@
 'use client';
+// copy: technical
+// "Pay from a crypto wallet" on a pay link (prompt 10 §0.6: the crypto-wallet zone, where the asset and
+// network names are needed so nobody sends on the wrong network).
 
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Copy, ExternalLink, Loader2 } from 'lucide-react';

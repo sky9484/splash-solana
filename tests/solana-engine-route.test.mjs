@@ -10,11 +10,25 @@ import {
   toCentiBps,
   MAX_QUOTE_TTL_SEC,
   SPLASH_MIN_FEE_USDC_MINOR,
+  stepCount,
 } from '../lib/route-engine/index.ts';
 import { tenThousandUsdPhpFixture, FIXTURE_NOW, FIXTURE_PHP_MINOR } from '../lib/route-engine/fixtures.ts';
 
 const USD = (n) => BigInt(Math.round(n * 100)) * 10_000n; // dollars → USDC minor (test helper, whole cents only)
 const kindOf = (q) => (q.target.network === 'solana' ? 'direct' : q.flags.includes('fast_transfer') ? 'fast' : 'standard');
+
+test('stepCount: a route straight to the partner is 2 links, one through the lower-cost lane is 3 (display only)', () => {
+  const { input } = tenThousandUsdPhpFixture();
+  const r = quoteRoutes(input);
+  for (const q of r.ranked.cheapest) {
+    // Both shapes have two step entries today, so steps.length can't tell them apart.
+    assert.equal(q.steps.length, 2);
+    assert.equal(stepCount(q), kindOf(q) === 'direct' ? 2 : 3, kindOf(q));
+  }
+  assert.equal(stepCount({ steps: [{ kind: 'transfer' }, { kind: 'partner' }] }), 2);
+  assert.equal(stepCount({ steps: [{ kind: 'bridge' }, { kind: 'partner' }] }), 3);
+  assert.equal(stepCount({ steps: [] }), 0);
+});
 
 test('US$10,000 PHP payout: three candidates per policy, all pay the supplier in full', () => {
   const { input } = tenThousandUsdPhpFixture();

@@ -68,3 +68,88 @@
   --ease-decel: cubic-bezier(0, 0, 0, 1);
   --ease-accel: cubic-bezier(.3, 0, 1, 1);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Splash Iso UI · look 9 (prompt 10 §2.1). The dashboard's redesigned
+   screens draw only from these. Scoped to `.iso` because the names below
+   (--ink, --teal, --gold, --coral) already mean something else on the
+   landing and the screens not yet rebuilt; a redesigned page or part puts
+   `iso` on its root. scripts/check-iso-ui.mjs reads this block: a hex in a
+   redesigned file that is not listed here fails the lint.
+   ───────────────────────────────────────────────────────────────────────── */
+.iso {
+  /* Paper and ink */
+  --paper: #FFFAF4;
+  --paper-warm: #FFFAF1;
+  --ground: #F6F0ED;
+  --white: #FFFFFF;
+  --ink: #0C3E48;
+  --ink-deep: #083640;
+  --ledge-dark: #041C22;
+
+  /* Accents, one job each */
+  --teal: #0D6370;          /* routes, links, active, the selected lane */
+  --mint: #9FCFC7;          /* routes, the selected road, ok borders */
+  --mint-wash: #DDEFEA;     /* hero wash start, Zeke's context bar */
+  --mint-wash-2: #EAF4EF;   /* hero wash middle */
+  --gold: #EFC46F;          /* coins in motion, Test mode, treasury opportunity */
+  --gold-fill: #FBEFD6;     /* the investments ribbon */
+  --gold-ink: #6B4A0C;      /* text on gold fill */
+  --coral: #E39774;         /* approval only: the Approve button, Approve chips, the approvals badge */
+  --coral-ring: #C46A43;    /* the quote ring on an approval row */
+  --coral-quiet: #F3D6C8;   /* a disabled Approve button */
+  --coral-fill: #FBE7DD;
+  --coral-ink: #9F4F2C;
+  --amber-fill: #FBEFDD;    /* warnings only: new bank details, shortfall, quote about to expire */
+  --amber-line: #E8C48D;
+  --amber-ink: #8A5208;
+  --amber-mark: #B4690E;    /* icons and borders only: fails 4.5:1 as text */
+  --ok-fill: #E4F1ED;
+  --ok-ink: #1F6152;
+  --ok-mark: #2E7D6B;
+  --danger-fill: #F9E7E3;
+  --danger-line: #E2B0A6;
+  --danger-ink: #B3402F;
+  --road: #E9E1D8;          /* a lane's road when not chosen */
+  --road-edge: #CFC3B8;
+
+  /* Ink at an opacity: muted is for non-text only; text never goes below .86 */
+  --muted: rgb(12 62 72 / .35);
+  --text-2: rgb(12 62 72 / .86);
+  --line: rgb(12 62 72 / .2);
+  --line-soft: rgb(12 62 72 / .14);
+  --line-strong: rgb(12 62 72 / .35);
+  --grid: rgb(12 62 72 / .05);
+  --grid-hero: rgb(12 62 72 / .06);
+
+  /* Surfaces: flat paper, solid offset ledges, square corners. No blurred shadow anywhere. */
+  --ledge-1: 3px 3px 0 var(--ink-deep);
+  --ledge-2: 5px 5px 0 var(--ink-deep);
+  --ledge-hero: 6px 6px 0 var(--ink-deep);
+  --ledge-side: 3px 3px 0 var(--ledge-dark);
+  --hero-wash: linear-gradient(135deg, #DDEFEA 0%, #EAF4EF 40%, #FFFAF4 74%);
+  --border-hero: 2px solid var(--ink-deep);
+  --border: 1.5px solid var(--line);
+
+  /* Type: Geist, Geist Mono for account digits and invoice numbers only */
+  --iso-13: 13px;
+  --iso-14: 14px;
+  --iso-15: 15px;
+  --iso-17: 17px;
+  --iso-19: 19px;
+  --iso-22: 22px;
+  --iso-34: 34px;
+  --iso-display: clamp(40px, 5vw, 76px);
+
+  /* Motion */
+  --t-press: 90ms;
+  --t-ui: 180ms;
+  --t-sheet: 320ms;
+  --t-scene: 640ms;
+  --ease-iso: cubic-bezier(.2, .8, .2, 1);
+
+  /* The dark sidebar (kept from today) */
+  --side-gradient: linear-gradient(165deg, #245563 0%, #143C47 55%, #0C3039 100%);
+  --side-text: rgb(255 250 241 / .86);
+  --side-label: rgb(255 250 241 / .72);
+}

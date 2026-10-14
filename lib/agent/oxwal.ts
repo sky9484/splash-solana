@@ -64,6 +64,8 @@ export type OxwalAgentRequest = {
   /** The org's verification state, when the caller already holds it. Server-
    *  derived only — the route never takes it from a request body. */
   kybState?: KybLifecycleState;
+  /** The dashboard page the person is on (a name from lib/solana-zeke/context.ts, checked by the route). */
+  page?: string;
 };
 
 export type TrustedValue<T> = {
@@ -164,6 +166,11 @@ function systemPromptFor(assistantName: string): string {
   // verification unlocks (STABLECOIN_SCOPE_PROMPT, below).
   const prompt = namedPrompt(assistantName);
   return launchScope() === 'stablecoin' ? `${prompt}\n${STABLECOIN_SCOPE_PROMPT}` : prompt;
+}
+
+/** The page the person is on (a known page name; the route drops anything else), for "this page" questions. */
+function pageLine(page: string | undefined): string {
+  return page ? `\nThe person is on this dashboard page: ${page}. When they ask about "this" page, answer about it.` : '';
 }
 
 function namedPrompt(assistantName: string): string {
@@ -1649,6 +1656,23 @@ async function* runLocalPlanner(request: OxwalAgentRequest): AsyncGenerator<Oxwa
     for (const warning of invoice.warnings) yield { type: 'warning', warning };
   }
 
+  // "What's due this week?" (prompt 10 §7A): answered from the company's own bills, read only. A bill
+  // that already has a drafted payment becomes a ticket that opens it on Transfer, where a person
+  // approves it on a device. If the company can't be read, the general answer below stands.
+  if (/\bdue\b/i.test(message) && !extractKnownCounterpartyId(message)) {
+    try {
+      const { loadCompany } = await import('../solana-app/company.ts');
+      await loadCompany(orgId);
+      const { dueThisWeek } = await import('../solana-app/due-this-week.ts');
+      const answer = await dueThisWeek(orgId);
+      for (const token of tokens(answer.text)) yield { type: 'delta', text: token };
+      if (answer.handoff) yield { type: 'handoff', handoff: answer.handoff };
+      return;
+    } catch {
+      /* fall through to the general answer */
+    }
+  }
+
   const wantsPayment = /\b(pay|payout|send|settle|invoice)\b/i.test(message);
   if (wantsPayment) {
     const counterpartyId = extractKnownCounterpartyId(message);
@@ -1746,7 +1770,7 @@ async function* runClaudeToolLoop(
     const response = await client.messages.create({
       model: copilotModel(),
       max_tokens: 1000,
-      system: systemPromptFor(assistantName),
+      system: systemPromptFor(assistantName) + pageLine(request.page),
       messages,
       tools: anthropicToolDefinitions(),
       tool_choice: { type: 'auto', disable_parallel_tool_use: true },

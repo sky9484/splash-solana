@@ -132,10 +132,16 @@ export type UseOxwalThreadOptions = {
    * it. That surface links to the queue instead.
    */
   allowInlineApproval?: boolean;
+  /**
+   * The dashboard page the chat is open on ("Transfer · Step 3, quote"), sent with each question so
+   * Zeke can answer about it. A name from lib/solana-zeke/context.ts only: the server drops anything
+   * else, and it never carries an account number.
+   */
+  page?: string;
 };
 
 export function useOxwalThread(options: UseOxwalThreadOptions = {}) {
-  const { welcome, historyTurns = 8, allowInlineApproval = true } = options;
+  const { welcome, historyTurns = 8, allowInlineApproval = true, page } = options;
 
   const [thread, setThread] = useState<OxwalThreadItem[]>(() =>
     welcome ? [{ kind: 'assistant', id: 'assistant_welcome', text: welcome }] : [],
@@ -212,7 +218,7 @@ export function useOxwalThread(options: UseOxwalThreadOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           // Track A §1.1: identity and org are server-derived from the session;
           // sending authority-shaped fields is a provenance violation (400).
-          body: JSON.stringify({ message: prompt, history }),
+          body: JSON.stringify(page ? { message: prompt, history, page } : { message: prompt, history }),
         });
 
         if (response.status === 401) {
@@ -337,7 +343,7 @@ export function useOxwalThread(options: UseOxwalThreadOptions = {}) {
         setIsSending(false);
       }
     },
-    [thread, isSending, historyTurns, allowInlineApproval],
+    [thread, isSending, historyTurns, allowInlineApproval, page],
   );
 
   const approveInChat = useCallback(async (proposal: ActionCardProposal) => {

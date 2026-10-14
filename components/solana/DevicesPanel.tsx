@@ -43,7 +43,7 @@ export function DevicesPanel() {
   if (!vault) {
     return (
       <section className="sx-card sx-stack">
-        <p>No vault yet, so no devices. Account setup makes this device&rsquo;s key and the vault together.</p>
+        <p>No accounts yet, so no devices. Account setup makes this device&rsquo;s key and your accounts together.</p>
       </section>
     );
   }
@@ -51,7 +51,7 @@ export function DevicesPanel() {
   return (
     <div className="sx-stack-lg">
       <section className="sx-card sx-stack" aria-labelledby="members-title">
-        <h2 id="members-title">Members of your vault</h2>
+        <h2 id="members-title">Who can approve</h2>
         <p className="sx-muted sx-small">
           {vault.threshold} approval{vault.threshold === 1 ? '' : 's'} needed for a payment. These are the only keys that can move the money; none of them is Splash&rsquo;s.
         </p>
@@ -74,13 +74,13 @@ export function DevicesPanel() {
         </ul>
         {me.deviceKey && !vault.members.some((m) => m.publicKey === me.deviceKey) ? (
           <div className="sx-notice sx-notice-warn">
-            <h3>Your device is registered but not a member yet</h3>
-            <p>It can approve once the vault&rsquo;s members add it with an approval of their own. Until then it can sign nothing.</p>
+            <h3>Your device is registered but can&rsquo;t approve yet</h3>
+            <p>It can approve once your current approvers add it, with an approval of their own. Until then it can approve nothing.</p>
           </div>
         ) : null}
         {me.deviceKey && held === false ? (
           <div className="sx-notice sx-notice-warn">
-            <h3>This browser does not hold your device key</h3>
+            <h3>This browser doesn&rsquo;t hold this device&rsquo;s approval key</h3>
             <p>Approve from the browser where you set up this device. The key cannot be copied out of it, by design.</p>
           </div>
         ) : null}
@@ -89,8 +89,8 @@ export function DevicesPanel() {
       <section className="sx-card-quiet sx-stack" aria-labelledby="add-title">
         <h2 id="add-title">Add or replace a device</h2>
         <p>
-          A new device joins the vault through a change to its members, which the current members approve on their own devices, the same way they approve a payment.
-          Splash cannot add, remove or swap a member: the vault has no config authority.
+          A new device joins through a change to who can approve, which your current approvers approve on their own devices, the same way they approve a payment.
+          Splash can&rsquo;t add, remove or replace an approver: nobody outside your company can change who approves.
         </p>
         <p className="sx-muted">Not in this build yet. Adding a device is listed under &ldquo;Not verified yet&rdquo;; until then a company keeps the devices it set up with.</p>
       </section>

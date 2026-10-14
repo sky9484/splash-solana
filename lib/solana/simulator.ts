@@ -150,7 +150,7 @@ export interface SimBurn {
 
 export interface SimEvent {
   signature: string;
-  kind: 'fund' | 'multisig_create' | 'propose' | 'approve' | 'execute' | 'transfer' | 'burn' | 'memo' | 'ata_create';
+  kind: 'fund' | 'multisig_create' | 'propose' | 'approve' | 'execute' | 'transfer' | 'burn' | 'memo' | 'ata_create' | 'test_order';
   detail: Record<string, string>;
 }
 
@@ -325,6 +325,24 @@ export class SolanaSimulator implements ChainClient {
     this.state.balances.set(ata, (this.state.balances.get(ata) ?? 0n) + amountMinor);
     const signature = simulatedSignature(new TextEncoder().encode(`fund:${ata}:${amountMinor}:${this.events.length}`));
     this.events.push({ signature, kind: 'fund', detail: { tokenAccount: ata, amountMinor: amountMinor.toString() } });
+    return { signature, cluster: this.cluster, simulated: true };
+  }
+
+  /**
+   * Test mode only (prompt 10 Phase 5): the market or Ondo, played by the simulator, settling an
+   * investment order the company approved on its device. A negative amount takes US dollars out of the
+   * owner's account (a subscription or a buy, paid to the seller); a positive one pays them in (a
+   * redemption or a sale). Refused when the account holds less than it would pay.
+   */
+  async settleTestOrder(owner: PublicKey | string, deltaMinor: bigint, label: string): Promise<ChainReceipt> {
+    if (deltaMinor === 0n) throw new Error('Simulator: a test order moves some money');
+    const ata = getAssociatedTokenAddress(this.mint, typeof owner === 'string' ? new PublicKey(owner) : owner).toBase58();
+    const bal = this.state.balances.get(ata) ?? 0n;
+    if (bal + deltaMinor < 0n) throw new Error('Simulator: the account holds less than this order pays');
+    this.state.accounts.add(ata);
+    this.state.balances.set(ata, bal + deltaMinor);
+    const signature = simulatedSignature(new TextEncoder().encode(`test-order:${ata}:${deltaMinor}:${label}:${this.events.length}`));
+    this.events.push({ signature, kind: 'test_order', detail: { tokenAccount: ata, amountMinor: deltaMinor.toString(), label } });
     return { signature, cluster: this.cluster, simulated: true };
   }
 

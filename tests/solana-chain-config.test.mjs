@@ -13,7 +13,8 @@ test('program ids are valid and match their sources', () => {
   assert.equal(SOLANA_PROGRAMS.cctpTokenMessengerMinterV2, 'CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe');
   assert.equal(SOLANA_CONFIG['mainnet-beta'].usdcMint, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
   assert.equal(SOLANA_CONFIG.devnet.usdcMint, '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
-  assert.deepEqual(CCTP_DOMAINS, { solana: 5, polygon: 7 });
+  // Prompt 10 Phase 3 adds the four Phase A verified on Circle's page (was: solana and polygon only).
+  assert.deepEqual(CCTP_DOMAINS, { ethereum: 0, avalanche: 1, arbitrum: 3, solana: 5, base: 6, polygon: 7 });
   assert.deepEqual(CCTP_FINALITY, { standard: 2000, fast: 1000 });
 });
 
@@ -27,4 +28,17 @@ test('env reader: offline + devnet by default, strict on typos, no mainnet', () 
   assert.throws(() => readSolanaEnv({ SOLANA_CLUSTER: 'mainnet-beta' }), /not enabled/);
   assert.throws(() => readSolanaEnv({ SOLANA_RPC_URL: 'ftp://x' }), /http/);
   assert.equal(explorerTxUrl('abc', 'devnet'), 'https://explorer.solana.com/tx/abc?cluster=devnet');
+});
+
+test('deposit tokens are pinned per cluster: native USDC on, Tether’s own USDT mint pinned and off (CRIT-3)', async () => {
+  const { ALLOWED_DEPOSIT_MINTS, CCTP_DOMAINS, usdcMint } = await import('../lib/solana/config.ts');
+  for (const cluster of ['mainnet-beta', 'devnet']) {
+    const usdc = ALLOWED_DEPOSIT_MINTS[cluster].find((t) => t.symbol === 'USDC');
+    assert.equal(usdc.mint, usdcMint(cluster).toBase58(), `${cluster}: the same USDC the app pays with`);
+    assert.equal(usdc.enabled, true);
+  }
+  const usdt = ALLOWED_DEPOSIT_MINTS['mainnet-beta'].find((t) => t.symbol === 'USDT');
+  assert.equal(usdt.mint, 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', 'Tether’s published mint, not the canon’s');
+  assert.equal(usdt.enabled, false, 'off until a payout partner accepts USDT');
+  assert.equal('sui' in CCTP_DOMAINS, false, 'Sui is not offered: Circle does not confirm CCTP V2 there (FUNDING-AUDIT.md §5)');
 });
