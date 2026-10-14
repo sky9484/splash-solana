@@ -72,7 +72,13 @@ test('an expiry already past shows nothing', (t) => {
 });
 
 test('the sheet wires the reveal to the tab’s visibility and to closing', () => {
-  const src = readFileSync('components/solana/transfer/RecipientSheets.tsx', 'utf8');
+  // The wiring is one hook (prompt 10 Phase 4), shared by a recipient's sheet and Check the invoice.
+  const src = readFileSync('components/solana/transfer/useReveal.ts', 'utf8');
+  for (const user of ['components/solana/transfer/RecipientSheets.tsx', 'components/solana/invoices/CheckInvoice.tsx']) {
+    const page = readFileSync(user, 'utf8');
+    assert.match(page, /useReveal\(/, `${user} shows a number through the shared hook`);
+    assert.doesNotMatch(page, /localStorage|sessionStorage|console\.(log|info|debug)/, `${user} never stores or logs it`);
+  }
   assert.match(src, /addEventListener\('visibilitychange'/);
   assert.match(src, /if \(!open\) ctl\.close\(\)/, 'a closed sheet masks the number');
   assert.match(src, /removeEventListener\('visibilitychange'[\s\S]{0,80}ctl\.close\(\)/, 'leaving the page masks it too');

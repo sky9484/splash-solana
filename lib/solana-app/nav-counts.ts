@@ -13,7 +13,7 @@ import { CORRIDORS, PARTNER_REGISTRY } from '../solana-partner/registry.ts';
 import { isCommitted, type PaymentState } from './payment-machine.ts';
 import { runtime } from './runtime.ts';
 import { getOrg } from './service.ts';
-import { store } from './store.ts';
+import { isBill, store } from './store.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -33,7 +33,7 @@ export async function navCounts(orgId: string, now = new Date()): Promise<NavCou
 
   const sentFor = new Set(payments.filter((p) => isCommitted(p.state as PaymentState)).map((p) => p.invoiceId));
   const horizon = day(new Date(now.getTime() + 7 * DAY_MS));
-  const bills = [...store().invoices.values()].filter((i) => i.orgId === org.id && i.source !== 'transfer');
+  const bills = [...store().invoices.values()].filter((i) => i.orgId === org.id && isBill(i) && !i.dismissed);
   const billsDue7d = bills.filter((i) => i.confirmed && !sentFor.has(i.id) && i.confirmed.dueDate && i.confirmed.dueDate <= horizon).length;
 
   const unverifiedRecipients = bills.some((i) => i.bankStatus !== 'known' && !i.bankVerification && !sentFor.has(i.id));

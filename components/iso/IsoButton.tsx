@@ -75,9 +75,11 @@ export function IsoButton(props: ButtonProps | LinkProps) {
       {children}
     </button>
   );
-  if (!reason) return button;
+  // The same outer element with or without a reason: when a button becomes enabled (its reason goes
+  // away) React updates it in place, so it keeps keyboard focus. Without a reason the host is
+  // layout-transparent (`display: contents`).
   return (
-    <span className="iso-btn-wrap">
+    <span className={reason ? 'iso-btn-wrap' : 'iso-btn-host'}>
       {button}
       {reason}
     </span>

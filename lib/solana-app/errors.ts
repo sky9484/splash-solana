@@ -47,7 +47,10 @@ export type ServiceErrorCode =
   | 'recipient_not_found'
   | 'bank_details_unverified'
   | 'bank_number_unavailable'
-  | 'step_up_required';
+  | 'step_up_required'
+  | 'request_not_found'
+  | 'duplicate_number'
+  | 'number_on_invoice';
 
 export class ServiceError extends Error {
   readonly code: ServiceErrorCode;

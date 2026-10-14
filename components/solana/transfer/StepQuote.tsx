@@ -110,7 +110,8 @@ export function StepQuote({
   const amount = peer ? usdWhole(card.receivePhpMinor) : phpWhole(card.receivePhpMinor);
   const amountFull = peer ? usd(card.receivePhpMinor) : php(card.receivePhpMinor);
   const conf = payment.invoice.confirmed;
-  const refLabel = payment.invoice.source === 'transfer' || peer ? 'Reference' : 'Invoice';
+  // A bill (an invoice Zeke read, or a request from a business on Splash) carries its invoice number.
+  const refLabel = payment.invoice.source === 'transfer' || payment.invoice.source === 'peer' ? 'Reference' : 'Invoice';
   const rateLabel = shell?.rate.label ?? 'test rate';
   const drafted = payment.invoice.source === 'transfer' || peer ? 'a person approves on a device' : 'Zeke drafted this and can’t approve';
   const plan = funding?.plan ?? null;

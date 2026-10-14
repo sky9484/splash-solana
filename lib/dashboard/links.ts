@@ -1,12 +1,16 @@
 /**
- * Where "Pay an invoice" and "Get paid" go, in one place.
- *
- * Prompt 10 Phase 4 builds `/dashboard/invoices/pay` and `/dashboard/invoices/get` and points these at
- * them. Until then "Pay an invoice" opens Invoices as it is today, and "Get paid" isn't offered: a
- * button that leads to a missing page, or to the wrong one, is worse than no button.
- * `tests/solana-overview.test.mjs` checks that every link on the Overview resolves to a page.
+ * Where "Pay an invoice" and "Get paid" go, in one place (prompt 10 §6.1). The sidebar's Invoices
+ * item opens the chooser at `/dashboard/invoices`; links from elsewhere (Overview, Balance, a
+ * notification) go straight to the sub-route. `tests/solana-overview.test.mjs` checks that every link
+ * on the Overview resolves to a page.
  */
 export const INVOICE_LINKS: { pay: string; get: string | null } = {
-  pay: '/dashboard/invoices',
-  get: null,
+  pay: '/dashboard/invoices/pay',
+  get: '/dashboard/invoices/get',
 };
+
+/** One bill to check, by its id: Pay an invoice opens "Check the invoice" on it. */
+export const billHref = (invoiceId: string) => `/dashboard/invoices/pay?invoice=${invoiceId}`;
+
+/** One payment request, by its id: Get paid opens it. */
+export const requestHref = (requestId: string) => `/dashboard/invoices/get?request=${requestId}`;

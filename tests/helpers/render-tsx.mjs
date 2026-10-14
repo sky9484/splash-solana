@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const STUBS = {
   'next/link': `import { createElement } from 'react'; export default function Link({ href, children, prefetch, scroll, replace, ...rest }) { return createElement('a', { href: typeof href === 'string' ? href : String(href), ...rest }, children); }`,
   'next/image': `import { createElement } from 'react'; export default function Image({ src, alt, width, height, priority, unoptimized, ...rest }) { return createElement('img', { src, alt, width, height, ...rest }); }`,
-  'next/navigation': `export const useRouter = () => ({ push() {}, replace() {}, refresh() {}, back() {} }); export const usePathname = () => '/dashboard'; export const useSearchParams = () => new URLSearchParams(); export const notFound = () => { throw new Error('notFound'); }; export const redirect = () => { throw new Error('redirect'); };`,
+  'next/navigation': `export const useRouter = () => ({ push() {}, replace() {}, refresh() {}, back() {} }); export const usePathname = () => '/dashboard'; export const useSearchParams = () => new URLSearchParams(); export const notFound = () => { throw new Error('notFound'); }; export const redirect = (url) => { const e = new Error('redirect'); e.digest = 'NEXT_REDIRECT;replace;' + url + ';307;'; throw e; };`,
 };
 
 /** Bundle `entry` (a path from the repo root) and import it. */

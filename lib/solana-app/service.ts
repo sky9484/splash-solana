@@ -71,7 +71,9 @@ import { detailsView, missingDetails, purposeLine, recipientKey } from './transf
 import { ServiceError } from './errors.ts';
 import { chainCallKey, DISCARDABLE_STATES, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
-import { openForPayout } from './payout-number.ts';
+import { accountNumberFrom, bankCodeFor, maskedLines } from './invoice-document.ts';
+import { sealInvoiceNumber } from './invoice-number.ts';
+import { adoptInvoiceNumber, openForPayout, openInvoiceForPayout } from './payout-number.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
   newSupplierId,
@@ -91,6 +93,8 @@ import {
   type Rehearsal,
   type SerializedInstruction,
   type SupplierRecord,
+  isBill,
+  paysPeer,
 } from './store.ts';
 
 /* ------------------------------------------------------------------ constants */
@@ -509,7 +513,7 @@ export async function orgSummary(orgId: string) {
     });
   const inFlight = payments.filter((p) => ['proposed', 'approved', 'executed', 'confirmed'].includes(p.state));
   // Invoices Zeke has read for this company, paid or not: the first stages of the invoice loop.
-  const read = [...store().invoices.values()].filter((i) => i.orgId === org.id && i.source !== 'transfer');
+  const read = [...store().invoices.values()].filter((i) => i.orgId === org.id && isBill(i));
   const treasuryPda = org.vault ? treasuryVaultPda(org.vault.multisigPda) : null;
   const treasuryMinor = treasuryPda ? await rt.chain.getUsdcBalance(treasuryPda) : 0n;
   return {
@@ -592,6 +596,10 @@ export async function readInvoiceDraft(orgId: string, input: { text?: string; sa
   }
   assertDraftOnly(draft);
   const { status } = bankStatusFor(org, draft.fields);
+  // The full account number is sealed now and masked in the document (prompt 10 §6.2): the text the
+  // page shows, and every copy kept, carry "•••• •••• 4471".
+  const accountNumber = accountNumberFrom(text, draft);
+  const bankCode = bankCodeFor(draft.fields.supplierBank ?? '');
   const inv: InvoiceRecord = {
     id: `inv_${randomHex(8)}`,
     orgId: org.id,
@@ -602,9 +610,18 @@ export async function readInvoiceDraft(orgId: string, input: { text?: string; sa
     bankVerification: null,
     confirmed: null,
     saltHex: null,
+    document: { lines: maskedLines(text, accountNumber) },
+    bankCode,
   };
+  if (accountNumber) {
+    try {
+      inv.accountSecretId = (await sealInvoiceNumber(org.id, inv.id, { bankCode, accountNumber })).secretId;
+    } catch {
+      // No key service to seal with: the number is not kept at all, only its last four (the check screen says so).
+    }
+  }
   store().invoices.set(inv.id, inv);
-  return { invoice: inv, text };
+  return { invoice: inv, text: inv.document!.lines.join('\n') };
 }
 
 export function verifyBank(orgId: string, invoiceId: string, input: { by: string; method: 'call-back' | 'supplier-account'; bank: string; accountLast4: string }) {
@@ -815,6 +832,30 @@ export function startPeerTransfer(
   return inv;
 }
 
+/**
+ * A request from a business on Splash, paid (prompt 10 §6.3): the person who pressed Pay confirms it.
+ * Nothing to read and no bank details to call back: the money goes into the requester's own Payments
+ * account, which the caller checked is still the account on record. Confirming twice changes nothing.
+ */
+export function confirmRequestBill(orgId: string, invoiceId: string, by: string, now = new Date()): InvoiceRecord {
+  const org = getOrg(orgId);
+  const inv = getInvoice(orgId, invoiceId);
+  if (inv.source !== 'request' || !inv.request || !inv.peer) throw new ServiceError('bad_request', 'That is not a request from a business on Splash.', 400);
+  if (inv.confirmed) return inv;
+  const fields: InvoiceFields = { ...inv.draft.fields, dueDate: inv.request.dueDate };
+  const salt = invoiceSalt(org, { ...fields, einvoiceRef: `request:${inv.request.requestId}:${inv.peer.amountUsdMinor}` });
+  const at = nowIso(now);
+  inv.confirmed = {
+    ...fields,
+    confirmedBy: by.trim() || org.personName,
+    confirmedAt: at,
+    commitmentHex: computeInvoiceCommitment(fields, salt),
+    bankDetailsVerified: { by: 'Splash directory', method: 'existing-record', at },
+  };
+  inv.saltHex = bytesToHex(salt);
+  return inv;
+}
+
 /* ------------------------------------------------------------------ payments: state and helpers */
 
 /**
@@ -917,7 +958,7 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   if (!inv.confirmed) throw new ServiceError('fields_unconfirmed', 'Confirm the invoice fields first.', 409);
   const now = opts.now ?? new Date();
   const paymentId = opts.paymentId ?? `pay_${randomHex(8)}`;
-  const kind: 'bank' | 'peer' = inv.source === 'peer' ? 'peer' : 'bank';
+  const kind: 'bank' | 'peer' = paysPeer(inv) ? 'peer' : 'bank';
   const { engine, router, payout } = kind === 'peer' ? await pricePeer(vault, inv, paymentId, now, opts.allowShort ?? false) : await priceBank(org, vault, inv, paymentId, now, opts.allowShort ?? false);
 
   const fresh = (d: PaymentRecord) => {
@@ -998,7 +1039,9 @@ async function priceBank(org: OrgRecord, vault: NonNullable<OrgRecord['vault']>,
   // The bank decides the rail where it takes only one (banks.ts); Step 2 named the same rail.
   const bankCode = saved?.bankCode ?? null;
   const partnerQuotes = (['solana', 'polygon'] as const).map((network) => rt.partner.quote({ amountPhpMinor, bankCode }, { network, now }));
-  const full = saved?.secretId && saved.verified && !saved.pendingCallBack ? await openForPayout(org.id, saved) : null;
+  // A checked saved recipient's number first; else the number printed on this invoice, once its details
+  // passed a call-back (prompt 10 §6.2).
+  const full = saved?.secretId && saved.verified && !saved.pendingCallBack ? await openForPayout(org.id, saved) : inv.accountSecretId && c0.bankDetailsVerified ? await openInvoiceForPayout(org.id, inv) : null;
   const payout = rt.partner.createPayout({
     paymentId,
     amountPhpMinor,
@@ -2027,13 +2070,20 @@ async function applyPartnerWebhook(raw: Record<string, unknown>, now: Date) {
     const org = getOrg(p.orgId);
     const c = inv.confirmed!;
     const saved = org.suppliers.find((s) => s.name === c.supplierName && s.bank === c.supplierBank && s.accountLast4 === c.supplierAccountLast4);
+    let keep: SupplierRecord | null = null;
     if (c.bankDetailsVerified && !saved) {
-      org.suppliers.push({ id: newSupplierId(), name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at } });
+      keep = { id: newSupplierId(), name: c.supplierName, bank: c.supplierBank, accountLast4: c.supplierAccountLast4, verified: { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at }, ...(inv.bankCode ? { bankCode: inv.bankCode } : {}) };
+      org.suppliers.push(keep);
     } else if (saved?.pendingCallBack && c.bankDetailsVerified && c.bankDetailsVerified.method !== 'existing-record') {
       // Paid after a call-back on the new details: they are the verified details now.
       saved.verified = { by: c.bankDetailsVerified.by, method: c.bankDetailsVerified.method, at: c.bankDetailsVerified.at };
       delete saved.pendingCallBack;
+      keep = saved;
+    } else if (saved && !saved.secretId) {
+      keep = saved;
     }
+    // The supplier this payment saved (or checked) keeps the invoice's full number for next time.
+    if (keep && inv.accountSecretId) await adoptInvoiceNumber(org.id, inv, keep, now).catch(() => false);
     // Evidence only after the execute is final (§5.1); resume picks it up if it is not yet.
     next = await resumePayment(p.id);
     return { duplicate: false, state: next.state };
@@ -2092,6 +2142,12 @@ async function settleEvidence(paymentId: string): Promise<PaymentRecord> {
   if (record.anchor.status === 'anchored') {
     p = await cas(() => repo().transition(p.id, { from: 'evidenced', version: p.version }, 'anchored', undefined, `anchored ${record.anchor.method}`));
   }
+  // A payment into another business's account: the payee records the money in, and a request it paid
+  // is marked paid with its own receipt (prompt 10 §6.3). Loaded late: requests.ts reads this module.
+  if (p.kind === 'peer') {
+    const { recordSplashPaymentReceived } = await import('./requests.ts');
+    await recordSplashPaymentReceived(p);
+  }
   return p;
 }
 
@@ -2137,8 +2193,8 @@ async function buildEvidence(p: PaymentRecord): Promise<EvidenceRecord> {
   return sealEvidence(p, org, bundle, receiptId);
 }
 
-/** Batch, anchor, seal and store one bundle (either kind). */
-async function sealEvidence(p: PaymentRecord, org: OrgRecord, bundle: EvidenceBundle, receiptId: string): Promise<EvidenceRecord> {
+/** Batch, anchor, seal and store one bundle (any kind). `p` names what the receipt is for: a payment, or a request it paid. */
+export async function sealEvidence(p: { id: string }, org: OrgRecord, bundle: EvidenceBundle, receiptId: string): Promise<EvidenceRecord> {
   const rt = runtime();
   const createdAt = bundle.createdAt;
   const t = Date.parse(createdAt);
@@ -2327,8 +2383,61 @@ export function invoiceView(inv: InvoiceRecord) {
   };
 }
 
+/** Money received against a request (kind 5): no payment of this company's behind it, only the transfer in. */
+function receivableTrace(e: EvidenceRecord) {
+  const b = e.bundle;
+  if (b.kindName !== 'receivable') throw new Error('not a receivable');
+  const org = store().orgs.get(e.orgId);
+  const vault = org?.vault;
+  const rt = runtime();
+  const accounts: Array<{ label: string; address: string; solscanUrl: string | null; explorerUrl: string | null }> = [];
+  if (vault) {
+    const ata = getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(vault.vaultPda)).toBase58();
+    accounts.push({ label: 'Your vault', address: vault.vaultPda, ...traceLinks('account', vault.vaultPda, vault.simulated) });
+    accounts.push({ label: 'Your vault’s USDC account', address: ata, ...traceLinks('account', ata, vault.simulated) });
+  }
+  return { memo: b.incoming.memo ?? '', accounts };
+}
+
+function receivableReceipt(e: EvidenceRecord) {
+  const b = e.bundle;
+  if (b.kindName !== 'receivable') throw new Error('not a receivable');
+  const org = getOrg(e.orgId);
+  const req = store().requests.get(b.requestId);
+  return {
+    receiptId: e.receiptId,
+    paymentId: e.paymentId,
+    simulated: e.anchor.simulated || b.receipt.simulated,
+    companyName: org.companyName,
+    summary: {
+      kind: 'receivable' as const,
+      supplierName: req?.payer.name ?? (b.payer.kind === 'splash' ? 'A business on Splash' : 'Payer'),
+      bank: 'Splash',
+      accountLast4: '',
+      invoiceNumber: req?.number ?? '',
+      receivePhpMinor: 0n,
+      receiveUsdMinor: b.amount.amountMinor,
+      youPayUsdcMinor: b.amount.amountMinor,
+      paidAt: b.createdAt,
+      bankReference: null,
+      partnerLabel: null,
+      note: req?.note ?? null,
+      matchedBy: b.match.method,
+    },
+    bundle: e.bundle,
+    leafHex: e.leafHex,
+    proof: e.proof,
+    batch: e.batch,
+    anchor: { ...e.anchor, ...(e.anchor.signature ? traceLinks('tx', e.anchor.signature, e.anchor.simulated) : { solscanUrl: null, explorerUrl: null }) },
+    signatures: b.chain.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+    trace: receivableTrace(e),
+    stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes, ciphertextSha256Hex: e.stored.ciphertextSha256Hex },
+  };
+}
+
 export async function receiptView(receiptId: string) {
   const e = getEvidence(receiptId);
+  if (e.bundle.kindName === 'receivable') return receivableReceipt(e);
   const p = await getPayment(e.paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const org = getOrg(p.orgId);
@@ -2393,6 +2502,32 @@ export async function evidenceBlob(receiptId: string) {
 /** The evidence pack a business hands its auditor. Includes the invoice fields and this invoice's salt so the commitment can be recomputed. */
 export async function evidencePack(receiptId: string) {
   const e = getEvidence(receiptId);
+  if (e.bundle.kindName === 'receivable') {
+    const req = store().requests.get(e.bundle.requestId);
+    return {
+      format: 'splash.evidence.pack.v1',
+      simulated: e.anchor.simulated || e.bundle.receipt.simulated,
+      note: e.anchor.simulated ? 'Simulated · devnet-ready. Produced by the offline simulator; no network was used.' : 'Devnet run.',
+      receiptId: e.receiptId,
+      bundle: e.bundle,
+      leafHex: e.leafHex,
+      proof: e.proof,
+      batch: e.batch,
+      anchor: e.anchor,
+      trace: receivableTrace(e),
+      // The request as sent, and its salt, so the commitment can be recomputed. The payer's name and
+      // email are committed separately and stay with the company.
+      requestDisclosure: req
+        ? { fields: { number: req.number, dueDate: req.dueDate, lines: req.lines, amountMinor: req.amountMinor }, saltHex: req.saltHex, commitment: 'sha256(salt || canonicalJson(fields)) must equal bundle.request.commitmentHex' }
+        : null,
+      howToVerify: [
+        'leaf = sha256(utf8("splash.evidence.leaf.v1") || 0x00 || utf8(canonicalJson(bundle))); bigint values are decimal strings',
+        'walk proof.siblings bottom-up: node = sha256(utf8("splash.evidence.node.v1") || 0x01 || left || right)',
+        'the root must equal the root in the anchor memo "splash:root:v1:<root>:<count>"',
+        'bundle.incoming.to is the company’s own account, and the transfer in chain.signatures moved bundle.amount into it',
+      ],
+    };
+  }
   const p = await getPayment(e.paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const c = inv.confirmed!;

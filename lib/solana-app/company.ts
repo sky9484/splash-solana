@@ -49,6 +49,16 @@ export async function loadCompany(orgId: string): Promise<void> {
     s.batches.set(b.id, b);
     remember('batch', b.id, b);
   }
+  for (const r of docs.requests) {
+    if (r.orgId !== orgId || s.requests.has(r.id)) continue;
+    s.requests.set(r.id, r);
+    remember('request', r.id, r);
+  }
+  for (const l of docs.paylinks) {
+    if (l.orgId !== orgId || s.paylinks.has(l.slug)) continue;
+    s.paylinks.set(l.slug, l);
+    remember('paylink', l.slug, l);
+  }
   s.docs.loaded.add(orgId);
 }
 
@@ -61,6 +71,8 @@ export async function saveCompany(orgId: string): Promise<void> {
   for (const e of s.evidence.values()) if (e.orgId === orgId) all.push({ kind: 'evidence', id: e.receiptId, orgId, body: e });
   for (const sh of s.shares.values()) if (sh.orgId === orgId) all.push({ kind: 'share', id: sh.token, orgId, body: sh });
   for (const b of s.batches.values()) if (b.orgId === orgId) all.push({ kind: 'batch', id: b.id, orgId, body: b });
+  for (const r of s.requests.values()) if (r.orgId === orgId) all.push({ kind: 'request', id: r.id, orgId, body: r });
+  for (const l of s.paylinks.values()) if (l.orgId === orgId) all.push({ kind: 'paylink', id: l.slug, orgId, body: l });
   const changed: Array<Doc & { json: string }> = [];
   for (const d of all) {
     const json = JSON.stringify(encodeRecord(d.body));
@@ -82,8 +94,8 @@ export async function withCompany<T>(orgId: string, f: () => Promise<T>): Promis
 }
 
 /** The company a document belongs to, from the working copy or the database (a share link, a receipt). */
-export async function companyOf(kind: 'evidence' | 'share', id: string): Promise<string | null> {
+export async function companyOf(kind: 'evidence' | 'share' | 'paylink', id: string): Promise<string | null> {
   const s = store();
-  const hot = kind === 'evidence' ? s.evidence.get(id)?.orgId : s.shares.get(id)?.orgId;
+  const hot = kind === 'evidence' ? s.evidence.get(id)?.orgId : kind === 'share' ? s.shares.get(id)?.orgId : s.paylinks.get(id)?.orgId;
   return hot ?? (await runtime().docs.ownerOf(kind, id));
 }

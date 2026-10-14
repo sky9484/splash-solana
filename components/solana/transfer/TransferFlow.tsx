@@ -134,11 +134,11 @@ function Flow({ company }: { company: CompanyDTO }) {
     });
   }, []);
 
-  // A payment opened by its id (?payment=…), or a refresh mid-flow: read it and pick it up where it stands.
-  const loaded = useRef<string | null>(null);
+  // A payment opened by its id (?payment=…: a refresh mid-flow, or a bill handed over from Pay an
+  // invoice): read it and pick it up where it stands. A read cut short (React mounts twice in
+  // development) is simply made again: nothing here marks it done before it answers.
   useEffect(() => {
-    if (!urlPayment || loaded.current === urlPayment || payment?.id === urlPayment) return;
-    loaded.current = urlPayment;
+    if (!urlPayment || payment?.id === urlPayment) return;
     let stop = false;
     api<{ payment: PaymentDTO }>(`/payments/${urlPayment}`)
       .then((r) => {
@@ -242,11 +242,18 @@ function Flow({ company }: { company: CompanyDTO }) {
   const index = STEP_ORDER.indexOf(step);
   const sent = payment ? !BEFORE_APPROVAL.includes(payment.state) : false;
 
+  // A bill came from Pay an invoice (prompt 10 §6.2): its recipient and amount were checked there, so
+  // the first two steps lead back to the invoice, not to a new transfer.
+  const source = payment?.invoice.source ?? null;
+  const fromBill = source === 'sample' || source === 'paste' || source === 'upload' || source === 'request';
+  const back = fromBill && source !== 'request' && payment ? `/dashboard/invoices/pay?invoice=${payment.invoice.id}` : fromBill ? '/dashboard/invoices/pay' : null;
   const rail = STEP_ORDER.map((s, i) => ({
     label: STEP_LABEL[s],
     href:
       i < index && !sent && (s === 'recipient' || s === 'amount' || (s === 'quote' && payment))
-        ? transferHref(params, s === 'quote' ? { step: 'quote' } : { step: s, payment: null })
+        ? back && s !== 'quote'
+          ? back
+          : transferHref(params, s === 'quote' ? { step: 'quote' } : { step: s, payment: null })
         : undefined,
   }));
 
@@ -283,7 +290,6 @@ function Flow({ company }: { company: CompanyDTO }) {
       }
       const q = await api<{ payment: PaymentDTO }>('/payments', { body: { invoiceId, allowShort: true } });
       setPayment(q.payment);
-      loaded.current = q.payment.id;
       setQuoteId(laneFor(q.payment, null));
       setFunding(null);
       setDraft(d);
@@ -329,6 +335,8 @@ function Flow({ company }: { company: CompanyDTO }) {
       }
       const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}/select`, { body: { quoteId: chosen, ...(rehearsal !== 'none' ? { rehearsal } : {}) } });
       setPayment(res.payment);
+      // It now waits for an approval: the sidebar's badge and Zeke's one nudge read the new count.
+      if (res.payment.state === 'checked') notifyCompanyChanged();
       if (res.payment.state === 'checked' && res.payment.approval) go({ step: 'approve' });
       else setProblem(res.payment.problem ?? { code: 'not_ready', message: 'This route can’t be approved right now.' });
     } catch (e) {
@@ -347,7 +355,6 @@ function Flow({ company }: { company: CompanyDTO }) {
     setPayee(null);
     setQuoteId(null);
     setFunding(null);
-    loaded.current = null;
     notifyCompanyChanged();
     go({ to: null, step: null, payment: null, template: null });
   }

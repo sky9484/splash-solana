@@ -191,6 +191,8 @@
 .iso .iso-btn--busy { cursor: progress; transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
 .iso .iso-btn-why { font-size: var(--iso-13); line-height: 1.4; color: var(--text-2); max-width: 46ch; }
 .iso .iso-btn-wrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+/* A button with no reason beside it: its host takes no box, so the button lays out as if bare. */
+.iso .iso-btn-host { display: contents; }
 /* The row action on a list (Review, Verify, Remind). */
 .iso .iso-row-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -678,7 +680,7 @@
   .iso .iso-table--stack td:first-child { grid-column: 1 / -1; }
   .iso .iso-table--stack td.iso-r { text-align: left; }
   .iso .iso-table--stack td.iso-r + td.iso-r { text-align: right; }
-  .iso .iso-table--stack td[data-label]::before { content: attr(data-label); display: block; font-size: var(--iso-13); color: var(--text-2); }
+  .iso .iso-table--stack td[data-label]::before { content: attr(data-label); display: block; font: 400 var(--iso-13)/1.4 var(--font-sans); color: var(--text-2); }
   .iso .iso-table--stack .iso-table__act { text-align: right; align-self: center; }
 }
 
@@ -1242,7 +1244,8 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 @media (max-width: 640px) {
   .iso .iso-dest__card { padding: 16px; gap: 14px; }
   .iso .iso-recips__row { flex-wrap: wrap; }
-  .iso .iso-recips__row > .iso-btn { margin-left: auto; }
+  .iso .iso-recips__row > .iso-btn,
+  .iso .iso-recips__row > .iso-btn-host > .iso-btn { margin-left: auto; }
 }
 /* Download PDF prints the page: only the receipt and its map, never the shell around them. */
 @media print {
@@ -1269,3 +1272,174 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-addcard { display: flex; flex-direction: column; align-items: flex-start; }
 .iso .iso-addcard__act { margin-top: auto; padding-top: 6px; }
 .iso .iso-swatch--inline { display: inline-block; vertical-align: -2px; margin: 0 4px 0 0; }
+
+/* ── Invoices (prompt 10 Phase 4, frames Flow-Inv-*) ───────────────────── */
+/* Where you are, above a sub-page's title: "Invoices / Pay an invoice / CP-5531". */
+.iso .iso-crumbs { margin: 0 0 6px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--text-2); }
+.iso .iso-crumbs a { color: var(--ink); }
+.iso .iso-crumbs [aria-current="page"] { font-variant-numeric: tabular-nums; }
+
+/* The chooser: two big cards, the whole card is the link; a ledge only on hover (no shadow at rest). */
+.iso .iso-chooser { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 26px; }
+.iso .iso-chooser__card {
+  position: relative;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+  min-height: 440px; padding: 30px;
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink-deep);
+  text-decoration: none;
+  transition: transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+}
+.iso .iso-chooser__card:hover { color: var(--ink); transform: translate(-2px, -2px); box-shadow: var(--ledge-2); }
+.iso .iso-chooser__card:active { transform: translate(1px, 1px); box-shadow: none; }
+.iso .iso-chooser__card:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+.iso .iso-chooser__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+/* A title is words, not a number: it may wrap ("Pay an / invoice") and keeps a readable gap between words. */
+.iso .iso-chooser__top .iso-extrude { flex: 1 1 auto; min-width: 0; white-space: normal; word-spacing: .16em; line-height: 1.02; padding-bottom: 8px; }
+.iso .iso-chooser__art { flex: 0 0 auto; width: 96px; height: 108px; object-fit: contain; }
+@media (max-width: 640px) { .iso .iso-chooser__art { width: 64px; height: 72px; } }
+.iso .iso-chooser__body { display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-chooser__lede { margin: 0; font-size: var(--iso-17); line-height: 1.55; color: var(--ink); max-width: 44ch; }
+.iso .iso-chooser__tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.iso .iso-chooser__cta { align-self: flex-start; pointer-events: none; }
+
+/* Pay an invoice: the drop zone in the hero wash, Zeke's note beside it. */
+.iso .iso-paydesk { display: flex; flex-wrap: wrap; align-items: center; gap: 22px 30px; padding: 28px 30px; }
+.iso .iso-drop {
+  flex: 1 1 520px; min-width: 0; min-height: 200px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 24px; text-align: center;
+  border: 2px dashed var(--ink-deep); background: rgb(255 250 244 / .85);
+  transition: background var(--t-ui) var(--ease-iso), border-color var(--t-ui) var(--ease-iso);
+}
+.iso .iso-drop--over { border-style: solid; border-color: var(--teal); background: var(--mint-wash); }
+.iso .iso-drop__icon { color: var(--teal); }
+.iso .iso-drop__title { margin: 0; font-size: var(--iso-22); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-drop__acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.iso .iso-drop__paste { width: 100%; display: flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: left; }
+.iso .iso-drop textarea {
+  width: 100%; min-height: 160px; padding: 12px 14px; resize: vertical;
+  font: 400 13px/1.6 var(--font-mono, ui-monospace, monospace); color: var(--ink-deep);
+  background: var(--white); border: 1.5px solid var(--ink); border-radius: 0;
+}
+.iso .iso-drop textarea:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso .iso-zekenote { flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-zekenote img { width: 92px; height: 92px; object-fit: contain; }
+.iso .iso-zekenote strong { font-size: var(--iso-17); color: var(--ink-deep); }
+.iso .iso-zekenote p { margin: 0; font-size: var(--iso-14); line-height: 1.55; }
+
+.iso .iso-tabs__count { margin-left: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.iso .iso-tabpanel:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 4px; }
+.iso .iso-bill__from { display: block; font-size: var(--iso-13); color: var(--text-2); }
+
+/* Check the invoice: the amber panel, the call-back record, the document beside Zeke's draft. */
+.iso .iso-callout { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: 18px 20px; border: 1.5px solid var(--amber-line); background: var(--amber-fill); color: var(--amber-ink); }
+.iso .iso-callout__icon { flex: 0 0 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: var(--paper); border: 1.5px solid var(--amber-line); color: var(--amber-ink); }
+.iso .iso-callout__text { flex: 1 1 420px; margin: 0; font-size: var(--iso-15); line-height: 1.55; }
+.iso .iso-callout__text strong { color: inherit; }
+.iso .iso-callout .iso-btn--quiet { border-color: var(--amber-ink); color: var(--amber-ink); background: var(--paper); }
+.iso .iso-callback { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px 18px; align-items: end; }
+.iso .iso-callback > h2, .iso .iso-callback > .iso-note { grid-column: 1 / -1; }
+.iso .iso-checkgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 22px; align-items: start; }
+.iso .iso-doc { display: flex; flex-direction: column; gap: 10px; padding: 18px 0; }
+.iso .iso-doc > h2, .iso .iso-doc > p { padding: 0 18px; }
+.iso .iso-doc__lines { margin: 0; padding: 0 10px; list-style: none; overflow-x: auto; font: 400 13px/1.75 var(--font-mono, ui-monospace, monospace); color: var(--ink); }
+.iso .iso-doc__line { display: flex; gap: 14px; padding: 2px 8px; }
+.iso .iso-doc__no { flex: 0 0 22px; text-align: right; color: var(--text-2); user-select: none; }
+.iso .iso-doc__text { white-space: pre; }
+.iso .iso-doc__line--field { background: var(--mint-wash); box-shadow: inset 3px 0 0 var(--teal); }
+.iso .iso-doc__line--bank { background: var(--amber-fill); box-shadow: inset 3px 0 0 var(--amber-mark); }
+/* The line the field being looked at came from (hover or focus on the field). */
+.iso .iso-doc__line--focus { outline: 2px solid var(--ink-deep); outline-offset: -2px; }
+.iso .iso-draft { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 22px; }
+.iso .iso-draft__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.iso .iso-checkrow { display: flex; flex-direction: column; gap: 6px; }
+.iso .iso-checkrow__label { font-size: var(--iso-14); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-checkrow__box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px; padding: 8px 8px 8px 16px;
+  background: var(--white); border: 1.5px solid var(--line-strong);
+  font-size: var(--iso-15); color: var(--ink-deep);
+}
+.iso .iso-checkrow__box--ok { border-color: var(--mint); }
+.iso .iso-checkrow__value { min-width: 0; overflow-wrap: anywhere; }
+.iso .iso-checkrow__acts { display: inline-flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.iso .iso-checkrow__help { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-checkrow__help--amber { color: var(--amber-ink); }
+.iso .iso-checkrow__input { flex: 1 1 auto; min-width: 0; min-height: 38px; padding: 0; font: inherit; color: inherit; border: 0; background: transparent; }
+.iso .iso-checkrow__input:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+.iso .iso-tickbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 0 12px;
+  font: 700 13px/1 var(--font-sans);
+  color: var(--ink-deep); background: var(--paper);
+  border: 1.5px solid var(--line-strong); border-radius: 0; cursor: pointer;
+  transition: background var(--t-ui) var(--ease-iso), border-color var(--t-ui) var(--ease-iso);
+}
+.iso .iso-tickbtn:hover { border-color: var(--ink-deep); }
+.iso .iso-tickbtn[aria-pressed="true"] { color: var(--ok-ink); background: var(--ok-fill); border-color: var(--mint); }
+.iso .iso-tickbtn:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso .iso-draft__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 6px; }
+/* A masked number reads as one unit: "•••• •••• 4471" never splits across lines. */
+.iso .iso-callout__text .iso-num, .iso .iso-checkrow__value .iso-num, .iso .iso-checkrow__value .iso-mono { white-space: nowrap; }
+@media (max-width: 640px) {
+  .iso .iso-checkrow__box { flex-wrap: wrap; padding: 8px 8px 8px 14px; }
+  .iso .iso-checkrow__acts { margin-left: auto; }
+}
+
+/* Get paid: the composer beside its live preview, in the receipt style. */
+.iso .iso-composer { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 26px; align-items: start; padding: 26px 28px; }
+.iso .iso-composer__form { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.iso .iso-composer__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.iso .iso-reqlines { display: flex; flex-direction: column; gap: 12px; }
+.iso .iso-reqline { display: grid; grid-template-columns: minmax(0, 1fr) 84px 150px 44px; gap: 8px; align-items: end; }
+.iso .iso-reqline__amount { grid-column: 1 / -1; margin: -2px 0 0; font-size: var(--iso-13); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-reqline .iso-iconbtn { width: 44px; height: 56px; }
+.iso .iso-reqpreview {
+  display: flex; flex-direction: column; gap: 14px; padding: 22px; min-width: 0;
+  background: var(--white); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-2);
+}
+.iso .iso-reqpreview__head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.iso .iso-reqpreview__who { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink-deep); }
+.iso .iso-reqpreview__who img { width: 26px; height: 26px; object-fit: contain; }
+.iso .iso-reqpreview__amount { font-size: clamp(32px, 4vw, 44px); font-weight: 900; letter-spacing: -.03em; line-height: 1.05; color: var(--ink-deep); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.iso .iso-reqpreview dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; font-size: var(--iso-14); border-top: 1.5px dashed rgb(12 62 72 / .3); padding-top: 12px; font-variant-numeric: tabular-nums; }
+.iso .iso-reqpreview dt { color: var(--text-2); }
+.iso .iso-reqpreview dd { margin: 0; text-align: right; color: var(--ink-deep); }
+.iso .iso-reqpreview__cta { pointer-events: none; }
+.iso .iso-composer__tabs { display: none; }
+@media (max-width: 760px) {
+  .iso .iso-composer { padding: 18px 16px; }
+  .iso .iso-composer__tabs { display: block; }
+  .iso .iso-composer--edit .iso-reqpreview { display: none; }
+  .iso .iso-composer--preview .iso-composer__form { display: none; }
+  .iso .iso-reqline { grid-template-columns: minmax(0, 1fr) 72px; }
+  /* The choices share the width and wrap their words; name and email each get a full line. */
+  .iso .iso-composer .iso-seg { display: flex; width: 100%; }
+  .iso .iso-composer .iso-seg__btn { flex: 1 1 0; min-width: 0; padding: 8px 10px; line-height: 1.25; white-space: normal; }
+  .iso .iso-composer__pair--people { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-chooser__card { min-height: 0; padding: 22px; }
+  .iso .iso-paydesk { padding: 20px 16px; }
+  .iso .iso-drop { flex-basis: 100%; }
+}
+
+/* The pay page someone else opens (app/pay/[slug]): one request, in the receipt style. */
+.iso.iso-paypage { min-height: 100dvh; padding: 40px 16px 64px; background-color: var(--ground); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; color: var(--ink); }
+.iso .iso-paypage__in { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.iso .iso-paypage__brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; color: var(--ink-deep); text-decoration: none; }
+.iso .iso-paypage__brand img { width: 30px; height: 30px; object-fit: contain; }
+.iso .iso-paypage__acct { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1.5px solid var(--line-strong); background: var(--white); }
+.iso .iso-paypage__acct code { font: 600 13px/1.5 var(--font-mono, ui-monospace, monospace); color: var(--ink-deep); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-chooser__card, .iso .iso-drop, .iso .iso-tickbtn { transition: none; }
+  .iso .iso-chooser__card:hover { transform: none; }
+}
+
+/* The chooser's card grows into the page it opens (React ViewTransition, a named pair). Reduced motion:
+   plain navigation, no morph. Global: view-transition pseudo-elements live on the document. */
+::view-transition-group(.iso-inv-morph) { animation-duration: var(--t-scene, 640ms); animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

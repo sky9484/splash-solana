@@ -123,11 +123,7 @@ async function run(page, email) {
   };
   /** Press a button as soon as it is enabled, without waiting for the network to go quiet (a quote is short-lived). */
   const tap = async (name) => {
-    await page.find('button', name);
-    await page.waitFor(() => {
-      const el = document.querySelector('[data-e2e-hit]');
-      return el && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
-    }, [], { what: `button "${name}" to be enabled` });
+    await page.find('button', name, { enabled: true });
     await page.evaluate(() => {
       const el = document.querySelector('[data-e2e-hit]');
       el.removeAttribute('data-e2e-hit');
@@ -234,40 +230,85 @@ async function run(page, email) {
   await page.find('text', /US\$30,000\.00/);
   await shot('balance-funded');
 
-  // An invoice round the loop: start → check → route → approve → progress → done.
+  // Invoices (prompt 10 Phase 4): the chooser, then Pay an invoice, Check the invoice, and the handoff
+  // to Transfer's Step 3 (one engine, one approval card).
+  const NO_FULL_NUMBER = /0021-8830-4471|002188304471|0021 8830 4471/;
   await page.goto(`${BASE}/dashboard/invoices`);
-  await page.find('heading', 'The invoice loop');
-  await page.find('button', 'Use the sample invoice');
-  await shot('invoices-start');
+  await page.find('heading', 'Invoices');
+  await page.waitFor(() => document.querySelectorAll('.iso-chooser__card').length === 2, [], { what: 'the two choices' });
+  await page.waitIdle();
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-chooser__tags').length), 0, 'no counts while every count is zero');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.iso-chooser__card')].map((a) => a.getAttribute('href'))), ['/dashboard/invoices/get', '/dashboard/invoices/pay']);
+  assert.equal(await page.evaluate(() => document.querySelector('a.iso-navitem[href="/dashboard/invoices"]') !== null), true, 'the sidebar item opens the chooser');
+  await shot('invoices-chooser');
+  // ?mode= only redirects to the sub-route.
+  await page.goto(`${BASE}/dashboard/invoices?mode=pay`);
+  await page.waitFor(() => location.pathname === '/dashboard/invoices/pay', [], { what: '?mode=pay to redirect' });
+  await page.find('heading', 'Drop an invoice, or paste its text');
+  await shot('invoices-pay');
   await page.click('button', 'Use the sample invoice');
+  await page.find('heading', 'Check the invoice', { timeoutMs: 30_000 });
   await page.find('heading', 'Zeke’s draft');
+  // Every field names the line it came from; the account number is masked in the document too.
+  const helps = await page.text('.iso-checkrow__help');
+  assert.equal(helps.length, 5);
+  assert.ok(helps.every((h) => /^From line \d+/.test(h.trim())), `every field has its line: ${helps.join(' | ')}`);
+  assert.match((await page.text('.iso-doc__lines')).join('\n'), /Account Number: •••• •••• 4471/);
+  assert.doesNotMatch((await page.text('main')).join('\n'), NO_FULL_NUMBER, 'no full number on the page');
+  await page.find('text', /^New bank details\./);
+  await page.find('text', 'Waiting for the call-back above.');
   await shot('check-invoice');
+  // "Show number": a device approval, then 30 seconds, then masked again.
+  await page.click('button', 'Show number');
+  await page.waitFor(() => /0021 8830 4471/.test(document.querySelector('.iso-draft')?.innerText ?? ''), [], { what: 'the number shown' });
+  await page.find('text', /hidden in 0:\d\d/);
+  await shot('check-invoice-reveal');
+  await page.click('button', 'Hide');
+  await page.waitFor(() => !/0021 8830 4471/.test(document.querySelector('.iso-draft')?.innerText ?? ''), [], { what: 'the number masked again' });
+  // The call-back: who you spoke to, on a number from your own records.
+  await page.click('button', 'I called them');
+  await page.find('heading', 'Record the call-back');
+  await page.fill('Who you spoke to', 'Rhea Santos, accounts');
+  await page.fill('Number you called', '+63 2 8700 1100');
   await page.click('button', 'Mark verified');
-  await page.find('heading', 'Bank details verified');
-  await page.evaluate(() => document.querySelectorAll('.sx-tick input[type=checkbox]').forEach((b) => b.checked || b.click()));
-  await shot('check-invoice-confirmed');
-  await page.click('button', 'Confirm and compare routes');
-  await page.waitFor(() => document.querySelectorAll('.sx-route').length >= 2, [], { what: 'route cards' });
-  const cards = await page.text('.sx-route');
-  assert.ok(cards.length >= 2 && cards.length <= 3, `2-3 route cards, got ${cards.length}`);
-  assert.ok(cards.some((c) => c.includes('Splash pays the network fee')), 'the route straight to the partner says who pays the network fee');
-  await shot('choose-route');
-  await page.click('button', /^Review /);
-  await page.waitFor(() => !!document.querySelector('.sx-approve'), [], { what: 'the approval card' });
+  await page.find('text', /^Verified by .+, on \+63 2 8700 1100 \(from your records\)/);
+  await page.evaluate(() => document.querySelectorAll('.iso-tickbtn[aria-label$=": mark as checked"]').forEach((b) => b.click()));
+  await page.waitFor(() => document.querySelectorAll('.iso-tickbtn[aria-pressed="true"][aria-label$=": checked"]').length === 5, [], { what: 'five ticks' });
+  await shot('check-invoice-verified');
+  await tap('Confirm and pay');
+  // The handoff: Transfer's Step 3, with the recipient, the amount, the invoice number and the invoice.
+  await page.waitFor(() => location.pathname === '/dashboard/transfer' && /step=quote/.test(location.search) && /payment=pay_/.test(location.search), [], { what: 'Transfer Step 3' });
+  await page.find('heading', 'How ₱560,000 reaches Manila Freight', { timeoutMs: 60_000 });
+  const handoff = (await page.text('main')).join('\n');
+  assert.match(handoff, /Invoice INV-0412/, 'the invoice and its number are there');
+  assert.match(handoff, /Manila Freight/, 'the recipient is there');
+  assert.match(handoff, /BDO Unibank, Inc\./, 'with the bank the invoice named');
+  assert.match(handoff, /₱560,000/, 'the amount is there');
+  await shot('invoice-handoff-quote');
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this payment');
+  const invoiceCard = (await page.text('.iso-modal')).join('\n');
+  assert.match(invoiceCard, /Drafted by Zeke · a person approves/);
+  assert.match(invoiceCard, /INV-0412/);
+  assert.match(invoiceCard, /₱560,000\.00/);
   // The payment now waits for approval: Zeke's one nudge and the Overview badge, from the server's count.
+  await page.press('Escape');
+  await page.waitFor(() => !document.querySelector('.iso-modal-root'), [], { what: 'the approval moment to close' });
   await page.waitFor(() => /1 draft needs your approval/.test(document.querySelector('.iso-zk__nudge')?.textContent ?? ''), [], { what: "Zeke's nudge" });
   assert.equal(await page.evaluate(() => document.querySelector('a.iso-navitem[href="/dashboard"] .iso-navbadge')?.textContent.trim()), '1');
   await shotOne('zeke-nudge', 'desktop');
-  const approve = (await page.text('.sx-approve')).join('\n');
-  assert.match(approve, /₱560,000\.00/);
-  assert.match(approve, /Manila Freight Services Inc\./);
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this payment');
   await shot('approve-card');
-  await page.click('button', 'Approve with this device');
-  await page.find('heading', /^Paid\. /, { timeoutMs: 60_000 });
+  await page.click('button', 'Approve on this device');
+  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
+  await page.click('button', 'Track it');
+  await page.find('heading', 'Manila Freight has been paid', { timeoutMs: 60_000 });
+  await page.find('text', /^Proof recorded\./, { timeoutMs: 60_000 });
   await shot('done-evidence');
 
   // Receipt: verify, trace on Solscan, then tamper.
-  await page.click('link', 'Open receipt');
+  await page.click('link', 'Full receipt');
   await page.find('heading', 'Verify this receipt');
   await page.click('button', 'Verify', { exact: true });
   await page.find('heading', /^Verified\. This record matches/);
@@ -299,11 +340,13 @@ async function run(page, email) {
   await page.find('heading', /^Verified\. This record matches/);
   await shot('receipt-shared-auditor');
 
-  // The invoice now sits on the loop with its proof.
-  await page.goto(`${BASE}/dashboard/invoices`);
-  await page.waitFor(() => document.querySelectorAll('.sx-inbox li').length >= 1, [], { what: 'the invoice in the inbox' });
-  assert.match((await page.text('.sx-inbox li')).join('\n'), /INV-0412/);
-  await shot('invoices-loop');
+  // The bill now sits on the Paid tab with its receipt; the chooser's counts are still zero for it.
+  await page.goto(`${BASE}/dashboard/invoices/pay`);
+  await page.find('heading', 'Bills');
+  await page.click('button', /^Paid/);
+  await page.waitFor(() => /INV-0412/.test(document.querySelector('[role=tabpanel]')?.innerText ?? ''), [], { what: 'the paid bill' });
+  assert.match((await page.text('[role=tabpanel]')).join('\n'), /Paid · proof recorded/);
+  await shot('invoices-paid');
 
   // Transfer (prompt 10 Phase 3): Recipient, Amount, Quote & send, Approve, Track. A new bank
   // recipient (the full number typed twice, checked by call-back), then the amount, the route, the
@@ -429,21 +472,30 @@ async function run(page, email) {
   assert.equal(await page.evaluate(() => document.querySelectorAll('[aria-label="Payments this month, by where they are"] .iso-station').length), 6, 'six stations in the pipeline');
   await shot('overview');
 
-  // A second invoice, clicked through on a phone from start to paid.
+  // A second invoice, clicked through on a phone: pasted, checked (its bank details are known now: the
+  // first invoice's payment saved them, so no call-back), and paid through Transfer.
   await page.setViewport(...PHONE);
-  await page.goto(`${BASE}/dashboard/invoices`);
+  await page.goto(`${BASE}/dashboard/invoices/pay`);
+  await page.click('button', 'Paste text');
   await page.fill(
-    'Invoice text',
+    'The invoice’s text',
     'MANILA FREIGHT SERVICES INC.\nInvoice No: INV-0413\nDue Date: 2026-10-30\nAmount Due: PHP 120,000.00\nBeneficiary: Manila Freight Services Inc.\nBank: BDO Unibank, Inc.\nAccount Number: 0021-8830-4471\n',
   );
   await page.click('button', 'Read this invoice');
+  await page.find('heading', 'Check the invoice', { timeoutMs: 30_000 });
   await page.find('heading', 'Zeke’s draft');
-  await page.evaluate(() => document.querySelectorAll('.sx-tick input[type=checkbox]').forEach((b) => b.checked || b.click()));
-  await page.click('button', 'Confirm and compare routes');
-  await page.waitFor(() => document.querySelectorAll('.sx-route').length >= 2, [], { what: 'route cards on a phone' });
-  await page.click('button', /^Review /);
-  await page.click('button', 'Approve with this device');
-  await page.find('heading', /^Paid\. Manila Freight Services Inc\. received ₱120,000\.00/, { timeoutMs: 60_000 });
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-callout').length), 0, 'known bank details: no call-back panel');
+  assert.doesNotMatch((await page.text('main')).join('\n'), NO_FULL_NUMBER, 'pasted, and still masked');
+  await page.evaluate(() => document.querySelectorAll('.iso-tickbtn[aria-label$=": mark as checked"]').forEach((b) => b.click()));
+  await page.waitFor(() => document.querySelectorAll('.iso-tickbtn[aria-pressed="true"][aria-label$=": checked"]').length === 5, [], { what: 'five ticks on a phone' });
+  await tap('Confirm and pay');
+  await page.find('heading', 'How ₱120,000 reaches Manila Freight', { timeoutMs: 60_000 });
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this payment');
+  await page.click('button', 'Approve on this device');
+  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
+  await page.click('button', 'Track it');
+  await page.find('heading', 'Manila Freight has been paid', { timeoutMs: 60_000 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `no sideways scroll at 390 px (${overflow}px over)`);
   await page.setViewport(...DESKTOP);
@@ -509,10 +561,15 @@ async function run(page, email) {
   await page.tabTo(focused("el.id && document.querySelector('label[for=\"' + el.id + '\"]')?.innerText.trim() === 'They receive'"), { what: 'They receive' });
   await page.type('20,000');
   await page.find('text', 'Paid out by InstaPay');
-  await page.tabTo(focused("/See routes and cost/.test(el.innerText)"), { what: 'See routes and cost' });
+  // A button, not anything whose text contains the words: the page itself does, when it has the focus.
+  await page.tabTo(focused("el.tagName === 'BUTTON' && /See routes and cost/.test(el.innerText)"), { what: 'See routes and cost' });
   await page.press('Enter');
   await page.find('heading', 'How ₱20,000 reaches Cebu Logistics', { timeoutMs: 60_000 });
-  await page.tabTo(focused("/Review and approve/.test(el.innerText)"), { what: 'Review and approve' });
+  // Step 3 first works out where the money comes from (here, a move from the reserve); the button is
+  // ready once the reason beside it is gone. A key pressed before that would land on nothing.
+  await page.waitFor(() => !document.querySelector('.iso-actionbar .iso-btn-why') && [...document.querySelectorAll('.iso-actionbar button')].some((b) => /Review and approve/.test(b.innerText) && !b.disabled), [], { what: 'Review and approve to be ready' });
+  await page.waitIdle({ quietMs: 500 });
+  await page.tabTo(focused("el.tagName === 'BUTTON' && /Review and approve/.test(el.innerText)"), { what: 'Review and approve' });
   await page.press('Enter');
   await page.find('heading', 'Approve this payment');
   assert.ok(await page.evaluate(() => /Approve on this device/.test(document.activeElement?.innerText ?? '')), 'focus starts on the approve button');
@@ -581,6 +638,121 @@ async function run(page, email) {
   await page.find('text', 'Not listed');
   await shot('settings-found-on-splash');
 
+  // Get paid (prompt 10 §6.3). First someone else: a link to a page with this company's own account,
+  // paid in the simulator (test mode), matched by the reference and the exact amount.
+  const ownAccount = await page.evaluate(async () => (await (await fetch('/api/solana/company')).json()).vault.vaultPda);
+  await page.goto(`${BASE}/dashboard/invoices/get`);
+  await page.find('heading', 'New request');
+  await page.click('button', 'Someone else');
+  await page.fill('Name', 'Batam Trade Partners');
+  await page.fill('Email', 'accounts@example.com');
+  await page.fill('Your invoice number', 'SEL-0096');
+  await page.fill('Description', 'Hardwood pallets');
+  await page.fill('Qty', '250');
+  await page.fill('Unit price (US$)', '15');
+  await page.waitFor(() => /US\$3,750\.00/.test(document.querySelector('.iso-reqpreview')?.innerText ?? ''), [], { what: 'the live preview' });
+  assert.match((await page.text('.iso-reqpreview')).join('\n'), /asks Batam Trade Partners to pay/);
+  await shot('get-paid-composer');
+  await page.click('button', 'Send request');
+  await page.find('heading', 'Request SEL-0096');
+  const payLink = (await page.text('.iso-sheet .iso-paypage__acct code')).join('').trim();
+  assert.match(payLink, /\/pay\/[A-Za-z0-9_-]{22}$/, 'a link with 128 random bits');
+  await shot('get-paid-link');
+  await page.press('Escape');
+  await page.goto(payLink);
+  await page.find('heading', /asks Batam Trade Partners to pay/);
+  const payPage = (await page.text('main')).join('\n');
+  assert.ok(payPage.includes(ownAccount), 'the page shows the requester’s own Payments account');
+  assert.doesNotMatch(payPage, /CLIENT-USD-SETTLEMENT|Splash Labuan|MBBEMYKL/, 'never a Splash address');
+  assert.doesNotMatch(payPage, /Pay by bank transfer/, 'hidden until a collection partner exists');
+  assert.match(payPage, /SEL-0096/);
+  await shot('pay-link');
+  await page.click('button', 'Pay it in test mode');
+  await page.find('text', 'Paid · thank you', { timeoutMs: 30_000 });
+  await shot('pay-link-paid');
+  await page.goto(`${BASE}/dashboard/invoices/get`);
+  await page.waitFor(() => /SEL-0096[\s\S]*Paid · proof recorded/.test(document.querySelector('.iso-table')?.innerText ?? ''), [], { what: 'the request paid, with its proof' });
+  await shot('get-paid-list');
+
+  // Then a business on Splash. This company asks Kuching Marine Supply to pay, in the composer: the
+  // request lands in Kuching's own inbox, ready to pay.
+  await page.goto(`${BASE}/dashboard/invoices/get`);
+  await page.find('heading', 'New request');
+  await page.fill('Find the business on Splash', 'kuching');
+  await page.click('button', 'Ask Kuching Marine Supply to pay');
+  await page.find('text', 'It lands in their “Pay an invoice” inbox, ready to pay. No Splash fee between Splash businesses.');
+  await page.fill('Your invoice number', 'SEL-0101');
+  await page.fill('Description', 'Pallet wrap');
+  await page.fill('Qty', '40');
+  await page.fill('Unit price (US$)', '12.50');
+  await page.waitFor(() => /US\$500\.00/.test(document.querySelector('.iso-reqpreview')?.innerText ?? ''), [], { what: 'the preview total' });
+  assert.match((await page.text('.iso-reqpreview')).join('\n'), /Pay in Splash/);
+  await shot('get-paid-splash-composer');
+  await page.click('button', 'Send request');
+  await page.find('heading', 'Request SEL-0101');
+  await page.press('Escape');
+
+  // And the other way, end to end: this company lists itself, Kuching asks it to pay, and it pays from
+  // its own inbox, through Transfer, straight into Kuching's own account. The seeded Kuching account
+  // has no approvers, so the dashboard keeps its people at device setup; its side runs through the
+  // same API the pages call, signed in as Kuching.
+  await page.goto(`${BASE}/dashboard/settings/account`);
+  await page.find('heading', 'Found on Splash');
+  await page.click('button', 'Listed');
+  await page.click('button', 'Save');
+  await page.find('text', /^Listed as @/);
+  const signInAs = async (who) => {
+    // Read the answer to the end: a request left open would make every later wait for a quiet network time out.
+    await page.evaluate(async () => (await fetch('/api/auth/logout', { method: 'POST' })).text());
+    await page.goto(`${BASE}/login`);
+    await page.fill('Business email', who);
+    await page.fill('Password', DEMO_PASSWORD);
+    await page.click('button', 'Sign in', { exact: true });
+    await page.waitFor(() => location.pathname.startsWith('/dashboard'), [], { what: `${who} signed in` });
+    await page.waitIdle();
+  };
+  const asApi = (route, init) => page.evaluate(async (r, i) => {
+    const res = await fetch(`/api/solana${r}`, { ...(i ?? {}), headers: { 'content-type': 'application/json' } });
+    return { status: res.status, body: await res.json() };
+  }, route, init ?? null);
+  await signInAs('peer@acme.test');
+  const kuchingInbox = await asApi('/invoices');
+  const fromAcme = kuchingInbox.body.rows.find((r) => r.number === 'SEL-0101');
+  assert.ok(fromAcme, 'the request is in Kuching’s inbox');
+  assert.deepEqual({ tab: fromAcme.tab, from: fromAcme.from, supplier: fromAcme.supplier, currency: fromAcme.amount.currency, minor: fromAcme.amount.minor }, { tab: 'ready', from: 'splash', supplier: 'Acme Manufacturing', currency: 'USD', minor: '500000000' });
+  const asked = await asApi('/requests', { method: 'POST', body: JSON.stringify({ payer: { kind: 'splash', payerOrgId: 'demo-business' }, number: 'KMS-0094', dueDate: '2026-12-01', lines: [{ description: 'Mooring rope, 40 m', quantity: '3', unitMinor: '1150000000' }], note: 'October order', send: true }) });
+  assert.equal(asked.status, 201, JSON.stringify(asked.body));
+  assert.equal(asked.body.request.status.key, 'sent');
+
+  await signInAs(email);
+  await page.goto(`${BASE}/dashboard/invoices`);
+  await page.waitFor(() => /1 ready to pay/.test(document.querySelector('.iso-chooser')?.innerText ?? ''), [], { what: 'the chooser’s live count' });
+  await shot('invoices-chooser-counts');
+  await page.goto(`${BASE}/dashboard/invoices/pay`);
+  await page.waitFor(() => /Kuching Marine Supply[\s\S]*on Splash[\s\S]*KMS-0094[\s\S]*US\$3,450\.00/.test(document.querySelector('[role=tabpanel]')?.innerText ?? ''), [], { what: 'the request in the inbox, ready to pay' });
+  assert.equal(await page.evaluate(() => document.querySelector('[role=tab][aria-selected="true"]')?.firstChild?.textContent), 'Ready to pay');
+  await shot('invoices-ready-from-splash');
+  await tap('Pay Kuching Marine Supply');
+  await page.find('heading', 'How US$3,450 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
+  assert.match((await page.text('main')).join('\n'), /KMS-0094/);
+  await page.click('button', 'Review and approve');
+  await page.find('heading', 'Approve this payment');
+  await page.click('button', 'Approve on this device');
+  await page.find('text', /^Approved by you\./, { timeoutMs: 60_000 });
+  await page.click('button', 'Track it');
+  await page.find('heading', 'Kuching Marine Supply has been paid', { timeoutMs: 60_000 });
+  await page.find('text', /^Proof recorded\./, { timeoutMs: 60_000 });
+  await shot('request-paid-in-app');
+
+  await signInAs('peer@acme.test');
+  const kuchingRequests = await asApi('/requests');
+  const paidRequest = kuchingRequests.body.requests.find((r) => r.number === 'KMS-0094');
+  assert.equal(paidRequest.status.label, 'Paid · proof recorded', 'Kuching sees its request paid');
+  assert.equal(paidRequest.paidBy, 'splash');
+  assert.match(paidRequest.receiptHref, /^\/dashboard\/receipts\/rcpt_[0-9a-f]{16}$/, 'with its own receipt');
+  assert.ok(paidRequest.viewedAt, 'it was viewed when Acme’s inbox listed it');
+  await signInAs(email);
+
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.
   // 2. In every Solana API request body, no free-text value contains any single recovery word. Enum
@@ -589,8 +761,9 @@ async function run(page, email) {
   const phrase = words.map((w) => w.toLowerCase());
   const word = new RegExp(`\\b(${phrase.join('|')})\\b`, 'i');
   const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample', 'from', 'step', 'sourceOfFunds', 'relationship', 'type', 'asset', 'kind', 'when', 'bankCode']);
-  // What a person typed about a supplier or recipient (invoice text, transfer details) is ordinary English: check 1 only.
-  const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv', 'recipient', 'reference', 'verification', 'details', 'name', 'holderName', 'addressLine', 'city', 'registration', 'personId', 'note', 'check', 'by']);
+  // What a person typed about a supplier, a recipient or a payer (invoice text, transfer details, a
+  // request's lines, a call-back) is ordinary English: check 1 only.
+  const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv', 'recipient', 'reference', 'verification', 'details', 'name', 'holderName', 'addressLine', 'city', 'registration', 'personId', 'note', 'check', 'by', 'payer', 'lines', 'spokeTo', 'numberCalled', 'number', 'myInvoisRef']);
   const strings = (v, key, out) => {
     if (typeof v === 'string') {
       if (!ENUM_KEYS.has(key) && !INVOICE_TEXT_KEYS.has(key)) out.push(v);
@@ -674,7 +847,7 @@ async function run(page, email) {
 
 const skip = (!chrome && 'no Chrome, Edge or Chromium found (set CHROME_PATH)') || (!DEMO_PASSWORD && 'no seeded demo password in scripts/dev-db.mjs');
 
-test('dashboard, 1440 px and 390 px: setup to verified receipt, a paid batch, a phone payment; recovery words never sent', { skip, timeout: 900_000 }, async () => {
+test('dashboard, 1440 px and 390 px: setup to verified receipt, a paid batch, a phone payment; recovery words never sent', { skip, timeout: 1_200_000 }, async () => {
   const r = await walk('demo@acme.test');
   assert.ok(r.shots >= 20, `${r.shots} screenshots per width`);
 });

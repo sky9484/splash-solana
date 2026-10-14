@@ -1,7 +1,7 @@
 // iso-ui
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, EyeOff, LockKeyhole } from 'lucide-react';
 
 import { Combobox, IsoButton, MaskedField, Segmented, Sheet, Tag, TextField, groupDigits } from '@/components/iso';
@@ -9,7 +9,7 @@ import { radioKeys, tabStop } from '@/components/iso/radio';
 
 import { api, approveTextWithDevice, existingDeviceKey } from '../client';
 import type { CompanyDTO } from '../types';
-import { createReveal, revealSecondsLeft, type RevealClock, type Revealed } from './reveal';
+import { useReveal } from './useReveal';
 import { problemOf, shortName, type BankOption, type Problem, type RecipientRow } from './shared';
 
 type CheckWhen = 'now' | 'later';
@@ -241,33 +241,6 @@ export function NewRecipientSheet({ open, onClose, banks, personName, onSaved }:
       ) : null}
     </Sheet>
   );
-}
-
-/** The browser's clock, for the reveal (a test passes a fake one). */
-const BROWSER_CLOCK: RevealClock = { now: () => Date.now(), setTimeout: (f, ms) => window.setTimeout(f, ms), clearTimeout: (h) => window.clearTimeout(h as number) };
-
-/** The reveal, wired to this page: real timers, the tab's visibility, and masking on close. */
-function useReveal(open: boolean) {
-  const [shown, setShown] = useState<Revealed | null>(null);
-  const [now, setNow] = useState(() => BROWSER_CLOCK.now());
-  const ctl = useMemo(() => createReveal(BROWSER_CLOCK, (s) => setShown(s)), []);
-  useEffect(() => {
-    const onVisibility = () => ctl.visibility(document.visibilityState === 'hidden');
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      ctl.close();
-    };
-  }, [ctl]);
-  useEffect(() => {
-    if (!open) ctl.close();
-  }, [open, ctl]);
-  useEffect(() => {
-    if (!shown) return;
-    const t = window.setInterval(() => setNow(BROWSER_CLOCK.now()), 250);
-    return () => window.clearInterval(t);
-  }, [shown]);
-  return { shown, left: revealSecondsLeft(shown, now), ctl };
 }
 
 /**
