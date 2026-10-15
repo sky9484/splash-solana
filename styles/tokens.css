@@ -82,7 +82,7 @@
   --paper: #FFFAF4;
   --paper-warm: #FFFAF1;
   /* The dashboard's page: warm paper, no grid (prompt 11 §1.1). */
-  --ground: #FFFAF4;        /* the page: the landing's warm paper, flat (Sky, 15 Oct) */
+  --ground: #D9D5CF;        /* the page: the landing's warm paper at 85% brightness, flat (Sky, 16 Oct) */
   /* The pay page someone else opens keeps today's ground and its grid (prompt 11 §1.2). */
   --ground-grid: #F6F0ED;
   --white: #FFFFFF;
@@ -109,14 +109,14 @@
   --coral-ink: #9F4F2C;
   --amber-fill: #FBEFDD;    /* warnings only: new bank details, shortfall, quote about to expire */
   --amber-line: #E8C48D;
-  --amber-ink: #8A5208;
+  --amber-ink: #774505;
   --amber-mark: #B4690E;    /* icons and borders only: fails 4.5:1 as text */
   --ok-fill: #E4F1ED;
-  --ok-ink: #1F6152;
+  --ok-ink: #1A5446;
   --ok-mark: #2E7D6B;
   --danger-fill: #F9E7E3;
   --danger-line: #E2B0A6;
-  --danger-ink: #B3402F;
+  --danger-ink: #9E3426;
   --road: #E9E1D8;          /* a lane's road when not chosen */
   --road-edge: #CFC3B8;
 

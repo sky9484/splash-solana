@@ -836,7 +836,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
    page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #FFFAF4; }
+.iso-app { background-color: #D9D5CF; }
 .iso-app::before { display: none; }
 /* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
@@ -845,7 +845,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #FFFAF4;
+  background-color: #D9D5CF;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
@@ -1998,3 +1998,7 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-balance__link strong { color: #083640; }
 .iso .iso-money .iso-bar,
 .iso .iso-treasury__hero .iso-resbar { color: var(--cyan); }
+/* The chooser cards' buttons are gold like the Test mode badge (Sky, 16 Oct): dark ink on gold,
+   the dark ledge kept. */
+.iso .iso-chooser__card .iso-btn--primary,
+.iso .iso-chooser__card .iso-btn--primary:hover { background: var(--gold); color: #083640; border-color: #083640; }
