@@ -836,7 +836,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
    page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #B7B3AF; }
+.iso-app { background-color: #FFFAF4; }
 .iso-app::before { display: none; }
 /* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
@@ -845,7 +845,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #B7B3AF;
+  background-color: #FFFAF4;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
@@ -1985,21 +1985,6 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 }
 .iso .iso-desk__compose { background: transparent; }
 
-/* Text that sits straight on the darker ground: near-black teal, so it still reads at 4.5:1
-   (teal links fall under 4.5:1 on it). Boxes, buttons, tags, fields and sheets put the normal ink
-   back for everything inside them; the dark cyan panels keep their own light ink. */
-.iso-app .iso-main .iso {
-  --ink: var(--ledge-dark);
-  --ink-deep: var(--ledge-dark);
-  --text-2: rgb(4 28 34 / .94);
-  --teal: var(--ledge-dark);
-}
-.iso-app .iso-main .iso :is(.iso-surface, .iso-ticket, .iso-btn, .iso-tag, .iso-testmode, .iso-field, .iso-seg, .iso-note, .iso-strip, .iso-actionbar):not(.iso-money, .iso-treasury__hero, .iso-chooser__card, .iso-txhead) {
-  --ink: #0C3E48;
-  --ink-deep: #083640;
-  --text-2: rgb(12 62 72 / .86);
-  --teal: #0D6370;
-}
 /* Edge-to-edge parts (the Needs you strip, the header's facts row) follow the rounded corners. */
 .iso .iso-txhead,
 .iso .iso-needs { overflow: hidden; }
@@ -2007,3 +1992,9 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-desk__count,
 .iso .iso-reqpreview,
 .iso .iso-ichart__tiles > * { border-radius: 20px; }
+/* Explicit colours where the dark cyan's light ink is switched back, so the contrast audit
+   (which reads rules, not inherited custom properties) sees what the browser paints. */
+.iso .iso-balance__link { color: #0C3E48; }
+.iso .iso-balance__link strong { color: #083640; }
+.iso .iso-money .iso-bar,
+.iso .iso-treasury__hero .iso-resbar { color: var(--cyan); }

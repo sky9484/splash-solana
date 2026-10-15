@@ -82,7 +82,7 @@
   --paper: #FFFAF4;
   --paper-warm: #FFFAF1;
   /* The dashboard's page: warm paper, no grid (prompt 11 §1.1). */
-  --ground: #B7B3AF;        /* the page: the warm paper ground at 75% brightness (Sky, 15 Oct) */
+  --ground: #FFFAF4;        /* the page: the landing's warm paper, flat (Sky, 15 Oct) */
   /* The pay page someone else opens keeps today's ground and its grid (prompt 11 §1.2). */
   --ground-grid: #F6F0ED;
   --white: #FFFFFF;
