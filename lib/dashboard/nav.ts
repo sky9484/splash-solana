@@ -44,7 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Control',
     items: [
-      { label: 'Rules', href: '/dashboard/settings/policy', icon: 'rules' },
       { label: 'Zeke', href: '/dashboard/zeke', icon: 'zeke', badge: 'ai' },
     ],
   },

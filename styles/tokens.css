@@ -82,7 +82,7 @@
   --paper: #FFFAF4;
   --paper-warm: #FFFAF1;
   /* The dashboard's page: warm paper, no grid (prompt 11 §1.1). */
-  --ground: #F4EEE9;
+  --ground: #B7B3AF;        /* the page: the warm paper ground at 75% brightness (Sky, 15 Oct) */
   /* The pay page someone else opens keeps today's ground and its grid (prompt 11 §1.2). */
   --ground-grid: #F6F0ED;
   --white: #FFFFFF;
@@ -93,6 +93,9 @@
   /* Accents, one job each */
   --teal: #0D6370;          /* routes, links, active, the selected lane */
   --teal-deep: #0A4B56;     /* the far end of Transfer's intent header (prompt 11 §2.1) */
+  --cyan: #0C5763;          /* dark cyan: money heroes, Transfer's header, the chooser cards (Sky, 15 Oct) */
+  --on-cyan: #F1F8F6;       /* figures and text on dark cyan: soft off-white, easy on the eyes */
+  --on-cyan-2: #CDE6E1;     /* labels and secondary text on dark cyan */
   --mint: #9FCFC7;          /* routes, the selected road, ok borders */
   --mint-wash: #DDEFEA;     /* hero wash start, Zeke's context bar */
   --mint-wash-2: #EAF4EF;   /* hero wash middle */

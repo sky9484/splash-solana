@@ -36,7 +36,7 @@ test('the sidebar is exactly §3.1: Overview, then Pay, Money, Contacts and Cont
     ['Money', 'Treasury', '/dashboard/treasury', 'none'],
     ['Money', 'History', '/dashboard/history', 'none'],
     ['Contacts', 'Recipients', '/dashboard/recipients', 'unverified'],
-    ['Control', 'Rules', '/dashboard/settings/policy', 'none'],
+    // Rules live in Settings (its Rules tab), not the sidebar (Sky, 15 Oct).
     ['Control', 'Zeke', '/dashboard/zeke', 'ai'],
   ]);
   // "Getting started" is gone: setup is a card that disappears, not a nav group.

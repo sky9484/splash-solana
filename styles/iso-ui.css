@@ -836,7 +836,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
    page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #F4EEE9; }
+.iso-app { background-color: #B7B3AF; }
 .iso-app::before { display: none; }
 /* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
@@ -845,7 +845,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #F4EEE9;
+  background-color: #B7B3AF;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
@@ -1213,8 +1213,8 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-money__promises {
   display: flex; flex-wrap: wrap; gap: 8px 22px;
   margin: 0; padding-top: 14px;
-  border-top: 1px dashed rgb(12 62 72 / .24);
-  font-size: var(--iso-13); color: rgb(12 62 72 / .9);
+  border-top: 1px dashed var(--line);
+  font-size: var(--iso-13); color: var(--text-2);
 }
 .iso .iso-money__promises span { display: inline-flex; align-items: center; gap: 6px; }
 .iso .iso-money__promises svg { color: var(--teal); }
@@ -1912,3 +1912,98 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-treasury__hero .iso-station__amount { grid-area: amount; font-size: var(--iso-17); }
   .iso .iso-treasury__hero .iso-station__help, .iso .iso-treasury__hero .iso-station > .iso-testmode { grid-area: help; justify-self: start; max-width: none; }
 }
+
+/* ── Sky's restyle (15 Oct) ───────────────────────────────────────────────
+   No gradients anywhere on the dashboard. The money heroes (Overview, Balance,
+   Treasury), Transfer's intent header and the Invoices chooser cards are one
+   solid dark cyan; inside them the ink tokens turn light, so every label,
+   figure, bar and line follows without its own rule. Anything that keeps a
+   light fill of its own (buttons, tags, the Test mode badge, inner boxes,
+   fields) gets the normal ink back. Large figures are solid, with no outline
+   or extrusion. Boxes have 30 px corners, form fields 30 px. */
+.iso .iso-surface--hero { background: var(--surface); }
+.iso .iso-extrude {
+  color: var(--ink-deep);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  padding-bottom: 2px;
+}
+.iso .iso-money,
+.iso .iso-treasury__hero,
+.iso .iso-chooser__card,
+.iso .iso-txhead {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--on-cyan);
+  --ink: var(--on-cyan);
+  --ink-deep: var(--on-cyan);
+  --text-2: var(--on-cyan-2);
+  --teal: var(--mint);
+  --muted: rgb(241 248 246 / .5);
+  --line: rgb(241 248 246 / .3);
+  --line-soft: rgb(241 248 246 / .2);
+  --line-strong: rgb(241 248 246 / .45);
+}
+.iso .iso-chooser__card:hover { color: var(--on-cyan); }
+.iso .iso-money__sentence { color: var(--on-cyan-2); }
+.iso .iso-money__short,
+.iso .iso-money__short strong { color: var(--gold); }
+.iso :is(.iso-money, .iso-treasury__hero) .iso-bar,
+.iso :is(.iso-money, .iso-treasury__hero) .iso-resbar { background: rgb(241 248 246 / .14); }
+.iso :is(.iso-money, .iso-treasury__hero) .iso-wire line { stroke: rgb(241 248 246 / .35); }
+/* Light-filled things inside the dark cyan keep the normal ink. */
+.iso :is(.iso-money, .iso-treasury__hero, .iso-chooser__card, .iso-txhead) :is(.iso-btn, .iso-tag, .iso-testmode, .iso-balance__link, .iso-surface, .iso-field, .iso-seg) {
+  --ink: #0C3E48;
+  --ink-deep: #083640;
+  --text-2: rgb(12 62 72 / .86);
+  --teal: #0D6370;
+  --muted: rgb(12 62 72 / .35);
+  --line: rgb(12 62 72 / .2);
+  --line-soft: rgb(12 62 72 / .14);
+  --line-strong: rgb(12 62 72 / .35);
+}
+/* Corners: boxes 30 px, a box inside a box 20 px, form fields 30 px. */
+.iso .iso-surface,
+.iso .iso-chooser__card,
+.iso .iso-txhead { border-radius: 30px; }
+.iso .iso-surface .iso-surface,
+.iso .iso-balance__link,
+.iso .iso-surface .iso-ticket { border-radius: 20px; }
+.iso .iso-field__control,
+.iso .iso-seg { border-radius: 30px; overflow: hidden; }
+.iso .iso-seg__btn:first-child { padding-left: 22px; }
+.iso .iso-seg__btn:last-child { padding-right: 22px; }
+/* A segmented choice is as wide as its options, not the whole row. */
+.iso .iso-field > .iso-seg,
+.iso .iso-stack > .iso-seg { align-self: flex-start; }
+/* The Zeke page's conversation: plain paper, a 3.5 px dark cyan edge, 45 px corners. */
+.iso .iso-desk__chat {
+  background: var(--surface);
+  border: 3.5px solid var(--cyan);
+  border-radius: 45px;
+  overflow: hidden;
+}
+.iso .iso-desk__compose { background: transparent; }
+
+/* Text that sits straight on the darker ground: near-black teal, so it still reads at 4.5:1
+   (teal links fall under 4.5:1 on it). Boxes, buttons, tags, fields and sheets put the normal ink
+   back for everything inside them; the dark cyan panels keep their own light ink. */
+.iso-app .iso-main .iso {
+  --ink: var(--ledge-dark);
+  --ink-deep: var(--ledge-dark);
+  --text-2: rgb(4 28 34 / .94);
+  --teal: var(--ledge-dark);
+}
+.iso-app .iso-main .iso :is(.iso-surface, .iso-ticket, .iso-btn, .iso-tag, .iso-testmode, .iso-field, .iso-seg, .iso-note, .iso-strip, .iso-actionbar):not(.iso-money, .iso-treasury__hero, .iso-chooser__card, .iso-txhead) {
+  --ink: #0C3E48;
+  --ink-deep: #083640;
+  --text-2: rgb(12 62 72 / .86);
+  --teal: #0D6370;
+}
+/* Edge-to-edge parts (the Needs you strip, the header's facts row) follow the rounded corners. */
+.iso .iso-txhead,
+.iso .iso-needs { overflow: hidden; }
+/* Smaller boxes on a page or inside a box: 20 px. */
+.iso .iso-desk__count,
+.iso .iso-reqpreview,
+.iso .iso-ichart__tiles > * { border-radius: 20px; }
