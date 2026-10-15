@@ -104,7 +104,7 @@ test('check-iso-ui catches blurred shadows, native selects, stray colours and a 
 });
 
 test('prompt 11 §1.1 (Sky, 15 Oct): the landing’s warm paper with no grid, the box fill and edge, and the four lift shadows', () => {
-  assert.equal(token('ground'), '#E6E1DC'); // the landing's warm paper at 90% brightness (Sky, 16 Oct)
+  assert.equal(token('ground'), '#ECE5D8'); // sand (Sky, 16 Oct)
   assert.equal(token('surface'), '#FFFDFA');
   assert.equal(token('surface-line'), 'rgb(12 62 72 / .09)');
   assert.equal(token('lift-1'), '0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26)');

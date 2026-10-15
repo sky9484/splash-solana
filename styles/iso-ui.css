@@ -836,7 +836,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
    page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #E6E1DC; }
+.iso-app { background-color: #ECE5D8; }
 .iso-app::before { display: none; }
 /* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
@@ -845,7 +845,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #E6E1DC;
+  background-color: #ECE5D8;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
