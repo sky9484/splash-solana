@@ -58,9 +58,9 @@ test('the dashboard stylesheet is read the way the browser paints it', () => {
 
 test('the check finds the dashboard’s surfaces: the warm paper ground, the sidebar, boxes, sheets, cards and fields', (t) => {
   const white = [255, 255, 255];
-  // The page is the landing's warm paper at 85% brightness (#D9D5CF), flat (Sky, 16 Oct), and every box floats on it in its
+  // The page is the landing's warm paper at 90% brightness (#E6E1DC), flat (Sky, 16 Oct), and every box floats on it in its
   // near-white fill (#FFFDFA); sheets keep look 9's paper. The sidebar keeps its dark-teal gradient.
-  const ground = [217, 213, 207];
+  const ground = [230, 225, 220];
   const expected = {
     'the page: warm paper': ground,
     'the sidebar, at the top of its gradient': [36, 85, 99],

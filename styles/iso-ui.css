@@ -836,7 +836,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
    page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #D9D5CF; }
+.iso-app { background-color: #E6E1DC; }
 .iso-app::before { display: none; }
 /* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
@@ -845,7 +845,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #D9D5CF;
+  background-color: #E6E1DC;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
@@ -2002,3 +2002,42 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
    the dark ledge kept. */
 .iso .iso-chooser__card .iso-btn--primary,
 .iso .iso-chooser__card .iso-btn--primary:hover { background: var(--gold); color: #083640; border-color: #083640; }
+
+/* ── The header (Sky, 16 Oct) ──────────────────────────────────────────────
+   One bar across the content area on every dashboard page, stuck to the top
+   while the page scrolls: where you are, search, the rate, Test mode, you.
+   From 768 px it runs edge to edge over the main column (it cancels main's
+   padding); on a phone the shell's own bar is the header and this row wraps. */
+@media (min-width: 768px) {
+  .iso.iso-toprow {
+    position: sticky; top: 0; z-index: 30;
+    max-width: none;
+    width: calc(100% + 72px);
+    margin: -18px -36px 26px;
+    padding: 12px 36px;
+    min-height: 68px;
+    flex-wrap: nowrap;
+    background: var(--surface);
+    border-bottom: 1px solid var(--surface-line);
+    box-shadow: var(--lift-1);
+  }
+}
+.iso .iso-toprow__where {
+  flex: 0 1 auto; min-width: 0;
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0; margin-right: 8px;
+  font-size: var(--iso-15); white-space: nowrap; color: var(--text-2);
+}
+.iso .iso-toprow__where strong { font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-toprow__sep { color: var(--text-2); }
+.iso.iso-toprow .iso-search { flex: 1 1 260px; max-width: 460px; margin-left: auto; }
+.iso .iso-search__box { border-radius: 30px; padding: 0 14px 0 18px; }
+.iso .iso-search__key { border-radius: 6px; }
+.iso.iso-toprow .iso-ratestrip { flex: 0 1 auto; border-radius: 30px; padding: 7px 16px; flex-wrap: nowrap; white-space: nowrap; }
+.iso.iso-toprow .iso-ratestrip > span:not(:first-of-type) { display: none; }
+.iso .iso-profile__initials { border-radius: 50%; }
+.iso.iso-toprow .iso-profile { flex: 0 0 auto; padding-left: 14px; border-left: 1px solid var(--surface-line); }
+@media (min-width: 768px) and (max-width: 1180px) {
+  .iso.iso-toprow .iso-ratestrip { display: none; }
+}
+.iso.iso-toprow .iso-profile__text span { white-space: nowrap; }
