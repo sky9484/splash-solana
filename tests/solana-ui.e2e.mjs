@@ -230,7 +230,7 @@ async function run(page, email) {
   await page.goto(`${BASE}/dashboard`);
   await page.waitFor(() => !!document.querySelector('.iso-zk__launch') && !!document.querySelector('.iso-ratestrip'), [], { what: 'the shell' });
   const groups = await page.evaluate(() => [...document.querySelectorAll('aside .iso-navgroup')].map((g) => [...g.querySelectorAll('.iso-navgroup__title, .iso-navitem__label')].map((e) => e.textContent.trim()).join('|')));
-  assert.deepEqual(groups, ['Overview', 'Pay|Transfer|Invoices|Batch payout', 'Money|Balance|Treasury|History', 'Contacts|Recipients', 'Control|Rules|Zeke']);
+  assert.deepEqual(groups, ['Overview', 'Pay|Transfer|Invoices|Batch payout', 'Money|Balance|Treasury|History', 'Contacts|Recipients', 'Control|Zeke']);
   assert.match((await page.text('.iso-ratestrip')).join(' '), /USD → PHP 57\.40\s*test rate/);
   assert.equal(await page.evaluate(() => document.querySelector('.iso-zk__nudge')), null, 'no nudge while nothing waits');
   // Overview, before any money or payment (prompt 10 Phase 2): the money position says so, and the

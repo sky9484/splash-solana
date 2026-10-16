@@ -2041,3 +2041,131 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso.iso-toprow .iso-ratestrip { display: none; }
 }
 .iso.iso-toprow .iso-profile__text span { white-space: nowrap; }
+
+/* ── Older screens in the new look (Sky, 16 Oct) ─────────────────────────────
+   History, Batch payout, receipts, Rules, Devices and Recovery are Solana
+   screens (`sx-*`); Recipients, Settings, Support and Profile are Tailwind
+   pages. Both now sit under the header bar on the sand ground and take the
+   dashboard's parts: 30 px boxes on the near-white fill with the soft lift,
+   20 px boxes inside them, 30 px fields, the square ledged buttons, sentence-
+   case table headings and 800-weight section titles. */
+.iso .sx { color: var(--ink); font-size: var(--iso-15); }
+.iso .sx :is(h2, h3) { color: var(--ink-deep); font-weight: 800; letter-spacing: -.01em; }
+.iso .sx h2 { font-size: var(--iso-19); }
+.iso .sx h3 { font-size: var(--iso-17); }
+.iso .sx-muted,
+.iso .sx-lede,
+.iso .sx-hint,
+.iso .sx-hash,
+.iso .sx-kv dt { color: var(--text-2); }
+.iso .sx-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: 30px;
+  box-shadow: var(--lift-1);
+  padding: 24px 26px;
+}
+.iso .sx-card .sx-card,
+.iso .sx-card-quiet,
+.iso .sx-paper,
+.iso .sx-route,
+.iso .sx-notice { border-radius: 20px; }
+.iso .sx-card-quiet { background: var(--white); border: 1px solid var(--surface-line); }
+.iso .sx-approve { border-radius: 30px; box-shadow: var(--lift-1); }
+.iso .sx-table-wrap { padding: 6px 24px; }
+.iso .sx-table th { padding: 12px 12px 10px 0; font: 700 13px/1.3 var(--font-sans); letter-spacing: 0; text-transform: none; color: var(--text-2); border-bottom: 2px solid var(--ink-deep); }
+.iso .sx-table td { border-bottom-color: var(--line-soft); }
+.iso .sx-vault-kicker { font: 700 var(--iso-13)/1.3 var(--font-sans); letter-spacing: 0; text-transform: none; color: var(--text-2); }
+.iso .sx-chip { border-radius: 10px; border-color: var(--line); color: var(--ink); background: var(--white); }
+.iso .sx-btn {
+  min-height: 40px; padding: 0 18px;
+  border: 1.5px solid var(--ink-deep); border-radius: 0;
+  background: var(--teal); color: var(--paper-warm);
+  font: 700 15px/1 var(--font-sans);
+  box-shadow: var(--ledge-1);
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso);
+}
+.iso .sx-btn:hover { background: var(--teal); border-color: var(--ink-deep); color: var(--paper-warm); transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink-deep); }
+.iso .sx-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .sx-btn-ghost,
+.iso .sx-btn-ghost:hover { background: var(--paper); color: var(--ink-deep); border-color: var(--line-strong); box-shadow: none; transform: none; }
+.iso .sx-btn-ghost:hover { border-color: var(--ink-deep); }
+.iso .sx-btn[disabled],
+.iso .sx-btn[aria-disabled='true'] { background: var(--paper); color: var(--text-2); border-color: var(--line); box-shadow: none; transform: none; }
+.iso-app .iso .sx-input,
+.iso-app .iso .sx select { min-height: 52px; padding: 0 18px; border: 1.5px solid rgb(12 62 72 / .62); border-radius: 30px; background: var(--white); color: var(--ink-deep); }
+.iso-app .iso .sx textarea { padding: 14px 18px; border: 1.5px solid rgb(12 62 72 / .62); border-radius: 20px; background: var(--white); color: var(--ink-deep); }
+/* The Tailwind pages: their boxes and fields. */
+.iso-app .fintech-dashboard-main :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface) {
+  background: #FFFDFA;
+  border: 1px solid rgb(12 62 72 / .09);
+  border-radius: 30px;
+  box-shadow: var(--lift-1);
+}
+.iso-app .fintech-dashboard-main :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface) :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface),
+.iso-app .fintech-dashboard-main [class~="rounded-xl"] { border-radius: 20px; }
+.iso-app .fintech-dashboard-main [class~="rounded-2xl"] { border-radius: 30px; }
+.iso-app .fintech-dashboard-main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select) { border-radius: 30px; padding-left: 16px; padding-right: 16px; }
+.iso-app .fintech-dashboard-main textarea { border-radius: 20px; }
+.iso-app .fintech-dashboard-main thead th { font-family: var(--font-sans); font-size: 13px; letter-spacing: 0; text-transform: none; }
+
+/* ── The receipt (Sky, 16 Oct): a standard fintech receipt ───────────────────
+   One centred column. The receipt itself first: status, who paid whom, the
+   amount, when, then label-and-value rows on hairlines and its actions. Under
+   it the Technical details: the Solscan trace (memo, transactions, accounts,
+   the programs it calls, each with its full ID to copy) and the five checks. */
+.iso .iso-receipt { width: 100%; max-width: 920px; margin-inline: auto; display: flex; flex-direction: column; gap: 22px; }
+.iso .iso-receipt__main { padding: 30px 32px 26px; }
+.iso .iso-receipt__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.iso .iso-receipt__status { display: inline-flex; align-items: center; gap: 10px; font: 800 var(--iso-15)/1.3 var(--font-sans); color: var(--ok-ink); }
+.iso .iso-receipt__tick { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 50%; background: var(--ok-fill); border: 1.5px solid var(--mint); color: var(--ok-ink); }
+.iso .iso-receipt__lede { margin: 22px 0 0; font-size: var(--iso-15); color: var(--text-2); }
+.iso .iso-receipt__amount { margin: 6px 0 0; font-size: clamp(36px, 4.4vw, 54px); font-weight: 900; letter-spacing: -.04em; line-height: 1.05; color: var(--ink-deep); }
+.iso .iso-receipt__sub { margin: 8px 0 0; font-size: var(--iso-15); color: var(--text-2); }
+.iso .iso-receipt__rows { margin: 24px 0 0; padding: 0; border-top: 1px solid var(--line-soft); }
+.iso .iso-receipt__row { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr); gap: 6px 20px; padding: 13px 0; border-bottom: 1px solid var(--line-soft); }
+.iso .iso-receipt__row dt { font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-receipt__row dd { margin: 0; font-size: var(--iso-15); color: var(--ink-deep); text-align: right; overflow-wrap: anywhere; }
+.iso .iso-receipt__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.iso .iso-receipt__kicker { margin: 0 0 4px; font: 700 var(--iso-13)/1.3 var(--font-sans); color: var(--text-2); }
+.iso .iso-receipt__group { margin: 0 0 4px; font-size: var(--iso-15); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-receipt__memo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; border-radius: 20px; background: var(--white); border: 1px solid var(--surface-line); font-size: var(--iso-14); }
+.iso .iso-receipt__memolabel { font-weight: 700; color: var(--text-2); }
+.iso .iso-receipt__hash { font-size: 12.5px; overflow-wrap: anywhere; color: var(--text-2); }
+.iso .iso-receipt__tamper { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; color: var(--ink-deep); cursor: pointer; }
+.iso .iso-receipt__tamper input { width: 20px; height: 20px; accent-color: var(--teal); }
+.iso .iso-receipt__verdict { margin: 0; font-size: var(--iso-15); font-weight: 800; color: inherit; }
+.iso .iso-receipt__checks { margin: 0; padding: 0; list-style: none; }
+.iso .iso-receipt__checks li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--iso-14); color: var(--ink-deep); }
+.iso .iso-receipt__checks li:last-child { border-bottom: 0; }
+.iso .iso-receipt__mark { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 50%; margin-top: 1px; background: var(--ok-fill); color: var(--ok-ink); }
+.iso .iso-receipt__checks li[data-state="fail"] .iso-receipt__mark { background: var(--danger-fill); color: var(--danger-ink); }
+.iso .iso-receipt__checks li[data-state="skip"] .iso-receipt__mark { background: var(--paper); border: 1px solid var(--line); color: var(--text-2); }
+.iso .iso-receipt__detail { display: block; margin-top: 2px; font-size: var(--iso-13); color: var(--text-2); overflow-wrap: anywhere; }
+/* An ID row: label, the short ID, Copy, and Solscan (or a note). */
+.iso .iso-idrows { margin: 0; padding: 0; }
+.iso .iso-idrow { display: grid; grid-template-columns: minmax(160px, 280px) minmax(0, 1fr); gap: 4px 20px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.iso .iso-idrow:last-child { border-bottom: 0; }
+.iso .iso-idrow dt { font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-idrow dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.iso .iso-idrow__value { font-size: var(--iso-14); color: var(--ink-deep); }
+.iso .iso-idrow__copy {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 32px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 30px; background: var(--white);
+  font: 700 var(--iso-13)/1 var(--font-sans); color: var(--ink-deep); cursor: pointer;
+}
+.iso .iso-idrow__copy:hover { border-color: var(--ink-deep); }
+.iso .iso-idrow__open { display: inline-flex; align-items: center; gap: 5px; font-size: var(--iso-13); font-weight: 700; color: var(--teal); }
+.iso .iso-idrow__note { font-size: var(--iso-13); color: var(--text-2); }
+@media (max-width: 640px) {
+  .iso .iso-receipt__main { padding: 22px 18px; }
+  .iso .iso-receipt__row,
+  .iso .iso-idrow { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-receipt__row dd { text-align: left; }
+}
+@media print {
+  .iso .iso-receipt__actions,
+  .iso .iso-receipt__tamper { display: none !important; }
+  .iso .iso-receipt .iso-surface { box-shadow: none; }
+}

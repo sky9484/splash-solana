@@ -146,6 +146,8 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
   }
 
   async function confirmAndPay() {
+    // Not while the invoice is being set aside, and not twice (review finding, 16 Oct).
+    if (busy) return;
     if (!amountMinor) return;
     setBusy('pay');
     setProblem(null);
@@ -173,6 +175,7 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
   }
 
   async function dismiss() {
+    if (busy) return;
     setBusy('dismiss');
     setProblem(null);
     try {
@@ -406,13 +409,13 @@ export function CheckInvoice({ invoiceId }: { invoiceId: string }) {
           ) : null}
 
           <div className="iso-draft__acts">
-            <IsoButton variant="primary" size="lg" busy={busy === 'pay'} disabledReason={reason} onClick={() => void confirmAndPay()}>
+            <IsoButton variant="primary" size="lg" busy={busy === 'pay'} disabledReason={busy === 'dismiss' ? 'Setting this invoice aside…' : reason} onClick={() => void confirmAndPay()}>
               {busy === 'pay' ? 'Getting a quote…' : 'Confirm and pay'}
             </IsoButton>
             {confirmDismiss ? (
               <span className="iso-row">
                 <span className="iso-small">Set this invoice aside? It leaves your inbox.</span>
-                <IsoButton variant="quiet" size="sm" busy={busy === 'dismiss'} onClick={() => void dismiss()}>
+                <IsoButton variant="quiet" size="sm" busy={busy === 'dismiss'} disabled={busy !== null && busy !== 'dismiss'} onClick={() => void dismiss()}>
                   Set it aside
                 </IsoButton>
                 <IsoButton variant="link" size="sm" onClick={() => setConfirmDismiss(false)}>

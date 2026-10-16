@@ -37,6 +37,12 @@ export async function openInvoiceForPayout(orgId: string, inv: InvoiceRecord): P
   if (!inv.confirmed?.bankDetailsVerified) throw new ServiceError('bank_details_unverified', 'This invoice’s bank details need a call-back before it can be paid.', 409);
   const secret = await runtime().secrets.current(orgId, inv.id);
   if (!secret) return null;
+  // The number printed on the invoice must be the one the confirmed details name. Without this, the
+  // last four digits could be edited to a trusted supplier's while the payout went to the printed
+  // number, and paying would then copy that number onto the trusted supplier (review finding, 16 Oct).
+  if (secret.last4 !== inv.confirmed.supplierAccountLast4) {
+    throw new ServiceError('bank_details_unverified', 'The account number on this invoice doesn’t end in the digits you confirmed. Check the invoice and call the supplier on a number you already have.', 409);
+  }
   try {
     return { accountNumber: await openNumber(kmsFromEnv(), secret, { orgId, beneficiaryId: inv.id }), last4: secret.last4 };
   } catch (e) {

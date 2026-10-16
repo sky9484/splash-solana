@@ -70,6 +70,9 @@ test('twelve suppliers: measured chunks, one device prompt, every supplier paid 
   for (const c of b.chunks) for (const size of [...c.sizes.proposal, c.sizes.execute]) assert.ok(size <= 1232, `chunk ${c.index}: ${size} bytes`);
   assert.deepEqual(b.chunks.flatMap((c) => c.rowIds), b.rows.map((r) => r.id), 'every supplier once, in order');
   assert.equal(b.totals.youPayMinor, b.totals.transferMinor + b.totals.feeMinor);
+  // Under review, each row names its planned chunk (it once said "Not planned" beside the plan).
+  const planned = new Map(b.chunks.flatMap((c) => c.rowIds.map((id) => [id, c.index])));
+  for (const r of batch.batchView(b).rows) assert.equal(r.chunkIndex, planned.get(r.id), `row ${r.line} shows its planned chunk`);
 
   const prepared = await batch.prepareBatch(env.org.id, b.id, { signer: env.device.publicKey });
   assert.deepEqual([...new Set(prepared.messages.map((m) => m.chunkIndex))], b.chunks.map((c) => c.index), 'every chunk in the one prompt');

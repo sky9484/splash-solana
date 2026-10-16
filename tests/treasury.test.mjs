@@ -413,3 +413,20 @@ test('the ribbon is on every investment surface, and Zeke never names a rate or 
     assert.match(v.zeke, /never pick|Nothing moves until a person approves/);
   }
 });
+
+test('two approvals of one order at the same moment settle it once: one debit, one lot (review finding, 16 Oct)', async () => {
+  const env = await company();
+  await svc.fund(env.org.id);
+  inv.confirmEligibility(env.org.id, OWNER);
+  const start = await balances(env);
+  const { order, message } = await inv.prepareOrder(env.org.id, { asset: 'usdy', kind: 'subscribe', amountMinor: $(2_000) }, 'Aisyah');
+  const signature = bs58.encode(await signWithDeviceKey(env.keys, env.org.id, new TextEncoder().encode(message)));
+  const approve = () => inv.approveOrder(env.org.id, order.id, { signature, who: 'Aisyah', deviceKey: env.deviceKey });
+  const [a, b] = await Promise.all([approve(), approve()]);
+  assert.equal(a.state, 'settled');
+  assert.equal(b.state, 'settled');
+  assert.equal(a.receiptId, b.receiptId, 'one receipt');
+  const after = await balances(env);
+  assert.equal(start.payments + start.reserve - (after.payments + after.reserve), $(2_000), 'the money moved once');
+  assert.equal(env.org.investments.lots.filter((l) => l.orderId === order.id).length, 1, 'one lot');
+});

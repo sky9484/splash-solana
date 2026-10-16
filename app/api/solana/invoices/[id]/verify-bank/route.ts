@@ -13,6 +13,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return companyRoute(request, async (ctx) => {
     const { id } = await params;
     const body = await readBody(request, schemas.callBack);
-    return { bankVerification: recordCallBack(ctx.orgId, id, { by: ctx.personName, spokeTo: body.spokeTo, numberCalled: body.numberCalled, role: ctx.session.userRole }) };
+    return { bankVerification: recordCallBack(ctx.orgId, id, { by: ctx.personName, spokeTo: body.spokeTo, numberCalled: body.numberCalled, role: ctx.role }) };
   });
 }

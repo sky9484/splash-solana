@@ -122,6 +122,8 @@ test('a reserve plan: the route can be chosen now, the approval card says what m
   assert.equal((await svc.getPayment(p.id)).state, 'checked', 'refusing changed nothing');
   const move = await treasury.prepareMove(env.org.id, { from: 'treasury', amountMinor: checked.approval.reserveMoveMinor, signer: svc.getOrg(env.org.id).keys.device.publicKey, by: 'Aisyah' });
   assert.equal((await treasury.submitMove(env.org.id, move.move.id, { signatures: await sign(env, move), who: 'Aisyah' })).state, 'confirmed');
+  // The move landed: a retry or a reload of the card must not plan it again (review finding, 16 Oct).
+  assert.equal((await svc.paymentView(p.id)).approval.reserveMoveMinor, 0n, 'nothing more moves from the reserve');
   const sent = await svc.submitApproval(p.id, { signatures: await sign(env, await svc.prepareApproval(p.id)) });
   assert.equal(sent.state, 'confirmed', 'the same approval sequence pays it');
 });

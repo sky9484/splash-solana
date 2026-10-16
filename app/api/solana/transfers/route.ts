@@ -1,7 +1,7 @@
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { invoiceView, startTransfer } from '@/lib/solana-app/service';
 import { DETAILS_OPTIONS, detailsView, previousDetails } from '@/lib/solana-app/transfer-details';
-import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   return companyRoute(
     request,
     async (ctx) => {
+      requireCanAct(ctx);
       const body = await readBody(request, schemas.transfer);
       requireReadyToApprove(ctx);
       await requireMoneyGates(ctx);

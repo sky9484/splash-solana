@@ -1,7 +1,7 @@
 import { fundingOptions, fundingView, startFunding } from '@/lib/solana-app/funding-service';
 import type { FundingSourceId } from '@/lib/solana-app/funding-router';
 import { paymentFor, readBody, schemas } from '@/lib/solana-app/http';
-import { companyRoute, requireMoneyGates } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return companyRoute(
     request,
     async (ctx) => {
+      requireCanAct(ctx);
       const { id } = await params;
       const body = await readBody(request, schemas.fund);
       await requireMoneyGates(ctx);

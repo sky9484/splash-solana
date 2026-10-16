@@ -1,7 +1,7 @@
 import { billsView, readyBankBills } from '@/lib/solana-app/bills';
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { invoiceView, readInvoiceDraft } from '@/lib/solana-app/service';
-import { companyRoute } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
   return companyRoute(
     request,
     async (ctx) => {
+      requireCanAct(ctx);
       const body = await readBody(request, schemas.invoice);
       const { invoice, text } = await readInvoiceDraft(ctx.orgId, body);
       return { invoice: invoiceView(invoice), text };

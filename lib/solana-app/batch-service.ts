@@ -534,6 +534,9 @@ const ROW_LABEL: Record<BatchRowStatus, string> = { quoted: 'Quoted', sent: 'Sen
 export function batchView(b: BatchRecord) {
   const rt = runtime();
   const simulated = rt.env.mode === 'offline';
+  // A row's chunk: set on the row once the batch is sent; before that, read from the planned chunks,
+  // so the review table never says "Not planned" beside a plan.
+  const plannedChunk = new Map(b.chunks.flatMap((c) => c.rowIds.map((id) => [id, c.index] as const)));
   return {
     id: b.id,
     state: b.state,
@@ -556,7 +559,7 @@ export function batchView(b: BatchRecord) {
       amountPhpMinor: r.amountPhpMinor,
       youPayUsdcMinor: r.youPayUsdcMinor,
       splashFeeMinor: r.splashFeeMinor,
-      chunkIndex: r.chunkIndex,
+      chunkIndex: r.chunkIndex ?? plannedChunk.get(r.id) ?? null,
       status: r.status,
       statusLabel: ROW_LABEL[r.status],
       bankReference: r.bankReference,

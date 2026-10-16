@@ -481,7 +481,32 @@ export async function prepareOrder(orgId: string, req: OrderRequest, by: string,
  * A device approved the order: its signature checked against the member's device key, the rules
  * checked again, then settled (test mode: the simulator plays the other side). Returns the order.
  */
+/**
+ * One approval at a time per company. Without it two requests for the same order (a double click, two
+ * tabs) both passed the state check before either settled, and both took the money; two different
+ * orders could each pass the reserve floor or the stock cap and breach it together. Each approval
+ * waits for the one before it, then reads the order's state afresh.
+ */
+const approvalQueue = new Map<string, Promise<unknown>>();
+async function oneAtATime<T>(orgId: string, run: () => Promise<T>): Promise<T> {
+  const before = approvalQueue.get(orgId) ?? Promise.resolve();
+  let done!: () => void;
+  const mine = before.then(() => new Promise<void>((resolve) => (done = resolve)));
+  approvalQueue.set(orgId, mine);
+  await before;
+  try {
+    return await run();
+  } finally {
+    done();
+    if (approvalQueue.get(orgId) === mine) approvalQueue.delete(orgId);
+  }
+}
+
 export async function approveOrder(orgId: string, orderId: string, input: { signature: string; who: string; deviceKey: string }, now = new Date()): Promise<InvestmentOrder> {
+  return oneAtATime(orgId, () => approveOrderNow(orgId, orderId, input, now));
+}
+
+async function approveOrderNow(orgId: string, orderId: string, input: { signature: string; who: string; deviceKey: string }, now: Date): Promise<InvestmentOrder> {
   const org = getOrg(orgId);
   const vault = org.vault;
   if (!vault) throw new ServiceError('vault_missing', 'Set up your accounts first.', 409);
@@ -504,6 +529,12 @@ export async function approveOrder(orgId: string, orderId: string, input: { sign
     valid = false;
   }
   if (!valid) throw new ServiceError('signature_invalid', 'The device approval did not check out. Try again.', 401);
+  // A sweep order settles only while its draft is still waiting: not twice from one draft, and not
+  // after the owner turned sweep off and the draft was withdrawn.
+  if (order.sweepDraftId) {
+    const d = draftsOf(org).find((x) => x.id === order.sweepDraftId);
+    if (!d || d.state !== 'drafted') throw new ServiceError('wrong_state', 'That sweep draft isn’t waiting any more. Review Treasury for today’s.', 409);
+  }
 
   // The rules again, at this moment: balances and holds may have changed since the quote.
   const again = await quoteOrder(orgId, { asset: order.asset as AssetId, kind: order.kind, amountMinor: order.amountMinor, path: order.path, sweepDraftId: order.sweepDraftId }, now);

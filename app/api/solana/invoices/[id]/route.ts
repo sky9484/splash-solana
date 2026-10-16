@@ -11,6 +11,6 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return companyRoute(request, async (ctx) => {
     const { id } = await params;
-    return { check: await checkView(ctx.orgId, id, { isOwner: ctx.isOwner, role: ctx.session.userRole, hasDevice: Boolean(ctx.deviceKey) }) };
+    return { check: await checkView(ctx.orgId, id, { isOwner: ctx.isOwner, role: ctx.role, hasDevice: Boolean(ctx.deviceKey) }) };
   });
 }

@@ -206,7 +206,15 @@ export async function scheduleShredForRemoved(orgId: string, removed: Pick<Suppl
     if (lastSettled === null || at > lastSettled) lastSettled = at;
   }
   const shredAfter = new Date((lastSettled ?? now.getTime()) + SHRED_AFTER_DAYS * 86_400_000);
-  const records = await runtime().secrets.scheduleShred(orgId, removed.id, shredAfter);
+  let records = await runtime().secrets.scheduleShred(orgId, removed.id, shredAfter);
+  // Each invoice from this recipient kept its own sealed copy of the printed number (paying one copies
+  // it onto the recipient, it doesn't move it). They go on the same day, or a removed recipient's
+  // number would outlive it and could still be revealed (review finding, 16 Oct).
+  for (const inv of s.invoices.values()) {
+    const c = inv.confirmed;
+    if (inv.orgId !== orgId || !inv.accountSecretId || !c || c.supplierName !== removed.name || c.supplierBank !== removed.bank) continue;
+    records += await runtime().secrets.scheduleShred(orgId, inv.id, shredAfter);
+  }
   return { shredAfter, records };
 }
 

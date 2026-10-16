@@ -1,6 +1,6 @@
 import { orderRequestFrom, prepareOrder } from '@/lib/solana-app/investments';
 import { readBody, schemas } from '@/lib/solana-app/http';
-import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   return companyRoute(request, async (ctx) => {
+    requireCanAct(ctx);
     const body = await readBody(request, schemas.treasuryOrder);
     requireReadyToApprove(ctx);
     await requireMoneyGates(ctx);

@@ -2,7 +2,7 @@ import { ServiceError } from '@/lib/solana-app/errors';
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { assertDetailsEditable, DETAILS_OPTIONS, detailsView, previousDetails, setTransferDetails } from '@/lib/solana-app/transfer-details';
 import { getInvoice } from '@/lib/solana-app/service';
-import { companyRoute } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,6 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 /** "Same details as before?" Yes copies them; no gives every answer again. */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return companyRoute(request, async (ctx) => {
+    requireCanAct(ctx);
     const id = transferId((await params).id);
     const body = await readBody(request, schemas.transferDetails);
     await assertDetailsEditable(ctx.orgId, id);

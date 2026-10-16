@@ -21,7 +21,8 @@ import {
 } from '../lib/server/bank-details.ts';
 import { resetRuntime, runtime } from '../lib/solana-app/runtime.ts';
 import * as svc from '../lib/solana-app/service.ts';
-import { resetStore } from '../lib/solana-app/store.ts';
+import { resetStore, store } from '../lib/solana-app/store.ts';
+import { SAMPLE_INVOICE_TEXT } from '../lib/solana-zeke/fixtures/sample-invoice.ts';
 
 beforeEach(() => {
   delete process.env.SPLASH_SOLANA_MODE;
@@ -176,4 +177,18 @@ test('the shred job’s route answers the scheduler only (bearer CRON_SECRET), a
     if (before === undefined) delete process.env.CRON_SECRET;
     else process.env.CRON_SECRET = before;
   }
+});
+
+test('removing a recipient also shreds the number each of its invoices kept, on the same day (review finding, 16 Oct)', async () => {
+  const { org } = await company();
+  const { invoice } = await svc.readInvoiceDraft(org.id, { text: SAMPLE_INVOICE_TEXT, source: 'paste' });
+  assert.ok(invoice.accountSecretId, 'the invoice sealed its printed number under its own id');
+  const inv = store().invoices.get(invoice.id);
+  inv.confirmed = { ...inv.draft.fields };
+  const removedAt = new Date('2026-10-14T00:00:00.000Z');
+  const { records } = await scheduleShredForRemoved(org.id, { id: 'sup_gone', name: inv.confirmed.supplierName, bank: inv.confirmed.supplierBank }, removedAt);
+  assert.equal(records, 1, 'the invoice copy is scheduled with the recipient');
+  await shredDue(new Date('2026-11-13T00:00:00.000Z'));
+  const [copy] = await runtime().secrets.history(org.id, invoice.id);
+  assert.equal(copy.ciphertext, null, 'the invoice copy is gone');
 });

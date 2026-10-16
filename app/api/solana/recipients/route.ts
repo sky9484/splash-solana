@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /** Saved bank recipients and the partner's bank list (prompt 10 §5.3). Last 4 digits only. */
 export async function GET(request: Request) {
-  return companyRoute(request, async (ctx) => listRecipients(ctx.orgId, { isOwner: ctx.isOwner, role: ctx.session.userRole }));
+  return companyRoute(request, async (ctx) => listRecipients(ctx.orgId, { isOwner: ctx.isOwner, role: ctx.role }));
 }
 
 /**
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     request,
     async (ctx) => {
       const body = await readBody(request, schemas.recipientCreate);
-      return { recipient: await createRecipient(ctx.orgId, body, { isOwner: ctx.isOwner, role: ctx.session.userRole, by: ctx.personName }) };
+      return { recipient: await createRecipient(ctx.orgId, body, { isOwner: ctx.isOwner, role: ctx.role, by: ctx.personName }) };
     },
     201,
   );

@@ -10,6 +10,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return companyRoute(request, async (ctx) => {
     const { id } = await params;
     const body = await readBody(request, schemas.recipientVerify);
-    return { recipient: verifyRecipient(ctx.orgId, id, body, { isOwner: ctx.isOwner, role: ctx.session.userRole }) };
+    return { recipient: verifyRecipient(ctx.orgId, id, body, { isOwner: ctx.isOwner, role: ctx.role }) };
   });
 }

@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useReducer, useRef, useState } from 'react';
 import { Check, CircleCheck, Download, FileCheck2, Share2 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -51,7 +51,9 @@ export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onR
   const reached = stopped ? ids.indexOf(REACHED[payment.state] ?? ('none' as StationId)) : ids.indexOf(station);
   const paidAt = ids.indexOf('paid');
 
-  // Read the payment until nothing more happens without a person. Each answer moves the tracker.
+  // Read the payment until nothing more happens without a person. Each answer moves the tracker; a read
+  // that fails (a network blip, a deploy) tries again rather than leaving the tracker frozen.
+  const [retry, retryRead] = useReducer((n: number, outcome: 'failed' | 'read') => (outcome === 'read' ? 0 : n + 1), 0);
   useEffect(() => {
     if (SETTLED.includes(payment.state)) return;
     let stop = false;
@@ -59,17 +61,18 @@ export function StepTrack({ payment, payee, onPayment, onAnother, onRequote, onR
       try {
         const res = await api<{ payment: PaymentDTO }>(`/payments/${payment.id}`);
         if (stop) return;
+        if (retry > 0) retryRead('read');
         onPayment(res.payment);
         if (res.payment.state !== payment.state) notifyCompanyChanged();
       } catch {
-        /* keep reading on the next tick */
+        if (!stop) retryRead('failed');
       }
-    }, station === 'recording' ? 4000 : 900);
+    }, retry > 0 ? Math.min(2000 * retry, 10_000) : station === 'recording' ? 4000 : 900);
     return () => {
       stop = true;
       window.clearTimeout(t);
     };
-  }, [payment, onPayment, station]);
+  }, [payment, onPayment, station, retry]);
 
   const short = shortName(payee.name);
   const paid = reached >= paidAt && !stopped;

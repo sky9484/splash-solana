@@ -205,3 +205,16 @@ test('overdue requests: the list counts them, and Overview’s "Needs you" gets 
   assert.deepEqual(list.requests[0].status, { key: 'overdue', tone: 'amber', label: 'Overdue · 5 days' });
   assert.deepEqual(overdueRequests(requester.org.id, later), [{ payer: 'Penang Components Sdn Bhd', amount: 'US$4,750.00', daysOverdue: 5, reference: 'SEL-0091', href: `/dashboard/invoices/get?request=${r.id}` }]);
 });
+
+test('a request cancelled after the payer quoted it: the old payment can no longer be approved (review finding, 16 Oct)', async () => {
+  const requester = await company('Kuching Marine Supply Sdn Bhd');
+  const payer = await company('Selangor Trading Sdn Bhd');
+  await svc.fund(payer.org.id);
+  const r = createRequest(requester.org.id, { payer: { kind: 'splash', orgId: payer.org.id, name: 'Selangor Trading Sdn Bhd', handle: null, country: 'MY' }, number: 'KMS-3', dueDate: '2026-11-06', lines: LINES }, 'A', NOW);
+  await sendRequest(requester.org.id, r.id, NOW);
+  const p = await payBill(payer.org.id, r.billId, { by: 'A' });
+  const view = await svc.paymentView(p.id);
+  await svc.selectRoute(p.id, { quoteId: view.cards[0].quoteId });
+  await cancelRequest(requester.org.id, r.id, NOW);
+  await assert.rejects(svc.prepareApproval(p.id), (e) => e.code === 'wrong_state' && /cancelled this request/.test(e.message));
+});

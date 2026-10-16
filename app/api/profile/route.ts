@@ -1,6 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { resolveAuthorityForSession, UnauthorizedError } from '@/lib/auth/authority';
+import { organizations } from '@/lib/db/schema';
 import { requireCustomerRequest, requireCustomerSession } from '@/lib/server/customer-auth';
 import { readOrgSettings } from '@/lib/server/org-settings';
 import { approvalRequiredResponse, consumeActionApproval } from '@/lib/server/step-up-gate';
@@ -15,13 +17,28 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+/** The signed-in member's company name, from the organizations table; null when there is no membership yet. */
+async function companyNameFor(session: Parameters<typeof resolveAuthorityForSession>[0]): Promise<string | null> {
+  try {
+    const authority = await resolveAuthorityForSession(session);
+    const { getDb } = await import('@/lib/db/client');
+    const [row] = await getDb().select({ name: organizations.name }).from(organizations).where(eq(organizations.id, authority.orgId)).limit(1);
+    return row?.name?.trim() || null;
+  } catch (e) {
+    if (e instanceof UnauthorizedError) return null;
+    throw e;
+  }
+}
+
 export async function GET() {
   const auth = await requireCustomerSession();
   if (auth.response) return auth.response;
   const { session } = auth;
 
   return NextResponse.json({
-    profile: getCustomerProfile(session),
+    // Seeded with the company's own name from its organization row, as the dashboard header shows it;
+    // the session carries only a placeholder ("Splash Workspace") for some sign-ins.
+    profile: getCustomerProfile({ ...session, organization: (await companyNameFor(session)) ?? session.organization }),
     pendingRequest: getPendingRequest(session.email),
     history: listRequestsForCustomer(session.email).slice(0, 10),
   });
