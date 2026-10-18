@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
@@ -59,20 +59,30 @@ export default function LoginForm({ googleEnabled, initialError }: { googleEnabl
     }
   }
 
-  if (authorizing) return <SplashLoading label="Securing your session" />;
+  // Signed in: the one step this page has seen finish. The desk itself loads behind the next route.
+  if (authorizing) {
+    return (
+      <SplashLoading
+        ground="pale"
+        steps={[
+          { label: 'Session secured', done: true },
+          { label: 'Opening your desk', done: false },
+        ]}
+      />
+    );
+  }
 
   return (
     <IsometricAuthShell
       eyebrow="Business workspace"
       title="Sign in to Splash"
       description="Your approvals are signed on this device. Splash never holds your keys."
-      art="/cinematic/settlement-machine.png"
-      artAlt="Isometric payment line: USDC goes in, is checked, and is delivered to the supplier"
+      art="signin"
       visualTitle="Every payment, one record"
       visualCopy="Invoice, approval, transfer and rate, kept together for the auditor."
     >
-      <form onSubmit={onSubmit} className="iso-auth-form">
-        <label className="iso-auth-field" htmlFor="login-email">
+      <form onSubmit={onSubmit} className="au-form">
+        <label className="au-field" htmlFor="login-email">
           <span>Business email</span>
           <div>
             <Mail aria-hidden="true" />
@@ -88,7 +98,7 @@ export default function LoginForm({ googleEnabled, initialError }: { googleEnabl
           </div>
         </label>
 
-        <label className="iso-auth-field" htmlFor="login-password">
+        <label className="au-field" htmlFor="login-password">
           <span>Password</span>
           <div>
             <Lock aria-hidden="true" />
@@ -104,7 +114,7 @@ export default function LoginForm({ googleEnabled, initialError }: { googleEnabl
             />
             <button
               type="button"
-              className="iso-auth-reveal"
+              className="au-reveal"
               onClick={() => setShowPassword((value) => !value)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -113,7 +123,7 @@ export default function LoginForm({ googleEnabled, initialError }: { googleEnabl
           </div>
         </label>
 
-        <div className="iso-auth-options">
+        <div className="au-options">
           <label>
             <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
             Keep me signed in for 30 days
@@ -121,17 +131,16 @@ export default function LoginForm({ googleEnabled, initialError }: { googleEnabl
           <Link href="/forgot-password">Forgot password?</Link>
         </div>
 
-        {error ? <p className="iso-auth-error" role="alert">{error}</p> : null}
+        {error ? <p className="au-error" role="alert">{error}</p> : null}
 
-        <button type="submit" disabled={!canSubmit} className="iso-auth-submit">
+        <button type="submit" disabled={!canSubmit} className="au-submit">
           {isSubmitting ? 'Signing in...' : 'Sign in'}
-          {!isSubmitting ? <ArrowRight aria-hidden="true" /> : null}
         </button>
       </form>
 
       {googleEnabled ? <GoogleSignInButton /> : null}
 
-      <p className="iso-auth-switch">
+      <p className="au-switch">
         New to Splash? <Link href="/signup">Create a business account</Link>
       </p>
     </IsometricAuthShell>

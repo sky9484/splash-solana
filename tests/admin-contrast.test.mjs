@@ -63,7 +63,10 @@ test('the check finds the console’s surfaces: its Pale page, the dark sidebar 
     [LOGIN, 'the sign-in panel, the centre of its radial fill', [24, 92, 102]],
     [LOGIN, 'the sign-in panel, its edge', [8, 43, 50]],
     [LOGIN, 'a sign-in field', [255, 253, 248]],
-    [LOADING, 'the loading screen, the cream it fades to', [248, 240, 229]],
+    // Prompt 12 §3.2 (Sky, 19 Oct: one loader everywhere): app/loading.tsx is SplashLoading, a white card on
+    // the Paper ground (was the cream it faded to, [248, 240, 229]).
+    [LOADING, 'the loading screen: its white card', [255, 255, 255]],
+    [LOADING, 'the loading screen: Paper, its top', [255, 250, 244]],
   ];
   for (const [result, label, colour] of expected) {
     assert.ok(result.surfacesSeen.has(hex(colour)), `${label} ${hex(colour)} was not found`);

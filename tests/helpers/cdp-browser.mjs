@@ -216,10 +216,12 @@ async function createPage(call, subscribe, viewport) {
    * Find an element and mark it (data-e2e-hit). `enabled`: keep looking until the match is enabled.
    * Found afresh on every poll: a button that re-renders when it becomes enabled (one whose "why it is
    * disabled" note goes away) is a new node, and a mark on the old one would never come true.
+   * Marked only once React owns the node (its __reactFiber key): a mark set on server HTML before its
+   * Suspense boundary hydrates is an attribute React didn't render, and it reports a hydration mismatch.
    */
   async function find(role, name, { exact = false, timeoutMs = 30_000, enabled = false } = {}) {
     return waitFor(
-      new Function('role', 'name', 'exact', 'enabled', `const f = ${FIND}; document.querySelectorAll('[data-e2e-hit]').forEach((e) => e.removeAttribute('data-e2e-hit')); const el = f(role, name, exact); if (!el) return false; if (enabled && (el.disabled || el.getAttribute('aria-disabled') === 'true')) return false; el.setAttribute('data-e2e-hit', '1'); return true;`),
+      new Function('role', 'name', 'exact', 'enabled', `const f = ${FIND}; document.querySelectorAll('[data-e2e-hit]').forEach((e) => e.removeAttribute('data-e2e-hit')); const el = f(role, name, exact); if (!el) return false; if (!Object.keys(el).some((k) => k.startsWith('__reactFiber'))) return false; if (enabled && (el.disabled || el.getAttribute('aria-disabled') === 'true')) return false; el.setAttribute('data-e2e-hit', '1'); return true;`),
       [role, pattern(name), exact, enabled],
       { timeoutMs, what: enabled ? `${role} "${name}" to be enabled` : `${role} "${name}"` },
     );

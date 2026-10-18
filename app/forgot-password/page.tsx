@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, Mail } from 'lucide-react';
+import { CheckCircle2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import IsometricAuthShell from '@/components/auth/IsometricAuthShell';
@@ -50,17 +50,16 @@ export default function ForgotPasswordPage() {
   return (
     <IsometricAuthShell
       eyebrow="Account recovery"
-      title={recovery ? 'Check your inbox.' : 'Reset your password.'}
+      title={recovery ? 'Check your inbox' : 'Reset your password'}
       description={recovery
         ? 'If that address has an account, a reset link is on its way. It expires in 30 minutes, and opening it ends every session that is signed in now.'
         : 'Enter your business email and we will send a link to choose a new password.'}
-      art="/cinematic/treasury-island.png"
-      artAlt="Isometric vault holding the business’s money"
-      visualTitle="Secure by default"
-      visualCopy="Recover access without compromising your treasury."
+      art="recovery"
+      visualTitle="Recover access"
+      visualCopy="The password opens the desk. The vault stays locked until you approve on your device."
     >
       {recovery ? (
-        <section className="iso-auth-success">
+        <section className="au-success">
           <CheckCircle2 aria-hidden="true" />
           <h2>Check your inbox</h2>
           <p>{recovery.message}</p>
@@ -70,12 +69,12 @@ export default function ForgotPasswordPage() {
             </Link>
           ) : null}
           <button type="button" onClick={() => { setRecovery(null); setError(''); }}>
-            <ArrowLeft aria-hidden="true" /> Use another email
+            Use another email
           </button>
         </section>
       ) : (
-        <form onSubmit={onSubmit} className="iso-auth-form">
-          <label className="iso-auth-field" htmlFor="recovery-email">
+        <form onSubmit={onSubmit} className="au-form">
+          <label className="au-field" htmlFor="recovery-email">
             <span>Business email</span>
             <div>
               <Mail aria-hidden="true" />
@@ -90,20 +89,19 @@ export default function ForgotPasswordPage() {
               />
             </div>
           </label>
-          <button type="submit" disabled={!email.includes('@') || submitting} className="iso-auth-submit">
+          <button type="submit" disabled={!email.includes('@') || submitting} className="au-submit">
             {submitting ? 'Sending link...' : 'Email me a reset link'}
-            {!submitting ? <ArrowRight aria-hidden="true" /> : null}
           </button>
-          {error ? <p className="iso-auth-error" role="alert">{error}</p> : null}
+          {error ? <p className="au-error" role="alert">{error}</p> : null}
         </form>
       )}
 
-      <div className="iso-auth-help">
+      <div className="au-note">
         <strong>No email after a few minutes?</strong>
         <span>Check spam, then request another link. Links work once and for 30 minutes.</span>
       </div>
 
-      <p className="iso-auth-switch">
+      <p className="au-switch">
         Remembered your password? <Link href="/login">Back to sign in</Link>
       </p>
     </IsometricAuthShell>

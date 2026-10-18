@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 /**
  * When a page fails, say so.
@@ -44,45 +44,29 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="grid h-12 w-12 place-items-center rounded-full bg-[#E39774]/15 ring-1 ring-[#E39774]/40">
-        <AlertTriangle className="h-6 w-6 text-[#9A4A2D]" />
-      </div>
-
-      <h1 className="text-2xl font-bold tracking-tight text-[#0c3e48]">
-        This screen could not load
-      </h1>
-
-      <p className="max-w-md text-sm font-medium leading-6 text-[#326273]/70">
-        Something on our side failed while putting this page together. Nothing you were doing was
-        submitted or changed — no payment has moved.
-      </p>
-
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={reset}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#1F4452] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#326273] focus-ring"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Try again
-        </button>
-        <Link
-          href="/dashboard"
-          className="rounded-lg border border-[#326273]/20 px-4 py-2.5 text-sm font-bold text-[#326273] transition hover:border-[#5C9EAD]"
-        >
-          Back to the desk
-        </Link>
-      </div>
-
-      {/* The id that matches this failure in the server logs. Not the message:
-          a server exception can carry a query or a row, and this renders for
-          customers. */}
-      {error.digest && (
-        <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[#326273]/45">
-          Reference {error.digest}
+    <main className="st sp-page sp-ground-paper">
+      <section className="st-card">
+        <span className="st-icon" aria-hidden="true">
+          <AlertTriangle />
+        </span>
+        <h1>This screen could not load</h1>
+        <p>
+          Something on our side failed while putting this page together. Nothing you were doing was submitted or
+          changed. No payment has moved.
         </p>
-      )}
-    </div>
+        <div className="st-actions">
+          <button type="button" onClick={reset} className="st-btn st-btn--primary">
+            Try again
+          </button>
+          <Link href="/dashboard" className="st-btn st-btn--quiet">
+            Back to the desk
+          </Link>
+        </div>
+
+        {/* The id that matches this failure in the server logs, in mono for support. Not the message:
+            a server exception can carry a query or a row, and this renders for customers. */}
+        {error.digest && <p className="st-ref">Reference {error.digest}</p>}
+      </section>
+    </main>
   );
 }
