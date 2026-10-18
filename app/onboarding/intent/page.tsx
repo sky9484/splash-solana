@@ -26,7 +26,7 @@ export default async function IntentPage() {
   }
 
   return (
-    <main className="splash-page-bg min-h-dvh px-4 py-14">
+    <main className="sp-page sp-ground-paper min-h-dvh px-4 py-14">
       <div className="mx-auto w-full max-w-4xl">
         <p className="dash-kicker">Welcome to Splash</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#1F4452]">

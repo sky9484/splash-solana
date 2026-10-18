@@ -94,7 +94,7 @@ export default function AdminKybConsole({ initialCases }: Props) {
         <div>
           <div className="mb-2 inline-flex rounded-full bg-[#5C9EAD]/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#145d6a]">Compliance Operations</div>
           <h1 className="text-3xl font-black tracking-[-0.03em] text-[#1f4350]">KYB approval verification</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#326273]/90">Smart contracts can settle funds and record receipts, but staff still need off-chain checks for business registration, directors, UBO evidence, sanctions/PEP flags, and approval rationale.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#326273]">Smart contracts can settle funds and record receipts, but staff still need off-chain checks for business registration, directors, UBO evidence, sanctions/PEP flags, and approval rationale.</p>
         </div>
         <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[#326273]/10 bg-white p-2 text-center shadow-sm">
           <Metric label="Pending" value={pendingCount} />

@@ -20,7 +20,7 @@ export default function TrustPage() {
   const showDraftWatermark = !legalApproved && process.env.NODE_ENV !== 'production';
 
   return (
-    <main className="wc-page trust-page">
+    <main className="wc-page trust-page sp-page sp-ground-paper">
       {showDraftWatermark ? (
         <div className="trust-watermark" aria-hidden="true">DRAFT — PENDING COUNSEL REVIEW</div>
       ) : null}

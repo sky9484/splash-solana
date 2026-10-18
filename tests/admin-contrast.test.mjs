@@ -16,14 +16,14 @@ import { NON_TEXT, ROOT, SMALLEST_PX, WORDS, auditPages, hex, over } from './hel
  * other console page shows app/loading.tsx while it loads, in place of the
  * shell, so that screen is held to the same rules here.
  *
- * The console has its own shell: a tinted page (#edf4f2, set !important over
- * the shell's own gradient class) with a glow fixed over it, the dark sidebar
- * and its glow, which the dashboard shares, a context bar styled in
- * app/globals.css, and a rule that gives every bg-white card, field included,
- * a 10% border.
+ * The console has its own shell: a Pale page, #EFF4F3 at the top of the window
+ * to #E1E9E8 at the bottom with no grid and no glow (Sky, 18 Oct; prompt 12
+ * §1.2), the dark sidebar and its glow, which the dashboard shares, a context
+ * bar styled in app/globals.css, and a rule that gives every bg-white card,
+ * field included, a 10% border.
  * The sign-in page is a dark panel filled by a radial gradient beside a light
- * form. tests/helpers/contrast-audit.mjs reads all of them as the browser
- * paints them.
+ * form on the same Pale page. tests/helpers/contrast-audit.mjs reads all of
+ * them as the browser paints them, and checks every word against both ends.
  */
 
 /** The pages and loading screens under `dir`. */
@@ -44,18 +44,22 @@ const FINDINGS = [...RESULT.findings, ...LOGIN.findings, ...LOADING.findings];
 const report = (lines) => `\n  ${lines.join('\n  ')}\n`;
 const failures = (pattern) => FINDINGS.filter((line) => pattern.test(line));
 
-test('the check finds the console’s surfaces: its tinted page, the dark sidebar, their glows, cards, fields, the sign-in panel and the loading screen', (t) => {
-  // The shell's bg-[linear-gradient(…),#EEF4F5] loses to `.fintech-admin-shell { background: #edf4f2 !important }`.
-  const page = [237, 244, 242];
+test('the check finds the console’s surfaces: its Pale page, the dark sidebar and its glow, cards, fields, the sign-in panel and the loading screen', (t) => {
+  // Pale (Sky, 18 Oct; prompt 12 §1.2): `.fintech-admin-shell` paints --sp-pale → --sp-pale-2, fixed to the
+  // window; the old #edf4f2, its 28 px grid and glow, and the shell's Tailwind gradient are gone.
+  const top = [239, 244, 243];
+  const bottom = [225, 233, 232];
   const expected = [
-    [RESULT, 'the console page (#edf4f2, over the shell’s own class)', page],
-    // .fintech-admin-shell::before, fixed to the window: its glow's brightest point over the page.
-    [RESULT, 'the console page under its fixed glow', over([92, 158, 173, 0.08], page)],
+    [RESULT, 'the console page: Pale, its top', top],
+    [RESULT, 'the console page: Pale, its bottom', bottom],
     [RESULT, 'the sidebar, top of its gradient', [36, 85, 99]],
     [RESULT, 'the sidebar, bottom', [12, 48, 57]],
     // The sidebar's own glow, at its brightest over the top of the rail.
     [RESULT, 'the sidebar under its glow', over([159, 207, 199, 0.1], [36, 85, 99])],
-    [RESULT, 'a bg-white card in the console (the card rule)', over([253, 254, 255, 0.93], page)],
+    [RESULT, 'a bg-white card in the console (the card rule), at the top', over([253, 254, 255, 0.93], top)],
+    [RESULT, 'a bg-white card in the console (the card rule), at the bottom', over([253, 254, 255, 0.93], bottom)],
+    [LOGIN, 'the sign-in page: Pale, its top', top],
+    [LOGIN, 'the sign-in page: Pale, its bottom', bottom],
     [LOGIN, 'the sign-in panel, the centre of its radial fill', [24, 92, 102]],
     [LOGIN, 'the sign-in panel, its edge', [8, 43, 50]],
     [LOGIN, 'a sign-in field', [255, 253, 248]],

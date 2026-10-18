@@ -594,7 +594,14 @@ async function run(page, email) {
   await page.goto(`${BASE}/dashboard/history`);
   await page.waitFor(() => document.querySelectorAll('.sx-table tbody tr').length >= 1, [], { what: 'the payment row' });
   await shot('history');
-  await page.goto(`${BASE}/dashboard/settings/policy`);
+  // Prompt 12 §1.3 (audit B7): Rules left the sidebar for Settings in Sky's restyle, so reach it the way a
+  // person does now, through Settings' tabs, and check it there.
+  await page.goto(`${BASE}/dashboard/settings`);
+  await page.click('link', 'Payment rules');
+  await page.waitFor(() => location.pathname === '/dashboard/settings/policy', [], { what: 'the Payment rules tab' });
+  await page.find('heading', 'Payment rules');
+  await page.find('text', /^These run as code before every approval/);
+  assert.equal(await page.evaluate(() => document.querySelector('nav[aria-label="Settings sections"] a[aria-current="page"]')?.textContent.trim()), 'Payment rules');
   await page.waitIdle();
   await shot('policy');
   await page.goto(`${BASE}/dashboard`);

@@ -61,6 +61,17 @@ async function balances(env) {
 
 /* ── Reference data ───────────────────────────────────────────────────── */
 
+test('a test price prints to four decimals, rounded half-up, so the units beside it agree with it (prompt 12 §1.3)', () => {
+  // 18 Oct 2026's simulated T-bill price: cut off at four decimals it read US$1.1245, and 80,000 / 1.1245
+  // missed the 71,138.55 units shown by more than rounding allows (the walkthrough's Treasury step).
+  assert.equal(inv.priceText(1_124_566n), 'US$1.1246');
+  assert.equal(inv.priceText(1_124_550n), 'US$1.1246', 'half goes up');
+  assert.equal(inv.priceText(1_124_549n), 'US$1.1245');
+  assert.equal(inv.priceText(1_124_000n), 'US$1.1240');
+  assert.equal(inv.priceText(1_999_950n), 'US$2.0000', 'a carry reaches the whole dollars');
+  assert.equal(inv.priceText(12_345_678_900n), 'US$12,345.6789');
+});
+
 test('every rate and past return carries the day it was true and an https source, and none is older than 35 days', () => {
   const now = new Date();
   const figures = allSourced();

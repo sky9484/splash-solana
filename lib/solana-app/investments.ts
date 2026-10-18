@@ -71,9 +71,10 @@ export function unitsText(unitsMicro: bigint): string {
   const hundredths = unitsMicro / 10_000n;
   return `${(hundredths / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(hundredths % 100n).toString().padStart(2, '0')}`;
 }
-/** "US$1.1240", a test price to four decimals. */
+/** "US$1.1240", a test price (in millionths) to four decimals, rounded half-up. Cutting it off instead
+ *  could leave the price a whole 0.0001 low, more than the units printed beside it allow for. */
 export function priceText(priceMinor: bigint): string {
-  const tenThousandths = priceMinor / 100n;
+  const tenThousandths = (priceMinor + 50n) / 100n;
   return `US$${(tenThousandths / 10_000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(tenThousandths % 10_000n).toString().padStart(4, '0')}`;
 }
 /** 21 → "0.21%". */

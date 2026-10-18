@@ -33,7 +33,7 @@ export default function IsometricAuthShell({
   visualCopy,
 }: IsometricAuthShellProps) {
   return (
-    <main className="iso-auth">
+    <main className="iso-auth sp-page sp-ground-pale">
       <div className="iso-auth-grid" aria-hidden="true" />
       <header className="iso-auth-header">
         <Link href="/" className="iso-auth-back">

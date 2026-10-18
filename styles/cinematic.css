@@ -60,15 +60,8 @@
 }
 
 .cin-grid {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-image:
-    linear-gradient(rgba(12, 62, 72, .06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .06) 1px, transparent 1px);
-  background-size: 68px 68px;
-  -webkit-mask-image: radial-gradient(ellipse 90% 75% at 55% 45%, rgba(0, 0, 0, .9), transparent 78%);
-  mask-image: radial-gradient(ellipse 90% 75% at 55% 45%, rgba(0, 0, 0, .9), transparent 78%);
+  /* No grid on any page but /pay/[slug] (prompt 12 §1.2); Phase 2 replaces this hero. */
+  display: none;
 }
 
 .cin-vignette {
@@ -1831,10 +1824,7 @@
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
   background:
     radial-gradient(circle at 90% 4%, color-mix(in srgb, var(--coral) 14%, transparent), transparent 30%),
-    linear-gradient(color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px),
     var(--surface-2);
-  background-size: auto, 64px 64px, 64px 64px, auto;
 }
 
 .iso-supply-chip { margin-top: 14px; }

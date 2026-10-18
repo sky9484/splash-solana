@@ -48,9 +48,10 @@
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* The page ground: warm paper, no grid (prompt 11 §1.2). The pay page keeps its grid (.iso-paypage). */
+/* The page ground: Paper, top to bottom, fixed to the window, no grid (prompt 12 §1.1). The pay page
+   keeps its grid (.iso-paypage). */
 .iso.iso-ground,
-.iso .iso-ground { background-color: var(--ground); }
+.iso .iso-ground { background: linear-gradient(180deg, var(--ground), var(--ground-2)) fixed; }
 
 /* ── Page frame (§3.4) ───────────────────────────────────────────────── */
 .iso.iso-page,
@@ -834,18 +835,18 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
 
 /* ── The shell (prompt 10 Phase 1) ───────────────────────────────────────
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
-   page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
-   not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #ECE5D8; }
+   page ground is Paper with no grid (prompt 12 §1.1: --ground → --ground-2, fixed to the
+   window, so it reads the same at any scroll; .iso-app carries the two tokens). The shell
+   root itself is not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
+.iso-app { background: linear-gradient(180deg, var(--ground), var(--ground-2)) fixed; }
 .iso-app::before { display: none; }
-/* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
+/* The main column paints nothing of its own: the shell's Paper shows through, and the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
    main is a scroll box that focus or find-in-page can scroll sideways, under the sidebar, and it would
    hold the sticky Transfer rail. Its slide runs only while a person collapses or expands the sidebar
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #ECE5D8;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
@@ -2095,9 +2096,9 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso-app .iso .sx-input,
 .iso-app .iso .sx select { min-height: 52px; padding: 0 18px; border: 1.5px solid rgb(12 62 72 / .62); border-radius: 30px; background: var(--white); color: var(--ink-deep); }
 .iso-app .iso .sx textarea { padding: 14px 18px; border: 1.5px solid rgb(12 62 72 / .62); border-radius: 20px; background: var(--white); color: var(--ink-deep); }
-/* The Tailwind pages: their boxes and fields. */
+/* The Tailwind pages: their boxes and fields. Boxes are white on the Paper ground (prompt 12 §1.1). */
 .iso-app .fintech-dashboard-main :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface) {
-  background: #FFFDFA;
+  background: #FFFFFF;
   border: 1px solid rgb(12 62 72 / .09);
   border-radius: 30px;
   box-shadow: var(--lift-1);

@@ -1,0 +1,13 @@
+/* The pages outside the dashboard (prompt 12 §0.6, §1.2): their ground.
+   A page root carries `sp-page` (the --sp-* tokens in styles/tokens.css) and one ground:
+   - sp-ground-paper: the landing, /working-capital, /trust, the shared receipt, 404, error,
+     onboarding and settings (Sky, 18 Oct: "the rest of the page ... use 'paper'");
+   - sp-ground-pale: sign in, sign up, forgot and reset password, verify email, and /admin
+     (Sky, 18 Oct: "on login page and admin page keep the 'Pale'").
+   Top to bottom, fixed to the window, no grid. Boxes on it stay solid. Tokens only: no raw hex. */
+.sp-page.sp-ground-paper {
+  background: linear-gradient(180deg, var(--sp-paper), var(--sp-paper-2)) fixed;
+}
+.sp-page.sp-ground-pale {
+  background: linear-gradient(180deg, var(--sp-pale), var(--sp-pale-2)) fixed;
+}

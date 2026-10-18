@@ -50,7 +50,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${fontSans.variable} ${fontMono.variable} h-full font-sans antialiased`}
     >
-      <body suppressHydrationWarning className="min-h-full splash-page-bg text-[#326273]">
+      <body suppressHydrationWarning className="min-h-full sp-page sp-ground-paper text-[#326273]">
         <Providers>{children}</Providers>
       </body>
     </html>

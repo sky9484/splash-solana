@@ -53,7 +53,7 @@ export default async function AdminConsoleLayout({ children }: { children: React
   }
 
   return (
-    <div className="fintech-admin-shell min-h-screen bg-[linear-gradient(rgba(31,67,80,0.055),rgba(31,67,80,0.055)),#EEF4F5] text-[#1f4350]">
+    <div className="fintech-admin-shell sp-page min-h-screen text-[#1f4350]">
       <aside className="fintech-admin-sidebar fixed left-0 top-0 hidden h-screen w-64 flex-col bg-[#1f4350] p-6 text-white lg:flex">
         <Link href={adminConsolePath('/', hostname)} className="flex items-center gap-3">
           <Image src="/splash-main-icon.png" alt="Splash" width={48} height={47} className="h-auto w-9" loading="eager" />
@@ -66,7 +66,7 @@ export default async function AdminConsoleLayout({ children }: { children: React
         <nav className="mt-8 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" aria-label="Admin console">
           {navGroups.map((group) => (
             <div key={group.title}>
-              <div className="px-3 pb-1 text-[12px] font-semibold uppercase tracking-[0.16em] text-white/85">{group.title}</div>
+              <div className="px-3 pb-1 text-[12px] font-semibold text-white/85">{group.title}</div>
               {group.items.map(({ label, href, icon: Icon }) => (
                 <Link key={href} href={adminConsolePath(href.replace('/admin', '') || '/', hostname)} className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-[#A7D6DF]">
                   <Icon className="h-4 w-4" aria-hidden="true" />

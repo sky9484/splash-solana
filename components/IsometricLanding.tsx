@@ -342,7 +342,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
   }, []);
 
   return (
-    <main className={`iso-landing${isPhone ? ' is-phone' : ''}`}>
+    <main className={`iso-landing sp-page sp-ground-paper${isPhone ? ' is-phone' : ''}`}>
       <header className={`iso-header ${showBackToTop ? 'is-scrolled' : ''}`}>
         <div className="iso-shell iso-header-inner">
           <Link href="/" className="iso-brand" aria-label="Splash Finance home">

@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "../styles/tokens.css";
+@import "../styles/sp-page.css";
 @import "../styles/cinematic.css";
 @import "../styles/mobile-landing.css";
 @import "../styles/landing.css";
@@ -1908,11 +1909,7 @@ body {
 
 .wc-mechanics {
   border-bottom: 1px solid var(--iso-line);
-  background:
-    linear-gradient(rgba(12, 62, 72, .04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .04) 1px, transparent 1px),
-    var(--iso-paper);
-  background-size: 64px 64px;
+  background: var(--iso-paper);
 }
 
 /* ── Sequence cards (premium override of shared .iso-supply-card) ───────── */
@@ -2304,11 +2301,7 @@ body {
 
 .iso-operating {
   border-bottom: 1px solid var(--iso-line);
-  background:
-    linear-gradient(rgba(12, 62, 72, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .045) 1px, transparent 1px),
-    var(--iso-paper);
-  background-size: 68px 68px;
+  background: var(--iso-paper);
 }
 
 .iso-layer-grid {
@@ -2460,18 +2453,6 @@ body {
     linear-gradient(155deg, #0b424c 0%, #062b33 64%, #041f25 100%);
 }
 
-.iso-flow::before {
-  position: absolute;
-  inset: 0;
-  opacity: .13;
-  content: "";
-  background-image:
-    linear-gradient(rgba(255, 250, 241, .34) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 250, 241, .34) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(90deg, transparent, #000 55%, transparent);
-  transform: perspective(700px) rotateX(55deg) scale(1.4);
-}
 
 .iso-flow-layout {
   position: relative;
@@ -2689,11 +2670,7 @@ body {
 .iso-copilot {
   overflow: hidden;
   border-bottom: 1px solid var(--iso-line);
-  background:
-    linear-gradient(rgba(12, 62, 72, .04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .04) 1px, transparent 1px),
-    linear-gradient(180deg, #fffaf2, var(--iso-paper));
-  background-size: 64px 64px;
+  background: linear-gradient(180deg, #fffaf2, var(--iso-paper));
 }
 
 .iso-copilot-layout {
@@ -2715,17 +2692,6 @@ body {
   box-shadow: 12px 14px 0 rgba(12, 62, 72, .11);
 }
 
-.iso-copilot-stage::before {
-  position: absolute;
-  inset: 0;
-  opacity: .17;
-  content: "";
-  background-image:
-    linear-gradient(rgba(12, 62, 72, .25) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .25) 1px, transparent 1px);
-  background-size: 48px 48px;
-  transform: perspective(700px) rotateX(60deg) scale(1.5);
-}
 
 .iso-copilot-stage > img {
   position: absolute;
@@ -3885,17 +3851,6 @@ body {
     0 32px 70px rgba(8, 54, 64, .16);
 }
 
-.iso-final-panel::before {
-  position: absolute;
-  inset: 0;
-  opacity: .08;
-  content: "";
-  background-image:
-    linear-gradient(rgba(255, 250, 241, .5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 250, 241, .5) 1px, transparent 1px);
-  background-size: 58px 58px;
-  transform: rotate(12deg) scale(1.2);
-}
 
 .iso-final-copy {
   position: relative;
@@ -4739,19 +4694,8 @@ body {
 }
 
 .iso-auth-grid {
-  position: absolute;
-  z-index: 0;
-  right: -15%;
-  bottom: -35%;
-  width: 85%;
-  height: 100%;
-  opacity: .18;
-  background-image:
-    linear-gradient(rgba(12, 62, 72, .45) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .45) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(circle, #000 20%, transparent 68%);
-  transform: rotateX(65deg) rotateZ(-34deg);
+  /* No grid on any page but /pay/[slug] (prompt 12 §1.2). */
+  display: none;
 }
 
 .iso-auth-header {
@@ -4835,17 +4779,6 @@ body {
     linear-gradient(150deg, #0b4a56 0%, #07343e 60%, #05262d 100%);
 }
 
-.iso-auth-visual::before {
-  position: absolute;
-  inset: 0;
-  opacity: .1;
-  content: "";
-  background-image:
-    linear-gradient(rgba(255, 250, 241, .45) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 250, 241, .45) 1px, transparent 1px);
-  background-size: 54px 54px;
-  transform: rotate(8deg) scale(1.2);
-}
 
 .iso-auth-visual-copy,
 .iso-auth-art,
@@ -4945,11 +4878,7 @@ body {
   display: flex;
   justify-content: center;
   padding: 54px clamp(28px, 5vw, 72px);
-  background:
-    linear-gradient(rgba(12, 62, 72, .03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(12, 62, 72, .03) 1px, transparent 1px),
-    #ffffff;
-  background-size: 58px 58px;
+  background: #ffffff;
   flex-direction: column;
 }
 
@@ -5400,21 +5329,6 @@ body {
   mask-image: linear-gradient(to bottom, black, transparent 82%);
 }
 
-/* As above: at .16 the console's intro lines read 4.3:1 under the top glow. */
-.fintech-admin-shell::before {
-  position: fixed;
-  z-index: -1;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 76% 6%, rgba(92, 158, 173, .08), transparent 24%),
-    radial-gradient(circle at 28% 82%, rgba(111, 121, 164, .05), transparent 27%),
-    linear-gradient(rgba(18, 63, 73, .035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(18, 63, 73, .035) 1px, transparent 1px);
-  background-size: auto, auto, 28px 28px, 28px 28px;
-  content: "";
-  mask-image: linear-gradient(to bottom, black, transparent 82%);
-}
 
 /* The glow is placed and sized by percentages of an h-screen rail, so on a
    tall window it reaches the tagline and the first links: at .28 they read
@@ -5942,18 +5856,6 @@ th.money { text-align: right; }
     linear-gradient(200deg, #0b424c 0%, #062b33 62%, #041f25 100%);
 }
 
-.iso-trust::before {
-  position: absolute;
-  inset: 0;
-  opacity: .12;
-  content: "";
-  background-image:
-    linear-gradient(rgba(255, 250, 241, .34) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 250, 241, .34) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(270deg, transparent, #000 55%, transparent);
-  transform: perspective(700px) rotateX(55deg) scale(1.4);
-}
 
 .iso-trust .iso-shell { position: relative; z-index: 2; }
 
@@ -6628,8 +6530,7 @@ button.iso-product-row {
   justify-content: space-between;
   overflow: hidden;
   padding: clamp(34px, 5vw, 72px);
-  background: linear-gradient(rgba(125, 224, 208, .07) 1px, transparent 1px), linear-gradient(90deg, rgba(125, 224, 208, .07) 1px, transparent 1px), radial-gradient(circle at 70% 45%, #185c66 0%, #0e3e47 44%, #082b32 100%);
-  background-size: 32px 32px, 32px 32px, auto;
+  background: radial-gradient(circle at 70% 45%, #185c66 0%, #0e3e47 44%, #082b32 100%);
   color: #fff9ed;
 }
 
@@ -6831,8 +6732,7 @@ button.iso-product-row {
   display: grid;
   place-items: center;
   padding: 40px;
-  background: linear-gradient(rgba(16, 63, 72, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 63, 72, .045) 1px, transparent 1px), #f7eddb;
-  background-size: 28px 28px;
+  background: #f7eddb;
 }
 
 .admin-login-form {
@@ -6974,8 +6874,7 @@ button.iso-product-row {
   place-items: center;
   overflow: hidden;
   padding: 24px;
-  background: linear-gradient(rgba(16, 63, 72, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 63, 72, .055) 1px, transparent 1px), #f7eddb;
-  background-size: 30px 30px;
+  background: #f7eddb;
 }
 
 .splash-loading-panel {
@@ -7277,11 +7176,8 @@ button.iso-product-row {
 }
 
 .admin-login-form-wrap {
-  background:
-    linear-gradient(rgba(16, 63, 72, .038) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 63, 72, .038) 1px, transparent 1px),
-    #edf4f2;
-  background-size: 28px 28px;
+  /* The page's Pale shows through (.admin-login-shell is .sp-page.sp-ground-pale); no grid (prompt 12 §1.2). */
+  background: transparent;
 }
 
 .admin-login-form {
@@ -7302,7 +7198,8 @@ button.iso-product-row {
 }
 
 .fintech-admin-shell {
-  background: #edf4f2 !important;
+  /* Pale, top to bottom, fixed to the window, no grid (Sky, 18 Oct; prompt 12 §1.2). The root is .sp-page. */
+  background: linear-gradient(180deg, var(--sp-pale), var(--sp-pale-2)) fixed !important;
 }
 
 /* Responsive composition guardrails. These final rules intentionally own the
