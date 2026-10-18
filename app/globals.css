@@ -7,6 +7,7 @@
 @import "../styles/landing-p12.css";
 @import "../styles/auth-p12.css";
 @import "../styles/wc-p12.css";
+@import "../styles/receipt-print.css";
 @import "../styles/mobile-landing.css";
 @import "../styles/landing.css";
 /* Look 9 (prompt 10 §2): the redesigned dashboard's parts. Every rule is scoped to `.iso`. */

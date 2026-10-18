@@ -1,0 +1,47 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Printing a receipt or a statement (prompt 12 §5.4, §5.5): only the A4 page,
+   on A4 with 14 mm margins and page numbers in the page's margin box. Kept out
+   of styles/iso-ui.css because it reaches above the .iso scope: every element
+   on the way down to the page keeps its box but loses its layout (the shell's
+   grid, its padding, its ground), and everything beside that path is hidden:
+   the sidebar, the top row, the page title, the buttons, the floating Zeke.
+   A browser without margin boxes prints no page numbers; nothing fakes them.
+   ───────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+    }
+  }
+
+  html:has(.iso-a4),
+  body:has(.iso-a4) {
+    background: none !important;
+  }
+
+  body:has(.iso-a4) > :not(:has(.iso-a4)),
+  body:has(.iso-a4) :has(.iso-a4) > :not(:has(.iso-a4)):not(.iso-a4) {
+    display: none !important;
+  }
+
+  body:has(.iso-a4) :has(.iso-a4) {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+}

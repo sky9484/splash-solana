@@ -73,7 +73,7 @@ export async function companyForRequest(request: Request): Promise<{ ctx: Compan
   const { getDb } = await import('@/lib/db/client');
   const q = getDb();
   const [[org], [user], device, vault] = await Promise.all([
-    q.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, auth.member.orgId)).limit(1),
+    q.select({ name: organizations.name, city: organizations.addressCity, state: organizations.addressState, country: organizations.addressCountry }).from(organizations).where(eq(organizations.id, auth.member.orgId)).limit(1),
     q.select({ name: users.name }).from(users).where(eq(users.id, auth.member.userId)).limit(1),
     findActiveDevice(db, auth.member),
     findOrgVault(db, auth.member.orgId),
@@ -91,7 +91,15 @@ export async function companyForRequest(request: Request): Promise<{ ctx: Compan
     session: auth.session,
   };
   await loadCompany(ctx.orgId);
-  await syncAccountCompany({ orgId: ctx.orgId, companyName: ctx.companyName, personName: ctx.personName, vault: vault ? toServiceVault(vault) : null, deviceKey: ctx.deviceKey });
+  await syncAccountCompany({
+    orgId: ctx.orgId,
+    companyName: ctx.companyName,
+    personName: ctx.personName,
+    vault: vault ? toServiceVault(vault) : null,
+    deviceKey: ctx.deviceKey,
+    // Where the company is registered: the receipt's "Paid by" and the auditor sheet's default country.
+    place: org ? { city: org.city ?? null, state: org.state ?? null, country: org.country ?? null } : null,
+  });
   return { ctx, response: null };
 }
 

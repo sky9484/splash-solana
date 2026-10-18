@@ -16,6 +16,7 @@ const OWN_CHECK = new Set([
   'app/api/solana/recipients/route.ts', // createRecipient refuses a viewer's call-back
   'app/api/solana/recipients/[id]/verify/route.ts', // verifyRecipient refuses a viewer
   'app/api/solana/receipts/[id]/share/route.ts', // makes a read-only link to a receipt
+  'app/api/solana/receipts/[id]/share/revoke/route.ts', // owner or admin (mayRevealBankNumbers), stops a link
   'app/api/solana/treasury/eligibility/route.ts', // owner only
   'app/api/solana/treasury/sweep/route.ts', // owner only
   'app/api/solana/treasury/orders/quote/route.ts', // a price, changes nothing

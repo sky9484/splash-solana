@@ -2170,3 +2170,177 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-receipt__tamper { display: none !important; }
   .iso .iso-receipt .iso-surface { box-shadow: none; }
 }
+
+/* ── The receipt as a document (prompt 12 §5.4, preview tab 5) ─────────────
+   One A4 page for the company's receipt, the auditor's shared page and Download
+   PDF. Labels in sentence case; mono only for identifiers. Tables stack on a
+   phone. Printing keeps only this page (the print block below). */
+.iso .iso-a4 { position: relative; width: 100%; max-width: 820px; margin-inline: auto; padding: 48px 52px; border-radius: 8px; background: var(--surface); color: var(--ink-deep); box-shadow: var(--lift-2); font-size: var(--iso-13); line-height: 1.5; overflow: hidden; }
+.iso .iso-a4--test::after { position: absolute; inset: 0; display: grid; place-items: center; content: "Test mode" / ""; color: var(--grid); font-size: 90px; font-weight: 900; letter-spacing: .06em; pointer-events: none; transform: rotate(-24deg); white-space: nowrap; }
+
+.iso .iso-a4__seal { position: absolute; top: 48px; right: 52px; display: flex; width: 128px; height: 128px; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 10px; border: 3px solid var(--line-strong); border-radius: 50%; color: var(--text-2); font-size: 12px; font-weight: 800; line-height: 1.2; text-align: center; transform: rotate(-8deg); }
+.iso .iso-a4__seal b { font-size: 14px; }
+.iso .iso-a4__seal--ok { border-color: var(--ok-ink); color: var(--ok-ink); }
+.iso .iso-a4__seal--ok b { font-size: 16px; }
+.iso .iso-a4__brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 900; letter-spacing: -.02em; }
+.iso .iso-a4__logo { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--paper); }
+.iso .iso-a4__logo img { width: 24px; height: auto; }
+.iso .iso-a4 .iso-a4__title { margin: 22px 0 0; max-width: calc(100% - 150px); font-size: 30px; font-weight: 900; letter-spacing: -.03em; line-height: 1.1; color: var(--ink-deep); }
+.iso .iso-a4__meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; max-width: calc(100% - 150px); font-size: 12.5px; color: var(--text-2); }
+.iso .iso-a4__parties { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
+.iso .iso-a4__amounts { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+.iso .iso-a4__block { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 20px; background: var(--ground-2); overflow-wrap: anywhere; }
+.iso .iso-a4__block strong { font-size: var(--iso-15); }
+.iso .iso-a4__block--cyan { background: var(--cyan); color: var(--on-cyan); }
+.iso .iso-a4__label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-a4__block--cyan .iso-a4__label,
+.iso .iso-a4__block--cyan .iso-a4__sub { color: var(--on-cyan-2); }
+.iso .iso-a4__fig { margin-top: 2px; font-size: 28px; font-weight: 900; letter-spacing: -.03em; line-height: 1.15; }
+.iso .iso-a4__fig--sm { font-size: 22px; }
+.iso .iso-a4__sub { display: flex; flex-direction: column; font-size: 12px; color: var(--text-2); }
+.iso .iso-a4__table { width: 100%; margin-top: 24px; border-collapse: collapse; font-size: 12.5px; }
+.iso .iso-a4__table thead th { padding: 6px 10px 6px 0; border-bottom: 1.5px solid var(--ink-deep); font-size: 12px; font-weight: 700; color: var(--text-2); text-align: left; }
+.iso .iso-a4__table tbody th,
+.iso .iso-a4__table td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.iso .iso-a4__table tbody th { width: 19%; font-weight: 700; color: var(--text-2); }
+.iso .iso-a4__refs { border-top: 1.5px solid var(--ink-deep); }
+.iso .iso-a4__times td:nth-child(2) { white-space: nowrap; }
+.iso .iso-a4__evidence { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
+.iso .iso-a4__check { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 18px; margin-top: 24px; padding: 14px 16px; border-radius: 20px; background: var(--ground-2); }
+.iso .iso-a4__qr { display: block; width: 112px; height: 112px; padding: 8px; border-radius: 12px; background: var(--white); }
+.iso .iso-a4__qr svg { display: block; width: 100%; height: 100%; }
+.iso .iso-a4 .iso-a4__h3 { margin: 0; font-size: var(--iso-14); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-a4__p { margin: 4px 0 0; font-size: 12.5px; color: var(--text-2); }
+.iso .iso-a4__url { overflow-wrap: anywhere; color: var(--ink-deep); }
+.iso .iso-a4__ids { display: flex; flex-direction: column; margin: 6px 0 0; font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
+.iso .iso-a4__foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--text-2); }
+@media screen and (max-width: 760px) {
+  .iso .iso-a4 { padding: 28px 20px; }
+  .iso .iso-a4__seal { position: static; margin: 0 0 14px; transform: none; }
+  .iso .iso-a4__title,
+  .iso .iso-a4__meta { max-width: none; }
+  .iso .iso-a4__parties,
+  .iso .iso-a4__amounts,
+  .iso .iso-a4__check { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-a4--test::after { font-size: 56px; }
+  /* Tables become label and value rows. */
+  .iso .iso-a4__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .iso .iso-a4__table tbody tr { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); border-bottom: 1px solid var(--line-soft); }
+  .iso .iso-a4__table tbody th,
+  .iso .iso-a4__table td { width: auto; border-bottom: 0; }
+  .iso .iso-a4__times tbody tr { padding: 6px 0; }
+  .iso .iso-a4__times td { padding: 2px 0; }
+  .iso .iso-a4__times td::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 700; color: var(--text-2); }
+  .iso .iso-a4__times td:first-child { grid-column: 1 / -1; font-weight: 700; }
+  .iso .iso-a4__times td:first-child::before { content: none; }
+}
+
+/* Printed (styles/receipt-print.css keeps only this page): no shadow, colours kept, blocks unbroken. */
+@media print {
+  .iso .iso-a4 { max-width: none; padding: 0; border-radius: 0; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .iso .iso-a4 * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .iso .iso-a4__block,
+  .iso .iso-a4__check,
+  .iso .iso-a4__table tr { break-inside: avoid; }
+  /* A little tighter on paper, so a payment's receipt fits one A4 page. */
+  .iso .iso-a4 .iso-a4__title { margin-top: 14px; }
+  .iso .iso-a4__parties { margin-top: 18px; }
+  .iso .iso-a4__amounts { margin-top: 10px; }
+  .iso .iso-a4__block { padding: 10px 14px; }
+  .iso .iso-a4__table { margin-top: 16px; }
+  .iso .iso-a4__table thead th,
+  .iso .iso-a4__table tbody th,
+  .iso .iso-a4__table td { padding-top: 5px; padding-bottom: 5px; }
+  .iso .iso-a4__check { margin-top: 16px; padding: 10px 14px; }
+  .iso .iso-a4__qr { width: 96px; height: 96px; }
+  .iso .iso-a4__foot { margin-top: 16px; }
+  .iso .iso-a4__table { font-size: 12px; }
+  .iso .iso-a4__times thead th:nth-child(1) { width: 31%; }
+  .iso .iso-a4__times thead th:nth-child(2) { width: 21%; }
+  .iso .iso-a4__times thead th:nth-child(3) { width: 26%; }
+}
+@media (max-width: 640px) {
+  .iso .iso-r5__id .iso-iconbtn { flex-basis: 44px; width: 44px; height: 44px; }
+  /* On a phone the label sits above its value, and the value has the full width. */
+  .iso .iso-r5__row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .iso .iso-r5__row dd { align-items: flex-start; text-align: left; }
+}
+
+/* ── The receipt page's actions, above the A4 page ─────────────────────── */
+.iso .iso-r-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; max-width: 820px; margin-inline: auto; }
+.iso .iso-r-actions__tags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+
+/* ── Share this receipt (prompt 12 §5.3) ───────────────────────────────── */
+.iso-sheet-root .iso-share__sub { display: block; margin-top: 2px; font-size: var(--iso-13); font-weight: 600; color: var(--text-2); }
+.iso-sheet-root .iso-share__country { display: flex; flex-direction: column; gap: 8px; }
+.iso-sheet-root .iso-share__label { font-size: var(--iso-13); font-weight: 700; color: var(--text-2); }
+.iso-sheet-root .iso-share__opts { display: flex; flex-direction: column; gap: 8px; }
+.iso-sheet-root .iso-share__opt { display: flex; min-height: 52px; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink-deep); font: inherit; font-size: var(--iso-14); font-weight: 700; text-align: left; cursor: pointer; }
+.iso-sheet-root .iso-share__opt svg { flex: 0 0 auto; color: var(--teal); }
+.iso-sheet-root .iso-share__opt--on { border-color: var(--teal); background: var(--mint-wash-2); box-shadow: inset 0 0 0 1px var(--teal); }
+.iso-sheet-root .iso-share__opttitle { flex: 1 1 auto; }
+.iso-sheet-root .iso-share__opt:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 2px; }
+.iso-sheet-root .iso-share__panel { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 20px; background: var(--ground-2); }
+.iso-sheet-root .iso-share__panel .iso-body,
+.iso-sheet-root .iso-share__panel .iso-small { margin: 0; }
+.iso-sheet-root .iso-share__url { margin: 0; font-size: var(--iso-13); color: var(--ink-deep); overflow-wrap: anywhere; }
+
+/* ── The auditor's shared page (prompt 12 §5.4) ────────────────────────── */
+.iso.iso-shared { min-height: 100dvh; padding: 24px 16px 40px; }
+.iso .iso-shared__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; max-width: 920px; margin: 0 auto 20px; }
+.iso .iso-shared__brand { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; color: var(--ink-deep); font-size: 19px; font-weight: 900; letter-spacing: -.02em; text-decoration: none; }
+.iso .iso-shared__brand img { width: 30px; height: auto; }
+.iso .iso-shared__what { font-size: var(--iso-14); font-weight: 700; color: var(--text-2); }
+.iso .iso-shared__note { margin: 24px auto 0; max-width: 920px; font-size: var(--iso-13); color: var(--text-2); text-align: center; }
+@media print {
+  .iso .iso-shared__head,
+  .iso .iso-shared__note { display: none !important; }
+  .iso.iso-shared { padding: 0; background: none; }
+}
+
+/* ── The monthly statement (prompt 12 §5.5): the receipt's page, a summary and the lines ── */
+.iso .iso-stmtpick__row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.iso .iso-stmtpick__row > :first-child { flex: 1 1 220px; min-width: 0; }
+.iso .iso-stmtpick__account { display: flex; flex-direction: column; gap: 6px; }
+.iso .iso-stmtpick__label { font-size: var(--iso-14); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-a4 .iso-stmt__title,
+.iso .iso-stmt__meta { max-width: none; }
+.iso .iso-stmt__summary { max-width: 420px; }
+.iso .iso-stmt__summary tbody th { width: auto; }
+.iso .iso-stmt__summary td { text-align: right; }
+.iso .iso-stmt__total th,
+.iso .iso-stmt__total td { font-weight: 800; color: var(--ink-deep); }
+.iso .iso-stmt__lines .iso-r { text-align: right; }
+.iso .iso-stmt__lines td:first-child { white-space: nowrap; }
+.iso .iso-stmt__empty { margin: 24px 0 0; padding: 14px 16px; border-radius: 20px; background: var(--ground-2); font-size: var(--iso-14); font-weight: 700; color: var(--ink-deep); }
+@media screen and (max-width: 760px) {
+  .iso .iso-stmt__summary { max-width: none; }
+  .iso .iso-stmt__summary tbody tr { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .iso .iso-stmt__lines td { padding: 2px 0; text-align: left; }
+  .iso .iso-stmt__lines .iso-r { text-align: left; }
+  .iso .iso-stmt__lines tbody tr { padding: 6px 0; }
+  .iso .iso-stmt__lines td::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 700; color: var(--text-2); }
+  .iso .iso-stmt__lines td:nth-child(2) { grid-column: 1 / -1; font-weight: 700; }
+  .iso .iso-stmt__lines td:nth-child(2)::before { content: none; }
+}
+/* A date stays on one line inside a wrapping value. */
+.iso .iso-r5__row dd time,
+.iso .iso-a4__block time { white-space: nowrap; }
+.iso-sheet-root .iso-share__country .iso-seg { display: grid; max-width: 360px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media screen and (max-width: 760px) {
+  /* Stacked, a time wraps inside its own cell. */
+  .iso .iso-a4__times td:nth-child(2),
+  .iso .iso-stmt__lines td:first-child { white-space: normal; }
+}
+@media screen and (max-width: 760px) {
+  .iso .iso-a4__times td:nth-child(4) { grid-column: 1 / -1; }
+}
+/* The statement's lines: twelve-pixel type, figures never broken. */
+.iso .iso-stmt__lines { font-size: 12px; }
+.iso .iso-stmt__lines .iso-r { white-space: nowrap; }
+.iso .iso-stmt .iso-a4__foot { flex-direction: column; gap: 4px; }
+.iso .iso-stmt__lines td:nth-child(3) { white-space: nowrap; }
+@media screen and (max-width: 760px) {
+  .iso .iso-stmt__lines td:nth-child(3) { white-space: normal; }
+}
+.iso .iso-stmtpick > .iso-small { margin: 2px 0 12px; }

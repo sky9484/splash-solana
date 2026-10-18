@@ -27,6 +27,12 @@ export interface ShareRecord {
   createdAt: string;
   createdBy: string;
   revokedAt: string | null;
+  /**
+   * When the link stops opening (prompt 12 D7: 90 days after it was made). Absent on links made before
+   * expiry existed: those keep working until someone stops sharing them. A JSON field in the document,
+   * so no migration.
+   */
+  expiresAt?: string;
 }
 
 /** 'request' and 'paylink' (drizzle/0036): a company's payment requests, and the links someone else pays one by. */
