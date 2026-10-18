@@ -164,8 +164,9 @@ export function Balance() {
             <p className="iso-small" style={{ margin: 0 }}>
               Pay US dollars in from your company bank account or card. It lands in your Payments account.
             </p>
+            {/* One button style for the row (prompt 12 B10): all quiet, the header's Add money being the page's one primary. */}
             <div className="iso-addcard__act">
-              <IsoButton variant="primary" onClick={() => add('bank_card')}>
+              <IsoButton variant="quiet" onClick={() => add('bank_card')}>
                 Top up
               </IsoButton>
             </div>

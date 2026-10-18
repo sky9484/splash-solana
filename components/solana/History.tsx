@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { tabPanelProps, Tabs } from '@/components/iso';
 import { Tag } from '@/components/iso/Tag';
 import { stationLabel, stationOf, STATIONS, type StationId } from '@/lib/solana-app/stations';
 
@@ -85,99 +86,93 @@ export function History() {
           <Link href="/dashboard/history">Show all payments</Link>
         </p>
       ) : null}
-      <div className="sx-row" style={{ justifyContent: 'space-between' }}>
-        <div className="sx-segmented" role="group" aria-label="Show payments">
-          {FILTERS.map((f) => {
-            const count = rows.filter(f.test).length;
-            return (
-              <button key={f.key} type="button" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
-                {f.label} <span className="sx-num">({count})</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* The filters are the Invoices tabs (prompt 12 §6.1), each with its live count; the list below is their panel. */}
+      <div className="sx-row iso-hist__bar">
+        <Tabs label="Show payments" prefix="hist" items={FILTERS.map((f) => ({ id: f.key, label: f.label, count: rows.filter(f.test).length }))} value={filter} onChange={setFilter} />
         <button type="button" className="sx-btn sx-btn-ghost" onClick={download} disabled={shown.length === 0}>
           Download CSV
         </button>
       </div>
 
-      {shown.length === 0 ? (
-        <section className="sx-card sx-stack">
-          <p className="sx-muted">{rows.length === 0 ? 'No payments yet.' : 'No payments match this filter.'}</p>
-          {rows.length === 0 ? (
-            <div>
-              <Link className="sx-btn" href="/dashboard/invoices">
-                Pay an invoice
-              </Link>{' '}
-              <Link className="sx-btn sx-btn-ghost" href="/dashboard/transfer">
-                Transfer
-              </Link>
-            </div>
-          ) : null}
-        </section>
-      ) : (
-        <div className="sx-card sx-table-wrap bg-white">
-          <table className="sx-table">
-            <caption className="sx-visually-hidden">Payments, newest first</caption>
-            <thead>
-              <tr>
-                <th scope="col">Paid to</th>
-                <th scope="col" className="sx-num-col">
-                  They receive
-                </th>
-                <th scope="col" className="sx-num-col">
-                  You paid
-                </th>
-                <th scope="col">State</th>
-                <th scope="col">
-                  <span className="sx-visually-hidden">Open</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <strong>{p.supplierName || 'Supplier'}</strong>{' '}
-                    <span className="sx-chip">{p.kind === 'transfer' ? 'Transfer' : 'Invoice'}</span>
-                    <span className="sx-small sx-muted" style={{ display: 'block' }}>
-                      {p.invoiceNumber ?? 'Invoice not confirmed'} · {dateShort(p.createdAt)} {timeShort(p.createdAt)}
-                    </span>
-                  </td>
-                  {/* A business on Splash gets US$, exactly what was sent; a bank gets pesos. */}
-                  <td className="sx-num-col" data-label="They receive">{p.paymentKind === 'peer' ? (p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : '—') : php(p.amountPhpMinor)}</td>
-                  <td className="sx-num-col" data-label="You paid">{p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : <span className="sx-muted">No route yet</span>}</td>
-                  <td>
-                    <StatusPill state={p.state} label={p.stateLabel} />
-                    {p.problem ? (
-                      <span className="sx-small" style={{ display: 'block', marginTop: 4 }}>
-                        {p.problem.message}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td>
-                    {p.receiptId ? (
-                      <Link href={`/dashboard/receipts/${p.receiptId}`}>
-                        Receipt<span className="sx-visually-hidden"> for {p.supplierName}</span>
-                      </Link>
-                    ) : (
-                      <Link href={payHref(p)}>
-                        {p.awaitingApproval ? 'Approve' : 'Open'}
-                        <span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
-                      </Link>
-                    )}
-                    {p.discardable ? (
-                      <span style={{ display: 'block', marginTop: 4 }}>
-                        <DiscardButton paymentId={p.id} name={p.supplierName || 'the supplier'} />
-                      </span>
-                    ) : null}
-                  </td>
+      <div {...tabPanelProps('hist', filter)} className="iso-tabpanel sx-stack-lg">
+        {shown.length === 0 ? (
+          <section className="sx-card sx-stack">
+            <p className="sx-muted">{rows.length === 0 ? 'No payments yet.' : 'No payments match this filter.'}</p>
+            {rows.length === 0 ? (
+              <div>
+                <Link className="sx-btn" href="/dashboard/invoices">
+                  Pay an invoice
+                </Link>{' '}
+                <Link className="sx-btn sx-btn-ghost" href="/dashboard/transfer">
+                  Transfer
+                </Link>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <div className="sx-card sx-table-wrap bg-white">
+            <table className="sx-table">
+              <caption className="sx-visually-hidden">Payments, newest first</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Paid to</th>
+                  <th scope="col" className="sx-num-col">
+                    They receive
+                  </th>
+                  <th scope="col" className="sx-num-col">
+                    You paid
+                  </th>
+                  <th scope="col">State</th>
+                  <th scope="col">
+                    <span className="sx-visually-hidden">Open</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {shown.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <strong>{p.supplierName || 'Supplier'}</strong>{' '}
+                      <span className="sx-chip">{p.kind === 'transfer' ? 'Transfer' : 'Invoice'}</span>
+                      <span className="sx-small sx-muted" style={{ display: 'block' }}>
+                        {p.invoiceNumber ?? 'Invoice not confirmed'} · {dateShort(p.createdAt)} {timeShort(p.createdAt)}
+                      </span>
+                    </td>
+                    {/* A business on Splash gets US$, exactly what was sent; a bank gets pesos. */}
+                    <td className="sx-num-col" data-label="They receive">{p.paymentKind === 'peer' ? (p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : '—') : php(p.amountPhpMinor)}</td>
+                    <td className="sx-num-col" data-label="You paid">{p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : <span className="sx-muted">No route yet</span>}</td>
+                    <td>
+                      <StatusPill state={p.state} label={p.stateLabel} />
+                      {p.problem ? (
+                        <span className="sx-small" style={{ display: 'block', marginTop: 4 }}>
+                          {p.problem.message}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td>
+                      {p.receiptId ? (
+                        <Link href={`/dashboard/receipts/${p.receiptId}`}>
+                          Receipt<span className="sx-visually-hidden"> for {p.supplierName}</span>
+                        </Link>
+                      ) : (
+                        <Link href={payHref(p)}>
+                          {p.awaitingApproval ? 'Approve' : 'Open'}
+                          <span className="sx-visually-hidden"> the payment to {p.supplierName}</span>
+                        </Link>
+                      )}
+                      {p.discardable ? (
+                        <span style={{ display: 'block', marginTop: 4 }}>
+                          <DiscardButton paymentId={p.id} name={p.supplierName || 'the supplier'} />
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {orders.length > 0 && filter === 'all' && !station ? (
         <section className="sx-card sx-stack" aria-labelledby="history-treasury">

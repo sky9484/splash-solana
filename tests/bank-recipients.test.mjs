@@ -75,6 +75,15 @@ test('a recipient checked now is payable; the list shows last4, the check, and w
   const ownerView = await listRecipients(org.id, OWNER);
   assert.equal(ownerView.recipients[0].canReveal, true);
   assert.equal(ownerView.recipients[0].lastPaid, 'Not paid yet');
+  // Prompt 12 §6.1: what the Recipients page shows, as data: the country, when and how it was checked, and the
+  // last amount paid (none yet).
+  const row = ownerView.recipients[0];
+  assert.equal(row.country, 'Philippines');
+  assert.equal(row.verifiedBy, 'call-back');
+  assert.ok(row.verifiedAt && !Number.isNaN(Date.parse(row.verifiedAt)), 'the moment of the call-back');
+  assert.equal(row.verifiedAt, s.verified.at);
+  assert.equal(row.lastPaidAt, null);
+  assert.equal(row.lastPaidPhpMinor, null);
   assert.equal((await listRecipients(org.id, MAKER)).recipients[0].canReveal, false, 'a maker sees no "Show number"');
   assert.ok(ownerView.banks.some((b) => b.code === 'BDO' && b.rails === 'InstaPay and PESONet' && b.hint === '10 or 12 digits for BDO Unibank'));
   await assert.rejects(createRecipient(org.id, manila({ name: 'Manila Freight (again)' }), OWNER), (e) => e.status === 409 && /already saved, as Manila Freight Services/.test(e.message), 'the same account twice is one recipient');
@@ -85,6 +94,8 @@ test('saved to check later: it can’t be paid; after the call-back it pays, and
   const r = await createRecipient(org.id, manila({ check: { when: 'later' } }), OWNER);
   assert.equal(r.payable, false);
   assert.equal(r.status, 'Not verified');
+  assert.equal(r.verifiedAt, null, 'not checked: no date to show');
+  assert.equal(r.verifiedBy, null);
 
   const pay = async () => {
     const inv = svc.startTransfer(org.id, { recipientId: r.id, amountPhpMinor: '5000000', by: 'Aisyah' });

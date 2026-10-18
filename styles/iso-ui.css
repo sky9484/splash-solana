@@ -1867,9 +1867,15 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-desk__count--coral dt { color: var(--coral-ink); }
 .iso .iso-desk__count--amber { border-color: var(--amber-line); }
 .iso .iso-desk__count--amber dt { color: var(--amber-ink); }
-.iso .iso-desk__chat { display: flex; flex-direction: column; }
+/* Prompt 12 B2: the chat is a fixed height, min(64vh, 560px), and its log scrolls inside. The right
+   column sets the row's height; beside it on a wide screen the chat stays in view (sticky under the
+   header bar) while that column scrolls past. */
+.iso .iso-desk__chat { display: flex; flex-direction: column; height: min(64vh, 560px); align-self: flex-start; position: sticky; top: 88px; }
+@media (max-width: 720px) {
+  .iso .iso-desk__chat { position: static; }
+}
 .iso .iso-desk__ask { padding: 20px 22px 0; }
-.iso .iso-desk__thread { display: flex; flex-direction: column; gap: 12px; padding: 16px 22px 18px; min-height: 420px; max-height: 62vh; overflow-y: auto; }
+.iso .iso-desk__thread { display: flex; flex-direction: column; gap: 12px; flex: 1 1 0; min-height: 0; padding: 16px 22px 18px; overflow-y: auto; overscroll-behavior: contain; }
 .iso .iso-desk__thread .iso-zk__msg { max-width: 92%; }
 .iso .iso-desk__draft { max-width: 92%; background: var(--white); }
 .iso .iso-desk__chips { padding: 0 22px 12px; }
@@ -1895,7 +1901,7 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 @media (max-width: 720px) {
   .iso .iso-desk__counts { width: 100%; }
   .iso .iso-desk__count { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
-  .iso .iso-desk__thread { min-height: 280px; padding: 14px 16px; }
+  .iso .iso-desk__thread { padding: 14px 16px; }
   .iso .iso-desk__ask, .iso .iso-desk__chips, .iso .iso-desk__foot { padding-left: 16px; padding-right: 16px; }
   .iso .iso-desk__roster tr { grid-template-columns: minmax(0, 1fr); }
 }
@@ -2035,7 +2041,6 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-search__box { border-radius: 30px; padding: 0 14px 0 18px; }
 .iso .iso-search__key { border-radius: 6px; }
 .iso.iso-toprow .iso-ratestrip { flex: 0 1 auto; border-radius: 30px; padding: 7px 16px; flex-wrap: nowrap; white-space: nowrap; }
-.iso.iso-toprow .iso-ratestrip > span:not(:first-of-type) { display: none; }
 .iso .iso-profile__initials { border-radius: 50%; }
 .iso.iso-toprow .iso-profile { flex: 0 0 auto; padding-left: 14px; border-left: 1px solid var(--surface-line); }
 @media (min-width: 768px) and (max-width: 1180px) {
@@ -2344,3 +2349,102 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-stmt__lines td:nth-child(3) { white-space: normal; }
 }
 .iso .iso-stmtpick > .iso-small { margin: 2px 0 12px; }
+
+/* ── Prompt 12 Phase 6: Recipients ───────────────────────────────────── */
+/* The saved bank recipients: one row each, the name over its bank, the check and the last payment. */
+.iso .iso-rcp__head .iso-h2 { margin: 0; }
+.iso .iso-rcp__count { font-weight: 400; color: var(--text-2); }
+.iso .iso-rcp__search { flex: 0 1 320px; min-width: 220px; }
+.iso .iso-rcp__search .iso-field { margin: 0; }
+.iso .iso-rcp td:first-child, .iso .iso-rcp th:first-child { padding-left: 22px; }
+.iso .iso-rcp td:last-child, .iso .iso-rcp th:last-child { padding-right: 22px; }
+.iso .iso-rcp td { vertical-align: middle; }
+.iso .iso-rcp strong { font-size: var(--iso-15); }
+.iso .iso-rcp__sub { display: block; margin-top: 2px; font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-rcp__checked { font-size: var(--iso-14); font-weight: 700; color: var(--ok-ink); }
+.iso .iso-rcp__date { white-space: nowrap; }
+.iso .iso-rcp__unchecked { display: inline-flex; align-items: center; gap: 8px; font-size: var(--iso-14); font-weight: 700; color: var(--coral-ink); }
+.iso .iso-rcp__unchecked i { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--coral); border: 1.5px solid var(--ink-deep); }
+@media (max-width: 640px) {
+  .iso .iso-rcp tr { padding: 14px 22px; grid-template-columns: minmax(0, 1fr) auto; }
+  .iso .iso-rcp td:first-child { grid-column: 1; grid-row: 1; padding-left: 0; }
+  .iso .iso-rcp td:last-child { grid-column: 2; grid-row: 1; padding-right: 0; align-self: center; }
+  .iso .iso-rcp td.iso-num { text-align: right; }
+}
+
+/* The wallet lane of a USDC-only launch. */
+.iso .iso-wallet__form { display: grid; gap: 16px; margin: 16px 0; }
+.iso .iso-wallet__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+@media (min-width: 761px) {
+  .iso .iso-wallet__form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .iso .iso-wallet__wide { grid-column: 1 / -1; }
+}
+
+/* ── Prompt 12 Phase 6: Batch payout ─────────────────────────────────── */
+.iso .iso-batch__file { cursor: pointer; }
+.iso .iso-batch__file:focus-within { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+.iso .iso-batch__start { align-items: stretch; }
+.iso .iso-field__control textarea.iso-batch__paste { font-family: var(--font-mono); font-size: var(--iso-14); min-height: 140px; }
+.iso .iso-batch__fix ul { margin: 6px 0 0; padding-left: 18px; }
+.iso .iso-batch__fix { flex-direction: column; gap: 0; }
+.iso .iso-batch__sumhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.iso .iso-batch__big { font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-batch__exact { display: block; margin-top: 2px; }
+.iso .iso-batch__checks { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.iso .iso-batch__checks li { display: flex; gap: 10px; align-items: flex-start; font-size: var(--iso-14); line-height: 1.5; color: var(--ink); }
+.iso .iso-batch__checks li > svg { flex: 0 0 auto; margin-top: 3px; }
+.iso .iso-batch__checks li.is-ok > svg { color: var(--teal); }
+.iso .iso-batch__checks li.is-no > svg { color: var(--danger-ink); }
+.iso .iso-batch__chunks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 22px; align-items: start; }
+.iso .iso-batch__calls { margin: 0; padding: 0; list-style: none; font-size: var(--iso-13); line-height: 1.6; color: var(--ink); }
+.iso .iso-batch__approve { max-width: 640px; }
+.iso .iso-batch__rows td:first-child, .iso .iso-batch__rows th:first-child { padding-left: 22px; }
+.iso .iso-batch__rows td:last-child, .iso .iso-batch__rows th:last-child { padding-right: 22px; }
+.iso .iso-batch__sub { display: block; margin-top: 2px; font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-batch__foot { margin: 0; padding: 14px 22px 18px; border-top: 1px solid var(--line-soft); max-width: none; }
+@media (max-width: 640px) {
+  .iso .iso-batch__rows tr { padding: 14px 22px; }
+  .iso .iso-batch__rows td:first-child { padding-left: 0; }
+  .iso .iso-batch__rows td:last-child { padding-right: 0; }
+}
+
+/* ── Prompt 12 Phase 6: Settings' tabs, as links in the Invoices tabs' style ── */
+/* The ink rule is drawn inside the row (an inset line), so the row can scroll sideways on a phone
+   without clipping the teal underline of the current tab. */
+.iso.iso-settabs { width: 100%; max-width: 1240px; margin: 0 auto 22px; }
+.iso.iso-settabs .iso-tabs {
+  margin: 0; padding: 0; list-style: none;
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
+  border-bottom: 0; box-shadow: inset 0 -2px 0 var(--ink-deep);
+}
+.iso.iso-settabs .iso-tabs > li { flex: 0 0 auto; }
+.iso.iso-settabs .iso-tabs__tab { display: inline-flex; align-items: center; margin-bottom: 0; white-space: nowrap; text-decoration: none; }
+.iso.iso-settabs .iso-tabs__tab:hover { color: var(--ink-deep); }
+.iso.iso-settabs .iso-tabs__tab[aria-current="page"] { color: var(--ink-deep); border-bottom-color: var(--teal); background: var(--paper); }
+.iso.iso-settabs .iso-tabs__tab:focus-visible { outline: 2.5px solid var(--teal); outline-offset: -3px; }
+
+/* ── Prompt 12 Phase 6: History's filters, as the Invoices tabs ──────── */
+.iso .iso-hist__bar { justify-content: space-between; align-items: flex-end; gap: 12px 18px; }
+.iso .iso-hist__bar .iso-tabs { flex: 1 1 520px; min-width: 0; }
+
+/* ── Prompt 12 Phase 6: Devices, Recovery kit, Payment rules ─────────── */
+.iso .iso-devices { margin: 0; padding: 0; list-style: none; }
+.iso .iso-devices > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+.iso .iso-devices > li:last-child { border-bottom: 0; }
+.iso .iso-devices__who { min-width: 0; }
+.iso .iso-devices__role { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: var(--iso-15); color: var(--ink-deep); }
+.iso .iso-devices__key { display: block; margin-top: 4px; font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-devices__where { font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-polrules { margin: 0; padding: 0; list-style: none; }
+.iso .iso-polrules > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 20px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+.iso .iso-polrules > li:first-child { padding-top: 0; }
+.iso .iso-polrules > li:last-child { padding-bottom: 0; border-bottom: 0; }
+.iso .iso-polrules__text { font-size: var(--iso-15); line-height: 1.55; color: var(--ink); }
+.iso .iso-polrules__muted { color: var(--text-2); }
+.iso .iso-polrules__tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.iso .iso-polrules__more { display: inline-block; }
+.iso .iso-polrules__more > summary { cursor: pointer; font-weight: 700; color: var(--teal); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 640px) {
+  .iso .iso-polrules > li { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-polrules__tags { justify-content: flex-start; }
+}

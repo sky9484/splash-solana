@@ -39,6 +39,8 @@ const FALLBACK_MS = 320;
  * click, so the keyboard gets the same. The cards prefetch their whole page: the morph plays only
  * when the page renders in the same commit as the navigation, which needs its content cached (Next's
  * view-transitions guide); by default a dynamic page is prefetched only down to its loading boundary.
+ * The coins are the cut-out copies (`*-cut.png`, prompt 12 B9): their faint edge pixels carry the
+ * coin's own colours and their transparent pixels the card's cyan, so no light rim shows on the card.
  */
 export function InvoicesChooser() {
   const router = useRouter();
@@ -87,7 +89,7 @@ export function InvoicesChooserView({ summary, chosen = null, onChoose }: { summ
           <Link className={`iso-chooser__card iso-chooser__card--first iso-rise${chosen === getHref ? ' is-chosen' : ''}`} href={getHref} prefetch transitionTypes={INV_TYPES} onClick={onChoose ? (e) => onChoose(e, getHref) : undefined}>
             <span className="iso-chooser__top">
               <IsoDisplay size="lg">Get paid</IsoDisplay>
-              <Image className="iso-chooser__art iso-bob" src="/cinematic/token-usd.png" alt="" width={96} height={96} />
+              <Image className="iso-chooser__art iso-bob" src="/cinematic/token-usd-cut.png" alt="" width={96} height={96} />
             </span>
             <span className="iso-chooser__body">
               <span className="iso-chooser__lede">Send a request. A business on Splash pays in the app; anyone else pays by link.</span>
@@ -108,7 +110,7 @@ export function InvoicesChooserView({ summary, chosen = null, onChoose }: { summ
           <Link className={`iso-chooser__card iso-chooser__card--second iso-rise${chosen === payHref ? ' is-chosen' : ''}`} href={payHref} prefetch transitionTypes={INV_TYPES} onClick={onChoose ? (e) => onChoose(e, payHref) : undefined}>
             <span className="iso-chooser__top">
               <IsoDisplay size="lg">Pay an invoice</IsoDisplay>
-              <Image className="iso-chooser__art iso-bob iso-bob--late" src="/cinematic/token-php.png" alt="" width={96} height={96} />
+              <Image className="iso-chooser__art iso-bob iso-bob--late" src="/cinematic/token-php-cut.png" alt="" width={96} height={96} />
             </span>
             <span className="iso-chooser__body">
               <span className="iso-chooser__lede">Drop in a supplier&rsquo;s invoice. Zeke reads it; you check and approve.</span>

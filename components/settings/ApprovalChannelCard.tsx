@@ -150,7 +150,7 @@ export default function ApprovalChannelCard({
       {/* The security consequence sits next to the option, because choosing
           between these IS the security decision. */}
       <fieldset className="mt-4" disabled={!whatsappEnabled}>
-        <legend className="font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-[#326273]/90">
+        <legend className="text-[13px] font-bold text-[#326273]/90">
           How an approver responds
         </legend>
         <div className="mt-2 space-y-2">
@@ -178,12 +178,12 @@ export default function ApprovalChannelCard({
           <Smartphone className="h-4 w-4 text-[var(--info)]" />
           <h3 className="text-sm font-bold text-[#1F4452]">Your number</h3>
           {channel?.verified && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-[#5C9EAD]/15 px-2 py-0.5 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-[#326273]">
+            <span className="inline-flex items-center gap-1 rounded-md bg-[#5C9EAD]/15 px-2 py-0.5 text-[12px] font-bold text-[#326273]">
               <Check className="h-3 w-3" /> Confirmed
             </span>
           )}
           {channel && channel.whatsapp && !channel.verified && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-[#E39774]/20 px-2 py-0.5 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-[#9A4A2D]">
+            <span className="inline-flex items-center gap-1 rounded-md bg-[#E39774]/20 px-2 py-0.5 text-[12px] font-bold text-[#9A4A2D]">
               <ShieldAlert className="h-3 w-3" /> Not confirmed
             </span>
           )}
@@ -279,12 +279,12 @@ function ChannelOption({
         </span>
         <span className="text-sm font-bold text-[#1F4452]">{title}</span>
         {recommended && (
-          <span className="rounded-md bg-[#5C9EAD]/20 px-1.5 py-0.5 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-[#326273]">
+          <span className="rounded-md bg-[#5C9EAD]/20 px-1.5 py-0.5 text-[12px] font-bold text-[#326273]">
             Default
           </span>
         )}
         {caution && (
-          <span className="rounded-md bg-[#E39774]/20 px-1.5 py-0.5 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-[#9A4A2D]">
+          <span className="rounded-md bg-[#E39774]/20 px-1.5 py-0.5 text-[12px] font-bold text-[#9A4A2D]">
             Weaker
           </span>
         )}

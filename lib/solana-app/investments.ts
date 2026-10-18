@@ -779,17 +779,36 @@ function sweepRows(org: OrgRecord, now: Date) {
     });
 }
 
-/** Interest booked (last 7 days with any) and settled T-bill moves, newest first, at most 8. */
+/** A moment's calendar day and clock in Malaysia time (UTC+8), the app's clock (prompt 12 B4). Arithmetic, not formatting. */
+const MYT_MS = 8 * 3_600_000;
+const mytDayOf = (iso: string) => new Date(Date.parse(iso) + MYT_MS).toISOString().slice(0, 10);
+const mytClock = (iso: string) => new Date(Date.parse(iso) + MYT_MS).toISOString().slice(11, 16);
+
+/** Where a settled T-bill move went, in plain words. */
+function destinationOf(o: { kind: string; landsIn?: string | null }): string {
+  if (o.kind === 'subscribe') return 'into your Investments account';
+  if (o.landsIn === 'payments') return 'into your Payments account';
+  if (o.landsIn === 'bank_wire') return 'to your company’s bank account, by wire';
+  return 'into your Investments account';
+}
+
+/**
+ * Interest booked (last 7 days with any) and settled T-bill moves, newest first, at most 8. Each row
+ * carries its day and time in MYT and where the money went (prompt 12 B4: two "Moved out" rows on the
+ * same day were indistinguishable). Interest is booked at the close of its day.
+ */
 function activityOf(org: OrgRecord, interest: Array<{ day: string; interestMinor: bigint }>, now: Date) {
-  const today = utcDay(now);
-  const rows: Array<{ id: string; at: string; label: string; what: 'interest' | 'in' | 'out'; amountMinor: bigint; approvedKey: string | null; approvedBy: string | null }> = [];
+  const today = mytDayOf(now.toISOString());
+  const label = (at: string) => (mytDayOf(at) === today ? 'Today' : shortDay(mytDayOf(at)));
+  const rows: Array<{ id: string; at: string; label: string; time: string; to: string; what: 'interest' | 'in' | 'out'; amountMinor: bigint; approvedKey: string | null; approvedBy: string | null }> = [];
   for (const d of interest.slice(-7)) {
-    if (d.interestMinor > 0n) rows.push({ id: `int_${d.day}`, at: `${d.day}T23:59:59.000Z`, label: d.day === today ? 'Today' : shortDay(d.day), what: 'interest', amountMinor: d.interestMinor, approvedKey: null, approvedBy: null });
+    const at = `${d.day}T23:59:59.000Z`;
+    if (d.interestMinor > 0n) rows.push({ id: `int_${d.day}`, at, label: label(at), time: mytClock(at), to: 'on your T-bills, in your Investments account', what: 'interest', amountMinor: d.interestMinor, approvedKey: null, approvedBy: null });
   }
   for (const o of book(org).orders) {
     if (o.asset !== 'usdy' || o.state !== 'settled') continue;
     const at = o.settlement?.at ?? o.approval?.at ?? o.createdAt;
-    rows.push({ id: o.id, at, label: utcDay(new Date(at)) === today ? 'Today' : shortDay(at), what: o.kind === 'subscribe' ? 'in' : 'out', amountMinor: o.amountMinor, approvedKey: o.approval?.keyPublic ?? null, approvedBy: o.approval?.who ?? null });
+    rows.push({ id: o.id, at, label: label(at), time: mytClock(at), to: destinationOf(o), what: o.kind === 'subscribe' ? 'in' : 'out', amountMinor: o.amountMinor, approvedKey: o.approval?.keyPublic ?? null, approvedBy: o.approval?.who ?? null });
   }
   return rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, 8);
 }

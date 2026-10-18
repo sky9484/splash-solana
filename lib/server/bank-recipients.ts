@@ -31,19 +31,28 @@ function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
-/** When each recipient was last paid: the newest payout that reached their bank. */
-async function lastPaidBy(orgId: string): Promise<Map<string, string>> {
+/** A recipient's last payout that reached their bank: when, and what they received (PHP centavos). */
+export interface LastPaid {
+  at: string;
+  amountPhpMinor: bigint;
+}
+
+/** When each recipient was last paid, and how much: the newest payout that reached their bank. */
+async function lastPaidBy(orgId: string): Promise<Map<string, LastPaid>> {
   const s = store();
-  const out = new Map<string, string>();
+  const out = new Map<string, LastPaid>();
   for (const p of await runtime().payments.listByOrg(orgId)) {
     const c = s.invoices.get(p.invoiceId)?.confirmed;
     const at = p.timeline.paidAt;
     if (!c || !at) continue;
     const key = `${c.supplierName}|${c.supplierBank}|${c.supplierAccountLast4}`;
-    if (!out.has(key) || out.get(key)! < at) out.set(key, at);
+    if (!out.has(key) || out.get(key)!.at < at) out.set(key, { at, amountPhpMinor: p.approval?.receivePhpMinor ?? c.amountPhpMinor });
   }
   return out;
 }
+
+/** The recipient's country, by name. The payout partner pays banks in the Philippines only. */
+const COUNTRY_NAME: Record<string, string> = { PH: 'Philippines' };
 
 /** The answers given with the last transfer to this recipient (Step 2 offers them again). Never the recipient's own details. */
 function lastAnswers(org: OrgRecord | null, s: SupplierRecord) {
@@ -51,8 +60,9 @@ function lastAnswers(org: OrgRecord | null, s: SupplierRecord) {
   return d ? { purpose: d.purpose, description: d.description, relationship: d.relationship, sourceOfFunds: d.sourceOfFunds } : null;
 }
 
-export function recipientRow(s: SupplierRecord, lastPaidAt: string | null, viewer: Viewer, org: OrgRecord | null = null) {
+export function recipientRow(s: SupplierRecord, last: LastPaid | null, viewer: Viewer, org: OrgRecord | null = null) {
   const payable = Boolean(s.verified) && !s.pendingCallBack;
+  const lastPaidAt = last?.at ?? null;
   return {
     id: s.id,
     name: s.name,
@@ -67,6 +77,11 @@ export function recipientRow(s: SupplierRecord, lastPaidAt: string | null, viewe
         : 'Not verified',
     lastPaidAt,
     lastPaid: lastPaidAt ? `Last paid ${shortDate(lastPaidAt)}` : 'Not paid yet',
+    /** Prompt 12 §6.1: the Recipients list shows these as they are. */
+    lastPaidPhpMinor: last?.amountPhpMinor ?? null,
+    country: COUNTRY_NAME[s.country ?? 'PH'] ?? s.country ?? 'Philippines',
+    verifiedAt: payable ? s.verified!.at : null,
+    verifiedBy: payable ? s.verified!.method : null,
     hasFullNumber: Boolean(s.secretId),
     canReveal: Boolean(s.secretId) && mayRevealBankNumbers(viewer),
     canRemove: viewer.isOwner,

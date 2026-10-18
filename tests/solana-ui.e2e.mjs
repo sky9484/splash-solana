@@ -233,12 +233,13 @@ async function run(page, email) {
   assert.deepEqual(groups, ['Overview', 'Pay|Transfer|Invoices|Batch payout', 'Money|Balance|Treasury|History', 'Contacts|Recipients', 'Control|Zeke']);
   assert.match((await page.text('.iso-ratestrip')).join(' '), /USD → PHP 57\.40\s*test rate/);
   assert.equal(await page.evaluate(() => document.querySelector('.iso-zk__nudge')), null, 'no nudge while nothing waits');
-  // Overview, before any money or payment (prompt 10 Phase 2): the money position says so, and the
-  // only thing that needs you is setup (the optional second approver ranks last, §4.2.4). The
-  // "Nothing needs you." state is rendered from a fixture in tests/overview-honesty.test.mjs.
+  // Overview, before any money or payment (prompt 10 Phase 2): the money position says so. The
+  // optional second approver isn't a need (prompt 12 B5) and the business is verified, so nothing
+  // needs you yet (the setup card's rule, B6, is tests/solana-shell.test.mjs).
   await page.find('heading', 'Your money, all accounts');
   await page.find('text', 'No money in your accounts yet.');
-  await page.find('text', 'Add a second approver');
+  await page.find('text', 'Nothing needs you.');
+  assert.doesNotMatch((await page.text('main')).join(' '), /Add a second approver/);
   await page.find('text', 'No payments yet.');
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('.iso-extrude')].filter((e) => e.getClientRects().length).length), 1, 'one extruded number');
   await shot('overview-empty');

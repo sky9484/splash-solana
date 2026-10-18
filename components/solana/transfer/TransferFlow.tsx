@@ -28,6 +28,7 @@ type Template = Wire<TransferTemplate>;
 
 const PAYMENT_ID = /^pay_[0-9a-f]{16}$/;
 const TEMPLATE_ID = /^tpl_[0-9a-f]{16}$/;
+const RECIPIENT_ID = /^sup_[0-9a-f-]{36}$/;
 /** Nothing has been sent: a new amount or recipient drops this draft (its record stays, "discarded"). */
 const DISCARDABLE = ['draft', 'quoted', 'checked', 'quote_expired', 'rejected_by_policy', 'proposal_failed'];
 const BEFORE_APPROVAL = ['draft', 'quoted', 'checked', 'quote_expired', 'rejected_by_policy'];
@@ -122,6 +123,8 @@ function Flow({ company }: { company: CompanyDTO }) {
   const urlPayment = rawPayment && PAYMENT_ID.test(rawPayment) ? rawPayment : null;
   const rawTemplate = params.get('template');
   const urlTemplate = rawTemplate && TEMPLATE_ID.test(rawTemplate) ? rawTemplate : null;
+  const rawRecipient = params.get('recipient');
+  const urlRecipient = rawRecipient && RECIPIENT_ID.test(rawRecipient) ? rawRecipient : null;
 
   const [recipients, setRecipients] = useState<RecipientsDTO | null>(null);
   const [recipient, setRecipient] = useState<RecipientRow | null>(null);
@@ -141,7 +144,7 @@ function Flow({ company }: { company: CompanyDTO }) {
   const [kept, setKept] = useState<{ key: string; draft: AmountDraft } | null>(null);
 
   /** Move to another step: the URL changes (Back works), the page goes to the top, the step's heading takes focus. */
-  const go = useCallback((next: { to?: To | null; step?: StepId | null; payment?: string | null; template?: null }, mode: 'push' | 'replace' = 'push') => {
+  const go = useCallback((next: { to?: To | null; step?: StepId | null; payment?: string | null; template?: null; recipient?: null }, mode: 'push' | 'replace' = 'push') => {
     const url = transferHref(new URLSearchParams(window.location.search), next);
     window.history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url);
     setProblem(null);
@@ -230,6 +233,28 @@ function Flow({ company }: { company: CompanyDTO }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- opening a template is a navigation
     if (t) void startFromTemplate(t);
   }, [urlTemplate, templates, startFromTemplate]);
+
+  // A saved recipient opened by its id (?recipient=…: "Pay …" on Recipients, prompt 12 §6.1): chosen, then
+  // Step 2, as a bank template does. One that is gone or not yet checked stays on Step 1 and says why.
+  const pickedFromUrl = useRef<string | null>(null);
+  useEffect(() => {
+    if (!urlRecipient || pickedFromUrl.current === urlRecipient) return;
+    pickedFromUrl.current = urlRecipient;
+    void (async () => {
+      try {
+        const list = recipients ?? (await api<RecipientsDTO>('/recipients'));
+        if (!recipients) setRecipients(list);
+        const r = list.recipients.find((x) => x.id === urlRecipient) ?? null;
+        if (!r) throw new Error('That recipient isn’t on your saved recipients any more. Choose another recipient.');
+        if (!r.payable) throw new Error(`${r.name}’s bank details need a call-back before they can be paid.`);
+        setRecipient(r);
+        go({ to: 'bank', step: 'amount', payment: null, template: null, recipient: null }, 'replace');
+      } catch (e) {
+        go({ to: 'bank', step: 'recipient', payment: null, template: null, recipient: null }, 'replace');
+        setProblem(problemOf(e));
+      }
+    })();
+  }, [urlRecipient, recipients, go]);
 
   // Where the money comes from follows the route being looked at (its cost is what's needed).
   const paymentId = payment?.id ?? null;

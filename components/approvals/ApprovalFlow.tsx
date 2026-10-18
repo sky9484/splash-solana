@@ -172,7 +172,7 @@ export default function ApprovalFlow({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#326273]/90">
+      <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold text-[#326273]/90">
         {whatsapp ? <MessageCircle className="h-3.5 w-3.5" /> : <MousePointerClick className="h-3.5 w-3.5" />}
         {whatsapp ? 'WhatsApp code + passkey' : 'Click to approve'}
         {!whatsapp && status.secondPersonRequired ? <span className="rounded-full bg-[#E39774]/15 px-2 py-0.5 text-[#9F5839]">second person required</span> : null}

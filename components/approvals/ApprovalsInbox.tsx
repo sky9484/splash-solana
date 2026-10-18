@@ -135,7 +135,7 @@ function InboxItem({ item, onDone }: { item: Pending; onDone: () => void }) {
   const inputId = `inbox-code-${item.id}`;
   return (
     <li className="rounded-lg border border-[#326273]/12 bg-white p-3">
-      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#326273]/90">
+      <div className="text-[13px] font-bold text-[#326273]/90">
         {PURPOSE_LABEL[item.purpose] ?? item.purpose} · asked by {item.requestedByName}
       </div>
       <p className="mt-1 text-sm leading-6 text-[#1F4452]">{item.summary}</p>

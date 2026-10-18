@@ -190,6 +190,16 @@ test('the chart is booked interest: 30 integer days, and the tiles are their sum
   // Activity: interest booked and the move in, newest first.
   assert.equal(v.activity[0].what, 'interest');
   assert.ok(v.activity.some((a) => a.what === 'in' && a.approvedKey !== null && a.approvedBy !== null && a.amountMinor === $(20_000)));
+  // Prompt 12 B4: every row has its MYT time and where the money went. Interest is booked at its day's
+  // close (23:59:59 UTC), 07:59 the next morning in Malaysia.
+  for (const a of v.activity) {
+    assert.match(a.time, /^\d\d:\d\d$/);
+    assert.equal(a.time, new Date(Date.parse(a.at) + 8 * 3_600_000).toISOString().slice(11, 16));
+    assert.ok(a.to.length > 0);
+  }
+  assert.equal(v.activity[0].time, '07:59');
+  assert.equal(v.activity[0].to, 'on your T-bills, in your Investments account');
+  assert.equal(v.activity.find((a) => a.what === 'in').to, 'into your Investments account');
 });
 
 test('"Fees kept inside Splash": each inside-Splash payment records the cheapest bank route’s fee when quoted; the month sums the paid ones; zero hides it', async () => {

@@ -1,8 +1,12 @@
+// iso-ui
 'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { Check, Upload, X } from 'lucide-react';
+
+import { Combobox, Field, IsoButton, IsoSurface, Tag, type TagTone } from '@/components/iso';
 
 import { parseSupplierRows, SAMPLE_BATCH_CSV } from '@/lib/solana-app/batch-rows';
 import type { Wire } from '@/lib/solana-app/json';
@@ -27,9 +31,10 @@ function useNow(active: boolean) {
   return now;
 }
 
-function Pill({ tone, children }: { tone: 'ok' | 'warn' | 'pending' | 'sim'; children: React.ReactNode }) {
-  return <span className={`sx-pill sx-pill-${tone}`}>{children}</span>;
-}
+const REHEARSALS = [
+  { value: 'none', label: 'No problem: the normal path' },
+  { value: 'drop_chunk', label: 'One chunk’s transfer does not land' },
+];
 
 /** The batch's rows as integers, as written (no rounding, no floats), for the ledger. Same shape as History's. */
 function batchCsv(batch: BatchDTO): string {
@@ -53,8 +58,8 @@ function downloadCsv(batch: BatchDTO) {
   URL.revokeObjectURL(url);
 }
 
-const rowTone = (s: string) => (s === 'paid' ? 'ok' : s === 'returned' || s === 'not_sent' ? 'warn' : 'pending');
-const chunkTone = (s: string) => (s === 'confirmed' ? 'ok' : s === 'failed' || s === 'not_sent' ? 'warn' : 'pending');
+const rowTone = (s: string): TagTone => (s === 'paid' ? 'ok' : s === 'returned' || s === 'not_sent' ? 'danger' : 'ink');
+const chunkTone = (s: string): TagTone => (s === 'confirmed' ? 'ok' : s === 'failed' || s === 'not_sent' ? 'danger' : 'ink');
 
 /**
  * Batch payouts (prompt 07 §5.5, §6.2): a supplier file becomes chunks sized to fit a Solana
@@ -66,7 +71,7 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
   const router = useRouter();
   const { state } = useCompany();
   const [batch, setBatch] = useState<BatchDTO | null>(null);
-  const [recent, setRecent] = useState<BatchSummaryDTO[]>([]);
+  const [recent, setRecent] = useState<BatchSummaryDTO[] | null>(null);
   const [text, setText] = useState('');
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -85,15 +90,25 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
       .catch(() => setRecent([]));
   }, [batchId]);
 
-  if (state.status === 'loading') return <p className="sx-muted">Loading your company…</p>;
+  if (state.status === 'loading') {
+    return (
+      <div className="iso-stack" aria-busy="true" aria-label="Loading your company">
+        <span className="iso-skel" style={{ height: 180 }} />
+      </div>
+    );
+  }
   if (state.status !== 'ready' || !state.company.vault) {
     return (
-      <div className="sx-narrow sx-stack">
-        <p className="sx-lede">{state.status === 'ready' ? 'Set up this device and your accounts first.' : state.message}</p>
-        <Link className="sx-btn" href={state.status === 'signin' ? '/login' : '/dashboard/setup'}>
-          {state.status === 'signin' ? 'Sign in' : 'Set up this device'}
-        </Link>
-      </div>
+      <IsoSurface className="iso-stack">
+        <p className="iso-body" style={{ margin: 0 }}>
+          {state.status === 'ready' ? 'Set up this device and your accounts first.' : state.message}
+        </p>
+        <div>
+          <IsoButton variant="primary" href={state.status === 'signin' ? '/login' : '/dashboard/setup'}>
+            {state.status === 'signin' ? 'Sign in' : 'Set up this device'}
+          </IsoButton>
+        </div>
+      </IsoSurface>
     );
   }
   const company = state.company;
@@ -139,54 +154,76 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
     }
   }
 
+  const problem = error ? (
+    <p className="iso-note iso-note--danger" role="alert">
+      {error.message}
+    </p>
+  ) : null;
+
   /* ------------------------------------------------------------ start */
   if (!batch) {
+    const blocker = !preview ? 'Paste the rows or choose a file first.' : preview.rows.length === 0 ? 'No supplier rows were read yet.' : preview.errors.length > 0 ? 'Fix the rows above first.' : null;
     return (
-      <div className="sx-stack-lg">
-        <div className="sx-routes" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-          <section className="sx-card sx-stack">
-            <h2>Upload a supplier file</h2>
-            <p className="sx-muted sx-small">CSV with columns supplier, bank, account, amount (pesos), invoice. Only the last four account digits are kept.</p>
-            <label className="sx-btn sx-btn-ghost" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-              Choose a CSV file
-              <input
-                type="file"
-                accept=".csv,text/csv,text/plain"
-                className="sx-visually-hidden"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (f) setText(await f.text());
-                }}
-              />
-            </label>
-          </section>
-          <section className="sx-card sx-stack">
-            <h2>Use the sample batch</h2>
-            <p className="sx-muted sx-small">Twelve fictional suppliers in the Philippines, from ₱5,200 to ₱64,300.</p>
+      <>
+        <div className="iso-grid-2 iso-batch__start iso-rise iso-rise-2">
+          <IsoSurface className="iso-stack" aria-labelledby="bt-file">
+            <h2 id="bt-file" className="iso-h2">
+              Upload a supplier file
+            </h2>
+            <p className="iso-small" style={{ margin: 0 }}>
+              CSV with columns supplier, bank, account, amount (pesos), invoice. Only the last four account digits are kept.
+            </p>
             <div>
-              <button type="button" className="sx-btn" disabled={busy !== null} onClick={() => void quote({ sample: true })}>
-                {busy === 'quote' ? 'Quoting…' : 'Quote the sample batch'}
-              </button>
+              <label className="iso-btn iso-btn--quiet iso-batch__file">
+                <Upload size={16} aria-hidden="true" /> Choose a CSV file
+                <input
+                  type="file"
+                  accept=".csv,text/csv,text/plain"
+                  className="iso-sr"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setText(await f.text());
+                  }}
+                />
+              </label>
             </div>
-          </section>
+          </IsoSurface>
+          <IsoSurface className="iso-stack" aria-labelledby="bt-sample">
+            <h2 id="bt-sample" className="iso-h2">
+              Use the sample batch
+            </h2>
+            <p className="iso-small" style={{ margin: 0 }}>
+              Twelve fictional suppliers in the Philippines, from ₱5,200 to ₱64,300.
+            </p>
+            <div>
+              <IsoButton variant="primary" busy={busy === 'quote'} disabled={busy !== null} onClick={() => void quote({ sample: true })}>
+                {busy === 'quote' ? 'Quoting…' : 'Quote the sample batch'}
+              </IsoButton>
+            </div>
+          </IsoSurface>
         </div>
 
-        <section className="sx-card sx-stack" aria-labelledby="paste-title">
-          <h2 id="paste-title">Or paste the rows</h2>
-          <label htmlFor="batch-csv" className="sx-visually-hidden">
-            Supplier rows
-          </label>
-          <textarea id="batch-csv" value={text} onChange={(e) => setText(e.target.value)} style={{ minHeight: 140 }} placeholder={SAMPLE_BATCH_CSV.split('\n').slice(0, 3).join('\n')} />
+        <IsoSurface className="iso-stack iso-rise iso-rise-3" aria-labelledby="paste-title">
+          <h2 id="paste-title" className="iso-h2">
+            Or paste the rows
+          </h2>
+          <Field label="Supplier rows" id="batch-csv">
+            {({ id, describedBy }) => (
+              <div className="iso-field__control">
+                <textarea id={id} aria-describedby={describedBy} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} className="iso-batch__paste" placeholder={SAMPLE_BATCH_CSV.split('\n').slice(0, 3).join('\n')} />
+              </div>
+            )}
+          </Field>
           {preview ? (
-            <div className="sx-stack" aria-live="polite">
-              <p className="sx-small">
+            <div className="iso-stack" aria-live="polite">
+              <p className="iso-small" style={{ margin: 0 }}>
                 {preview.rows.length} supplier{preview.rows.length === 1 ? '' : 's'} read
                 {preview.rows.length ? `, ${php(preview.rows.reduce((a, r) => a + r.amountPhpMinor, 0n))} in total` : ''}.
               </p>
               {preview.errors.length ? (
-                <div className="sx-notice sx-notice-warn">
-                  <h3>Fix these rows first</h3>
-                  <ul className="sx-mock-list">
+                <div className="iso-note iso-note--amber iso-batch__fix">
+                  <strong>Fix these rows first</strong>
+                  <ul>
                     {preview.errors.map((e) => (
                       <li key={`${e.line}-${e.message}`}>{e.message}</li>
                     ))}
@@ -196,41 +233,49 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
             </div>
           ) : null}
           <div>
-            <button type="button" className="sx-btn" disabled={busy !== null || !preview || preview.rows.length === 0 || preview.errors.length > 0} onClick={() => void quote({ csv: text })}>
+            <IsoButton variant="primary" busy={busy === 'quote'} disabled={busy !== null} disabledReason={blocker} onClick={() => void quote({ csv: text })}>
               {busy === 'quote' ? 'Quoting…' : 'Quote this batch'}
-            </button>
+            </IsoButton>
           </div>
-        </section>
+        </IsoSurface>
 
-        {error ? (
-          <div className="sx-notice sx-notice-error" role="alert">
-            <p>{error.message}</p>
+        {problem}
+
+        <IsoSurface pad={false} className="iso-rise iso-rise-4" aria-labelledby="recent-batches">
+          <div className="iso-surface--head">
+            <h2 id="recent-batches" className="iso-h2">
+              Recent batches
+            </h2>
           </div>
-        ) : null}
-
-        <section className="sx-stack" aria-labelledby="recent-batches">
-          <h2 id="recent-batches">Recent batches</h2>
-          {recent.length === 0 ? (
-            <p className="sx-muted">No batches yet.</p>
+          {recent === null ? (
+            <div className="iso-surface--pad" aria-busy="true" aria-label="Loading recent batches">
+              <span className="iso-skel" style={{ display: 'block', height: 48 }} />
+            </div>
+          ) : recent.length === 0 ? (
+            <p className="iso-empty" style={{ margin: 0 }}>
+              No batches yet.
+            </p>
           ) : (
-            <ul className="sx-verify">
+            <ul className="iso-list">
               {recent.map((b) => (
-                <li key={b.id} className="sx-pay-row">
-                  <span>
-                    <strong>{b.payees} suppliers</strong> <span className="sx-num">{php(b.receivePhpMinor)}</span>
-                    <span className="sx-small sx-muted" style={{ display: 'block' }}>
+                <li key={b.id}>
+                  <div className="iso-list__main">
+                    <p className="iso-list__title" style={{ marginTop: 0 }}>
+                      {b.payees} suppliers <span className="iso-num">{php(b.receivePhpMinor)}</span>
+                    </p>
+                    <p className="iso-list__detail" style={{ margin: 0 }}>
                       {dateShort(b.createdAt)} · {b.paid} of {b.payees} paid
-                    </span>
-                  </span>
-                  <Link href={`/dashboard/batch?batch=${b.id}`}>
-                    Open<span className="sx-visually-hidden"> the batch of {b.payees} suppliers</span>
-                  </Link>
+                    </p>
+                  </div>
+                  <IsoButton variant="quiet" size="sm" href={`/dashboard/batch?batch=${b.id}`} aria-label={`Open the batch of ${b.payees} suppliers`}>
+                    Open
+                  </IsoButton>
                 </li>
               ))}
             </ul>
           )}
-        </section>
-      </div>
+        </IsoSurface>
+      </>
     );
   }
 
@@ -239,167 +284,194 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
   const paid = batch.rows.filter((r) => r.status === 'paid').length;
   const left = secondsLeft(batch.quoteExpiresAt, now);
   const chunks = batch.chunks.length;
+  const approveWhy = !batch.allowed ? 'This batch doesn’t pass your rules.' : left <= 0 ? 'The quotes expired. Start the batch again for fresh quotes.' : null;
 
   return (
-    <div className="sx-stack-lg">
-      <section className="sx-card sx-stack" aria-labelledby="batch-sum">
-        <div className="sx-row" style={{ justifyContent: 'space-between' }}>
-          <h2 id="batch-sum">
+    <>
+      <IsoSurface className="iso-stack iso-rise iso-rise-2" aria-labelledby="batch-sum">
+        <div className="iso-batch__sumhead">
+          <h2 id="batch-sum" className="iso-h2">
             {sent ? `${paid} of ${batch.totals.payees} suppliers paid` : `${batch.totals.payees} suppliers in ${chunks} chunk${chunks === 1 ? '' : 's'}`}
           </h2>
-          {batch.simulated ? <Pill tone="sim">Test mode · simulated</Pill> : <Pill tone="pending">Test mode</Pill>}
+          <Tag tone="gold">{batch.simulated ? 'Test mode · simulated' : 'Test mode'}</Tag>
         </div>
-        <dl className="sx-kv">
-          <dt>Suppliers receive</dt>
-          <dd className="sx-num">{php(batch.totals.receivePhpMinor)}</dd>
-          <dt>From your Payments account</dt>
-          <dd className="sx-num">
-            {usd(batch.totals.youPayMinor)} <span className="sx-muted sx-small">including Splash&rsquo;s fee of {usd(batch.totals.feeMinor)}</span>
-            <span className="sx-muted sx-small" style={{ display: 'block' }}>
-              Exactly {usdExact(batch.totals.youPayMinor)}
-            </span>
-          </dd>
-          <dt>Paid by</dt>
-          <dd>{batch.partnerLabel}, one payout per supplier</dd>
+        <dl className="iso-idrows">
+          <div className="iso-idrow">
+            <dt>Suppliers receive</dt>
+            <dd>
+              <span className="iso-idrow__value iso-num iso-batch__big">{php(batch.totals.receivePhpMinor)}</span>
+            </dd>
+          </div>
+          <div className="iso-idrow">
+            <dt>From your Payments account</dt>
+            <dd>
+              <span className="iso-idrow__value iso-num">
+                <span className="iso-batch__big">{usd(batch.totals.youPayMinor)}</span> <span className="iso-small">including Splash&rsquo;s fee of {usd(batch.totals.feeMinor)}</span>
+                <span className="iso-small iso-batch__exact">Exactly {usdExact(batch.totals.youPayMinor)}</span>
+              </span>
+            </dd>
+          </div>
+          <div className="iso-idrow">
+            <dt>Paid by</dt>
+            <dd>
+              <span className="iso-idrow__value">{batch.partnerLabel}, one payout per supplier</span>
+            </dd>
+          </div>
           {!sent && batch.state === 'quoted' ? (
-            <>
+            <div className="iso-idrow">
               <dt>Quotes expire</dt>
-              <dd>{left > 0 ? `in ${clock(left)}` : 'now: start the batch again for fresh quotes'}</dd>
-            </>
+              <dd>
+                <span className="iso-idrow__value iso-num">{left > 0 ? `in ${clock(left)}` : 'now: start the batch again for fresh quotes'}</span>
+              </dd>
+            </div>
           ) : null}
         </dl>
-      </section>
+      </IsoSurface>
 
       {!sent ? (
-        <div className="sx-notice sx-notice-info">
-          <h3>How it moves</h3>
-          <p>
-            One transfer holds about {Math.max(...batch.chunks.map((c) => c.payees))} of these payments, so the batch goes in {chunks} chunk{chunks === 1 ? '' : 's'}. One approval on this device covers every chunk. Each chunk pays all its
-            suppliers or none. If one chunk fails, the others still pay, and you retry only the one that failed.
-          </p>
+        <div className="iso-note iso-batch__how">
+          <div>
+            <strong>How it moves</strong>
+            <p style={{ margin: '4px 0 0' }}>
+              One transfer holds about {Math.max(...batch.chunks.map((c) => c.payees))} of these payments, so the batch goes in {chunks} chunk{chunks === 1 ? '' : 's'}. One approval on this device covers every chunk. Each chunk pays all its
+              suppliers or none. If one chunk fails, the others still pay, and you retry only the one that failed.
+            </p>
+          </div>
         </div>
       ) : null}
 
       {!sent ? (
-        <section className="sx-card sx-stack" aria-labelledby="rules-title">
-          <h2 id="rules-title">Rules</h2>
-          <ul className="sx-checks">
+        <IsoSurface className="iso-stack" aria-labelledby="rules-title">
+          <h2 id="rules-title" className="iso-h2">
+            Rules
+          </h2>
+          <ul className="iso-batch__checks">
             {batch.checks.map((c) => (
-              <li key={c.name}>
-                <span aria-hidden="true" className={c.passed ? 'ok' : 'no'}>
-                  {c.passed ? '✓' : '✕'}
-                </span>
+              <li key={c.name} className={c.passed ? 'is-ok' : 'is-no'}>
+                {c.passed ? <Check size={16} strokeWidth={3} aria-hidden="true" /> : <X size={16} strokeWidth={3} aria-hidden="true" />}
                 <span>
                   {c.label}
-                  <span className="sx-visually-hidden">{c.passed ? ': passed' : ': not passed'}</span>
+                  <span className="iso-sr">{c.passed ? ': passed' : ': not passed'}</span>
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </IsoSurface>
       ) : null}
 
-      <section className="sx-stack" aria-labelledby="chunks-title">
-        <h2 id="chunks-title">Chunks</h2>
-        <div className="sx-routes" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+      <section className="iso-stack" aria-labelledby="chunks-title">
+        <h2 id="chunks-title" className="iso-h2">
+          Chunks
+        </h2>
+        <div className="iso-batch__chunks">
           {batch.chunks.map((c) => (
-            <article key={c.index} className="sx-card sx-stack" aria-labelledby={`chunk-${c.index}`}>
-              <div className="sx-row" style={{ justifyContent: 'space-between' }}>
-                <h3 id={`chunk-${c.index}`}>Chunk {c.index + 1}</h3>
-                <Pill tone={sent ? chunkTone(c.state) : 'pending'}>{sent ? c.stateLabel : 'Planned'}</Pill>
+            <IsoSurface key={c.index} as="article" className="iso-stack iso-batch__chunk" aria-labelledby={`chunk-${c.index}`}>
+              <div className="iso-batch__sumhead">
+                <h3 id={`chunk-${c.index}`} className="iso-h3">
+                  Chunk {c.index + 1}
+                </h3>
+                <Tag tone={sent ? chunkTone(c.state) : 'ink'} tick={sent && c.state === 'confirmed'}>
+                  {sent ? c.stateLabel : 'Planned'}
+                </Tag>
               </div>
-              <p className="sx-small">
+              <p className="iso-num" style={{ margin: 0 }}>
                 {c.payees} supplier{c.payees === 1 ? '' : 's'} · {usd(BigInt(c.payoutMinor) + BigInt(c.feeMinor))}
               </p>
-              <p className="sx-small sx-muted">
+              <p className="iso-small" style={{ margin: 0 }}>
                 {/* How full the chunk's largest transfer is, as a share of what one transfer can hold. */}
                 Fills {Math.floor((Math.max(c.sizes.execute, ...c.sizes.proposal) * 100) / BYTES)}% of one transfer
               </p>
               {c.calls.length ? (
-                <ul className="sx-mock-list sx-small">
+                <ul className="iso-batch__calls">
                   {c.calls.map((k) => (
                     <li key={k.signature}>
                       {k.step === 'proposal' ? 'Approval' : 'Transfer'}
                       {k.status === 'expired' ? ' (expired, never landed)' : k.status === 'failed' ? ' (failed, nothing moved)' : ''}{' '}
                       {k.solscanUrl ? (
                         <a href={k.solscanUrl} target="_blank" rel="noreferrer">
-                          <span className="sx-mono">{shortKey(k.signature, 5)}</span> · open its record
+                          <span className="iso-mono">{shortKey(k.signature, 5)}</span> · open its record
                         </a>
                       ) : (
-                        <span className="sx-mono" title={k.signature}>
-                          {shortKey(k.signature, 5)} {k.simulated ? '(simulated)' : ''}
-                        </span>
+                        <>
+                          <span className="iso-mono" title={k.signature}>
+                            {shortKey(k.signature, 5)}
+                          </span>
+                          {k.simulated ? ' (simulated)' : ''}
+                        </>
                       )}
                     </li>
                   ))}
                 </ul>
               ) : null}
-              {c.problem ? <p className="sx-small" role="status">{c.problem.message}</p> : null}
+              {c.problem ? (
+                <p className="iso-small" role="status" style={{ margin: 0 }}>
+                  {c.problem.message}
+                </p>
+              ) : null}
               {c.retryable ? (
                 <div>
-                  <button type="button" className="sx-btn" disabled={busy !== null} onClick={() => void approve(c.index)}>
+                  <IsoButton variant="primary" busy={busy === `retry-${c.index}`} disabled={busy !== null} onClick={() => void approve(c.index)}>
                     {busy === `retry-${c.index}` ? 'Retrying…' : `Retry chunk ${c.index + 1}`}
-                  </button>
+                  </IsoButton>
                 </div>
               ) : null}
-            </article>
+            </IsoSurface>
           ))}
         </div>
       </section>
 
       {!sent && batch.state === 'quoted' ? (
-        <section className="sx-card sx-approve sx-stack" aria-labelledby="approve-title">
-          <h2 id="approve-title">Approve {chunks === 1 ? 'this batch' : `all ${chunks} chunks`}</h2>
-          <p className="sx-small sx-muted">These rows are your file, checked by the rules above. A person approves, on this device.</p>
-          {offline ? (
-            <label className="sx-small">
-              Rehearse a problem (offline only){' '}
-              <select value={rehearsal} onChange={(e) => setRehearsal(e.target.value as 'none' | 'drop_chunk')}>
-                <option value="none">No problem: the normal path</option>
-                <option value="drop_chunk">One chunk&rsquo;s transfer does not land</option>
-              </select>
-            </label>
-          ) : null}
-          <div className="sx-row">
-            <button type="button" className="sx-btn" disabled={busy !== null || !batch.allowed || left <= 0} onClick={() => void approve()}>
+        <IsoSurface className="iso-stack iso-batch__approve" aria-labelledby="approve-title">
+          <h2 id="approve-title" className="iso-h2">
+            Approve {chunks === 1 ? 'this batch' : `all ${chunks} chunks`}
+          </h2>
+          <p className="iso-small" style={{ margin: 0 }}>
+            These rows are your file, checked by the rules above. A person approves, on this device.
+          </p>
+          {offline ? <Combobox label="Rehearse a problem (offline only)" options={REHEARSALS} value={rehearsal} onChange={(v) => setRehearsal(v === 'drop_chunk' ? 'drop_chunk' : 'none')} /> : null}
+          <div className="iso-row">
+            <IsoButton variant="primary" size="lg" busy={busy === 'approve'} disabled={busy !== null} disabledReason={approveWhy} onClick={() => void approve()}>
               {busy === 'approve' ? 'Sending chunk by chunk…' : `Approve ${chunks === 1 ? 'the batch' : `all ${chunks} chunks`} with this device`}
-            </button>
-            <Link className="sx-btn-link" href="/dashboard/batch">
+            </IsoButton>
+            <IsoButton variant="link" href="/dashboard/batch">
               Start again
-            </Link>
+            </IsoButton>
           </div>
-        </section>
+        </IsoSurface>
       ) : null}
 
       {batch.state === 'blocked' || batch.state === 'expired' ? (
-        <div className="sx-notice sx-notice-warn">
-          <h3>{batch.state === 'expired' ? 'The quotes expired' : 'This batch does not pass your rules'}</h3>
-          <p>
-            {batch.state === 'expired' ? 'Nothing was sent. ' : 'Nothing was sent. Add money to your Payments account or split the file, then quote it again. '}
-            <Link href="/dashboard/batch">Start a new batch</Link>
-          </p>
+        <div className="iso-note iso-note--amber">
+          <div>
+            <strong>{batch.state === 'expired' ? 'The quotes expired' : 'This batch does not pass your rules'}</strong>
+            <p style={{ margin: '4px 0 0' }}>
+              {batch.state === 'expired' ? 'Nothing was sent. ' : 'Nothing was sent. Add money to your Payments account or split the file, then quote it again. '}
+              <Link href="/dashboard/batch">Start a new batch</Link>
+            </p>
+          </div>
         </div>
       ) : null}
 
-      {error ? (
-        <div className="sx-notice sx-notice-error" role="alert">
-          <p>{error.message}</p>
-        </div>
-      ) : null}
+      {problem}
 
-      <section className="sx-card sx-table-wrap bg-white" aria-labelledby="rows-title">
-        <h2 id="rows-title" className="sx-visually-hidden">
-          Suppliers
-        </h2>
-        <table className="sx-table">
-          <caption className="sx-visually-hidden">Suppliers in this batch</caption>
+      <IsoSurface pad={false} aria-labelledby="rows-title">
+        <div className="iso-surface--head">
+          <h2 id="rows-title" className="iso-h2">
+            Suppliers
+          </h2>
+          <IsoButton variant="quiet" size="sm" onClick={() => downloadCsv(batch)}>
+            Download CSV
+          </IsoButton>
+        </div>
+        <table className="iso-table iso-table--stack iso-batch__rows">
+          <caption className="iso-sr">Suppliers in this batch</caption>
           <thead>
             <tr>
               <th scope="col">Supplier</th>
-              <th scope="col" className="sx-num-col">
+              <th scope="col" className="iso-r">
                 Receives
               </th>
-              <th scope="col" className="sx-num-col">
+              <th scope="col" className="iso-r">
                 From your Payments account
               </th>
               <th scope="col">Chunk</th>
@@ -411,40 +483,32 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
               <tr key={r.id}>
                 <td>
                   <strong>{r.supplierName}</strong>
-                  <span className="sx-small sx-muted" style={{ display: 'block' }}>
+                  <span className="iso-batch__sub">
                     {r.bank} •••• {r.accountLast4}
                     {r.invoiceNumber ? ` · ${r.invoiceNumber}` : ''}
                   </span>
                 </td>
-                <td className="sx-num-col" data-label="Receives">
+                <td className="iso-r" data-label="Receives">
                   {php(r.amountPhpMinor)}
                 </td>
-                <td className="sx-num-col" data-label="From your Payments account" title={usdExact(r.youPayUsdcMinor)}>
+                <td className="iso-r" data-label="From your Payments account" title={usdExact(r.youPayUsdcMinor)}>
                   {usd(r.youPayUsdcMinor)}
                 </td>
                 <td data-label="Chunk">{r.chunkIndex === null ? 'Not planned' : r.chunkIndex + 1}</td>
                 <td>
-                  <Pill tone={sent ? rowTone(r.status) : 'pending'}>{sent ? r.statusLabel : 'Quoted'}</Pill>
-                  {r.bankReference ? (
-                    <span className="sx-mono sx-small" style={{ display: 'block', marginTop: 4 }}>
-                      {r.bankReference}
-                    </span>
-                  ) : null}
+                  <Tag tone={sent ? rowTone(r.status) : 'ink'} tick={sent && r.status === 'paid'}>
+                    {sent ? r.statusLabel : 'Quoted'}
+                  </Tag>
+                  {r.bankReference ? <span className="iso-mono iso-batch__sub">{r.bankReference}</span> : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="sx-row" style={{ marginTop: 12, justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <p className="sx-small sx-muted" style={{ maxWidth: '62ch' }}>
-            Amounts are rounded to the cent. Each transfer is exact to a millionth of a dollar, so the rows can add up to a cent more or
-            less than the total above. The CSV has every amount exactly.
-          </p>
-          <button type="button" className="sx-btn sx-btn-ghost sx-btn-sm" onClick={() => downloadCsv(batch)}>
-            Download CSV
-          </button>
-        </div>
-      </section>
-    </div>
+        <p className="iso-small iso-batch__foot">
+          Amounts are rounded to the cent. Each transfer is exact to a millionth of a dollar, so the rows can add up to a cent more or less than the total above. The CSV has every amount exactly.
+        </p>
+      </IsoSurface>
+    </>
   );
 }
