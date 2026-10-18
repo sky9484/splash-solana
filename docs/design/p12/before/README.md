@@ -17,10 +17,21 @@ items it no longer shows.
 - **Browser:** headless Chrome through `tests/helpers/cdp-browser.mjs`, at 1440 × 900 and 390 × 844. At 390 the page
   is a phone viewport with touch. Shots are full page unless the name says otherwise. Signed out for the public pages,
   as the demo owner for `/dashboard`, as staff for `/admin`.
-- **The landing at 390 px:** the shots named `-390` keep a desktop browser's user agent, so they show what a narrow
-  desktop window gets: the desktop pinned hero, reflowed. A phone gets a different hero, chosen on the server from its
-  user agent (`app/page.tsx`, `isPhoneUserAgent`). `01-landing-phone-390` and `02-landing-hero-phone-390` are that
-  hero, taken with an iPhone Safari user agent.
+- **The landing and working capital, as scrolled:** `01-landing-*` and `03-working-capital-*` are stacked from one
+  viewport frame per screen height, taken while scrolling down at the real 900 or 844 px viewport (`.p12-tools/shot.mjs
+  scroll`). A one-shot full-page capture can't show these pages: their sections appear only once scrolled into view
+  (the landing's IntersectionObserver `cin-reveal`; working capital's `whileInView` cards and the three loops in §03),
+  and the landing's pinned hero is sized in `vh`. Shot in one go, everything below the landing's hero came out blank.
+  The sticky header and Next's badge show once, in the first frame. The back-to-top button shows in every later frame,
+  where a person scrolling sees it. The hero frames at 1440 are the pinned story as it plays.
+- **The landing at 390 px:** below 700 px wide, `SettlementCinematic` drops the pinned hero for a static one, whatever
+  the browser. The `-390` shots keep a desktop browser's user agent: the island is a faded wash behind the headline. A
+  phone's user agent (`app/page.tsx`, `isPhoneUserAgent`) sends the static hero from the server and puts the island in its
+  own card under the buttons: `01-landing-phone-390` and `02-landing-hero-phone-390`, taken with an iPhone Safari user
+  agent. Both end the hero with about 1,230 px of empty page. `.cin-section { height: 430vh }` inside
+  `@media (max-width: 880px)` (`styles/cinematic.css`, line 985) comes after `.cin-section-static { height: auto }`
+  (line 823) and wins, so the static hero keeps the pinned one's height (3,629 px at 844 px tall). Its content ends
+  near 2,400 px.
 - **Loader and error page:** one shows only while a route loads, the other only on a thrown error. Both were rendered
   through temporary routes, deleted afterwards. Nothing from them is committed.
 - **`24-batch-review`, 36–39 and 50** are the walkthrough's own screenshots (`tests/solana-ui.e2e.mjs`, run 2 below),
@@ -68,11 +79,11 @@ Every name has a `-1440` and a `-390` file unless a width is given.
 
 | File | What it shows | Audit |
 |---|---|---|
-| `01-landing` | Landing, full page | C |
-| `01-landing-phone-390` | Landing, full page, as a phone gets it (phone user agent) | C |
-| `02-landing-hero-0` … `-6` | The pinned hero at seven scroll points, start to end: the callouts around the island, the zoom and fade, then "Payments are the feature. Proof is the product." At 390 with a desktop user agent, points 5 and 6 are an empty page: the island has faded out and nothing takes its place at that width. | C |
+| `01-landing` | Landing, top to bottom as scrolled (14 frames at 1440, 19 at 390): the pinned hero, "Payments are the feature", the marquee, the three loops, the partner rail, How it works, Platform, Routes, Comparison, Trust, Zeke and the control plane, the closing band, the footer | C |
+| `01-landing-phone-390` | Landing, top to bottom as scrolled, as a phone gets it (phone user agent). Same sections; the hero's island sits in its own card | C |
+| `02-landing-hero-0` … `-6` | The hero at seven points of its scroll range, start to end. At 1440 it is pinned: the callouts around the island, the zoom and fade, then "Payments are the feature. Proof is the product." At 390 it is the static hero (see above), so the points walk down it, and 5 and 6 land in its empty tail. | C |
 | `02-landing-hero-phone-390` | The phone hero (static, not pinned), top of the page | C |
-| `03-working-capital` | `/working-capital`: extruded headlines, §01 to §03 chapters with faint 01/02/03 watermarks on the cards, caps mono labels, ledged cards | C |
+| `03-working-capital` | `/working-capital`, top to bottom as scrolled: extruded headlines, §01 to §03 chapters with faint 01/02/03 watermarks on the cards, caps mono labels, ledged cards, §03's Settle, Supply and Save loop cards | C |
 | `04-login` | Sign in | A |
 | `05-signup` | Sign up | A |
 | `06-forgot-password` | Forgot password | A |
