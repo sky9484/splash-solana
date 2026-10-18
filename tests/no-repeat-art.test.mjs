@@ -1,6 +1,8 @@
 // Prompt 12 §2.12 (Sky's decision 15: "no repeated images incl landing & dashboard"): a raster image is
-// used by at most one of three surfaces, the landing, the sign-in pages and the dashboard. Repeats
-// within one surface are fine (D3: Reset password reuses Forgot's image, Verify email reuses Sign up's).
+// used by at most one of four surfaces, the landing, the sign-in pages, the dashboard and working capital
+// (Phase 4, D4: its "Where Supply fits" cards show no pictures because they would repeat the landing's
+// loops). Repeats within one surface are fine (D3: Reset password reuses Forgot's image, Verify email
+// reuses Sign up's).
 // Code only: comments are stripped, so a note may name an image it doesn't show.
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -11,6 +13,7 @@ const SURFACES = {
   landing: ['components/IsometricLanding.tsx', 'components/landing'],
   auth: ['components/auth', 'app/login/page.tsx', 'app/signup/page.tsx', 'app/forgot-password/page.tsx', 'app/reset-password/page.tsx', 'app/verify-email/page.tsx'],
   dashboard: ['app/dashboard', 'components/solana', 'components/dashboard'],
+  'working capital': ['app/working-capital/page.tsx', 'components/supply'],
 };
 
 /** Images every surface may share, and why. */
@@ -49,7 +52,7 @@ function uses() {
   return out;
 }
 
-test('no raster image appears on two of the landing, the sign-in pages and the dashboard', () => {
+test('no raster image appears on two of the landing, the sign-in pages, the dashboard and working capital', () => {
   const repeats = [];
   for (const [path, where] of uses()) {
     if (ALLOWED.some((a) => a.match(path))) continue;
@@ -59,11 +62,12 @@ test('no raster image appears on two of the landing, the sign-in pages and the d
   assert.deepEqual(repeats, [], `\n  ${repeats.join('\n  ')}\n`);
 });
 
-test('the check sees the landing’s, the sign-in pages’ and the dashboard’s images', () => {
+test('the check sees the landing’s, the sign-in pages’, the dashboard’s and working capital’s images', () => {
   const all = uses();
   const on = (surface) => [...all].filter(([, where]) => where[surface]).map(([path]) => path);
   assert.ok(on('landing').includes('/isometric/gen/hero-01-zeke-reads-invoice.webp'), 'the landing hero art is read');
   assert.ok(on('landing').includes('/cinematic/treasury-island.png'), 'loop 02 (D1) is read');
   assert.ok(on('auth').includes('/isometric/gen/auth-signin-night.webp'), 'the sign-in pages are read');
   assert.ok(on('dashboard').includes('/cinematic/agent-bot-cut.png'), 'the dashboard is read');
+  assert.ok(on('working capital').includes('/isometric/wc-receivable-1.png'), 'working capital is read');
 });

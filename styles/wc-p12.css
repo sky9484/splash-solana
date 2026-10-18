@@ -1,0 +1,336 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Working capital, prompt 12 Phase 4 (preview tab 3). Imported by app/globals.css
+   right after styles/auth-p12.css. Clean type only (decision 8): Geist 800 in
+   sentence case, the accent words in teal on Paper and in mint on dark cyan. The
+   boxes, tags, buttons, section heads and card text are the landing's own
+   (styles/landing-p12.css); this file lays out what only this page has. --sp-*
+   tokens only. Nothing moves by itself: the one moment is the receivable's switch,
+   and the hover lift is the landing's. The footer keeps its wc-footer rules.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.wk a:focus-visible,
+.wk button:focus-visible {
+  outline: 2.5px solid var(--sp-teal);
+  outline-offset: 2px;
+}
+
+.wk .lp-band a:focus-visible { outline-color: var(--sp-gold); }
+
+/* ── Top nav ───────────────────────────────────────────────────────────── */
+
+.wk-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 14px;
+}
+
+.wk-brand {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-ink);
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+
+.wk-brand img {
+  width: 30px;
+  height: auto;
+}
+
+.wk-top__nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Hero band: copy on the left, the receivable on the right ──────────── */
+
+.lp-sec.wk-hero-sec { padding-top: 22px; }
+
+.wk-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.wk-hero__labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.wk-h1 {
+  max-width: 18ch;
+  margin: 14px 0 16px;
+  color: var(--sp-on-cyan);
+  font-size: clamp(36px, 4.8vw, 64px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.02;
+}
+
+.wk-h1 em,
+.wk-close .lp-h-clean em {
+  color: var(--sp-mint);
+  font-style: normal;
+}
+
+.wk-hero .lp-lede { color: var(--sp-on-cyan-2); }
+
+.wk-hero__actions { margin: 20px 0 22px; }
+
+.wk-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.wk-facts dt {
+  color: var(--sp-on-cyan-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wk-facts dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* ── The receivable (INV-4471) ─────────────────────────────────────────── */
+
+.lp-card.wk-inv { padding: 22px; }
+
+.wk-inv__top,
+.wk-inv__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wk-tag--teal {
+  color: var(--sp-on-cyan);
+  background: var(--sp-teal);
+}
+
+.wk-inv__id {
+  display: inline-flex;
+  gap: 8px;
+  color: var(--sp-text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wk-inv__id span + span::before,
+.wk-rows dd span + span::before {
+  display: inline-block;
+  width: 1px;
+  height: 11px;
+  margin-right: 8px;
+  content: "";
+  background: var(--sp-line);
+  vertical-align: -1px;
+}
+
+.wk-inv__label { margin-top: 14px; }
+
+.wk-lbl {
+  color: var(--sp-text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wk-inv__face {
+  margin: 4px 0 14px;
+  color: var(--sp-deep);
+  font-size: 46px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.04em;
+  line-height: 1;
+}
+
+.wk-switch {
+  display: flex;
+  border-radius: 30px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--sp-ink) 8%, transparent);
+}
+
+.wk-switch button {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 30px;
+  padding-inline: 10px;
+  color: var(--sp-deep);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--sp-t-ui) var(--sp-ease),
+    box-shadow var(--sp-t-ui) var(--sp-ease);
+}
+
+.wk-switch button[aria-checked="true"] {
+  background: var(--sp-surface);
+  box-shadow: var(--sp-lift-1);
+}
+
+.wk-rows { margin: 10px 0 0; }
+
+.wk-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--sp-line);
+  padding-block: 8px;
+  font-size: 13.5px;
+}
+
+.wk-rows > div:first-child { border-top: 0; }
+
+.wk-rows dt { color: var(--sp-text-2); }
+
+.wk-rows dd {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  color: var(--sp-deep);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+}
+
+.wk-inv__note {
+  margin-top: 10px;
+  border-radius: 20px;
+  padding: 10px 14px;
+  color: var(--sp-coral-ink);
+  background: var(--sp-coral-fill);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.wk-inv__tags {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Sections 01 and 02: picture cards ─────────────────────────────────── */
+
+.wk .lp-card__title { font-size: 19px; }
+
+/* The art sits in a wide transparent margin; the page zooms each picture by its own art box
+   (--wk-zoom, --wk-dx, --wk-dy from fill() in the page) and the box clips what is left. */
+.wk-art { overflow: clip; }
+
+.wk-art img {
+  transform: scale(var(--wk-zoom, 1)) translate(var(--wk-dx, 0), var(--wk-dy, 0));
+}
+
+/* ── Where Supply fits: text cards, no pictures (D4) ───────────────────── */
+
+.wk-loop__name {
+  color: var(--sp-deep);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+
+.wk-loop__name span {
+  margin-left: 4px;
+  color: var(--sp-text-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.wk-loop .lp-card__copy { margin: 14px 0 12px; }
+
+/* ── Closing band ──────────────────────────────────────────────────────── */
+
+.wk-close {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 24px;
+}
+
+.wk-close .lp-h-clean {
+  margin: 12px 0 10px;
+  color: var(--sp-on-cyan);
+}
+
+.wk-legal {
+  max-width: 60ch;
+  color: var(--sp-on-cyan-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.wk-close__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Narrow screens ────────────────────────────────────────────────────── */
+
+@media (max-width: 1000px) {
+  .wk-hero,
+  .wk-close { grid-template-columns: minmax(0, 1fr); }
+
+  .wk-close__actions { flex-direction: row; flex-wrap: wrap; }
+}
+
+@media (max-width: 700px) {
+  .wk-top { flex-wrap: wrap; }
+
+  .wk-top__nav {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .wk-top__nav .lp-btn { flex: 1; }
+
+  .wk-facts { grid-template-columns: minmax(0, 1fr); }
+
+  .lp-card.wk-inv { padding: 18px; }
+
+  /* Each choice as wide as its words, so "Take early payment" stays on one line. */
+  .wk-switch button {
+    flex: 1 1 auto;
+    padding-inline: 8px;
+  }
+
+  .wk-inv__face { font-size: 38px; }
+
+  .wk-hero__actions .lp-btn,
+  .wk-close__actions .lp-btn {
+    width: 100%;
+    white-space: normal;
+  }
+}
+
+/* ── Reduced motion: the switch changes without a fade ─────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .wk-switch button { transition: none; }
+}
