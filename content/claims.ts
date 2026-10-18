@@ -22,6 +22,21 @@ export const lockedCopy = {
   agent: 'Zeke prepares. You approve.',
 } as const;
 
+/**
+ * The corridors the landing's Southeast Asia band lists, with their status in one place (prompt 12 §2.9).
+ * Only Malaysia to the Philippines runs, in the sandbox; the rest are roadmap. A corridor goes live only
+ * when a payout partner for that country is signed and the controls are ready (content/sea-numbers.ts
+ * keeps 'live-corridor' at 1).
+ */
+export type CorridorStatus = 'sandbox' | 'roadmap';
+export const corridors: ReadonlyArray<{ from: 'MY'; to: string; status: CorridorStatus }> = [
+  { from: 'MY', to: 'PH', status: 'sandbox' },
+  { from: 'MY', to: 'ID', status: 'roadmap' },
+  { from: 'MY', to: 'TH', status: 'roadmap' },
+  { from: 'MY', to: 'VN', status: 'roadmap' },
+  { from: 'MY', to: 'SG', status: 'roadmap' },
+];
+
 export const claims = {
   heroSub: {
     claim: 'One operating account for cross-border invoices, FX, payouts, treasury and reconciliation - built for Southeast Asian businesses.',

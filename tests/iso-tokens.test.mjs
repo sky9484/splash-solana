@@ -183,6 +183,8 @@ test('prompt 12 §0.6 (Sky, 18 Oct): the pages outside the dashboard get their o
     ['teal', 'paper-2'], ['teal', 'pale-2'], ['teal', 'surface'], ['kick', 'paper-2'], ['kick', 'pale-2'],
     ['on-cyan', 'cyan'], ['on-cyan-2', 'cyan'], ['gold', 'cyan'], ['on-cyan', 'auth-night'], ['on-cyan-2', 'auth-night'],
     ['on-cyan', 'teal'], ['deep', 'gold'], ['deep', 'mint'], ['deep', 'coral'], ['coral-ink', 'amber-fill'],
+    // The landing's tags and table head (prompt 12 §2).
+    ['ok-ink', 'ok-fill'], ['coral-ink', 'coral-fill'], ['text-2', 'surface-2'], ['deep', 'surface-2'], ['teal', 'mint-wash'], ['on-cyan', 'deep'], ['on-cyan-2', 'deep'],
   ]) {
     const r = ratio(t(fg), t(bg));
     if (r < 4.5) failing.push(`--sp-${fg} on --sp-${bg}: ${r.toFixed(2)}:1`);
@@ -210,7 +212,7 @@ test('no Iso UI class shares a name with the landing CSS, so neither leaks into 
   const classes = (file) => new Set([...readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(iso-[a-z0-9_-]+)/g)].map((m) => m[1]));
   const mine = classes('styles/iso-ui.css');
   const clash = [];
-  for (const file of ['app/globals.css', 'styles/cinematic.css', 'styles/landing.css', 'styles/mobile-landing.css']) {
+  for (const file of ['app/globals.css', 'styles/cinematic.css', 'styles/landing.css', 'styles/mobile-landing.css', 'styles/landing-p12.css']) {
     for (const c of classes(file)) if (mine.has(c)) clash.push(`${c} (also in ${file})`);
   }
   assert.deepEqual(clash, []);

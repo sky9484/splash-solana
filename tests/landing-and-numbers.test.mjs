@@ -180,33 +180,36 @@ test('brand name, domain and support email are configuration, and no entity that
 
 /* ── The landing ───────────────────────────────────────────────────────── */
 
-test('the landing is the v1 cinematic: sections in order, supply on its own page, no claim the truth pass removed', async () => {
-  // Rewritten 2026-09-23. The WS9 eight-section page was replaced by the
-  // restored v1 isometric cinematic on the owner's direction; what this test
-  // used to pin about STRUCTURE moved to the v1 layout, and what it pinned
-  // about TRUTH is kept verbatim — the claims WS9 stripped stay stripped,
-  // whichever landing renders.
+test('the landing is prompt 12’s page: sections in order, corridors on their own, supply on its own page, no claim the truth pass removed', async () => {
+  // Rewritten 2026-10-18 for prompt 12 §2.1 (Sky's approved preview, version 8). The STRUCTURE moved to
+  // the new section order; what this test pinned about TRUTH is kept verbatim: the claims WS9 stripped
+  // stay stripped, whichever landing renders.
   const landing = await source('components/IsometricLanding.tsx');
 
   const ids = [...landing.matchAll(/id="([a-z-]+)"/g)].map((m) => m[1]);
-  const expected = ['loops', 'how-it-works', 'comparison', 'corridors', 'trust', 'platform', 'copilot', 'control-plane'];
+  const expected = ['loops', 'how-it-works', 'platform', 'corridors', 'region', 'comparison', 'trust', 'copilot', 'control-plane'];
   const inOrder = expected.map((id) => ids.indexOf(id));
   assert.ok(inOrder.every((i) => i >= 0), `every section is present; found ${ids.join(', ')}`);
   assert.deepEqual([...inOrder].sort((a, b) => a - b), inOrder, 'in this order');
+  // The hero comes first, the partner rail sits between the loops and How it works, and the closing
+  // band and the footer close the page.
+  const at = (needle) => landing.indexOf(needle);
+  assert.ok(at('<HeroStory') >= 0 && at('<HeroStory') < at('id="loops"'), 'the hero opens the page');
+  assert.ok(at('id="loops"') < at('className="lp-partners"') && at('className="lp-partners"') < at('id="how-it-works"'), 'the partner rail follows the loops');
+  assert.ok(at('id="control-plane"') < at('Move money better') && at('Move money better') < at('<footer'), 'the closing band, then the footer');
 
-  // Corridors is a block INSIDE comparison (one argument, one section), and
-  // it keeps its anchor so the header nav still lands on it.
-  assert.doesNotMatch(landing, /<section id="corridors"/, 'corridors must not be its own section');
-  // Supply lives on /working-capital; the landing links it instead of
-  // repeating it.
+  // Routes is its own section now (decision 6), after the platform.
+  assert.match(landing, /<section id="corridors"/, 'corridors is its own section');
+  assert.ok(at('<section id="platform"') < at('<section id="corridors"'), 'corridors comes after platform');
+  // Supply lives on /working-capital; the landing links it instead of repeating it.
   assert.doesNotMatch(landing, /id="supply"/, 'supply must not be a landing section');
   assert.match(landing, /href="\/working-capital"/, 'loop 03 links the supply page');
 
   // How it works is the four steps prompt 07 §6.1 names, in order.
   const steps = ["title: 'Your vault'", "title: 'Best route by pesos received'", "title: 'A person approves'", "'Proof saved: encrypted on Walrus, anchored on Solana'"];
-  const at = steps.map((s) => landing.indexOf(s));
-  assert.ok(at.every((i) => i >= 0), 'every step is on the landing');
-  assert.deepEqual([...at].sort((a, b) => a - b), at, 'in this order');
+  const stepsAt = steps.map((s) => landing.indexOf(s));
+  assert.ok(stepsAt.every((i) => i >= 0), 'every step is on the landing');
+  assert.deepEqual([...stepsAt].sort((a, b) => a - b), stepsAt, 'in this order');
   assert.doesNotMatch(landing, /Manual transfer branch|Five steps/, 'the earlier five-step flow is gone');
   // The footer carries the one tech line §6.1 asks for.
   assert.match(landing, /Settlement on Solana · Evidence encrypted with Seal, stored on Walrus/);
@@ -226,13 +229,14 @@ test('the landing is the v1 cinematic: sections in order, supply on its own page
 
   // Settlement moved to Solana: the landing and its hero name no Sui
   // settlement, quote no speed figure, and keep no MemWal or DeepBook.
-  const cinematic = await source('components/landing/SettlementCinematic.tsx');
-  for (const surface of [landing, cinematic]) {
+  const hero = await source('components/landing/HeroStory.tsx');
+  const heroPhone = await source('components/landing/HeroStoryPhone.tsx');
+  for (const surface of [landing, hero, heroPhone]) {
     for (const banned of [/\bSui\b/i, /MemWal/i, /DeepBook/i, /lockedCopy\.(?:speed|yield)/, /\d+\s?ms\b/, /\bAPY\b/]) {
       assert.doesNotMatch(surface, banned, `${banned} must not be on the landing`);
     }
   }
-  assert.match(cinematic, /Pay suppliers abroad\./, 'the approved hero');
+  assert.match(hero, /Pay suppliers abroad\./, 'the approved hero');
 
   const page = await source('app/page.tsx');
   assert.match(page, /<IsometricLanding/);
@@ -259,6 +263,34 @@ test('design discipline on the landing: no all-caps eyebrows, no arrows on butto
   }
   assert.doesNotMatch(landing, / · /, 'no middle-dot meta strings');
   assert.doesNotMatch(landing, /IntersectionObserver|cin-reveal/, 'no fade-on-every-section');
+
+  // Prompt 12 §2.1: the same discipline on the landing that renders.
+  // The TSX: no arrow on a button or link, no " · " string (the footer stays exactly as it is, its two
+  // middle-dot lines included: decision 14), no milliseconds, no IntersectionObserver reveal.
+  for (const file of ['components/IsometricLanding.tsx', 'components/landing/HeroStory.tsx', 'components/landing/HeroStoryPhone.tsx']) {
+    const tsx = await source(file);
+    const withoutFooter = tsx.replace(/<footer[\s\S]*?<\/footer>/, '');
+    for (const line of tsx.split('\n')) {
+      if (/<(Link|button|a)\b|className="lp-btn/.test(line)) assert.doesNotMatch(line, /→|↘|➜/, `${file}: no arrow on a button or link`);
+    }
+    assert.doesNotMatch(tsx, /ArrowDownRight|ArrowUpRight/, `${file}: no arrow icon on a call to action`);
+    assert.doesNotMatch(withoutFooter, / · /, `${file}: no middle-dot strings`);
+    assert.doesNotMatch(tsx, /\d+\s?ms\b/, `${file}: durations live in CSS`);
+    assert.doesNotMatch(tsx, /IntersectionObserver|cin-reveal|whileInView/, `${file}: no fade-on-every-section`);
+  }
+  // The footer keeps its sanctioned line, middle dot and all.
+  assert.match(await source('components/IsometricLanding.tsx'), /<footer[\s\S]*Settlement on Solana · Evidence encrypted with Seal, stored on Walrus[\s\S]*<\/footer>/);
+
+  // styles/landing-p12.css: no upper case, no mono face, no raw colour; reduced motion and focus states.
+  const p12 = (await readFile(new URL('../styles/landing-p12.css', import.meta.url), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(p12, /text-transform:\s*uppercase/, 'no all-caps labels');
+  assert.doesNotMatch(p12, /font-mono|monospace/, 'no mono labels');
+  assert.doesNotMatch(p12, /#[0-9a-fA-F]{3,8}\b|rgba?\(/, '--sp-* tokens only, no raw colour');
+  assert.match(p12, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(p12, /:focus-visible/);
+  // app/globals.css imports it right after cinematic.css.
+  const globals = await readFile(new URL('../app/globals.css', import.meta.url), 'utf8');
+  assert.match(globals, /@import "\.\.\/styles\/cinematic\.css";\r?\n@import "\.\.\/styles\/landing-p12\.css";/);
 });
 
 /* ── The copy lint ─────────────────────────────────────────────────────── */

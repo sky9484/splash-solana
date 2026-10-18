@@ -223,6 +223,13 @@
   --sp-auth-night: #022938;
   --sp-text-2: rgb(12 62 72 / .86);
   --sp-muted: rgb(12 62 72 / .55);
+  /* The landing's tags, hairlines and table head (prompt 12 §2; the preview's values). */
+  --sp-ok-fill: #E4F1ED;
+  --sp-ok-ink: #1A5446;
+  --sp-coral-fill: #FBE7DD;
+  --sp-surface-2: #F7F3EE;
+  --sp-line: rgb(12 62 72 / .14);
+  --sp-shadow-deep: rgb(0 0 0 / .28);  /* the closing band's payment card (§2.11) */
   --sp-lift-1: 0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26);
   --sp-lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
   --sp-ease: cubic-bezier(.2, .7, .2, 1);
