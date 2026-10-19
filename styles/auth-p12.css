@@ -777,3 +777,26 @@
 
   .au-submit:active:not(:disabled) { transform: none; }
 }
+
+/* ── Wide desktop (Sky, 19 Oct): the sign-in pages run to about 7% from each edge, like the landing ─────
+   86% of the window, never narrower than before (1,120 px) and at most 2,080 px. The form keeps a readable
+   column; the picture and the type grow from 1,600 px. Phones and tablets keep the rules above. */
+@media (min-width: 1024px) {
+  .au-top,
+  .au-card {
+    width: min(100%, max(1120px, 86vw), 2080px);
+    max-width: none;
+  }
+}
+
+@media (min-width: 1600px) {
+  .au-card { min-height: clamp(620px, 34vw, 860px); }
+  .au-art { padding: clamp(36px, 2.4vw, 56px); }
+  .au-art__picture img { max-width: min(100%, 30vw); max-height: min(46vh, 24vw); }
+  .au-art--night .au-art__picture img { max-height: min(58vh, 30vw); object-fit: contain; }
+  .au-form-panel { padding: clamp(48px, 3.4vw, 80px); }
+  .au-form-panel > * { width: 100%; max-width: 520px; margin-inline: auto; }
+  .au-title { font-size: clamp(30px, 1.8vw, 40px); }
+  .au-sub { font-size: clamp(14px, 0.75vw, 16px); }
+  .au-art__line { font-size: clamp(20px, 1.15vw, 26px); }
+}

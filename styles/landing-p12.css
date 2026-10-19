@@ -1430,3 +1430,41 @@
   .lp-ctrl-toggle:hover,
   .lp-close__card:hover img { transform: none; }
 }
+
+/* ── Wide desktop (Sky, 19 Oct): on a computer the landing runs to about 7% from each edge ─────────
+   Content and the header, partner rail and footer rows take 86% of the window, never narrower than
+   before (1,180 px of content, a 1,360 px row) and at most 2,080 px on an ultra-wide screen. Phones and
+   tablets keep the rules above. Landing only (`.lp`): working capital keeps its own width. */
+@media (min-width: 1024px) {
+  .lp .lp-wrap {
+    width: min(100% - 48px, max(1180px, 86vw), 2080px);
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  .lp .lp-story__pin {
+    width: min(100% - 48px, max(1180px, 86vw), 2080px);
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  .lp .lp-story__progress { right: 0; left: 0; }
+
+  .lp .iso-shell { width: min(100% - 48px, max(1360px, 86vw), 2080px); }
+}
+
+/* On a very wide window the type and the hero's pictures grow with it, so the wider page doesn't read as
+   small words in a big field. From 1,600 px; at 1,440 px nothing changes. */
+@media (min-width: 1600px) {
+  .lp .lp-display--hero { font-size: clamp(44px, min(6.2vw, 10.5vh), 128px); }
+  .lp .lp-display--beat { font-size: clamp(38px, min(4.6vw, 8.4vh), 96px); }
+  .lp .lp-display--section { font-size: clamp(34px, 4vw, 88px); }
+  .lp .lp-display--band { font-size: clamp(40px, 4.4vw, 96px); }
+  .lp .lp-display--close { font-size: clamp(36px, 4.2vw, 88px); }
+  .lp .lp-display--small { font-size: clamp(28px, 2.9vw, 60px); }
+  .lp .lp-lede { font-size: clamp(16px, 0.9vw, 19px); }
+  .lp .lp-beat__art > img:first-child { max-width: min(100%, 30vw); max-height: min(60vh, 32vw); }
+  .lp .lp-beat__art--district > img:first-child { width: min(100%, 36vw); max-width: none; }
+  /* The picture's box hugs the picture, so its card and coins stay beside it, not at the column's far edge. */
+  .lp .lp-beat__art { width: min(100%, 40vw); justify-self: center; }
+}
