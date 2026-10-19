@@ -1463,8 +1463,20 @@
   .lp .lp-display--close { font-size: clamp(36px, 4.2vw, 88px); }
   .lp .lp-display--small { font-size: clamp(28px, 2.9vw, 60px); }
   .lp .lp-lede { font-size: clamp(16px, 0.9vw, 19px); }
+  /* The pictures: 30% of the window (the district 36%), with `sizes` in HeroStory to match, and a stage tall
+     enough to hold them. */
+  .lp .lp-beat__stage { height: min(78vh, max(640px, 34vw)); }
   .lp .lp-beat__art > img:first-child { max-width: min(100%, 30vw); max-height: min(60vh, 32vw); }
-  .lp .lp-beat__art--district > img:first-child { width: min(100%, 36vw); max-width: none; }
-  /* The picture's box hugs the picture, so its card and coins stay beside it, not at the column's far edge. */
-  .lp .lp-beat__art { width: min(100%, 40vw); justify-self: center; }
+  /* The district's box is its picture (never taller than 60% of the window), so the coins keep their places
+     on its corners and their 160 and 118 px share of the 560 px picture. */
+  .lp .lp-beat__art--district { width: min(100%, 36vw, 107vh); }
+  .lp .lp-beat__art--district > img:first-child { width: 100%; max-width: none; max-height: none; }
+  .lp .lp-token--usd { width: 28.6%; }
+  .lp .lp-token--php { width: 21%; }
+  /* The product card stays at its picture's lower right, not at the far edge of the wider column. */
+  .lp .lp-float {
+    right: max(0px, 50% - 18vw);
+    width: clamp(312px, 16vw, 380px);
+    font-size: clamp(12.5px, 0.66vw, 14.5px);
+  }
 }
