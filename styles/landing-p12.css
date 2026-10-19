@@ -482,8 +482,10 @@
   filter: drop-shadow(0 10px 12px color-mix(in srgb, var(--sp-ink) 18%, transparent));
 }
 
-.lp-token--usd { top: -8%; right: -2%; width: 70px; }
-.lp-token--php { bottom: 4%; left: -4%; width: 62px; animation-delay: 1s; }
+/* The coin fills under half of its picture's square (the rest is clear), so the boxes are larger than the
+   preview's 70 and 62 px for the coins themselves to show at about those sizes. */
+.lp-token--usd { top: -18%; right: -7%; width: 160px; }
+.lp-token--php { bottom: -2%; left: -9%; width: 118px; animation-delay: 1s; }
 
 @keyframes lp-bob {
   50% { transform: translateY(-6px); }
@@ -494,7 +496,8 @@
   position: absolute;
   right: 0;
   bottom: 6%;
-  width: 260px;
+  /* The preview's 260 px card held "Cheapest · US$12.50"; §0.5.5's longer chips need a little more. */
+  width: 312px;
   border-radius: 20px;
   padding: 14px 16px;
   color: var(--sp-ink);
@@ -514,10 +517,15 @@
 .lp-float__head,
 .lp-float__route {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
 }
+/* A figure or a receipt number never breaks; if the row is too narrow, it moves under its tag, to the right. */
+.lp-float__head strong,
+.lp-float__route strong { margin-left: auto; white-space: nowrap; }
+.lp-float__head strong:first-child { margin-left: 0; }
 
 .lp-float__head { margin-bottom: 4px; }
 .lp-float__head strong { color: var(--sp-deep); font-weight: 800; font-variant-numeric: tabular-nums; }

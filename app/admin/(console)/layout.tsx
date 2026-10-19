@@ -80,7 +80,7 @@ export default async function AdminConsoleLayout({ children }: { children: React
         <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-xs text-white/90">
           <div className="font-bold text-white">{session.name}</div>
           <div className="mt-1 break-all">{session.email}</div>
-          <div className="mt-2 uppercase tracking-[0.16em] text-[#d8fff4]">{session.role}</div>
+          <div className="mt-2 text-[#d8fff4]">{`${session.role.charAt(0).toUpperCase()}${session.role.slice(1)}`}</div>
         </div>
         <div className="mt-4">
           <AdminLogoutButton />

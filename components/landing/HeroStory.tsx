@@ -273,8 +273,8 @@ export default function HeroStory() {
                   />
                   {index === 0 ? (
                     <>
-                      <Image src="/cinematic/token-usd.png" alt="" width={1024} height={1024} sizes="72px" className="lp-token lp-token--usd" />
-                      <Image src="/cinematic/token-php.png" alt="" width={1024} height={1024} sizes="64px" className="lp-token lp-token--php" />
+                      <Image src="/cinematic/token-usd.png" alt="" width={1024} height={1024} sizes="160px" className="lp-token lp-token--usd" />
+                      <Image src="/cinematic/token-php.png" alt="" width={1024} height={1024} sizes="118px" className="lp-token lp-token--php" />
                     </>
                   ) : null}
                 </div>

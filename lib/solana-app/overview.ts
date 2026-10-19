@@ -32,9 +32,10 @@ export { phpToUsdMinor };
 
 const utcDay = (d: Date) => d.toISOString().slice(0, 10);
 const monthKey = (iso: string) => iso.slice(0, 7);
+/** "14 Oct": a calendar day as it is, a moment by its day in Malaysia time (the day the receipt and History show). */
 const shortDate = (iso: string) => {
-  const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const day = iso.length === 10 ? iso : new Date(Date.parse(iso) + 8 * 3_600_000).toISOString().slice(0, 10);
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 };
 /** "Tuesday, 14 Oct". */
 const longDay = (d: Date) =>

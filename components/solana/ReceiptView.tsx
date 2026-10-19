@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Check, CircleCheck, Download, FileJson, Minus, Printer, Share2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { IsoButton, Tag, TestModeBadge } from '@/components/iso';
+import { Details, IsoButton, Tag, TestModeBadge } from '@/components/iso';
 
 import type { CorridorPayoutBundle } from '@/lib/solana-evidence/bundle';
 import type { MerkleProof } from '@/lib/solana-evidence/merkle';
@@ -309,6 +309,11 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
               </a>
             </span>
           </div>
+          {steps ? (
+            <div className={`iso-note iso-r-verdict iso-print-hide ${failed || !verdict?.ok ? 'iso-note--danger' : 'iso-note--ok'}`} aria-live="polite">
+              <h2 className="iso-receipt__verdict">{failed || !verdict?.ok ? 'Does not verify. This record differs from the recorded proof or the stored copy.' : 'Verified. This record matches the recorded proof and the stored copy.'}</h2>
+            </div>
+          ) : null}
           <ReceiptDocument doc={doc} verified={verified} shareUrl={shareUrl} heading={source.kind === 'shared' ? 'h1' : 'h2'} />
           {source.kind === 'company' ? (
             <ShareSheet
@@ -449,7 +454,8 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
       </section>
       )}
 
-      <div className={doc ? 'iso-receipt iso-print-hide' : 'iso-receipt'}>
+      {doc && source.kind === 'shared' ? null : (
+      <TechWrap enabled={Boolean(doc)}>
       <SolscanTrace
         auditor={source.kind === 'shared'}
         memo={receipt.trace.memo}
@@ -467,7 +473,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
             Verify this receipt
           </h2>
         </div>
-        <p className="iso-small">Five checks, run in this browser. The server supplies the record; it does not supply the answer.</p>
+        <p className="iso-small">{doc ? 'Five checks, run in this browser when you press Verify receipt.' : 'Five checks, run in this browser.'} The server supplies the record; it does not supply the answer.</p>
         <dl className="iso-idrows">
           <div className="iso-idrow">
             <dt>Recorded proof</dt>
@@ -518,16 +524,20 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
             )}
           </p>
         ) : null}
-        <div>
-          <button type="button" className="iso-btn iso-btn--primary" onClick={verify} disabled={checking}>
-            {checking ? 'Checking…' : 'Verify'}
-          </button>
-        </div>
+        {doc ? null : (
+          <div>
+            <button type="button" className="iso-btn iso-btn--primary" onClick={verify} disabled={checking}>
+              {checking ? 'Checking…' : 'Verify'}
+            </button>
+          </div>
+        )}
         {steps ? (
           <div aria-live="polite" className="iso-stack">
-            <div className={`iso-note ${failed || !verdict?.ok ? 'iso-note--danger' : 'iso-note--ok'}`}>
-              <h3 className="iso-receipt__verdict">{failed || !verdict?.ok ? 'Does not verify. This record differs from the recorded proof or the stored copy.' : 'Verified. This record matches the recorded proof and the stored copy.'}</h3>
-            </div>
+            {doc ? null : (
+              <div className={`iso-note ${failed || !verdict?.ok ? 'iso-note--danger' : 'iso-note--ok'}`}>
+                <h3 className="iso-receipt__verdict">{failed || !verdict?.ok ? 'Does not verify. This record differs from the recorded proof or the stored copy.' : 'Verified. This record matches the recorded proof and the stored copy.'}</h3>
+              </div>
+            )}
             <ol className="iso-receipt__checks">
               {steps.map((st) => (
                 <li key={st.key} data-state={st.state}>
@@ -548,7 +558,23 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           </div>
         ) : null}
       </section>
-      </div>
+      </TechWrap>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Under the A4 page, the trace and the five checks are the receipt's Technical details (§0.6): closed until
+ * opened, as wide as the page, never printed. A receipt without the A4 page shows them as they were.
+ */
+function TechWrap({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  if (!enabled) return <div className="iso-receipt">{children}</div>;
+  return (
+    <div className="iso-r-tech iso-print-hide">
+      <Details summary="Technical details">
+        <div className="iso-stack">{children}</div>
+      </Details>
     </div>
   );
 }

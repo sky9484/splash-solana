@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Anchor, ArrowRight, ArrowUp, Check, ChevronRight, PenLine, ShieldCheck, Workflow, Zap } from 'lucide-react';
 
 import HeroStory from '@/components/landing/HeroStory';
@@ -278,10 +278,17 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
   // The control plane reveals below the Zeke strip on demand, not as a second section.
   const [ctrlOpen, setCtrlOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const backToTop = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function updateHeaderState() {
       setShowBackToTop(window.scrollY > Math.max(20, window.innerHeight * 0.05));
+      // The button rises by as much as the footer's dark bar has come into the window, so it never sits on the
+      // footer's sanctioned line (prompt 12 Phase 7; the footer itself stays as it is). Set on the element, not
+      // in state: nothing else re-renders while the page scrolls.
+      const bar = document.querySelector('.cin-footer-bar');
+      const lift = bar ? Math.max(0, Math.round(window.innerHeight - bar.getBoundingClientRect().top)) : 0;
+      if (backToTop.current) backToTop.current.style.bottom = lift ? `${24 + lift}px` : '';
     }
 
     updateHeaderState();
@@ -785,8 +792,9 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
       </footer>
       <button
         type="button"
+        ref={backToTop}
         className={`iso-back-to-top ${showBackToTop ? 'is-visible' : ''}`}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })}
         aria-label="Back to top"
       >
         <ArrowUp aria-hidden="true" />

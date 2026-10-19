@@ -795,7 +795,7 @@ function destinationOf(o: { kind: string; landsIn?: string | null }): string {
 /**
  * Interest booked (last 7 days with any) and settled T-bill moves, newest first, at most 8. Each row
  * carries its day and time in MYT and where the money went (prompt 12 B4: two "Moved out" rows on the
- * same day were indistinguishable). Interest is booked at the close of its day.
+ * same day were indistinguishable). Interest is booked at the close of its day, and listed from then.
  */
 function activityOf(org: OrgRecord, interest: Array<{ day: string; interestMinor: bigint }>, now: Date) {
   const today = mytDayOf(now.toISOString());
@@ -803,7 +803,8 @@ function activityOf(org: OrgRecord, interest: Array<{ day: string; interestMinor
   const rows: Array<{ id: string; at: string; label: string; time: string; to: string; what: 'interest' | 'in' | 'out'; amountMinor: bigint; approvedKey: string | null; approvedBy: string | null }> = [];
   for (const d of interest.slice(-7)) {
     const at = `${d.day}T23:59:59.000Z`;
-    if (d.interestMinor > 0n) rows.push({ id: `int_${d.day}`, at, label: label(at), time: mytClock(at), to: 'on your T-bills, in your Investments account', what: 'interest', amountMinor: d.interestMinor, approvedKey: null, approvedBy: null });
+    // Booked at its day's close: a day that hasn't closed yet has nothing booked to list.
+    if (d.interestMinor > 0n && Date.parse(at) <= now.getTime()) rows.push({ id: `int_${d.day}`, at, label: label(at), time: mytClock(at), to: 'on your T-bills, in your Investments account', what: 'interest', amountMinor: d.interestMinor, approvedKey: null, approvedBy: null });
   }
   for (const o of book(org).orders) {
     if (o.asset !== 'usdy' || o.state !== 'settled') continue;

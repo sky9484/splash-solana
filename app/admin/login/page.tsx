@@ -42,7 +42,7 @@ export default function AdminLoginPage() {
       <section className="admin-login-story">
         <div className="admin-login-brand">
           <Image src="/splash-main-icon.png" alt="" width={48} height={47} priority />
-          <span><strong>Splash Staff</strong><small>Global Settlement Engine</small></span>
+          <span><strong>Splash Staff</strong><small>Global settlement engine</small></span>
         </div>
         <div className="admin-login-copy">
           <span>Restricted operations</span>

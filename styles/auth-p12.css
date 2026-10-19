@@ -138,8 +138,9 @@
   max-height: none;
   border-radius: 22px;
   filter: none;
-  -webkit-mask-image: radial-gradient(ellipse 66% 64% at 50% 52%, var(--sp-ink) 45%, transparent 100%);
-  mask-image: radial-gradient(ellipse 66% 64% at 50% 52%, var(--sp-ink) 45%, transparent 100%);
+  /* Clear by the picture's edges (its border is a shade lighter than the panel), solid over the desk. */
+  -webkit-mask-image: radial-gradient(ellipse 52% 54% at 50% 52%, var(--sp-ink) 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 52% 54% at 50% 52%, var(--sp-ink) 62%, transparent 100%);
 }
 
 @keyframes au-rise {

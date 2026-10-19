@@ -5,6 +5,9 @@
 // One company, one browser: a company has one vault and the device key lives in this browser's
 // IndexedDB, so the walk runs once at 1440 px and shoots each step at both widths. Then it pays a
 // second invoice entirely at 390 px, so the phone layout is clicked through, not only looked at.
+// Prompt 12 Phase 7 adds: the landing's phone hero swiped, the new sign-in, step 5's share sheet (a
+// country switched, a link copied), the A4 receipt for the company and the auditor, the monthly
+// statement against the Payments account, and the 404.
 //
 // Needs a fresh in-memory dev database and a dev server in offline mode, then an installed Chrome,
 // Edge or Chromium (no npm package, no browser download: tests/helpers/cdp-browser.mjs):
@@ -192,9 +195,27 @@ async function run(page, email) {
   await page.goto(`${BASE}/`);
   await page.find('heading', 'Pay suppliers abroad. Prove every payment.');
   await shot('landing');
+  // Prompt 12 §2.3: on a phone the hero is its own block, then the four beats on a rail that snaps. A
+  // real swipe (a touch scroll gesture) moves the rail to the next card; the counter and the dots follow.
+  await page.setViewport(...PHONE);
+  await page.goto(`${BASE}/`);
+  await page.waitFor(() => (document.querySelector('.lp-mrail')?.getBoundingClientRect().width ?? 0) > 0, [], { what: 'the phone hero rail' });
+  await page.evaluate(() => document.querySelector('.lp-mrail').scrollIntoView({ block: 'center' }));
+  await page.sleep(500);
+  const railAt = () => page.evaluate(() => ({ counter: document.querySelector('.lp-mrail__head > span')?.textContent, dot: [...document.querySelectorAll('.lp-mdots [role=tab]')].findIndex((d) => d.getAttribute('aria-selected') === 'true') }));
+  assert.deepEqual(await railAt(), { counter: '1 / 4', dot: 0 }, 'the rail starts on the first beat');
+  const rail = await page.evaluate(() => { const r = document.querySelector('.lp-mrail').getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + r.height / 2, w: r.width }; });
+  await page.swipe(rail.x, rail.y, -Math.round(rail.w * 0.7));
+  await page.waitFor(() => document.querySelector('.lp-mrail__head > span')?.textContent === '2 / 4', [], { what: 'the rail on the second beat after a swipe' });
+  assert.deepEqual(await railAt(), { counter: '2 / 4', dot: 1 }, 'the counter and the dots follow the swipe');
+  await shotOne('landing-phone-swipe', 'mobile');
+  await page.setViewport(...DESKTOP);
 
-  // Sign in.
+  // Sign in: the one auth shell (prompt 12 §3.1), on the Pale ground, with the night desk.
   await page.goto(`${BASE}/login`);
+  await page.find('heading', 'Sign in to Splash');
+  assert.ok(await page.evaluate(() => !!document.querySelector('main.au.sp-ground-pale') && [...document.querySelectorAll('.au-art img')].some((i) => /auth-signin-night/.test(i.currentSrc || i.src))), 'the auth shell on Pale, with the night desk');
+  await shot('login');
   await page.fill('Business email', email);
   await page.fill('Password', DEMO_PASSWORD);
   await page.click('button', 'Sign in', { exact: true });
@@ -368,12 +389,15 @@ async function run(page, email) {
   await headerMatchesServer('track', /^Paid$/);
   await shot('done-evidence');
 
-  // Receipt: verify, trace on Solscan, then tamper.
+  // Receipt: the one Verify above the A4 page runs the five checks; the trace and the checks are its
+  // Technical details, closed until opened (prompt 12 §5.4, Phase 7); then tamper.
   await page.click('link', 'Full receipt');
-  await page.find('heading', 'Verify this receipt');
-  await page.click('button', 'Verify', { exact: true });
+  await page.find('heading', 'Payment receipt');
+  await page.click('button', 'Verify receipt');
   await page.find('heading', /^Verified\. This record matches/);
   const receiptPath = await page.evaluate(() => location.pathname);
+  await page.evaluate(() => document.querySelector('.iso-r-tech summary').click());
+  await page.find('heading', 'Verify this receipt');
   // The trace names the memo on every payment transaction. Offline the signatures exist on no
   // network, so it says so and links none of them: a Solscan link to a simulated signature would 404.
   await page.find('heading', 'Trace it on Solscan');
@@ -382,9 +406,15 @@ async function run(page, email) {
   assert.match(trace, /offline simulator, so they are on no network/);
   const links = await page.evaluate(() => [...document.querySelectorAll('section[aria-labelledby="trace-title"] a')].map((a) => a.href));
   assert.ok(links.every((h) => /^https:\/\/solscan\.io\/(tx|account)\/\w+(\?cluster=devnet)?$/.test(h)), `only Solscan links: ${links.join(', ')}`);
+  // The A4 receipt (prompt 12 §5.4): its number, and the seal once this browser's check has passed.
+  await page.waitFor(() => /Verified/.test(document.querySelector('.iso-a4__seal')?.innerText ?? ''), [], { what: 'the A4 seal' });
+  const a4 = (await page.text('.iso-a4')).join('\n');
+  assert.match(a4, /Payment receipt/);
+  assert.match(a4, /SPL-R-\d{8}-[0-9A-F]{8}/, 'the receipt number');
+  assert.ok(await page.evaluate(() => document.querySelectorAll('.iso-a4__times tbody tr').length >= 3), 'the time table of recorded moments');
   await shot('receipt-verified');
   await page.check('Tamper with a field (demo)');
-  await page.click('button', 'Verify', { exact: true });
+  await page.click('button', 'Verify receipt');
   await page.find('heading', /^Does not verify\./);
   await shot('receipt-tampered');
 
@@ -397,8 +427,15 @@ async function run(page, email) {
   assert.match(share.path, /^\/receipt\/shr_[0-9a-f]{32}$/);
   await page.goto(`${BASE}${share.path}`);
   await page.find('text', 'Read-only receipt');
-  await page.click('button', 'Verify', { exact: true });
+  await page.click('button', 'Verify receipt');
   await page.find('heading', /^Verified\. This record matches/);
+  // The auditor gets the document and its one Verify, nothing more: no trace, no account addresses, no demo tamper.
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-r-tech, section[aria-labelledby="trace-title"], section[aria-labelledby="verify-title"]')), null, 'only the document on the auditor\u2019s page');
+  // The auditor's page is the same A4 receipt, verified in their browser, with its read-only tags.
+  await page.waitFor(() => /Verified/.test(document.querySelector('.iso-a4__seal')?.innerText ?? ''), [], { what: 'the shared A4 seal' });
+  const sharedTags = (await page.text('.iso-r-actions')).join(' ');
+  assert.match(sharedTags, /Read-only/);
+  assert.match(sharedTags, /Expires\s+\d{1,2} \w{3} \d{4}/, 'a new link expires (D7)');
   await shot('receipt-shared-auditor');
 
   // The bill now sits on the Paid tab with its receipt; the chooser's counts are still zero for it.
@@ -574,6 +611,21 @@ async function run(page, email) {
   await page.find('text', /^This receipt verifies\. It matches the proof recorded for it\./);
   assert.doesNotMatch((await page.text('main')).join('\n'), TIME_WORDS, 'no time or speed words on the track step');
   await shot('transfer-track-paid');
+  // Step 5's Share with auditor (prompt 12 §5.3): the sheet, a country switch, and a read-only link copied.
+  await page.click('button', 'Share with auditor');
+  await page.find('heading', /^Share this receipt/);
+  assert.match((await page.text('.iso-share__opts')).join(' '), /MyInvois/, 'the company’s country (Malaysia) first');
+  await page.click('button', 'PH', { exact: true });
+  await page.waitFor(() => /BIR e-Invoicing System/.test(document.querySelector('.iso-share__opts')?.innerText ?? ''), [], { what: 'the Philippine portal option' });
+  await page.click('button', 'Read-only link', { exact: true });
+  await page.click('button', 'Copy a read-only link');
+  await page.waitFor(() => /\/receipt\/shr_[0-9a-f]{32}$/.test(document.querySelector('.iso-share__url')?.innerText.trim() ?? ''), [], { what: 'the read-only link' });
+  await page.waitFor(() => !!document.querySelector('.iso-sheet .iso-note'), [], { what: 'the copy note' });
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-sheet .iso-note').innerText.trim()), 'Link copied. It opens this receipt only, read-only.');
+  assert.match((await page.text('.iso-share__panel')).join(' '), /Expires\s+\d{1,2} \w{3} \d{4}\./);
+  await shot('step5-share-sheet');
+  await page.press('Escape');
+  await page.waitFor(() => !document.querySelector('.iso-sheet-root'), [], { what: 'the sheet to close' });
   await page.click('button', 'Save as template');
   await page.find('button', 'Saved as a template');
 
@@ -595,11 +647,31 @@ async function run(page, email) {
   await page.goto(`${BASE}/dashboard/history`);
   await page.waitFor(() => document.querySelectorAll('.sx-table tbody tr').length >= 1, [], { what: 'the payment row' });
   await shot('history');
+  // The monthly statement (prompt 12 §5.5), from History's picker: this month of the Payments account,
+  // closing at what the account holds.
+  await page.click('link', 'Open the statement');
+  await page.waitFor(() => location.pathname === '/dashboard/history/statement', [], { what: 'the statement' });
+  await page.find('heading', 'Monthly statement');
+  const statement = await page.evaluate(async () => {
+    const q = new URLSearchParams(location.search);
+    const st = await (await fetch(`/api/solana/statement?month=${q.get('month')}&account=${q.get('account')}`, { cache: 'no-store' })).json();
+    const b = await (await fetch('/api/solana/balance', { cache: 'no-store' })).json();
+    return { account: q.get('account'), lines: st.statement.lines.length, closing: String(st.statement.closingMinor), holds: String(b.balance?.paymentsMinor ?? b.paymentsMinor) };
+  });
+  assert.equal(statement.account, 'payments');
+  assert.ok(statement.lines > 0, 'the month has lines');
+  assert.equal(statement.closing, statement.holds, 'the statement closes at what the Payments account holds');
+  await shot('statement');
+  // The 404 (prompt 12 §3.3): Splash's own page, not Next's default.
+  await page.goto(`${BASE}/no-such-page`);
+  await page.find('heading', 'This page isn’t here');
+  await shot('not-found');
   // Prompt 12 §1.3 (audit B7): Rules left the sidebar for Settings in Sky's restyle, so reach it the way a
   // person does now, through Settings' tabs, and check it there.
   await page.goto(`${BASE}/dashboard/settings`);
   await page.click('link', 'Payment rules');
-  await page.waitFor(() => location.pathname === '/dashboard/settings/policy', [], { what: 'the Payment rules tab' });
+  // A first visit compiles the page on a fresh dev server; one run stalled past 30 s there (prompt 12 Phase 5 and 7).
+  await page.waitFor(() => location.pathname === '/dashboard/settings/policy', [], { what: 'the Payment rules tab', timeoutMs: 90_000 });
   await page.find('heading', 'Payment rules');
   await page.find('text', /^These run as code before every approval/);
   assert.equal(await page.evaluate(() => document.querySelector('nav[aria-label="Settings sections"] a[aria-current="page"]')?.textContent.trim()), 'Payment rules');

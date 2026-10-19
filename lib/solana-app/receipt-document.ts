@@ -155,7 +155,8 @@ export function receiptDocument(input: {
       bank: peer ? null : c.supplierBank,
       last4: peer ? null : c.supplierAccountLast4,
       country: peer ? null : 'Philippines',
-      verifiedAt: c.bankDetailsVerified?.at ?? null,
+      // A business on Splash is paid into its own account: no bank details, so no call-back to show.
+      verifiedAt: peer ? null : (c.bankDetailsVerified?.at ?? null),
     },
     received,
     paid,

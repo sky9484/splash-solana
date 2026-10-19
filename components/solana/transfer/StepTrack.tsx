@@ -283,14 +283,14 @@ function Receipt({ payment, payee, receipt, problem, recorded }: { payment: Paym
             </div>
             <div className="iso-r5__amount">
               <span className="iso-r5__alabel">Rate</span>
-              <strong>{doc.rate ? doc.rate.value : 'None'}</strong>
+              <strong>{doc.rate ? doc.rate.value : 'No conversion'}</strong>
               <span className="iso-r5__asub">
                 {doc.rate ? (
                   <>
                     PHP per US${doc.rate.test ? ', test rate' : ''}, locked <MytTime at={doc.rate.lockedAt} />
                   </>
                 ) : (
-                  'No conversion'
+                  'US dollars in, US dollars out'
                 )}
               </span>
             </div>
@@ -305,7 +305,7 @@ function Receipt({ payment, payee, receipt, problem, recorded }: { payment: Paym
                   <span>A business on Splash</span>
                 ) : (
                   <span>
-                    {doc.paidTo.bank} <span className="iso-mono">•••• {doc.paidTo.last4}</span>, {doc.paidTo.country}
+                    {doc.paidTo.bank} •••• {doc.paidTo.last4}, {doc.paidTo.country}
                   </span>
                 )}
                 {doc.paidTo.verifiedAt ? (

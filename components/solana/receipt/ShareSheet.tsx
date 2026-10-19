@@ -138,7 +138,7 @@ export function ShareSheet({ open, onClose, receiptId, number, onPdf, packHref }
 
   const options: Array<{ value: Option; icon: typeof Mail; title: string; planned?: boolean }> = [
     ...(country === 'OTHER' ? [] : [{ value: 'portal' as const, icon: Landmark, title: PORTAL[country].title, planned: true }]),
-    { value: 'link', icon: Link2, title: 'Copy a read-only link' },
+    { value: 'link', icon: Link2, title: 'Read-only link' },
     { value: 'pdf', icon: Download, title: 'Download the receipt (PDF)' },
     { value: 'pack', icon: FileJson, title: 'Download the evidence file (JSON)' },
   ];

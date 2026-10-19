@@ -336,6 +336,22 @@ async function createPage(call, subscribe, viewport) {
     await call('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
   }
 
+  /**
+   * A real swipe: touch events (CDP Input.dispatchTouchEvent) from (x, y), `dx` px sideways in small
+   * steps, as a thumb moves (negative goes left, which brings the next card in). The page scrolls as it
+   * does under a finger, not because a script set scrollLeft.
+   */
+  async function swipe(x, y, dx, { steps = 12 } = {}) {
+    const at = (i) => [{ x: Math.round(x + (dx * i) / steps), y: Math.round(y), id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+    await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(0) });
+    for (let i = 1; i <= steps; i++) {
+      await call('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(i) });
+      await sleep(16);
+    }
+    await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await sleep(600);
+  }
+
   /** Emulate CSS media features, e.g. [{ name: 'prefers-reduced-motion', value: 'reduce' }]. */
   async function emulateMedia(features) {
     await call('Emulation.setEmulatedMedia', { features });
@@ -363,5 +379,5 @@ async function createPage(call, subscribe, viewport) {
     return frames;
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, record, requests, errors, stuck, sleep };
+  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, swipe, record, requests, errors, stuck, sleep };
 }

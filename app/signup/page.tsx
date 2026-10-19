@@ -11,7 +11,7 @@ export default function SignUpPage() {
   const [sent, setSent] = useState(false);
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
-  const [region, setRegion] = useState('Singapore');
+  const [region, setRegion] = useState('Malaysia');
   const [password, setPassword] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -94,8 +94,8 @@ export default function SignUpPage() {
             <div>
               <Globe2 aria-hidden="true" />
               <select id="signup-region" value={region} onChange={(event) => setRegion(event.target.value)}>
-                <option>Singapore</option>
                 <option>Malaysia</option>
+                <option>Singapore</option>
                 <option>Indonesia</option>
                 <option>Philippines</option>
                 <option>Thailand</option>
@@ -132,7 +132,6 @@ export default function SignUpPage() {
               type={showPassword ? 'text' : 'password'}
               required
               autoComplete="new-password"
-              placeholder="12+ characters with a letter and a number"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
