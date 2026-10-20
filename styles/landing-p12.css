@@ -327,6 +327,50 @@
   text-shadow: inherit;
 }
 
+/* On the dark cyan bands the extrusion was the band's own teal, so "Four steps." lost its depth (Sky,
+   21 Oct): there it is night teal, which reads against the band. */
+.lp .lp-band .lp-display {
+  -webkit-text-stroke-color: var(--sp-auth-night);
+  text-shadow:
+    2px 2px 0 var(--sp-deep),
+    4px 4px 0 var(--sp-deep),
+    6px 6px 0 var(--sp-deep),
+    8px 8px 0 var(--sp-auth-night),
+    10px 10px 0 var(--sp-auth-night),
+    12px 12px 0 var(--sp-auth-night),
+    18px 22px 30px color-mix(in srgb, var(--sp-auth-night) 45%, transparent);
+}
+
+.lp .lp-band .lp-display span:not(.lp-line) {
+  -webkit-text-stroke-color: var(--sp-auth-night);
+  text-shadow:
+    2px 2px 0 color-mix(in srgb, var(--sp-gold) 60%, var(--sp-auth-night)),
+    4px 4px 0 color-mix(in srgb, var(--sp-gold) 60%, var(--sp-auth-night)),
+    6px 6px 0 var(--sp-auth-night),
+    12px 16px 24px color-mix(in srgb, var(--sp-auth-night) 40%, transparent);
+}
+
+/* Flat, as v1's Trust headline (Sky, 21 Oct): no stroke, no extrusion. */
+.lp .lp-display--flat,
+.lp .lp-display--flat span {
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+}
+
+/* Solid, as v1's copilot headline: deep ink, the second line teal, a soft drop instead of the extrusion. */
+.lp .lp-display--solid {
+  color: var(--sp-deep);
+  -webkit-text-stroke: 0;
+  text-shadow: .05em .06em 0 color-mix(in srgb, var(--sp-ink) 12%, transparent);
+}
+
+.lp .lp-display--solid span:not(.lp-line) {
+  color: var(--sp-teal);
+  font-size: 1em;
+  -webkit-text-stroke: 0;
+  text-shadow: inherit;
+}
+
 .lp .lp-display--hero { font-size: clamp(44px, min(6.2vw, 10.5vh), 96px); }
 .lp .lp-display--beat { font-size: clamp(38px, min(4.6vw, 8.4vh), 70px); }
 .lp .lp-display--section { max-width: 14ch; font-size: clamp(34px, 4.4vw, 64px); }
@@ -372,43 +416,51 @@
   transform-origin: left;
 }
 
-.lp-story__rail {
+/* "Scroll to settle" (Sky, 21 Oct; v1's cue): bottom right of the pinned stage, a mouse whose wheel rolls,
+   in sentence case like every label here. It steps aside on the last beat, where the page carries on. */
+.lp-cue {
   position: absolute;
-  top: 50%;
-  left: -64px;
+  right: 24px;
+  bottom: 26px;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  transform: translateY(-50%);
-}
-
-.lp-story__rail button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  border: 0;
-  padding: 2px 0;
+  margin: 0;
   color: var(--sp-text-2);
-  background: none;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
-  cursor: pointer;
+  letter-spacing: .02em;
+  transition: opacity var(--sp-t-beat) var(--sp-ease);
 }
 
-.lp-story__rail i {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--sp-ink) 18%, transparent);
-  transition: background var(--sp-t-ui) var(--sp-ease), box-shadow var(--sp-t-ui) var(--sp-ease);
+.lp-cue[data-done] { opacity: 0; }
+
+.lp-cue__wheel {
+  position: relative;
+  width: 18px;
+  height: 28px;
+  border: 1.5px solid color-mix(in srgb, var(--sp-ink) 45%, transparent);
+  border-radius: 10px;
 }
 
-.lp-story__rail button[aria-current="step"] { color: var(--sp-deep); }
+.lp-cue__wheel::after {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 3px;
+  height: 6px;
+  margin-left: -1.5px;
+  border-radius: 3px;
+  content: "";
+  background: var(--sp-teal);
+  animation: lp-cue-wheel 1.8s var(--sp-ease) infinite;
+}
 
-.lp-story__rail button[aria-current="step"] i {
-  background: var(--sp-gold);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sp-gold) 35%, transparent);
+@keyframes lp-cue-wheel {
+  0% { opacity: 0; transform: translateY(-2px); }
+  30% { opacity: 1; }
+  80%, 100% { opacity: 0; transform: translateY(8px); }
 }
 
 .lp-story__beats {
@@ -464,9 +516,11 @@
   filter: drop-shadow(0 18px 22px color-mix(in srgb, var(--sp-ink) 16%, transparent));
 }
 
-.lp-beat__art--district > img:first-child {
-  width: min(100%, 560px);
+/* The opening beat's map: never taller than 56% of the window (its shape is 1.44 : 1), so it never squashes. */
+.lp-beat__art--opening > img:first-child {
+  width: min(100%, 560px, 80vh);
   max-width: none;
+  max-height: none;
 }
 
 .lp-beat[data-state="past"] .lp-beat__copy { opacity: 0; transform: translateY(-22px); }
@@ -474,7 +528,7 @@
 .lp-beat[data-state="past"] .lp-beat__art { opacity: 0; transform: scale(.92) translateY(-16px); }
 .lp-beat[data-state="next"] .lp-beat__art { opacity: 0; transform: scale(.92) translateY(16px); }
 
-/* The USD and PHP tokens over the district on the opening beat: they bob by themselves. */
+/* The USD and PHP tokens over the map on the opening beat: they bob by themselves. */
 .lp-token {
   position: absolute;
   height: auto;
@@ -489,6 +543,39 @@
 
 @keyframes lp-bob {
   50% { transform: translateY(-6px); }
+}
+
+/* The coin a step brings in (Sky, 21 Oct): it spins in once, then bobs like the opening beat's tokens.
+   --fill is the share of its picture's square the coin itself takes, so every currency shows at the
+   same size: the box is the coin's size divided by it. */
+.lp-coin {
+  --coin: clamp(54px, 4.4vw, 104px);
+  position: absolute;
+  z-index: 2;
+  width: calc(var(--coin) / var(--fill, .5));
+  pointer-events: none;
+  animation: lp-coin-in var(--sp-t-art) var(--sp-ease) both;
+}
+
+.lp-coin .lp-token {
+  position: static;
+  display: block;
+  width: 100%;
+}
+
+.lp-coin--usd { --fill: .45; }
+.lp-coin--myr { --fill: .56; }
+.lp-coin--php { --fill: .54; }
+.lp-coin--idr { --fill: .91; }
+
+/* The coin's centre sits about a coin's width beyond the picture's top corner. */
+.lp-coin--right { top: calc(var(--coin) * -.2 - (var(--coin) / var(--fill, .5) - var(--coin)) / 2); right: calc(var(--coin) * -.35 - (var(--coin) / var(--fill, .5) - var(--coin)) / 2); }
+.lp-coin--left { top: calc(var(--coin) * .1 - (var(--coin) / var(--fill, .5) - var(--coin)) / 2); left: calc(var(--coin) * -.45 - (var(--coin) / var(--fill, .5) - var(--coin)) / 2); }
+
+@keyframes lp-coin-in {
+  from { opacity: 0; transform: scale(.45) rotate(-28deg) translateY(14px); }
+  65% { opacity: 1; transform: scale(1.06) rotate(5deg); }
+  to { opacity: 1; transform: none; }
 }
 
 /* The small product card beside each beat's art. */
@@ -908,23 +995,6 @@
   line-height: 1.55;
 }
 
-/* ── Platform (§2.6) ──────────────────────────────────────────────────── */
-
-.lp-icon-tile {
-  display: grid;
-  width: 120px;
-  height: 120px;
-  place-items: center;
-  border-radius: 20px;
-  color: var(--sp-teal);
-  background: var(--sp-mint-wash);
-}
-
-.lp-icon-tile svg {
-  width: 44px;
-  height: 44px;
-}
-
 /* ── Routes (§2.8) ────────────────────────────────────────────────────── */
 
 .lp-routes {
@@ -936,7 +1006,17 @@
 }
 
 .lp-routes .lp-lede { margin-top: 18px; }
-.lp-routes__tag { margin-block: 16px; }
+.lp .lp-display--wide { max-width: none; }
+
+.lp-routes__also {
+  max-width: 52ch;
+  margin: 16px 0 20px;
+  color: var(--sp-text-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.lp-routes__also strong { color: var(--sp-deep); }
 
 .lp-routes__art {
   width: 100%;
@@ -948,90 +1028,112 @@
 
 .lp-bob { animation: lp-bob 6s ease-in-out infinite; }
 
-.lp-rtiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.lp-rtile {
-  display: flex;
-  flex-direction: column;
-  border-radius: 20px;
-  padding: 16px 18px;
-  color: var(--sp-on-cyan);
-  background: var(--sp-deep);
-  box-shadow: var(--sp-lift-1);
-  cursor: default;
-  transition:
-    transform var(--sp-t-ui) var(--sp-ease),
-    box-shadow var(--sp-t-ui) var(--sp-ease);
-}
-
-.lp-rtile__label { color: var(--sp-on-cyan-2); font-size: 12px; font-weight: 700; }
-
-.lp-rtile__value {
-  margin-top: 4px;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: -.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-.lp-rtile__more {
-  max-height: 0;
-  overflow: hidden;
-  color: var(--sp-on-cyan-2);
-  font-size: 12px;
-  line-height: 1.45;
-  opacity: 0;
-  transition:
-    max-height var(--sp-t-sheet) var(--sp-ease),
-    opacity var(--sp-t-ui) var(--sp-ease),
-    margin var(--sp-t-sheet) var(--sp-ease);
-}
-
-.lp-rtile:focus-visible {
-  transform: translateY(-6px);
+/* One payment, start to finish (Sky, 21 Oct: the four dark tiles read plain). A ticket the money crosses
+   left to right: each step's icon sits on a gold route line, every line of detail is always shown, and
+   the step where the money lands is the dark cyan one. */
+.lp-ticket {
+  border-radius: 30px;
+  padding: 22px 24px 24px;
+  background: var(--sp-surface);
   box-shadow: var(--sp-lift-2);
 }
 
-.lp-rtile:focus-visible .lp-rtile__more {
-  max-height: 80px;
-  margin-top: 8px;
-  opacity: 1;
-}
-
-@media (hover: hover) {
-  .lp-rtile:hover {
-    transform: translateY(-6px);
-    box-shadow: var(--sp-lift-2);
-  }
-
-  .lp-rtile:hover .lp-rtile__more {
-    max-height: 80px;
-    margin-top: 8px;
-    opacity: 1;
-  }
-}
-
-/* On a touch screen there is no hover: the line is always shown. */
-@media (hover: none) {
-  .lp-rtile__more {
-    max-height: none;
-    margin-top: 8px;
-    opacity: 1;
-  }
-}
-
-/* ── Southeast Asia (§2.9) ────────────────────────────────────────────── */
-
-.lp-region {
-  display: grid;
-  grid-template-columns: minmax(0, .9fr) minmax(0, 1.3fr);
+.lp-ticket__head {
+  display: flex;
   align-items: center;
-  gap: 28px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
 }
+
+.lp-ticket__head strong { color: var(--sp-deep); font-size: 15px; font-weight: 800; }
+
+.lp-ticket__steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The route: from the first icon's centre (18 px padding + half of 44) to the last, dashed gold, over the
+   steps and under their icons. */
+.lp-ticket__steps::before {
+  position: absolute;
+  top: 38px;
+  right: calc((100% - 36px) / 4 - 40px);
+  left: 40px;
+  z-index: 1;
+  height: 0;
+  border-top: 2px dashed var(--sp-gold);
+  content: "";
+}
+
+.lp-ticket__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border-radius: 22px;
+  padding: 16px 18px 18px;
+  background: var(--sp-surface-2);
+}
+
+.lp-ticket__icon {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  margin-bottom: 14px;
+  color: var(--sp-teal);
+  background: var(--sp-mint-wash);
+  box-shadow: 0 0 0 5px var(--sp-surface-2);
+}
+
+.lp-ticket__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.lp-ticket__label { color: var(--sp-text-2); font-size: 12.5px; font-weight: 700; }
+
+.lp-ticket__value {
+  margin-top: 4px;
+  color: var(--sp-deep);
+  font-size: clamp(22px, 1.9vw, 34px);
+  font-weight: 900;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lp-ticket__more {
+  margin-top: 8px;
+  color: var(--sp-text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lp-ticket__step.is-landed {
+  color: var(--sp-on-cyan);
+  background: var(--sp-cyan);
+}
+
+.lp-ticket__step.is-landed .lp-ticket__icon {
+  color: var(--sp-deep);
+  background: var(--sp-gold);
+  box-shadow: 0 0 0 5px var(--sp-cyan);
+}
+
+.lp-ticket__step.is-landed .lp-ticket__label,
+.lp-ticket__step.is-landed .lp-ticket__more { color: var(--sp-on-cyan-2); }
+.lp-ticket__step.is-landed .lp-ticket__value { color: var(--sp-gold); }
 
 .lp-h-clean {
   max-width: 18ch;
@@ -1045,12 +1147,14 @@
 
 .lp-h-clean em { color: var(--sp-teal); font-style: normal; }
 
+/* The corridors from Malaysia (they were the Southeast Asia band's list): one row of pills, the live one
+   in dark cyan. */
 .lp-corr {
   display: flex;
-  max-width: 360px;
-  flex-direction: column;
-  gap: 6px;
-  margin: 18px 0 0;
+  max-width: 560px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -1058,9 +1162,9 @@
 .lp-corr__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   border-radius: 30px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   color: var(--sp-deep);
   background: var(--sp-surface);
   box-shadow: var(--sp-lift-1);
@@ -1071,13 +1175,6 @@
 .lp-corr__row strong { color: var(--sp-text-2); font-size: 12px; font-weight: 700; }
 .lp-corr__row.is-now { color: var(--sp-on-cyan); background: var(--sp-cyan); }
 .lp-corr__row.is-now strong { color: var(--sp-gold); }
-
-.lp-region__art {
-  display: block;
-  width: 100%;
-  height: auto;
-  filter: drop-shadow(0 22px 28px color-mix(in srgb, var(--sp-ink) 16%, transparent));
-}
 
 /* ── Comparison (§2.10) ───────────────────────────────────────────────── */
 
@@ -1147,13 +1244,43 @@
 
 /* ── Trust (D9) ───────────────────────────────────────────────────────── */
 
+/* The dark ground of v1's Trust section (Sky, 21 Oct): edge to edge, deep cyan with a lighter glow at the
+   top right, and no grid lines. */
+.lp-dark {
+  color: var(--sp-on-cyan);
+  background:
+    radial-gradient(60% 70% at 88% 8%, color-mix(in srgb, var(--sp-teal) 70%, transparent), transparent 70%),
+    linear-gradient(165deg, var(--sp-cyan), var(--sp-deep) 62%, color-mix(in srgb, var(--sp-deep) 70%, var(--sp-auth-night)));
+}
+
+.lp-sec.lp-dark { padding-block: 96px; }
+.lp-dark .lp-kick { color: var(--sp-on-cyan-2); }
+.lp-dark .lp-kick__sub { color: var(--sp-on-cyan-2); }
+.lp-dark .lp-kick__sub::before { background: color-mix(in srgb, var(--sp-on-cyan) 30%, transparent); }
+.lp-dark .lp-lede { color: var(--sp-on-cyan-2); }
+.lp .lp-dark .lp-display { color: var(--sp-paper); }
+.lp .lp-dark .lp-display span:not(.lp-line) { color: var(--sp-gold); }
+.lp-dark a:focus-visible,
+.lp-dark button:focus-visible { outline-color: var(--sp-gold); }
+
 .lp-gates {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.lp-gate {
+  position: relative;
+  min-width: 0;
+  border-radius: 24px;
+  padding: 22px 24px;
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+  box-shadow: var(--sp-lift-1);
 }
 
 .lp-gate__icon {
@@ -1164,11 +1291,55 @@
 
 .lp-gate .lp-card__title { margin-top: 16px; font-size: 18px; }
 
+/* On the dark ground: the gold line the four gates sit on, a dot over each, and glass cards. */
+.lp-dark .lp-gates { padding-top: 44px; }
+
+.lp-dark .lp-gates::before {
+  position: absolute;
+  top: 13px;
+  right: 0;
+  left: 0;
+  height: 2px;
+  content: "";
+  background: linear-gradient(90deg, transparent, var(--sp-gold) 8%, var(--sp-gold) 92%, transparent);
+}
+
+.lp-dark .lp-gate::before {
+  position: absolute;
+  top: -38px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  content: "";
+  background: var(--sp-gold);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--sp-gold) 24%, transparent);
+}
+
+.lp-dark .lp-gate {
+  color: var(--sp-on-cyan);
+  background: color-mix(in srgb, var(--sp-on-cyan) 6%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sp-on-cyan) 16%, transparent);
+}
+
+.lp-dark .lp-gate .lp-chip { color: var(--sp-on-cyan); background: color-mix(in srgb, var(--sp-on-cyan) 12%, transparent); }
+.lp-dark .lp-gate__icon { color: var(--sp-gold); }
+.lp-dark .lp-gate .lp-card__title { color: var(--sp-paper); }
+.lp-dark .lp-gate .lp-card__copy { color: var(--sp-on-cyan-2); }
+
+.lp-dark .lp-gate .lp-tags {
+  border-top: 1px dashed color-mix(in srgb, var(--sp-on-cyan) 22%, transparent);
+  padding-top: 12px;
+}
+
+.lp-dark .lp-gate .lp-tag { color: var(--sp-on-cyan); background: color-mix(in srgb, var(--sp-on-cyan) 10%, transparent); }
+
 .lp-trust-foot {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 18px 0 0;
+  margin: 22px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -1182,30 +1353,104 @@
   font-weight: 700;
 }
 
+.lp-dark .lp-trust-foot li { color: var(--sp-on-cyan-2); background: color-mix(in srgb, var(--sp-on-cyan) 8%, transparent); }
+
 /* ── Zeke and the control plane (§2.11) ──────────────────────────────── */
 
+/* Laid out as v1's copilot section (Sky, 21 Oct): Zeke at its desk in a tall card, a note pinned over the
+   card's foot and the control plane under it; the headline, a lede and four things Zeke does beside. */
 .lp-zeke {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   align-items: center;
+  gap: clamp(24px, 4vw, 72px);
+}
+
+.lp-zeke__side {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
 .lp-zeke__art {
+  position: relative;
   display: flex;
-  min-height: 300px;
+  min-height: clamp(360px, 32vw, 620px);
   align-items: center;
   justify-content: center;
+  padding: 28px 28px 96px;
 }
 
 .lp-zeke__art img {
   width: auto;
-  max-width: 100%;
+  max-width: min(100%, 78%);
   height: auto;
-  max-height: 260px;
+  max-height: clamp(260px, 24vw, 470px);
+  filter: drop-shadow(0 18px 22px color-mix(in srgb, var(--sp-ink) 14%, transparent));
 }
 
-.lp-zeke .lp-lede { margin-block: 16px 14px; }
+.lp-zeke__note {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  left: 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 20px;
+  padding: 14px 16px;
+  background: var(--sp-surface);
+  box-shadow: var(--sp-lift-2);
+}
+
+.lp-zeke__note-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--sp-on-cyan);
+  background: var(--sp-cyan);
+}
+
+.lp-zeke__note-icon svg { width: 20px; height: 20px; }
+.lp-zeke__note span { display: grid; gap: 2px; }
+.lp-zeke__note small { color: var(--sp-text-2); font-size: 12px; font-weight: 700; }
+.lp-zeke__note strong { color: var(--sp-deep); font-size: 15px; font-weight: 800; }
+
+.lp-zeke .lp-lede { margin-block: 18px 6px; }
+
+.lp-zeke__list {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-zeke__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  border-top: 1px solid var(--sp-line);
+  padding-block: 16px;
+}
+
+.lp-zeke__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--sp-on-cyan);
+  background: var(--sp-cyan);
+  box-shadow: 3px 3px 0 var(--sp-deep);
+}
+
+.lp-zeke__icon svg { width: 19px; height: 19px; }
+.lp-zeke__list li > span:last-child { display: grid; gap: 3px; }
+.lp-zeke__list strong { color: var(--sp-deep); font-size: 16px; font-weight: 800; }
+.lp-zeke__list li > span:last-child > span { color: var(--sp-text-2); font-size: 14px; line-height: 1.5; }
 
 .lp-ctrl-toggle {
   display: inline-flex;
@@ -1232,6 +1477,15 @@
   flex: none;
   color: var(--sp-teal);
 }
+
+.lp-zeke__side .lp-ctrl-toggle {
+  display: flex;
+  width: 100%;
+  margin-top: 0;
+  padding: 14px 18px;
+}
+
+.lp-zeke__side .lp-ctrl-toggle__chevron { margin-left: auto; }
 
 .lp-ctrl-toggle span { display: grid; gap: 2px; }
 .lp-ctrl-toggle small { color: var(--sp-text-2); font-size: 12px; font-weight: 700; }
@@ -1291,10 +1545,6 @@
 
 /* ── Narrower screens ─────────────────────────────────────────────────── */
 
-@media (max-width: 1320px) {
-  .lp-story__rail { display: none; }
-}
-
 @media (max-width: 1000px) {
   .lp-story { height: 360vh; }
 
@@ -1313,7 +1563,7 @@
   }
 
   .lp-beat__art > img:first-child { max-width: min(100%, 300px); max-height: 30vh; }
-  .lp-beat__art--district > img:first-child { width: min(92%, 380px); }
+  .lp-beat__art--opening > img:first-child { width: min(92%, 300px, 43vh); max-height: none; }
   .lp .lp-display--hero,
   .lp .lp-display--beat { font-size: clamp(30px, 6vw, 46px); }
 
@@ -1338,15 +1588,19 @@
   .lp-zeke { grid-template-columns: minmax(0, 1fr); }
 
   .lp-routes__art { justify-self: center; }
-  .lp-rtiles,
+  .lp-ticket__steps,
   .lp-gates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* Two to a row, a line through them would read as two routes: the steps and the gates stand alone. */
+  .lp-ticket__steps::before,
+  .lp-dark .lp-gates::before,
+  .lp-dark .lp-gate::before { display: none; }
+  .lp-dark .lp-gates { padding-top: 0; }
 }
 
 @media (max-width: 860px) {
-  .lp-region,
   .lp-close { grid-template-columns: minmax(0, 1fr); }
 
-  .lp-region__art { order: -1; }
   .lp-close__card img { max-height: 340px; }
 }
 
@@ -1359,7 +1613,11 @@
   .lp-btn { min-height: 44px; }
   .lp-btn--lg { min-height: 48px; }
   .lp-band { padding: 24px 20px; }
-  .lp-gates { grid-template-columns: minmax(0, 1fr); }
+  .lp-gates,
+  .lp-ticket__steps { grid-template-columns: minmax(0, 1fr); }
+  .lp-ticket { padding: 18px 16px; }
+  .lp-sec.lp-dark { padding-block: 56px; }
+  .lp-zeke__art { padding-bottom: 104px; }
   .lp-steps__panel { min-height: 0; }
 
   /* The table scrolls sideways inside its own box; the page never does. */
@@ -1379,7 +1637,7 @@
   }
 
   .lp-story__progress,
-  .lp-story__rail { display: none; }
+  .lp-cue { display: none; }
 
   .lp-story__beats {
     height: auto;
@@ -1402,6 +1660,8 @@
 
   .lp-token,
   .lp-bob,
+  .lp-coin,
+  .lp-cue__wheel::after,
   .lp-rise,
   .lp-partner__logo.is-popping { animation: none; }
 
@@ -1414,19 +1674,15 @@
   .lp-partner__logo,
   .lp-partner__reveal,
   .lp-stepbtn,
-  .lp-rtile,
-  .lp-rtile__more,
   .lp-ctrl-toggle,
   .lp-ctrl-toggle__chevron,
   .lp-close__card img,
   .lp-mdots button::after,
-  .lp-story__rail i { transition: none; }
+  .lp-cue { transition: none; }
 
   .lp-btn:active,
   .lp-card--hover:hover,
   .lp-partner:hover,
-  .lp-rtile:hover,
-  .lp-rtile:focus-visible,
   .lp-ctrl-toggle:hover,
   .lp-close__card:hover img { transform: none; }
 }
@@ -1451,31 +1707,62 @@
   .lp .lp-story__progress { right: 0; left: 0; }
 
   .lp .iso-shell { width: min(100% - 48px, max(1360px, 86vw), 2080px); }
+
+  /* The hero's pictures, bigger (Sky, 21 Oct, after v1's hero): the opening map fills its column (44% of
+     the window, never taller than 60% of it) and each step's picture is 34%, with `sizes` in HeroStory to
+     match. The map's box is its picture, so the coins keep their places on its corners and their 160 and
+     118 px share of a 560 px picture. */
+  .lp .lp-beat__art > img:first-child { max-width: min(100%, 34vw); max-height: min(62vh, 36vw); }
+  .lp .lp-beat__art--opening { width: min(100%, 44vw, 86vh); }
+  .lp .lp-beat__art--opening > img:first-child { width: 100%; max-width: none; max-height: none; }
+  .lp .lp-token--usd { width: 28.6%; }
+  .lp .lp-token--php { width: 21%; }
+  /* The product card stays at its picture's lower right, not at the far edge of the column. */
+  .lp .lp-float { right: max(0px, 50% - 20vw); }
+
+  /* The Routes bridge grows with the window too: never smaller than before, 40% of a wide one. */
+  .lp .lp-routes__art { max-width: min(100%, max(620px, 40vw)); }
+
+  /* The loops' and the platform's pictures, bigger (Sky, 21 Oct, after v1's platform cards). */
+  .lp .lp-card__art { height: clamp(230px, 17vw, 400px); }
+  .lp .lp-card__art img { max-height: 100%; }
+
+  /* How it works, bigger (Sky, 21 Oct, after v1's): a larger headline and steps, and a taller panel. */
+  .lp .lp-band.lp-steps {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    align-items: center;
+    gap: clamp(24px, 3vw, 56px);
+    padding: clamp(36px, 3.4vw, 64px);
+  }
+
+  .lp .lp-display--band { font-size: clamp(46px, 5.2vw, 110px); }
+  .lp .lp-stepbtns { gap: 10px; }
+
+  .lp .lp-stepbtn {
+    min-height: clamp(56px, 4.2vw, 76px);
+    padding: 14px 20px;
+    font-size: clamp(15px, 1vw, 19px);
+  }
+
+  .lp .lp-stepbtn .lp-num { min-width: 32px; height: 28px; font-size: 13px; }
+  .lp .lp-steps__panel { min-height: clamp(500px, 40vw, 820px); padding: clamp(20px, 1.6vw, 32px); }
+  .lp .lp-steps__art img { max-width: min(100%, 640px); max-height: clamp(300px, 27vw, 560px); }
+  .lp .lp-steps__caption strong { font-size: clamp(16px, 1.15vw, 22px); }
+  .lp .lp-steps__caption p { font-size: clamp(13.5px, .9vw, 16px); }
 }
 
-/* On a very wide window the type and the hero's pictures grow with it, so the wider page doesn't read as
-   small words in a big field. From 1,600 px; at 1,440 px nothing changes. */
+/* On a very wide window the type grows with it, so the wider page doesn't read as small words in a big
+   field, and the hero's stage grows to hold its pictures. From 1,600 px; at 1,440 px nothing changes. */
 @media (min-width: 1600px) {
   .lp .lp-display--hero { font-size: clamp(44px, min(6.2vw, 10.5vh), 128px); }
   .lp .lp-display--beat { font-size: clamp(38px, min(4.6vw, 8.4vh), 96px); }
   .lp .lp-display--section { font-size: clamp(34px, 4vw, 88px); }
-  .lp .lp-display--band { font-size: clamp(40px, 4.4vw, 96px); }
   .lp .lp-display--close { font-size: clamp(36px, 4.2vw, 88px); }
   .lp .lp-display--small { font-size: clamp(28px, 2.9vw, 60px); }
   .lp .lp-lede { font-size: clamp(16px, 0.9vw, 19px); }
-  /* The pictures: 30% of the window (the district 36%), with `sizes` in HeroStory to match, and a stage tall
-     enough to hold them. */
   .lp .lp-beat__stage { height: min(78vh, max(640px, 34vw)); }
-  .lp .lp-beat__art > img:first-child { max-width: min(100%, 30vw); max-height: min(60vh, 32vw); }
-  /* The district's box is its picture (never taller than 60% of the window), so the coins keep their places
-     on its corners and their 160 and 118 px share of the 560 px picture. */
-  .lp .lp-beat__art--district { width: min(100%, 36vw, 107vh); }
-  .lp .lp-beat__art--district > img:first-child { width: 100%; max-width: none; max-height: none; }
-  .lp .lp-token--usd { width: 28.6%; }
-  .lp .lp-token--php { width: 21%; }
-  /* The product card stays at its picture's lower right, not at the far edge of the wider column. */
+
   .lp .lp-float {
-    right: max(0px, 50% - 18vw);
     width: clamp(312px, 16vw, 380px);
     font-size: clamp(12.5px, 0.66vw, 14.5px);
   }

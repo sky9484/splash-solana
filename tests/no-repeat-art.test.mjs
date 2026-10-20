@@ -66,7 +66,7 @@ test('the check sees the landing’s, the sign-in pages’, the dashboard’s an
   const all = uses();
   const on = (surface) => [...all].filter(([, where]) => where[surface]).map(([path]) => path);
   assert.ok(on('landing').includes('/isometric/gen/hero-01-zeke-reads-invoice.webp'), 'the landing hero art is read');
-  assert.ok(on('landing').includes('/cinematic/treasury-island.png'), 'loop 02 (D1) is read');
+  assert.ok(on('landing').includes('/isometric/gen/platform-03-treasury-vault.webp'), 'platform 03, Sky’s treasury vault (21 Oct), is read');
   assert.ok(on('auth').includes('/isometric/gen/auth-signin-night.webp'), 'the sign-in pages are read');
   assert.ok(on('dashboard').includes('/cinematic/agent-bot-cut.png'), 'the dashboard is read');
   assert.ok(on('working capital').includes('/isometric/wc-receivable-1.png'), 'working capital is read');

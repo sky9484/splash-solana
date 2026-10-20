@@ -54,7 +54,7 @@ export default function HeroStoryPhone({ serverPhone = false }: { serverPhone?: 
   return (
     <section className="lp-mstory">
       <div className="lp-mhero">
-        <BeatKicker beat={start} />
+        {/* No kicker over the opening headline: it only repeated it (Sky, 21 Oct). */}
         <h1 className="iso-display lp-display lp-display--phone">
           <span className="lp-sr">{`${start.title} ${start.accent}`}</span>
           {start.lines.map((line) => (

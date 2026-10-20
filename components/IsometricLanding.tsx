@@ -3,7 +3,26 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Anchor, ArrowRight, ArrowUp, Check, ChevronRight, PenLine, ShieldCheck, Workflow, Zap } from 'lucide-react';
+import {
+  Anchor,
+  ArrowRight,
+  ArrowUp,
+  BadgeCheck,
+  Bot,
+  Check,
+  ChevronRight,
+  FileText,
+  Landmark,
+  Layers,
+  ListChecks,
+  PenLine,
+  Route,
+  Scale,
+  ShieldCheck,
+  Wallet,
+  Workflow,
+  Zap,
+} from 'lucide-react';
 
 import HeroStory from '@/components/landing/HeroStory';
 import HeroStoryPhone from '@/components/landing/HeroStoryPhone';
@@ -67,10 +86,11 @@ const loopCards = [
     live: true,
     title: 'Keep it in your vault.',
     copy: 'Money waits in your business’s own Squads vault. No Splash key can move it, and a person approves every payment out.',
-    // D1: the preview's loop-save art is banned (it shows idle dollars rising at a variable rate).
-    image: '/cinematic/treasury-island.png',
+    // Sky, 21 Oct: the treasury vault went back to Platform 03 and the hero took Sky's map, so Keep shows
+    // the district (the preview's loop-save art stays banned: idle dollars rising at a variable rate).
+    image: '/cinematic/hero-district-v5.png',
     width: 2752,
-    height: 1536,
+    height: 1541,
     foot: ['Your vault', 'Human-approved'] as Foot[],
   },
   {
@@ -189,19 +209,29 @@ const operatingLayers = [
     label: 'Approval',
     title: 'Zeke drafts. A person approves.',
     copy: 'Zeke drafts payments and batches. It cannot sign or send. A person approves each payment with their device key.',
-    // D2: an icon tile until Sky supplies the art.
-    image: null,
-    width: 0,
-    height: 0,
+    // Sky's treasury vault (21 Oct), which the preview had here before D1 moved it to loop 02.
+    image: '/isometric/gen/platform-03-treasury-vault.webp',
+    width: 999,
+    height: 1001,
     tags: ['Device key', 'Human approval'],
   },
 ];
 
-const routeTiles = [
-  { label: 'They receive', value: '₱287,000.00', more: 'The full invoice amount. The supplier never pays a landing fee.' },
-  { label: 'You pay', value: 'US$5,012.50', more: 'US$5,000.00 converted, plus US$12.50 in fees, shown before you approve.' },
-  { label: 'Rate', value: '57.40', more: 'Locked for 60 seconds from the quote. Test rate in the sandbox.' },
-  { label: 'Paid out by', value: 'PESONet', more: 'Any Philippine bank. InstaPay for smaller amounts.' },
+/* One example payment, read the way the money goes: from you, at a rate, through a payout rail, to the
+   supplier's bank. The last step is where it lands, so it carries the colour. */
+const routeTicket = [
+  { label: 'You pay', value: 'US$5,012.50', more: 'US$5,000.00 converted, plus US$12.50 in fees, shown before you approve.', icon: Wallet },
+  { label: 'Rate', value: '57.40', more: 'Pesos per dollar, locked for 60 seconds from the quote. A test rate in the sandbox.', icon: Scale },
+  { label: 'Paid out by', value: 'PESONet', more: 'Any Philippine bank. InstaPay for smaller amounts.', icon: Landmark },
+  { label: 'They receive', value: '₱287,000.00', more: 'The full invoice amount. The supplier never pays a landing fee.', icon: BadgeCheck, lands: true },
+];
+
+/* Zeke, laid out as v1's copilot section (Sky, 21 Oct), with what this build's Zeke does. */
+const zekeAbilities = [
+  { icon: FileText, title: 'Reads the invoice', copy: 'Fills in the payment from a supplier’s invoice and shows the line each field came from.' },
+  { icon: Route, title: 'Explains the routes', copy: 'Ranks routes by what the supplier receives, with every fee shown before you choose.' },
+  { icon: ListChecks, title: 'Checks the rules', copy: 'Runs eight payment rules as code before the approval card appears.' },
+  { icon: Layers, title: 'Drafts the batch', copy: 'Turns a file of payouts into one batch, which a person approves once with their device key.' },
 ];
 
 const comparisonRows = [
@@ -368,7 +398,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                   {loop.live ? <span className="lp-tag lp-tag--ok lp-tag--live">Live</span> : <span className="lp-tag lp-tag--coral">Roadmap</span>}
                 </div>
                 <div className="lp-card__art">
-                  <Image src={loop.image} alt="" width={loop.width} height={loop.height} sizes="(max-width: 1000px) 80vw, 320px" />
+                  <Image src={loop.image} alt="" width={loop.width} height={loop.height} sizes="(max-width: 1000px) 80vw, 30vw" />
                 </div>
                 <h3 className="lp-card__title">{loop.title}</h3>
                 <p className="lp-card__copy">{loop.copy}</p>
@@ -484,13 +514,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                   <span className="lp-chip">{layer.label}</span>
                 </div>
                 <div className="lp-card__art">
-                  {layer.image ? (
-                    <Image src={layer.image} alt="" width={layer.width} height={layer.height} sizes="(max-width: 1000px) 80vw, 320px" />
-                  ) : (
-                    // When Sky adds the P3 art (platform-03-device-key, webp, under isometric/gen) this tile
-                    // becomes an Image like the two beside it: a one-line swap.
-                    <span className="lp-icon-tile"><ShieldCheck aria-hidden="true" /></span>
-                  )}
+                  <Image src={layer.image} alt="" width={layer.width} height={layer.height} sizes="(max-width: 1000px) 80vw, 30vw" />
                 </div>
                 <h3 className="lp-card__title">{layer.title}</h3>
                 <p className="lp-card__copy">{layer.copy}</p>
@@ -505,16 +529,28 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
         <div className="lp-wrap">
           <div className="lp-routes">
             <div>
-              <Kicker sub="The first corridor">Routes</Kicker>
-              <h2 className="iso-display lp-display lp-display--section">
-                USDC in.
-                <span>Pesos out.</span>
+              <Kicker sub="The corridors">Routes</Kicker>
+              <h2 className="iso-display lp-display lp-display--section lp-display--wide">
+                Stablecoin in.
+                <span>Local currency out.</span>
               </h2>
               <p className="lp-lede">
-                Malaysia to the Philippines is the sandbox corridor. Indonesia follows when a payout partner and the
-                controls are ready.
+                Pay a supplier, a client or anyone your business owes: the money travels as USDC on Solana, and
+                their bank receives it in their own currency. A corridor opens only when a payout partner for that
+                country is signed and the controls are ready.
               </p>
-              <span className="lp-tags lp-routes__tag"><span className="lp-tag lp-tag--ink">Philippines, in sandbox</span></span>
+              <ul className="lp-corr" aria-label="Corridors from Malaysia">
+                {corridors.map((c) => (
+                  <li className={`lp-corr__row${c.status === 'sandbox' ? ' is-now' : ''}`} key={`${c.from}-${c.to}`}>
+                    <Codes from={c.from} to={c.to} />
+                    <strong>{c.status === 'sandbox' ? 'Sandbox today' : 'Roadmap'}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p className="lp-routes__also">
+                <strong>USDC, too.</strong> Send it to another business on Splash or to a Solana wallet, and add
+                money from a wallet on another supported network, in test mode.
+              </p>
               <Link href="/signup" className="lp-btn lp-btn--dark">Open the payout desk</Link>
             </div>
             <Image
@@ -522,51 +558,27 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               alt=""
               width={1376}
               height={768}
-              sizes="(max-width: 1000px) 92vw, 620px"
+              sizes="(max-width: 1000px) 92vw, 44vw"
               className="lp-routes__art lp-bob"
             />
           </div>
 
-          <div className="lp-rtiles">
-            {routeTiles.map((tile) => (
-              <div className="lp-rtile" tabIndex={0} role="group" aria-label={tile.label} key={tile.label}>
-                <span className="lp-rtile__label">{tile.label}</span>
-                <span className="lp-rtile__value">{tile.value}</span>
-                <span className="lp-rtile__more">{tile.more}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="region" className="lp-sec">
-        <div className="lp-wrap lp-region">
-          <div>
-            <Kicker>Southeast Asia</Kicker>
-            <h2 className="lp-h-clean">
-              Built for the trade between <em>our neighbours.</em>
-            </h2>
-            <p className="lp-lede">
-              Malaysian businesses buy from across the region. Splash starts where the volume is and adds a corridor
-              only when a payout partner for that country is signed and the controls are ready.
-            </p>
-            <ul className="lp-corr">
-              {corridors.map((c) => (
-                <li className={`lp-corr__row${c.status === 'sandbox' ? ' is-now' : ''}`} key={`${c.from}-${c.to}`}>
-                  <Codes from={c.from} to={c.to} />
-                  <strong>{c.status === 'sandbox' ? 'Sandbox today' : 'Roadmap'}</strong>
+          <div className="lp-ticket">
+            <div className="lp-ticket__head">
+              <strong>One payment, start to finish</strong>
+              <span className="lp-tag lp-tag--amber">Sandbox rate</span>
+            </div>
+            <ol className="lp-ticket__steps">
+              {routeTicket.map((step) => (
+                <li className={`lp-ticket__step${step.lands ? ' is-landed' : ''}`} key={step.label}>
+                  <span className="lp-ticket__icon"><step.icon aria-hidden="true" /></span>
+                  <span className="lp-ticket__label">{step.label}</span>
+                  <strong className="lp-ticket__value">{step.value}</strong>
+                  <span className="lp-ticket__more">{step.more}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
-          <Image
-            src="/isometric/gen/region-sea-map.webp"
-            alt="Isometric map of Southeast Asian landmarks linked by payment routes"
-            width={1400}
-            height={950}
-            sizes="(max-width: 860px) 92vw, 680px"
-            className="lp-region__art"
-          />
         </div>
       </section>
 
@@ -617,12 +629,13 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
         </div>
       </section>
 
-      <section id="trust" className="lp-sec">
+      {/* On the dark ground of v1's Trust section, its headline flat (Sky, 21 Oct). */}
+      <section id="trust" className="lp-sec lp-dark">
         <div className="lp-wrap">
           <div className="lp-head">
             <div>
               <Kicker sub="Four gates">Trust</Kicker>
-              <h2 className="iso-display lp-display lp-display--section">
+              <h2 className="iso-display lp-display lp-display--section lp-display--flat">
                 Every payout
                 <span>proves itself.</span>
               </h2>
@@ -635,7 +648,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
 
           <ol className="lp-gates">
             {trustGates.map((gate) => (
-              <li className="lp-card lp-gate" key={gate.number}>
+              <li className="lp-gate" key={gate.number}>
                 <div className="lp-card__top">
                   <span className="lp-chips">
                     <span className="lp-num lp-num--gold">{gate.number}</span>
@@ -661,20 +674,17 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
       <section id="copilot" className="lp-sec">
         <div className="lp-wrap">
           <div className="lp-zeke">
-            <div className="lp-card lp-zeke__art">
-              <Image src="/cinematic/copilot-desk.png" alt="" width={1200} height={896} sizes="(max-width: 1000px) 80vw, 460px" />
-            </div>
-            <div>
-              <Kicker>Zeke</Kicker>
-              <h2 className="iso-display lp-display lp-display--section">
-                Zeke prepares.
-                <span>You approve.</span>
-              </h2>
-              <p className="lp-lede">
-                Zeke reads invoices, explains routes and checks the rules. It cannot sign or send; a person approves
-                each payment with their device key.
-              </p>
-              <Tags items={['Reader', 'Router', 'Checker', 'Auditor']} />
+            <div className="lp-zeke__side">
+              <div className="lp-card lp-zeke__art">
+                <Image src="/cinematic/copilot-desk.png" alt="" width={1200} height={896} sizes="(max-width: 1000px) 80vw, 36vw" />
+                <div className="lp-zeke__note">
+                  <span className="lp-zeke__note-icon"><Bot aria-hidden="true" /></span>
+                  <span>
+                    <small>Zeke prepares</small>
+                    <strong>A person approves every payment.</strong>
+                  </span>
+                </div>
+              </div>
               <button
                 type="button"
                 className="lp-ctrl-toggle"
@@ -689,6 +699,28 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                 </span>
                 <ChevronRight aria-hidden="true" className="lp-ctrl-toggle__chevron" />
               </button>
+            </div>
+            <div>
+              <Kicker sub="The copilot">Zeke</Kicker>
+              <h2 className="iso-display lp-display lp-display--section lp-display--solid">
+                Context before
+                <span>every approval.</span>
+              </h2>
+              <p className="lp-lede">
+                Zeke reads the invoice, explains the routes and runs the rules, so whoever approves sees why each
+                field is there. It cannot sign or send.
+              </p>
+              <ul className="lp-zeke__list">
+                {zekeAbilities.map((ability) => (
+                  <li key={ability.title}>
+                    <span className="lp-zeke__icon"><ability.icon aria-hidden="true" /></span>
+                    <span>
+                      <strong>{ability.title}</strong>
+                      <span>{ability.copy}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 

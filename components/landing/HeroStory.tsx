@@ -11,6 +11,9 @@ import { Check } from 'lucide-react';
  * floor(progress × 5), read from a passive scroll listener once per animation frame. Copy crossfades
  * and lifts, the art scales in; the timings live in styles/landing-p12.css. With reduced motion nothing
  * is pinned and the five beats stack as plain sections. Phones get HeroStoryPhone instead.
+ *
+ * Sky, 21 Oct: no step rail, a "Scroll to settle" cue instead (as on v1), and each step after the first
+ * brings in one coin, its currency picked at random and never the same twice in a row.
  */
 
 export type Beat = {
@@ -34,7 +37,8 @@ export const BEATS: Beat[] = [
     lines: ['Pay', 'suppliers', 'abroad.'],
     accent: 'Prove every payment.',
     lede: 'Malaysian businesses pay suppliers in the Philippines from their own account. Delivered to the bank. Proof for the auditor. Splash never holds the money.',
-    art: { src: '/cinematic/hero-district-v5.png', width: 2752, height: 1541 },
+    // Sky's map of Southeast Asia (21 Oct), in place of the district: the region the payments cross.
+    art: { src: '/isometric/gen/hero-sea-map.webp', width: 973, height: 677 },
   },
   {
     id: 'invoice',
@@ -84,6 +88,17 @@ export const SAMPLE_RECEIPT_HREF = '/trust#trust-evidence';
 
 /** The illustrative receipt number on the last beat: §5.1's format, the demo transfer's. */
 const SAMPLE_RECEIPT_NUMBER = 'SPL-R-20261018-6512F659';
+
+/** The coins a step can bring in (Sky's list; a VND coin joins when its art exists). Each picture's coin
+ *  fills a different share of its square, so each has its own class that sizes it to the same coin. */
+const COINS = [
+  { id: 'usd', src: '/cinematic/token-usd.png' },
+  { id: 'myr', src: '/cinematic/token-myr.png' },
+  { id: 'php', src: '/cinematic/token-php.png' },
+  { id: 'idr', src: '/cinematic/token-idr-v1.png' },
+] as const;
+
+type Coin = { key: number; id: (typeof COINS)[number]['id']; src: string; side: 'left' | 'right' };
 
 export function BeatKicker({ beat }: { beat: Beat }) {
   return (
@@ -169,6 +184,8 @@ export default function HeroStory() {
   const ref = useRef<HTMLElement>(null);
   const [beat, setBeat] = useState(0);
   const [stacked, setStacked] = useState(false);
+  const [coin, setCoin] = useState<Coin | null>(null);
+  const shown = useRef({ beat: 0, coin: null as Coin | null });
 
   useEffect(() => {
     const el = ref.current;
@@ -186,7 +203,16 @@ export default function HeroStory() {
       const progress = range > 0 ? Math.min(1, Math.max(0, -top / range)) : 0;
       el!.style.setProperty('--lp-progress', progress.toFixed(4));
       const next = Math.min(BEATS.length - 1, Math.floor(progress * BEATS.length));
-      setBeat((current) => (current === next ? current : next));
+      if (next === shown.current.beat) return;
+      shown.current.beat = next;
+      setBeat(next);
+      // A step after the first brings in a coin: a random currency, never the last one shown, on
+      // alternate sides of the picture. Picked here, in the browser, so the server's page never differs.
+      const last = shown.current.coin;
+      const choices = COINS.filter((c) => c.id !== last?.id);
+      const pick = choices[Math.floor(Math.random() * choices.length)];
+      shown.current.coin = next === 0 ? last : { key: (last?.key ?? 0) + 1, id: pick.id, src: pick.src, side: next % 2 ? 'right' : 'left' };
+      setCoin(next === 0 ? null : shown.current.coin);
     }
     function schedule() {
       if (!frame) frame = window.requestAnimationFrame(measure);
@@ -204,35 +230,17 @@ export default function HeroStory() {
     };
   }, []);
 
-  /** The rail jumps to the middle of a beat's stretch of the scroll. */
-  function goTo(index: number) {
-    const el = ref.current;
-    if (!el) return;
-    const range = el.offsetHeight - window.innerHeight;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: el.offsetTop + range * ((index + 0.5) / BEATS.length), behavior: reduce ? 'auto' : 'smooth' });
-  }
-
   const stateOf = (index: number) => (index === beat ? 'current' : index < beat ? 'past' : 'next');
 
   return (
     <section ref={ref} className="lp-story" aria-label="How a payment goes, in five steps">
       <div className="lp-story__pin">
         <div className="lp-story__progress" aria-hidden="true"><i /></div>
-        <nav className="lp-story__rail" aria-label="Story steps">
-          {BEATS.map((b, index) => (
-            <button
-              key={b.id}
-              type="button"
-              aria-current={index === beat ? 'step' : undefined}
-              aria-label={b.number ? `${b.number}, ${b.label}` : b.label}
-              onClick={() => goTo(index)}
-            >
-              <i aria-hidden="true" />
-              {b.number ?? 'Start'}
-            </button>
-          ))}
-        </nav>
+        {/* The cue reads as a picture of what to do; the steps themselves are plain headings to a screen reader. */}
+        <p className="lp-cue" aria-hidden="true" data-done={beat === BEATS.length - 1 ? '' : undefined}>
+          <span className="lp-cue__wheel" />
+          Scroll to settle
+        </p>
 
         <div className="lp-story__beats">
           {BEATS.map((b, index) => (
@@ -244,7 +252,8 @@ export default function HeroStory() {
               inert={!stacked && index !== beat}
             >
               <div className="lp-beat__copy">
-                <BeatKicker beat={b} />
+                {/* The opening beat's kicker only repeated its headline (Sky, 21 Oct). */}
+                {index === 0 ? null : <BeatKicker beat={b} />}
                 <BeatHeadline beat={b} level={index === 0 ? 1 : 2} />
                 <p className="lp-lede">{b.lede}</p>
                 {index === 0 ? (
@@ -262,20 +271,26 @@ export default function HeroStory() {
               </div>
 
               <div className="lp-beat__stage">
-                <div className={`lp-beat__art${index === 0 ? ' lp-beat__art--district' : ''}`}>
+                <div className={`lp-beat__art${index === 0 ? ' lp-beat__art--opening' : ''}`}>
                   <Image
                     src={b.art.src}
                     alt=""
                     width={b.art.width}
                     height={b.art.height}
-                    sizes={index === 0 ? '(max-width: 1000px) 92vw, (min-width: 1600px) 36vw, 600px' : '(max-width: 1000px) 60vw, (min-width: 1600px) 30vw, 460px'}
+                    sizes={index === 0 ? '(max-width: 1000px) 92vw, 44vw' : '(max-width: 1000px) 60vw, 34vw'}
                     preload={index === 0}
                   />
                   {index === 0 ? (
                     <>
-                      <Image src="/cinematic/token-usd.png" alt="" width={1024} height={1024} sizes="160px" className="lp-token lp-token--usd" />
-                      <Image src="/cinematic/token-php.png" alt="" width={1024} height={1024} sizes="118px" className="lp-token lp-token--php" />
+                      <Image src="/cinematic/token-usd.png" alt="" width={1024} height={1024} sizes="(max-width: 1000px) 160px, 13vw" className="lp-token lp-token--usd" />
+                      <Image src="/cinematic/token-php.png" alt="" width={1024} height={1024} sizes="(max-width: 1000px) 118px, 10vw" className="lp-token lp-token--php" />
                     </>
+                  ) : null}
+                  {index > 0 && index === beat && coin ? (
+                    // Keyed by the pick, so each new coin plays its entrance once; the picture bobs inside it.
+                    <span className={`lp-coin lp-coin--${coin.side} lp-coin--${coin.id}`} key={coin.key} aria-hidden="true">
+                      <Image src={coin.src} alt="" width={1024} height={1024} sizes="16vw" className="lp-token" />
+                    </span>
                   ) : null}
                 </div>
                 {index > 0 ? (
