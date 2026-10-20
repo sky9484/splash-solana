@@ -51,8 +51,12 @@ const PHONE = [390, 844];
 /**
  * A fresh `next dev` compiles each route on its first request, and with the dev cache off that can
  * take 15 s or more a route. On the money path that is long enough for a 60 s quote to lapse between
- * "Review" and "Approve". So every Solana API route is compiled first (an unauthenticated GET: it
- * answers 401 or 405 and changes nothing), and the walk then times only the product.
+ * "Review" and "Approve". So every API route the walk calls is compiled first (an unauthenticated
+ * GET: it answers 401, 404 or 405 and changes nothing), and the walk then times only the product.
+ * That includes Zeke's chat and the staff console, routes and pages: on 20 Oct, compiled cold at the
+ * end of the walk and all at once, /admin took 89 s, /api/admin/login 41 s and the Suspend call
+ * 62 s, past every wait below. A staff page asked for without a staff session compiles, then
+ * redirects to the staff sign-in.
  */
 async function warmRoutes() {
   const routes = [];
@@ -63,13 +67,14 @@ async function warmRoutes() {
       else if (name === 'route.ts') routes.push(`/${path.relative('app', dir).split(path.sep).join('/').replace(/\[[^\]]+\]/g, 'warm')}`);
     }
   };
-  for (const root of ['app/api/solana', 'app/api/setup', 'app/api/auth']) walkDir(root);
+  for (const root of ['app/api/solana', 'app/api/setup', 'app/api/auth', 'app/api/oxwal', 'app/api/pay', 'app/api/approvals', 'app/api/settings', 'app/api/step-up', 'app/api/admin']) walkDir(root);
+  const staffPages = ['/admin/login', '/admin', '/admin/orgs', '/admin/payments', '/admin/fee-payer', '/admin/evidence', '/admin/webhooks', '/admin/compliance'];
   const started = Date.now();
   // One at a time, the pages first: compiling several at once can leave a page pointing at a chunk
   // the dev server is still rebuilding.
   const hit = (r) => fetch(`${BASE}${r}`, { redirect: 'manual' }).then(async (res) => ({ status: res.status, html: (res.headers.get('content-type') ?? '').includes('text/html'), body: await res.arrayBuffer() })).catch(() => null);
   const unfound = [];
-  for (const r of ['/', '/login', ...routes]) {
+  for (const r of ['/', '/login', ...staffPages, ...routes]) {
     let res = await hit(r);
     // Next's own HTML "not found" for a route file that exists (no [id] in it) is the dev server
     // racing its compile, not an answer from the route: one Phase 2 run kept /treasury/fund at 404
@@ -81,7 +86,7 @@ async function warmRoutes() {
     if (res && res.status === 404 && res.html && !r.includes('/warm')) unfound.push(r);
   }
   await new Promise((r) => setTimeout(r, 3000));
-  console.log(`[walk] compiled ${routes.length} API routes and the first pages in ${Math.round((Date.now() - started) / 1000)}s`);
+  console.log(`[walk] compiled ${routes.length} API routes, the first pages and ${staffPages.length} staff pages in ${Math.round((Date.now() - started) / 1000)}s`);
   if (unfound.length) console.log(`[walk] the dev server still says "not found" for: ${unfound.join(', ')}`);
 }
 
@@ -91,6 +96,9 @@ async function walk(email) {
   const browser = await launch();
   try {
     const page = await browser.newPage({ width: DESKTOP[0], height: DESKTOP[1] });
+    // Pictures straight from public/: the dev server's image optimizer is not what this walk checks,
+    // and on a busy machine it could hang one image for good (cdp-browser.mjs, serveImagesFrom).
+    await page.serveImagesFrom('public');
     try {
       return await run(page, email);
     } catch (e) {
@@ -180,6 +188,20 @@ async function run(page, email) {
     await page.click('button', 'Approve on this device');
     await page.waitFor(() => /step=track/.test(location.search) || [...document.querySelectorAll('.iso-approved')].some((e) => /^Approved\. Sending now\./.test(e.innerText.trim())), [], { what: '"Approved. Sending now."', timeoutMs });
     await page.waitFor(() => /step=track/.test(location.search), [], { what: 'Track to open by itself', timeoutMs: 30_000 });
+  };
+  /**
+   * Transfer moves the focus to the new step's heading two animation frames after the step changes
+   * (TransferFlow's go()), which can be after the heading is on screen: on 20 Oct a check made the
+   * moment it appeared failed once. Wait for it; if it never lands, say where the focus is instead.
+   */
+  const focusOnStepHeading = async (id, message) => {
+    const on = (want) => (want ? document.activeElement?.id === want : !!document.activeElement?.hasAttribute('data-step-heading'));
+    if (await page.waitFor(on, [id], { timeoutMs: 5_000 }).catch(() => false)) return;
+    const at = await page.evaluate(() => {
+      const el = document.activeElement;
+      return el ? `<${el.tagName.toLowerCase()}${el.id ? ` id="${el.id}"` : ''}> "${(el.innerText ?? '').trim().slice(0, 40)}"` : 'nothing';
+    });
+    assert.fail(`${message}: the focus is on ${at}`);
   };
   /** One width only: a state that exists only on a desktop (the collapsed rail) or on a phone (its menu). */
   const shotOne = async (name, width) => {
@@ -591,7 +613,7 @@ async function run(page, email) {
   // heading; no way back from here (the header has no links, and there is no back link).
   await page.waitFor(() => /step=approve/.test(location.search), [], { what: 'step 4 in the URL' });
   await headerMatchesServer('approve', /^Waiting for you$/);
-  assert.ok(await page.evaluate(() => document.activeElement?.id === 't4-title'), 'focus is on the step heading');
+  await focusOnStepHeading('t4-title', 'focus is on the step heading');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.iso-sofar, .iso-sofar__back').length), 0, 'no So far rail and no back link on Approve');
   const card = (await page.text('.iso-approve')).join('\n');
   assert.match(card, /Prepared by .+\. Zeke can’t approve; only you can\./);
@@ -806,7 +828,7 @@ async function run(page, email) {
   await page.press('Enter');
   await page.find('heading', 'How much?');
   // The step's heading has the focus on arrival.
-  assert.ok(await page.evaluate(() => document.activeElement?.hasAttribute('data-step-heading')), 'focus on the step heading');
+  await focusOnStepHeading(null, 'focus on the step heading');
   await page.tabTo(focused("el.id && document.querySelector('label[for=\"' + el.id + '\"]')?.innerText.trim() === 'They receive'"), { what: 'They receive' });
   await page.type('20,000');
   await page.waitFor(() => /InstaPay/.test(document.querySelector('.iso-txhead__metrics')?.innerText ?? ''), [], { what: 'Paid out by InstaPay in the header' });
@@ -821,7 +843,7 @@ async function run(page, email) {
   await page.tabTo(focused("el.tagName === 'BUTTON' && /Review and approve/.test(el.innerText)"), { what: 'Review and approve' });
   await page.press('Enter');
   await page.find('heading', 'Approve this payment');
-  assert.ok(await page.evaluate(() => document.activeElement?.id === 't4-title'), 'focus starts on the step heading');
+  await focusOnStepHeading('t4-title', 'focus starts on the step heading');
   await page.tabTo(focused("el.tagName === 'BUTTON' && /Approve on this device/.test(el.innerText)"), { what: 'Approve on this device' });
   await page.press('Enter');
   await page.waitFor(() => /step=track/.test(location.search), [], { what: 'Track to open by itself', timeoutMs: 60_000 });

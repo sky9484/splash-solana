@@ -8,7 +8,7 @@
  * click or keystroke makes). Node 22+ for the global WebSocket.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -112,7 +112,7 @@ async function createPage(call, subscribe, viewport) {
   let { width, height } = viewport;
   const requests = [];
   const errors = [];
-  /** requestId → URL, so a request that never finishes can be named. */
+  /** requestId → { url, loaderId }, so a request that never finishes can be named. */
   const inflight = new Map();
   /** Requests a waitIdle gave up on (still in flight at its timeout). */
   const stuck = [];
@@ -120,18 +120,52 @@ async function createPage(call, subscribe, viewport) {
   subscribe((msg) => {
     const p = msg.params;
     if (msg.method === 'Network.requestWillBeSent') {
-      inflight.set(p.requestId, p.request.url);
+      inflight.set(p.requestId, { url: p.request.url, loaderId: p.loaderId });
       lastActivity = Date.now();
       requests.push({ url: p.request.url, method: p.request.method, body: p.request.postData ?? '', headers: JSON.stringify(p.request.headers) });
     } else if (msg.method === 'Network.loadingFinished' || msg.method === 'Network.loadingFailed') {
       inflight.delete(p.requestId);
       lastActivity = Date.now();
+    } else if (msg.method === 'Fetch.requestPaused') {
+      void answerImage(p);
+    } else if (msg.method === 'Page.frameNavigated' && !p.frame.parentId) {
+      // A new document. Chrome never reports a request the old one still had open (a fetch cut off
+      // by the navigation): the server answers it, but no loadingFinished or loadingFailed comes. Left
+      // here, the next waitIdle waited its full 30 s for it and named it as stuck, as it did for Transfer's
+      // /checks and /fund every time the walk left Step 3 straight after it appeared (20 Oct).
+      for (const [id, r] of inflight) if (r.loaderId && r.loaderId !== p.frame.loaderId) inflight.delete(id);
     } else if (msg.method === 'Runtime.exceptionThrown') {
       errors.push(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? 'exception');
     } else if (msg.method === 'Runtime.consoleAPICalled' && p.type === 'error') {
       errors.push(p.args.map((a) => a.value ?? a.description ?? '').join(' '));
     }
   });
+  /**
+   * `/_next/image` answered by the browser itself from the original file under `publicDir`, so the
+   * dev server's image optimizer is out of the walk. On 20 Oct (Next 16.3.6, a 9 GB dev server) its
+   * job for one image could hang for good: Next shares one job per image and size, so every later
+   * request for it hung too, and six of them held all of Chrome's connections to the host until a
+   * navigation never left. The browser scales the original; a URL outside `publicDir` is passed on.
+   */
+  let publicDir = null;
+  const imageBodies = new Map();
+  const IMAGE_TYPES = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.gif': 'image/gif' };
+  async function answerImage(p) {
+    const src = new URL(p.request.url).searchParams.get('url') ?? '';
+    const file = publicDir && src.startsWith('/') ? path.resolve(publicDir, `.${decodeURIComponent(src)}`) : null;
+    const type = file && IMAGE_TYPES[path.extname(file).toLowerCase()];
+    if (!file || !type || !file.startsWith(publicDir + path.sep) || !existsSync(file)) {
+      await call('Fetch.continueRequest', { requestId: p.requestId }).catch(() => {});
+      return;
+    }
+    if (!imageBodies.has(file)) imageBodies.set(file, readFileSync(file).toString('base64'));
+    await call('Fetch.fulfillRequest', { requestId: p.requestId, responseCode: 200, responseHeaders: [{ name: 'content-type', value: type }, { name: 'cache-control', value: 'no-store' }], body: imageBodies.get(file) }).catch(() => {});
+  }
+  async function serveImagesFrom(dir) {
+    publicDir = path.resolve(dir);
+    await call('Fetch.enable', { patterns: [{ urlPattern: '*/_next/image?*', requestStage: 'Request' }] });
+  }
+
   await call('Page.enable');
   await call('Runtime.enable');
   await call('Network.enable', { maxPostDataSize: 65_536 });
@@ -168,10 +202,10 @@ async function createPage(call, subscribe, viewport) {
       if (ready === 'complete' && inflight.size === 0 && Date.now() - lastActivity >= quietMs) return;
       await sleep(100);
     }
-    // A request still open after a whole wait is one Chrome never reports finished (a fetch cut off by a
-    // navigation, the e2e's forged webhook): name it once, then stop waiting on it, or every later wait
-    // would cost the full 30 s again.
-    stuck.push(...inflight.values());
+    // A request still open after a whole wait is one the server is still working on (a cold compile)
+    // or one Chrome never reports finished (one a navigation cut off is dropped above): name it once,
+    // then stop waiting on it, or every later wait would cost the full 30 s again.
+    stuck.push(...[...inflight.values()].map((r) => r.url));
     inflight.clear();
   }
 
@@ -379,5 +413,5 @@ async function createPage(call, subscribe, viewport) {
     return frames;
   }
 
-  return { goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, swipe, record, requests, errors, stuck, sleep };
+  return { serveImagesFrom, goto, evaluate, waitFor, find, click, fill, check, text, screenshot, setViewport, waitIdle, emulateMedia, press, type, tabTo, mouse, swipe, record, requests, errors, stuck, sleep };
 }
