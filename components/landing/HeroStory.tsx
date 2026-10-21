@@ -38,8 +38,8 @@ export const BEATS: Beat[] = [
     accent: 'Prove every payment.',
     // Sky, 21 Oct: cross-border, not one corridor; easy to send (a speed claim is banned until it can be shown); solid proof.
     lede: 'Pay suppliers and clients across borders, straight from your own business account. Easy to send, delivered to their bank, and proven by a receipt anyone can check. Splash never holds the money.',
-    // Sky's map of Southeast Asia (21 Oct), in place of the district: the region the payments cross.
-    art: { src: '/isometric/gen/hero-sea-map.webp', width: 1380, height: 933 },
+    // Sky's map of Southeast Asia (21 Oct, Sky's own cut-out), in place of the district: the region the payments cross.
+    art: { src: '/isometric/gen/hero-sea-map.webp', width: 1800, height: 1223 },
   },
   {
     id: 'invoice',
