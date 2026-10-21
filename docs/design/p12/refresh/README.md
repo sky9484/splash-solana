@@ -13,7 +13,7 @@ badge.
 | [`01-hero-opening.webp`](01-hero-opening.webp) | Sky's map is the opening picture, bigger; the line names no single corridor; no kicker over the headline; "Scroll to settle" in place of the step rail |
 | [`02-hero-step-03.webp`](02-hero-step-03.webp) | A later step: a bigger picture and its random coin (here MYR); no rail |
 | [`03-loops.webp`](03-loops.webp) | Bigger pictures; loop 02 Keep shows the district |
-| [`04-how-it-works.webp`](04-how-it-works.webp) | Bigger headline, steps and panel; the headline's extrusion reads against the band |
+| [`04-how-it-works.webp`](04-how-it-works.webp) | Bigger headline, steps and panel; the headline flat, paper and gold on the band |
 | [`05-platform.webp`](05-platform.webp) | Bigger pictures; Platform 03 shows Sky's treasury vault |
 | [`06-routes-corridors.webp`](06-routes-corridors.webp) | "Stablecoin in. Local currency out.", the Southeast Asia band folded in as corridor pills, the payment ticket |
 | [`07-trust.webp`](07-trust.webp) | v1's dark ground with no grid lines, a flat headline, the gold line and glass cards |
