@@ -36,9 +36,10 @@ export const BEATS: Beat[] = [
     title: 'Pay suppliers abroad.',
     lines: ['Pay', 'suppliers', 'abroad.'],
     accent: 'Prove every payment.',
-    lede: 'Malaysian businesses pay suppliers in the Philippines from their own account. Delivered to the bank. Proof for the auditor. Splash never holds the money.',
+    // Sky, 21 Oct: cross-border, not one corridor; easy to send (a speed claim is banned until it can be shown); solid proof.
+    lede: 'Pay suppliers and clients across borders, straight from your own business account. Easy to send, delivered to their bank, and proven by a receipt anyone can check. Splash never holds the money.',
     // Sky's map of Southeast Asia (21 Oct), in place of the district: the region the payments cross.
-    art: { src: '/isometric/gen/hero-sea-map.webp', width: 973, height: 677 },
+    art: { src: '/isometric/gen/hero-sea-map.webp', width: 1380, height: 933 },
   },
   {
     id: 'invoice',

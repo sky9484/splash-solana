@@ -11,11 +11,17 @@ import {
   Bot,
   Check,
   ChevronRight,
+  Coins,
+  FileCheck,
   FileText,
+  HandCoins,
+  KeyRound,
   Landmark,
   Layers,
   ListChecks,
   PenLine,
+  Percent,
+  PhoneCall,
   Route,
   Scale,
   ShieldCheck,
@@ -235,14 +241,14 @@ const zekeAbilities = [
 ];
 
 const comparisonRows = [
-  { feature: 'Who holds the money', bank: 'The bank', broker: 'The broker', platform: 'The platform', splash: 'Your own vault' },
-  { feature: 'Fee', bank: '3-5%', broker: '2-4%', platform: '0.5-1.5%', splash: lockedCopy.fee },
-  { feature: 'Rate', bank: 'In the markup', broker: 'In the spread', platform: 'Mid-market + fee', splash: 'On the card first' },
-  { feature: 'Supplier bank check', bank: 'None', broker: 'Varies', platform: 'Name check', splash: 'Call-back' },
-  { feature: 'Approval', bank: 'Bank login', broker: 'Email or phone', platform: 'User login', splash: 'Approver’s device' },
-  { feature: 'Batch', bank: 'Bank file', broker: 'Manual', platform: 'Batch tool', splash: 'One file, one approval' },
-  { feature: 'Receipt', bank: 'Bank advice', broker: 'Email', platform: 'History export', splash: 'Verifies itself' },
-  { feature: 'Idle cash', bank: 'Deposit', broker: null, platform: null, splash: 'Reserve, with a treasury option in test mode' },
+  { feature: 'Who holds the money', icon: HandCoins, bank: 'The bank', broker: 'The broker', platform: 'The platform', splash: 'Your own vault' },
+  { feature: 'Fee', icon: Percent, bank: '3-5%', broker: '2-4%', platform: '0.5-1.5%', splash: lockedCopy.fee },
+  { feature: 'Rate', icon: Scale, bank: 'In the markup', broker: 'In the spread', platform: 'Mid-market + fee', splash: 'On the card first' },
+  { feature: 'Supplier bank check', icon: PhoneCall, bank: 'None', broker: 'Varies', platform: 'Name check', splash: 'Call-back' },
+  { feature: 'Approval', icon: KeyRound, bank: 'Bank login', broker: 'Email or phone', platform: 'User login', splash: 'Approver’s device' },
+  { feature: 'Batch', icon: Layers, bank: 'Bank file', broker: 'Manual', platform: 'Batch tool', splash: 'One file, one approval' },
+  { feature: 'Receipt', icon: FileCheck, bank: 'Bank advice', broker: 'Email', platform: 'History export', splash: 'Verifies itself' },
+  { feature: 'Idle cash', icon: Coins, bank: 'Deposit', broker: null, platform: null, splash: 'Reserve, with a treasury option in test mode' },
 ];
 
 /** A comparison cell: a dash where the column offers nothing, read out as such. */
@@ -250,7 +256,7 @@ function Cell({ value }: { value: string | null }) {
   if (value) return <>{value}</>;
   return (
     <>
-      <span aria-hidden="true">—</span>
+      <span aria-hidden="true" className="lp-cmp__none">—</span>
       <span className="lp-sr">Not offered</span>
     </>
   );
@@ -606,17 +612,32 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                   <th scope="col">Bank wire</th>
                   <th scope="col">Broker / remitter</th>
                   <th scope="col">Other B2B platforms</th>
-                  <th scope="col" className="is-splash">Splash</th>
+                  <th scope="col" className="is-splash">
+                    <span className="lp-cmp__brand">
+                      <Image src="/splash-main-icon.png" alt="" width={841} height={823} sizes="22px" />
+                      Splash
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {comparisonRows.map((row) => (
                   <tr key={row.feature}>
-                    <th scope="row">{row.feature}</th>
+                    <th scope="row">
+                      <span className="lp-cmp__feature">
+                        <span className="lp-cmp__icon"><row.icon aria-hidden="true" /></span>
+                        {row.feature}
+                      </span>
+                    </th>
                     <td><Cell value={row.bank} /></td>
                     <td><Cell value={row.broker} /></td>
                     <td><Cell value={row.platform} /></td>
-                    <td className="is-splash"><Check aria-hidden="true" />{row.splash}</td>
+                    <td className="is-splash">
+                      <span className="lp-cmp__yes">
+                        <span className="lp-cmp__tick"><Check aria-hidden="true" /></span>
+                        {row.splash}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -629,13 +650,13 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
         </div>
       </section>
 
-      {/* On the dark ground of v1's Trust section, its headline flat (Sky, 21 Oct). */}
+      {/* On the dark ground of v1's Trust section (Sky, 21 Oct). */}
       <section id="trust" className="lp-sec lp-dark">
         <div className="lp-wrap">
           <div className="lp-head">
             <div>
               <Kicker sub="Four gates">Trust</Kicker>
-              <h2 className="iso-display lp-display lp-display--section lp-display--flat">
+              <h2 className="iso-display lp-display lp-display--section">
                 Every payout
                 <span>proves itself.</span>
               </h2>
@@ -702,7 +723,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
             </div>
             <div>
               <Kicker sub="The copilot">Zeke</Kicker>
-              <h2 className="iso-display lp-display lp-display--section lp-display--solid">
+              <h2 className="iso-display lp-display lp-display--section">
                 Context before
                 <span>every approval.</span>
               </h2>
