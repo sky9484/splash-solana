@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 
+import HeroCoinFlight from '@/components/landing/HeroCoinFlight';
+
 /**
  * The landing hero on a desktop (prompt 12 §2.2, preview tab 1): one pinned story in five beats. The
  * section is 420vh tall and its stage sticks for the whole of it; the beat on show is
@@ -26,7 +28,8 @@ export type Beat = {
   lines: string[];
   accent: string;
   lede: string;
-  art: { src: string; width: number; height: number };
+  /** `alt` describes the picture; an empty one marks it decorative. */
+  art: { src: string; width: number; height: number; alt: string };
 };
 
 export const BEATS: Beat[] = [
@@ -38,8 +41,9 @@ export const BEATS: Beat[] = [
     accent: 'Prove every payment.',
     // Sky, 21 Oct: cross-border, not one corridor; easy to send (a speed claim is banned until it can be shown); solid proof.
     lede: 'Pay suppliers and clients across borders, straight from your own business account. Easy to send, delivered to their bank, and proven by a receipt anyone can check. Splash never holds the money.',
-    // Sky's map of Southeast Asia (21 Oct, Sky's own cut-out), in place of the district: the region the payments cross.
-    art: { src: '/isometric/gen/hero-sea-map.webp', width: 1800, height: 1223 },
+    // Sky's ASEAN map (art refresh, 22 Oct): one 2400 px source, next/image makes the smaller sizes. HeroCoinFlight
+    // draws its coins over it in this picture's own 1600 x 1067 frame.
+    art: { src: '/isometric/gen/hero-asean-map-2400.webp', width: 2400, height: 1600, alt: 'Map of the eleven ASEAN countries as floating islands joined by gold rails' },
   },
   {
     id: 'invoice',
@@ -49,7 +53,7 @@ export const BEATS: Beat[] = [
     lines: ['Zeke reads', 'the invoice.'],
     accent: 'You check it.',
     lede: 'Drop a supplier’s invoice. Zeke fills in the payment and shows the line each field came from. It reads with no tools, so a document can’t make it do anything.',
-    art: { src: '/isometric/gen/hero-01-zeke-reads-invoice.webp', width: 892, height: 831 },
+    art: { src: '/isometric/gen/hero-01-zeke-reads-invoice-v2.webp', width: 1400, height: 1363, alt: 'Zeke reads the invoice from inside a glass booth; three highlighted lines fill the payment form' },
   },
   {
     id: 'approve',
@@ -59,7 +63,8 @@ export const BEATS: Beat[] = [
     lines: ['Zeke drafts.', 'A person approves.'],
     accent: 'On your device.',
     lede: 'Eight rules run as code before the approval card appears. The quote stays fresh for sixty seconds. Nobody at Splash can press this button.',
-    art: { src: '/isometric/gen/hero-02-person-approves.webp', width: 960, height: 818 },
+    // Waits for Sky's new door (eight lamps); until it is converted this keeps the current picture, still decorative.
+    art: { src: '/isometric/gen/hero-02-person-approves.webp', width: 960, height: 818, alt: '' },
   },
   {
     id: 'routes',
@@ -69,7 +74,7 @@ export const BEATS: Beat[] = [
     lines: ['Two routes.', 'Same pesos.'],
     accent: 'You pick.',
     lede: 'Two routes, ranked by what the supplier receives, with both fees shown before you choose. Dollars travel as USDC to the payout partner, who pays the bank in pesos.',
-    art: { src: '/isometric/gen/hero-03-two-routes.webp', width: 960, height: 608 },
+    art: { src: '/isometric/gen/hero-03-two-routes-v2.webp', width: 1400, height: 1238, alt: 'Two rail routes, one over a bridge and one through a toll gate, both end at the same bank with equal peso stacks' },
   },
   {
     id: 'product',
@@ -79,7 +84,7 @@ export const BEATS: Beat[] = [
     lines: ['Payments are', 'the feature.'],
     accent: 'Proof is the product.',
     lede: 'One receipt: invoice, approval, route, rate and bank reference, with its proof recorded. Verify it in the browser. Change one field and it fails.',
-    art: { src: '/isometric/gen/hero-04-receipt-proof.webp', width: 728, height: 935 },
+    art: { src: '/isometric/gen/hero-04-receipt-proof-v2.webp', width: 1263, height: 1400, alt: 'Two receipt towers: the intact one is lit; the one with a single field pulled out is dark and its seal is broken' },
   },
 ];
 
@@ -275,7 +280,7 @@ export default function HeroStory() {
                 <div className={`lp-beat__art${index === 0 ? ' lp-beat__art--opening' : ''}`}>
                   <Image
                     src={b.art.src}
-                    alt=""
+                    alt={b.art.alt}
                     width={b.art.width}
                     height={b.art.height}
                     sizes={index === 0 ? '(max-width: 1000px) 92vw, 44vw' : '(max-width: 1000px) 60vw, 34vw'}
@@ -283,6 +288,8 @@ export default function HeroStory() {
                   />
                   {index === 0 ? (
                     <>
+                      {/* Coins fly between the map's countries while the opening beat is the one showing. */}
+                      <HeroCoinFlight active={beat === 0} />
                       <Image src="/cinematic/token-usd.png" alt="" width={1024} height={1024} sizes="(max-width: 1000px) 160px, 13vw" className="lp-token lp-token--usd" />
                       <Image src="/cinematic/token-php.png" alt="" width={1024} height={1024} sizes="(max-width: 1000px) 118px, 10vw" className="lp-token lp-token--php" />
                     </>

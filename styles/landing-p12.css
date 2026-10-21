@@ -266,6 +266,7 @@
   max-width: 100%;
   height: auto;
   max-height: 170px;
+  object-fit: contain;
 }
 
 .lp-card__title {
@@ -529,6 +530,46 @@
   50% { transform: translateY(-6px); }
 }
 
+/* The coins in flight over the opening map (HeroCoinFlight, Sky's art refresh): one SVG over the picture in its
+   own 1600 x 1067 frame. The art refresh names --gold, --ink-deep, --teal and --mint; on the landing those are
+   --sp-gold, --sp-deep, --sp-teal and --sp-mint (the same colours in styles/tokens.css). No blur anywhere. */
+.lp-cf {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lp-cf-face { fill: var(--sp-gold); }
+.lp-cf-edge { fill: color-mix(in srgb, var(--sp-gold), var(--sp-deep) 30%); }
+
+.lp-cf-rim {
+  fill: none;
+  stroke: color-mix(in srgb, var(--sp-gold), var(--sp-deep) 22%);
+  stroke-width: 2;
+}
+
+.lp-cf-sym {
+  fill: var(--sp-deep);
+  font-family: var(--font-sans), sans-serif;
+  font-weight: 800;
+}
+
+.lp-cf-ground { fill: color-mix(in srgb, var(--sp-deep) 24%, transparent); }
+
+.lp-cf-ring-land {
+  fill: none;
+  stroke: var(--sp-gold);
+}
+
+.lp-cf-ring-lift {
+  fill: none;
+  stroke: var(--sp-teal);
+}
+
 /* The coin a step brings in (Sky, 21 Oct): it spins in once, then bobs like the opening beat's tokens.
    --fill is the share of its picture's square the coin itself takes, so every currency shows at the
    same size: the box is the coin's size divided by it. */
@@ -667,11 +708,17 @@
 
 .lp-mhero__actions .lp-btn { width: 100%; }
 
+/* The phone hero's map, in a box its own size so HeroCoinFlight's coins land where the picture draws. */
+.lp-mhero__map {
+  position: relative;
+  width: min(100%, 320px);
+  margin: 18px auto 0;
+}
+
 .lp-mhero__art {
   display: block;
-  width: min(100%, 320px);
+  width: 100%;
   height: auto;
-  margin: 18px auto 0;
 }
 
 .lp-mrail__head {
@@ -1003,10 +1050,14 @@
 
 .lp-routes__also strong { color: var(--sp-deep); }
 
+/* The art refresh's board is 3:2; its box keeps the bridge's shape (1376 x 768) so the section doesn't move,
+   and the board sits inside it whole. */
 .lp-routes__art {
   width: 100%;
   max-width: 620px;
   height: auto;
+  aspect-ratio: 1376 / 768;
+  object-fit: contain;
   justify-self: end;
   filter: drop-shadow(0 18px 22px color-mix(in srgb, var(--sp-ink) 16%, transparent));
 }
@@ -1421,11 +1472,15 @@
   padding: 28px 28px 96px;
 }
 
+/* The art refresh's Zeke is portrait; the box keeps the old desk's landscape size (1200 x 896, at most 78% wide
+   and the clamp tall) so the card doesn't grow, and the picture sits inside it whole. */
 .lp-zeke__art img {
-  width: auto;
-  max-width: min(100%, 78%);
+  width: min(78%, clamp(260px, 24vw, 470px) * 1200 / 896);
+  max-width: none;
   height: auto;
-  max-height: clamp(260px, 24vw, 470px);
+  max-height: none;
+  aspect-ratio: 1200 / 896;
+  object-fit: contain;
   filter: drop-shadow(0 18px 22px color-mix(in srgb, var(--sp-ink) 14%, transparent));
 }
 
@@ -1575,6 +1630,7 @@
   max-width: 100%;
   height: auto;
   max-height: 480px;
+  object-fit: contain;
   filter: drop-shadow(-14px 22px 26px var(--sp-shadow-deep));
   transition: transform var(--sp-t-art) var(--sp-ease);
 }

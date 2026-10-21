@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
+import HeroCoinFlight from '@/components/landing/HeroCoinFlight';
 import { BEATS, BeatKicker, SAMPLE_RECEIPT_HREF } from '@/components/landing/HeroStory';
 
 /**
@@ -69,15 +70,19 @@ export default function HeroStoryPhone({ serverPhone = false }: { serverPhone?: 
           <Link href="/signup" className="lp-btn lp-btn--dark lp-btn--lg">Open payment desk</Link>
           <a href="#how-it-works" className="lp-btn lp-btn--quiet lp-btn--lg">See how it works</a>
         </div>
-        <Image
-          src={start.art.src}
-          alt=""
-          width={start.art.width}
-          height={start.art.height}
-          sizes="320px"
-          className="lp-mhero__art"
-          preload={serverPhone}
-        />
+        {/* The map and its coins in flight: the box is the picture's own size, so the coins land where it draws. */}
+        <div className="lp-mhero__map">
+          <Image
+            src={start.art.src}
+            alt={start.art.alt}
+            width={start.art.width}
+            height={start.art.height}
+            sizes="320px"
+            className="lp-mhero__art"
+            preload={serverPhone}
+          />
+          <HeroCoinFlight active phone />
+        </div>
       </div>
 
       <div className="lp-mrail__head">
@@ -87,7 +92,7 @@ export default function HeroStoryPhone({ serverPhone = false }: { serverPhone?: 
       <div className="lp-mrail" ref={rail}>
         {steps.map((b, index) => (
           <article key={b.id} id={`lp-mcard-${b.id}`} className="lp-mcard" role="tabpanel" aria-label={`${b.number}, ${b.label}`}>
-            <Image src={b.art.src} alt="" width={b.art.width} height={b.art.height} sizes="300px" className="lp-mcard__art" />
+            <Image src={b.art.src} alt={b.art.alt} width={b.art.width} height={b.art.height} sizes="300px" className="lp-mcard__art" />
             <BeatKicker beat={b} />
             <h3 className="lp-mcard__title">
               {b.title} <em>{b.accent}</em>
