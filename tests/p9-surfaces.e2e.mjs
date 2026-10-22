@@ -42,7 +42,8 @@ const PAGES = [
 
 /** The page's own boxes: not inside another box, a sheet, a dialog or the floating Zeke. */
 // The screens not yet rebuilt in look 9 (History, Recipients, Rules, Settings) use .sx-card, .dash-surface, .dash-block.
-const BOXES = `[...document.querySelectorAll('main .iso-surface, main .iso-ticket, main .iso-chooser__card, main .sx-card, main .dash-surface, main .dash-block')].filter((el) => el.getClientRects().length > 0 && !el.parentElement.closest('.iso-surface, .iso-ticket, .iso-chooser__card, .sx-card, .dash-surface, .dash-block, .iso-sheet-root, .iso-modal-root, .iso-zk'))`;
+// A box that must stay put (--still: Transfer's intent header and its sticky So far) is not hovered.
+const BOXES = `[...document.querySelectorAll('main .iso-surface, main .iso-ticket, main .iso-chooser__card, main .sx-card, main .dash-surface, main .dash-block')].filter((el) => el.getClientRects().length > 0 && !el.classList.contains('iso-surface--still') && !el.parentElement.closest('.iso-surface, .iso-ticket, .iso-chooser__card, .sx-card, .dash-surface, .dash-block, .iso-sheet-root, .iso-modal-root, .iso-zk'))`;
 
 async function axe(page) {
   const has = await page.evaluate(() => typeof window.axe === 'object');

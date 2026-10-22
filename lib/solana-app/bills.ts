@@ -16,7 +16,7 @@ import { utcDay } from '../solana/kora.ts';
 import type { InvoiceFieldName } from '../solana-zeke/reader.ts';
 import { loadCompany } from './company.ts';
 import { ServiceError } from './errors.ts';
-import { itemsCheck, maskedAccount, numberIsInDocument } from './invoice-document.ts';
+import { bankCodeFor, itemsCheck, maskedAccount, numberIsInDocument } from './invoice-document.ts';
 import { isCommitted, type PaymentState } from './payment-machine.ts';
 import { markRequestViewed } from './requests.ts';
 import { runtime } from './runtime.ts';
@@ -132,6 +132,27 @@ function rowFor(inv: InvoiceRecord, p: PaymentRecord | undefined, now: Date): Bi
   }
   if (inv.draft.suspicious) return { ...base, tab: 'check', due: due(null), status: { tone: 'amber', label: 'Zeke flagged it · check' }, action: { kind: 'check', label: 'Check', href } };
   return { ...base, tab: 'check', due: due(null), status: { tone: 'ink', label: inv.bankVerification ? 'Called back · ready to check' : 'Read by Zeke' }, action: { kind: 'check', label: 'Check', href } };
+}
+
+/**
+ * Checked invoices to a bank, ready to pay, for Transfer's Step 2 chip (prompt 11 §2.3): the supplier,
+ * the bank (and its code) and the last 4 digits the invoice names, its number and amount. A read with no side
+ * effects (unlike billsView, it marks no request as seen). The chip pays through payBill, which picks
+ * up the invoice's open payment when it has one, so an invoice is never paid twice. A bill stopped by
+ * a rule or returned by the bank isn't offered: it needs a look first.
+ */
+export async function readyBankBills(orgId: string, now = new Date()) {
+  getOrg(orgId);
+  const bills = [...store().invoices.values()].filter((i) => i.orgId === orgId && isBill(i) && !i.dismissed && !i.request);
+  const latest = latestPayments(await runtime().payments.listByOrg(orgId));
+  return bills
+    .map((i) => ({ inv: i, row: rowFor(i, latest.get(i.id), now) }))
+    .filter(({ row }) => row.tab === 'ready' && row.status.tone !== 'danger' && row.amount.currency === 'PHP')
+    .map(({ inv, row }) => {
+      const f = fieldsOf(inv);
+      // The bank as the invoice prints it ("BDO Unibank, Inc.") and its code (BDO), which a saved recipient carries.
+      return { id: row.id, number: row.number, supplier: row.supplier, bank: f.supplierBank, bankCode: bankCodeFor(f.supplierBank), last4: f.supplierAccountLast4, amountPhpMinor: row.amount.minor };
+    });
 }
 
 /** The inbox: every bill on its tab, newest first, with the counts the chooser and the tabs show. */

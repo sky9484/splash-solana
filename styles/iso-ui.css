@@ -1325,6 +1325,198 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-recips__row > .iso-btn,
   .iso .iso-recips__row > .iso-btn-host > .iso-btn { margin-left: auto; }
 }
+/* ── Transfer, the new pattern (prompt 11 Phase 2) ─────────────────────
+   The intent header on every step; under it the step and its sticky "So far"
+   rail (320 px) from 1080 px, one column below; on a phone (< 860 px) the
+   main action is pinned to the bottom of the screen. */
+.iso .iso-txhead {
+  color: var(--white);
+  background: linear-gradient(135deg, var(--teal), var(--teal-deep));
+  box-shadow: var(--lift-hero);
+}
+.iso .iso-txhead :focus-visible { outline-color: var(--mint); }
+.iso .iso-txhead__top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 24px; align-items: start; padding: 18px 22px; }
+.iso .iso-txhead__chips { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.iso .iso-txhead__chip { display: inline-flex; align-items: center; padding: 3px 9px; font: 800 12px/1.3 var(--font-sans); color: var(--white); border: 1px solid rgb(255 255 255 / .55); }
+.iso .iso-txhead__title { margin: 10px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; color: var(--white); overflow-wrap: anywhere; }
+.iso .iso-txhead__sub { margin: 4px 0 0; font-size: var(--iso-14); line-height: 1.45; color: rgb(255 255 255 / .9); font-variant-numeric: tabular-nums; }
+.iso .iso-txhead__stepline { margin: 2px 0 8px; display: flex; justify-content: space-between; gap: 8px; font-size: var(--iso-13); font-weight: 800; color: var(--white); }
+.iso .iso-txhead__steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.iso .iso-txhead__seg,
+.iso .iso-txhead__seglink { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; font-weight: 600; color: rgb(255 255 255 / .86); text-decoration: none; }
+.iso .iso-txhead__seglink { min-height: 32px; color: var(--white); }
+.iso .iso-txhead__seglink:hover { color: var(--white); }
+.iso .iso-txhead__seglink:hover .iso-txhead__seglabel { text-decoration: underline; text-underline-offset: 3px; }
+.iso .iso-txhead__bar { display: block; height: 4px; background: rgb(255 255 255 / .24); }
+.iso .iso-txhead__seg--done .iso-txhead__bar { background: var(--mint); }
+.iso .iso-txhead__seg--now .iso-txhead__bar { background: var(--coral); }
+.iso .iso-txhead__seg--now { color: var(--white); font-weight: 800; }
+.iso .iso-txhead__seglabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iso .iso-txhead__metrics { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgb(4 28 34 / .22); border-top: 1px solid rgb(255 255 255 / .16); }
+.iso .iso-txhead__metrics > div { min-width: 0; padding: 11px 22px; border-left: 1px solid rgb(255 255 255 / .14); }
+.iso .iso-txhead__metrics > div:first-child { border-left: 0; }
+.iso .iso-txhead__metrics dt { font-size: 12px; font-weight: 700; color: rgb(255 255 255 / .86); }
+.iso .iso-txhead__metrics dd { margin: 2px 0 0; font-size: var(--iso-15); font-weight: 800; color: var(--white); overflow-wrap: anywhere; }
+@media (max-width: 859px) {
+  .iso .iso-txhead__top { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px; }
+  .iso .iso-txhead__title { font-size: 22px; }
+  /* The segments stay; their words are for screen readers only on a phone. */
+  .iso .iso-txhead__seglabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .iso .iso-txhead__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .iso .iso-txhead__metrics > div { padding: 10px 16px; }
+  .iso .iso-txhead__metrics > div:nth-child(3) { border-left: 0; }
+  .iso .iso-txhead__metrics > div:nth-child(n + 3) { border-top: 1px solid rgb(255 255 255 / .14); }
+}
+
+.iso .iso-tx { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.iso .iso-tx__step { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Focus moves to a step's heading for screen readers (tabindex -1); it is not a control, so no ring. */
+.iso [data-step-heading]:focus { outline: none; }
+.iso .iso-tx__rail { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (max-width: 1079px) {
+  .iso .iso-tx { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-tx__rail { position: static; }
+}
+/* Each step enters with a 260 ms fade and a 6 px rise; the rail only fades, so a pinned action never
+   rides a moving box. */
+.iso .iso-tx-enter .iso-tx__step,
+.iso .iso-tx-enter > .iso-approve { animation: iso-stepin 260ms cubic-bezier(.2, .7, .2, 1) backwards; }
+.iso .iso-tx-enter .iso-tx__rail { animation: iso-fade 260ms cubic-bezier(.2, .7, .2, 1) backwards; }
+@keyframes iso-stepin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* So far: a row a fact, ticked once it is known; then the step's one main action. */
+.iso .iso-sofar { display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 16px; }
+.iso .iso-sofar__rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.iso .iso-sofar__rows > li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.iso .iso-sofar__rows > li:first-child { border-top: 0; padding-top: 2px; }
+.iso .iso-sofar__tick { display: inline-flex; width: 20px; height: 20px; margin-top: 1px; align-items: center; justify-content: center; border-radius: 50%; background: rgb(12 62 72 / .08); color: var(--ok-ink); }
+.iso .iso-sofar__rows > li[data-known] .iso-sofar__tick { background: var(--ok-fill); border: 1.5px solid var(--mint); }
+.iso .iso-sofar__what { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.iso .iso-sofar__label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-sofar__value { font-size: var(--iso-15); font-weight: 800; color: var(--ink-deep); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.iso .iso-sofar__sub { font-size: var(--iso-13); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-limits { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; background: rgb(12 62 72 / .04); border: 1px solid var(--surface-line); }
+.iso .iso-limits > .iso-dl { width: 100%; font-size: var(--iso-14); }
+.iso .iso-limits__bar { width: 100%; height: 6px; background: rgb(12 62 72 / .12); }
+.iso .iso-limits__bar > span { display: block; height: 100%; background: var(--teal); }
+.iso .iso-sofar__cta { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.iso .iso-sofar__cta > .iso-btn-wrap { flex-direction: column; align-items: stretch; text-align: center; }
+.iso .iso-sofar__cta .iso-btn-why { max-width: none; }
+.iso .iso-sofar__back {
+  align-self: center; display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px;
+  background: none; border: 0; cursor: pointer;
+  font: 700 14px/1 var(--font-sans); color: var(--teal);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+.iso .iso-sofar__back:hover { color: var(--ink-deep); }
+/* A phone: the main action is pinned to the bottom of the screen (white bar, shadow, safe-area
+   padding). components/solana/transfer/SoFar.tsx publishes its height and its left edge. */
+@media (max-width: 859px) {
+  .iso .iso-sofar,
+  .iso .iso-sofar:hover,
+  .iso .iso-sofar:focus-within { transform: none; }
+  .iso .iso-sofar__cta {
+    position: fixed; left: var(--iso-pin-left, 0px); right: 0; bottom: 0; z-index: 35;
+    padding: 10px 16px calc(6px + env(safe-area-inset-bottom));
+    background: var(--white); box-shadow: var(--lift-bar);
+    gap: 0;
+  }
+  .iso-app .iso-main:has(.iso-sofar__cta) { padding-bottom: calc(var(--iso-actionbar-h, 120px) + 40px); }
+}
+
+/* Step 1: recipients as rows. */
+.iso .iso-picks { display: flex; flex-direction: column; gap: 8px; }
+.iso .iso-pick { display: flex; align-items: stretch; background: rgb(12 62 72 / .03); border: 1px solid var(--surface-line); transition: border-color var(--t-ui), background-color var(--t-ui); }
+.iso .iso-pick:hover { border-color: var(--line-strong); }
+.iso .iso-pick--on { background: var(--white); border-color: var(--teal); box-shadow: inset 4px 0 0 var(--teal); }
+.iso .iso-pick__main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: none; border: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.iso .iso-pick__tile { flex: 0 0 40px; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--line); font: 800 14px/1 var(--font-sans); color: var(--ink-deep); }
+.iso .iso-pick__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-pick__name { font-weight: 800; color: var(--ink-deep); }
+.iso .iso-pick__line { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-pick__tag { flex: 0 0 auto; }
+.iso .iso-pick__more {
+  flex: 0 0 auto; min-height: 44px; padding: 0 14px;
+  background: none; border: 0; border-left: 1px solid var(--surface-line); cursor: pointer;
+  font: 700 13px/1 var(--font-sans); color: var(--teal); text-decoration: underline; text-underline-offset: 3px;
+}
+.iso .iso-pick__more:hover { color: var(--ink-deep); }
+@media (max-width: 640px) {
+  .iso .iso-pick__main { flex-wrap: wrap; }
+  .iso .iso-pick__tag { margin-left: 52px; }
+}
+
+/* Step 3: the routes side by side, each with a small route line; coins only on the chosen one. */
+.iso .iso-routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.iso .iso-route {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: rgb(12 62 72 / .03); border: 1px solid var(--surface-line);
+  transition: border-color var(--t-ui), background-color var(--t-ui);
+}
+.iso .iso-route:hover { border-color: var(--line-strong); }
+.iso .iso-route[aria-checked="true"] { padding: 13px 15px; background: var(--white); border: 2px solid var(--teal); }
+.iso .iso-route__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.iso .iso-route__tags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.iso .iso-route__fee { font-size: var(--iso-15); color: var(--ink-deep); }
+.iso .iso-route__why { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
+.iso .iso-route__foot { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: var(--iso-14); }
+.iso .iso-route__foot strong { color: var(--ink-deep); }
+.iso .iso-mini { display: flex; align-items: flex-start; padding: 4px 0 2px; }
+.iso .iso-mini__stop { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: 96px; }
+.iso .iso-mini__dot { width: 12px; height: 12px; border-radius: 50%; background: var(--white); border: 2px solid var(--ink-deep); }
+.iso .iso-mini__label { font-size: 12px; font-weight: 700; line-height: 1.25; color: var(--text-2); text-align: center; overflow-wrap: anywhere; }
+.iso .iso-mini__wire { position: relative; flex: 1 1 auto; min-width: 16px; height: 2px; margin-top: 5px; background: rgb(12 62 72 / .25); }
+.iso .iso-mini__wire .iso-coin,
+.iso .iso-tracker__bar .iso-coin { top: -5px; width: 12px; height: 12px; }
+.iso .iso-mini__wire--active { background: var(--teal); }
+.iso .iso-mini__wire--active .iso-coin,
+.iso .iso-tracker__bar--active .iso-coin { display: block; animation: iso-travel 2.2s cubic-bezier(.45, .05, .55, .95) infinite; }
+.iso .iso-costgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 22px; align-items: start; }
+.iso .iso-payfrom { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: var(--white); border: 1px solid var(--line); }
+
+/* Step 4: the approval card at 1.5 fr beside the rules at 1 fr, full width. */
+.iso .iso-approve { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.iso .iso-approve__card { display: flex; flex-direction: column; gap: 16px; padding: 22px 24px; }
+.iso .iso-approve__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.iso .iso-approve__head > div { display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-approve__rows { padding: 14px 16px; background: var(--white); border: 1px solid var(--surface-line); }
+@media (max-width: 1079px) {
+  .iso .iso-approve { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .iso .iso-approve__card { padding: 18px 16px; }
+}
+
+/* Step 5: the six stations, the receipt, what happened. */
+.iso .iso-tracker { margin: 4px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); }
+.iso .iso-tracker__st { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.iso .iso-tracker__dot { position: relative; z-index: 1; display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 50%; background: var(--white); border: 2px solid rgb(12 62 72 / .25); color: var(--ink-deep); }
+/* Done: the tick, white on teal. */
+.iso .iso-tracker__st--done .iso-tracker__dot { background: var(--teal); border-color: var(--teal); color: var(--white); }
+.iso .iso-tracker__st--now .iso-tracker__dot { background: var(--gold-fill); border-color: var(--gold); box-shadow: 0 0 0 4px rgb(239 196 111 / .35); }
+.iso .iso-tracker__label { padding-right: 6px; font-size: var(--iso-13); font-weight: 700; color: var(--ink-deep); }
+.iso .iso-tracker__st--later .iso-tracker__label { color: var(--text-2); }
+.iso .iso-tracker__bar { position: absolute; top: 10px; left: 24px; right: 2px; height: 2px; background: rgb(12 62 72 / .18); }
+.iso .iso-tracker__bar--done { background: var(--teal); }
+.iso .iso-dl--rows.iso-receipt__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 11px 26px; }
+.iso .iso-happened { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-happened li { position: relative; display: flex; flex-direction: column; padding-left: 18px; font-size: var(--iso-14); }
+.iso .iso-happened li::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+.iso .iso-happened strong { color: var(--ink-deep); }
+@media (max-width: 859px) {
+  .iso .iso-tracker { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .iso .iso-tracker__st { flex-direction: row; align-items: center; }
+  .iso .iso-tracker__bar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iso .iso-tx-enter .iso-tx__step,
+  .iso .iso-tx-enter .iso-tx__rail,
+  .iso .iso-tx-enter > .iso-approve { animation: none !important; }
+  .iso .iso-mini__wire--active .iso-coin,
+  .iso .iso-tracker__bar--active .iso-coin { animation: none !important; left: 45%; opacity: 1; }
+}
+
 /* Download PDF prints the page: only the receipt and its map, never the shell around them. */
 @media print {
   .iso-app .iso-side,

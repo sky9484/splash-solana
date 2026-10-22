@@ -92,6 +92,7 @@
 
   /* Accents, one job each */
   --teal: #0D6370;          /* routes, links, active, the selected lane */
+  --teal-deep: #0A4B56;     /* the far end of Transfer's intent header (prompt 11 §2.1) */
   --mint: #9FCFC7;          /* routes, the selected road, ok borders */
   --mint-wash: #DDEFEA;     /* hero wash start, Zeke's context bar */
   --mint-wash-2: #EAF4EF;   /* hero wash middle */
@@ -128,13 +129,16 @@
 
   /* Boxes float off the page (prompt 11 §1.1, decision 3): a near-white fill, a 1 px edge and a soft
      shadow, square corners. They rise a little on hover and settle back. Only these four shadows may
-     blur; buttons, tags and the sidebar keep their solid offset ledges below. */
+     blur (and the phone's pinned bar, --lift-bar); buttons, tags and the sidebar keep their solid
+     offset ledges below. */
   --surface: #FFFDFA;
   --surface-line: rgb(12 62 72 / .09);
   --lift-1: 0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26);
   --lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
   --lift-hero: 0 2px 4px rgb(8 54 64 / .07), 0 18px 38px -16px rgb(8 54 64 / .34);
   --lift-hero-2: 0 3px 6px rgb(8 54 64 / .08), 0 28px 52px -18px rgb(8 54 64 / .42);
+  /* A bar pinned to the bottom of a phone's screen (Transfer's main action): its shadow falls upward. */
+  --lift-bar: 0 -8px 24px -12px rgb(8 54 64 / .35);
   --rise: -3px;
   --rise-chooser: -5px;
   --t-lift: 220ms cubic-bezier(.2, .7, .2, 1);
