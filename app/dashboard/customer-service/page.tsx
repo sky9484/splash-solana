@@ -40,7 +40,7 @@ const faqs = [
 ];
 
 const channels = [
-  { icon: Mail, label: BRAND.supportEmail, detail: 'Email · 24h response SLA' },
+  { icon: Mail, label: BRAND.supportEmail, detail: 'Email · answered on working days' },
   { icon: Phone, label: '+60 3-1234 5678', detail: 'Mon–Fri · 9am–6pm MYT' },
   { icon: Clock3, label: 'Status: Operational', detail: 'All systems green' },
 ];

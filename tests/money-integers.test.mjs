@@ -8,7 +8,7 @@ import { extname, join } from 'node:path';
 import test from 'node:test';
 
 /** lib/route-engine holds the fee code (fees.ts); lib/solana-app is the service that moves the money. */
-const ROOTS = ['lib/route-engine', 'lib/solana', 'lib/solana-app'];
+const ROOTS = ['lib/route-engine', 'lib/solana', 'lib/solana-app', 'lib/treasury'];
 
 const FLOAT = [
   { name: 'parseFloat', pattern: /\bparseFloat\s*\(/ },
