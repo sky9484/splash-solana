@@ -81,9 +81,10 @@ const loopCards = [
     live: true,
     title: 'Pay the supplier’s bank.',
     copy: 'Pay suppliers in the Philippines in USDC on Solana. Every approved payout builds verified counterparties and settlement history.',
-    image: '/isometric/loop-settle-v4.png',
-    width: 1448,
-    height: 1086,
+    image: '/isometric/gen/loop-01-corridor.webp',
+    width: 1600,
+    height: 943,
+    alt: 'Malaysia and the Philippines as two islands joined by a gold bridge, coins crossing',
     foot: [{ from: 'USDC', to: 'PHP' }, 'Sandbox'] as Foot[],
   },
   {
@@ -92,11 +93,12 @@ const loopCards = [
     live: true,
     title: 'Keep it in your vault.',
     copy: 'Money waits in your business’s own Squads vault. No Splash key can move it, and a person approves every payment out.',
-    // Sky, 21 Oct: the treasury vault went back to Platform 03 and the hero took Sky's map, so Keep shows
-    // the district (the preview's loop-save art stays banned: idle dollars rising at a variable rate).
-    image: '/cinematic/hero-district-v5.png',
-    width: 2752,
-    height: 1541,
+    // Sky's art refresh (22 Oct): Keep shows the vault art, a safe the phone unlocks while the laptop stays
+    // locked. The preview's loop-save art stays banned: idle dollars rising at a variable rate.
+    image: '/isometric/gen/loop-02-keep-vault.webp',
+    width: 1060,
+    height: 1200,
+    alt: 'An open safe of dollar coins, unlocked by a phone; the laptop beside it stays locked',
     foot: ['Your vault', 'Human-approved'] as Foot[],
   },
   {
@@ -105,9 +107,10 @@ const loopCards = [
     live: false,
     title: 'Finance it, later.',
     copy: 'Invoices would become working capital: your buyer funds early payment against a receivable both sides can verify.',
-    image: '/isometric/loop-supply.png',
+    image: '/isometric/gen/loop-03-supply.webp',
     width: 1200,
-    height: 900,
+    height: 1035,
+    alt: 'A rail loop from buyer to supplier with an invoice and a calendar marked paid early',
     foot: ['Buyer-funded', 'No third-party lender'] as Foot[],
   },
 ];
@@ -195,9 +198,9 @@ const operatingLayers = [
     label: 'Vault',
     title: 'Your money stays yours.',
     copy: "Money sits in your business's own Squads vault. No Splash key can move it.",
-    image: '/cinematic/liquidity-pools.png',
-    width: 1200,
-    height: 896,
+    image: '/isometric/gen/platform-01-vault-pools.webp',
+    width: 1600,
+    height: 1195,
     tags: ['Your vault', 'Your approval'],
   },
   {
@@ -404,7 +407,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
                   {loop.live ? <span className="lp-tag lp-tag--ok lp-tag--live">Live</span> : <span className="lp-tag lp-tag--coral">Roadmap</span>}
                 </div>
                 <div className="lp-card__art">
-                  <Image src={loop.image} alt="" width={loop.width} height={loop.height} sizes="(max-width: 1000px) 80vw, 30vw" />
+                  <Image src={loop.image} alt={loop.alt} width={loop.width} height={loop.height} sizes="(max-width: 1000px) 80vw, 30vw" />
                 </div>
                 <h3 className="lp-card__title">{loop.title}</h3>
                 <p className="lp-card__copy">{loop.copy}</p>
@@ -560,10 +563,10 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
               <Link href="/signup" className="lp-btn lp-btn--dark">Open the payout desk</Link>
             </div>
             <Image
-              src="/cinematic/corridor-bridge-v3.png"
+              src="/isometric/gen/routes-asean-board.webp"
               alt=""
-              width={1376}
-              height={768}
+              width={2000}
+              height={1354}
               sizes="(max-width: 1000px) 92vw, 44vw"
               className="lp-routes__art lp-bob"
             />
@@ -697,7 +700,7 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
           <div className="lp-zeke">
             <div className="lp-zeke__side">
               <div className="lp-card lp-zeke__art">
-                <Image src="/cinematic/copilot-desk.png" alt="" width={1200} height={896} sizes="(max-width: 1000px) 80vw, 36vw" />
+                <Image src="/isometric/gen/copilot-zeke-desk.webp" alt="" width={966} height={1298} sizes="(max-width: 1000px) 80vw, 36vw" />
                 <div className="lp-zeke__note">
                   <span className="lp-zeke__note-icon"><Bot aria-hidden="true" /></span>
                   <span>
@@ -785,10 +788,10 @@ export default function IsometricLanding({ isPhone = false }: { isPhone?: boolea
             </div>
             <div className="lp-close__card">
               <Image
-                src="/isometric/gen/close-payment-card.webp"
-                alt="Example payment: you send US$5,012.50 from Malaysia; the supplier receives PHP 287,000.00 in the Philippines; delivered to the bank; fees US$12.50; the receipt verifies."
-                width={559}
-                height={1056}
+                src="/isometric/gen/close-receipt-card.webp"
+                alt="Example payment: you send US$5,012.50 from Malaysia; the supplier receives ₱287,000.00 in the Philippines; delivered to the bank; fees US$12.50; the receipt verifies."
+                width={531}
+                height={1100}
                 sizes="(max-width: 860px) 180px, 254px"
               />
             </div>
