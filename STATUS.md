@@ -21,7 +21,8 @@ Each phase is one PR into `sol/b0-solana-everywhere`. Sky or Sebastian merges; n
 | 3 | The money path: durable state machine, controls, Kora cap, batch chunking, LiteSVM suite | #5 | Open, for review |
 | 4 | Every screen on Solana: dashboard, Solscan trace, batch, landing, Invoices / Transfer / Treasury | #6 | Open, for review; **D-P4-4 needs Sebastian** |
 | 5 | Staff console: orgs and vaults, payments, fee payer, evidence, refuse service, webhooks | #7 | Open, for review |
-| 6 | /trust, README, STATUS, CHANGES | this branch (`sol/b0-p6-docs`) | In progress |
+| 6 | /trust, README, STATUS, CHANGES | #8 | Open, for review |
+| 6b | Transfer in five steps: the payout partner's questions, pay from the vaults or fund another way (Sky, 13 Oct) | this branch (`sol/b0-p7-transfer`) | In progress; **D-P6-1 needs Sebastian** |
 
 When all are merged: one PR to the default branch with before/after screenshots, the full test output and the "Not verified yet" list (prompt 07 §10). Sky reads it before merge.
 
@@ -35,6 +36,7 @@ When all are merged: one PR to the default branch with before/after screenshots,
 | **G4** | Kora: version, config format, the program allowlist, the per-company cap | Waiting. Built against Kora's source: allowlist in `lib/solana/kora.ts` and `kora.toml`, a cap of 50 a day. |
 | D-P3-2 | Fee: 0.10% per payout, US$2 minimum | Waiting; the landing and the approval card already use it. |
 | D-P4-4 | Treasury as vault #1 of the company's own multisig (no yield, no ledger) | Waiting, against Amendment 01. |
+| D-P6-1 | Funding from outside the vaults through Stripe and Airwallex (sandbox), named in the product before an agreement | Waiting. Built as labelled sandbox stand-ins, refused on devnet. |
 
 ## The invariants (each has a test)
 
@@ -57,4 +59,4 @@ When all are merged: one PR to the default branch with before/after screenshots,
 
 ## Checks
 
-`npm test` (1,132 tests, 2 skipped loudly), `npm run test:solana` (221), `npm run test:claims`, `npm run lint`, `tsc --noEmit`, and the browser walkthrough `tests/solana-ui.e2e.mjs`. Decisions are recorded in [`docs/solana-build/DECISIONS.md`](docs/solana-build/DECISIONS.md).
+`npm test` (1,145 tests, 2 skipped loudly), `npm run test:solana` (233), `npm run test:claims`, `npm run lint`, `tsc --noEmit`, and the browser walkthrough `tests/solana-ui.e2e.mjs`. Decisions are recorded in [`docs/solana-build/DECISIONS.md`](docs/solana-build/DECISIONS.md).

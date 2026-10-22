@@ -269,7 +269,7 @@ const loopCards = [
     label: 'Settle',
     title: "Pay the supplier's bank.",
     copy: 'Pay suppliers in the Philippines in USDC on Solana. Every approved payout builds verified counterparties and settlement history.',
-    image: '/isometric/loop-settle-v3.png',
+    image: '/isometric/loop-settle-v4.png',
     imageAlt: 'Isometric settlement: a USD coin crossing an approved rail to arrive as a PHP coin',
     meta: 'USDC → PHP · sandbox',
     roadmap: false,

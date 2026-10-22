@@ -186,20 +186,52 @@ async function run(page, email) {
   assert.match((await page.text('.sx-inbox li')).join('\n'), /INV-0412/);
   await shot('invoices-loop');
 
-  // A transfer with no invoice, to the supplier saved (and verified) by the first payment.
+  // Transfer, in the five steps of the earlier "Send a payout" flow (Sky, 13 Oct), to the supplier
+  // saved (and verified) by the first payment. Its first transfer asks what the payout partner needs.
+  const declare = () => page.evaluate(() => { const b = document.querySelector('.sx-tdeclare input'); if (b && !b.checked) b.click(); });
   await page.goto(`${BASE}/dashboard/transfer`);
-  await page.find('heading', 'Who receives it, and how much');
-  await page.fill('Amount (PHP)', '50,000');
+  await page.find('heading', 'Send a transfer');
+  await page.find('heading', 'Who receives it');
+  await shot('transfer-beneficiary');
+  await page.click('button', 'Continue to delivery');
+  await page.find('heading', 'How much, and how it arrives');
+  await page.fill('Amount the recipient receives (PHP)', '50,000');
   await page.fill('Reference (optional)', 'PO-1182');
-  await shot('transfer-start');
-  await page.click('button', 'Compare routes');
-  await page.waitFor(() => document.querySelectorAll('.sx-route').length >= 2, [], { what: 'transfer route cards' });
-  await page.click('button', /^Review /);
+  await shot('transfer-delivery');
+  await page.click('button', 'Get the quote');
+  await page.find('heading', /About this payment$/);
+  // The settlement engine is hidden until asked for, fades in, and fades out again.
+  assert.equal(await page.evaluate(() => !!document.getElementById('t-engine')), false, 'the engine takes no room until asked for');
+  await page.click('button', 'Settlement engine');
+  await page.waitFor(() => document.getElementById('t-engine')?.dataset.open === 'true', [], { what: 'the settlement engine, faded in' });
+  await page.sleep(500);
+  await shot('transfer-engine');
+  await page.click('button', 'Settlement engine');
+  await page.waitFor(() => !document.getElementById('t-engine'), [], { what: 'the settlement engine, faded out' });
+  // 3.1 The first transfer to this recipient: every question.
+  await page.click('button', 'Purchase of services');
+  await page.fill('What was bought', 'Sea freight, October shipment');
+  await page.fill('Your relationship to the recipient', 'supplier');
+  await page.fill('Where the money comes from', 'business_revenue');
+  await page.click('button', 'Business', { exact: true });
+  await page.fill('Company registration number (SEC or DTI)', 'CS201912345');
+  await page.fill('Street address', 'Pier 4, North Harbor');
+  await page.fill('City', 'Manila');
+  await shot('transfer-details-first-time');
+  await page.click('button', 'Save these details');
+  await page.find('text', /^✓ Given by/);
+  // 3.3 Paid from the vaults: already checked, so nothing to declare.
+  await page.click('button', 'Pay from your vaults');
+  await page.find('text', /Your payments vault covers this/);
+  await shot('transfer-quote-send');
+  await page.click('button', 'Review and approve');
   await page.waitFor(() => !!document.querySelector('.sx-approve'), [], { what: 'the transfer approval card' });
   const transferCard = (await page.text('.sx-approve')).join('\n');
   assert.match(transferCard, /Typed in by/);
   assert.match(transferCard, /PO-1182/);
   assert.match(transferCard, /no invoice/);
+  assert.match(transferCard, /Purchase of services: Sea freight, October shipment/);
+  assert.match(transferCard, /Your vaults, already checked/);
   await shot('transfer-approve');
   await page.click('button', 'Approve with this device');
   await page.find('heading', /^Paid\. Manila Freight Services Inc\. received ₱50,000\.00/, { timeoutMs: 60_000 });
@@ -249,27 +281,65 @@ async function run(page, email) {
   assert.ok(overflow <= 0, `no sideways scroll at 390 px (${overflow}px over)`);
   await page.setViewport(...DESKTOP);
 
-  // Fund it first: a transfer the payments vault cannot cover says by how much, offers the treasury
-  // move prefilled, and comes back to the same transfer, quoted, after it.
+  // The same recipient again: "Same details as before?" Yes. The payments vault is short, so the
+  // treasury tops it up in place, with one approval on this device.
   await page.goto(`${BASE}/dashboard/transfer`);
-  await page.find('heading', 'Who receives it, and how much');
-  await page.fill('Amount (PHP)', '1,000,000');
+  await page.click('button', 'Continue to delivery');
+  await page.fill('Amount the recipient receives (PHP)', '1,000,000');
   await page.fill('Reference (optional)', 'PO-1190');
-  await page.click('button', 'Compare routes');
-  await page.find('heading', /^Your payments vault is US\$[\d,]+\.\d{2} short$/);
+  await page.click('button', 'Get the quote');
+  await page.find('heading', 'Same details as before?');
+  await shot('transfer-same-details');
+  await page.click('button', 'Yes, same details');
+  await page.find('text', /^✓ Same details as before, confirmed by/);
+  await page.click('button', 'Pay from your vaults');
+  await page.find('button', /^Move US\$[\d,]+\.\d{2} from your treasury$/);
   await shot('transfer-short');
-  await page.click('link', /^Move US\$[\d,]+\.\d{2} from treasury$/);
-  await page.find('heading', 'Move USDC between your vaults');
-  const prefilled = await page.evaluate(() => document.getElementById('move-amount').value);
-  assert.match(prefilled, /^\d+\.\d{2}$/, `the shortfall is prefilled (${prefilled})`);
-  await shot('treasury-prefilled');
-  await page.click('button', 'Move with this device', { exact: true });
-  await page.click('link', 'Back to your transfer', { timeoutMs: 60_000 });
-  await page.waitFor(() => document.querySelectorAll('.sx-route').length >= 2, [], { what: 'the same transfer, quoted' });
-  await page.click('button', /^Review /);
+  await page.click('button', /^Move US\$[\d,]+\.\d{2} from your treasury$/);
+  await page.find('text', /Your payments vault covers this/, { timeoutMs: 60_000 });
+  await page.click('button', 'Review and approve');
+  await page.waitFor(() => !!document.querySelector('.sx-approve'), [], { what: 'the topped-up transfer approval card' });
   await page.click('button', 'Approve with this device');
   await page.find('heading', /^Paid\. Manila Freight Services Inc\. received ₱1,000,000\.00/, { timeoutMs: 60_000 });
   await shot('transfer-funded-paid');
+
+  // A new recipient, funded another way: USD through Stripe (sandbox). A funds check and a declaration
+  // come first, then the same approval pays it from the payments vault.
+  await page.goto(`${BASE}/dashboard/transfer`);
+  await page.click('button', 'New recipient');
+  await page.fill('Recipient name', 'Cebu Logistics Inc.');
+  await page.fill('Bank', 'BPI');
+  await page.fill('Account ending', '7781');
+  await page.evaluate(() => { const b = [...document.querySelectorAll('.sx-tick input')].find((x) => x.closest('label')?.innerText.includes('I verified these bank details')); if (b && !b.checked) b.click(); });
+  await page.click('button', 'Continue to delivery');
+  await page.fill('Amount the recipient receives (PHP)', '75,000');
+  await page.fill('Reference (optional)', 'PO-1201');
+  await page.click('button', 'Get the quote');
+  await page.find('heading', /About this payment$/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('h4')].some((h) => h.innerText.includes('Same details as before'))), false, 'a new recipient is asked afresh');
+  await page.click('button', 'Purchase of goods');
+  await page.fill('What was bought', 'Pallets and stretch film');
+  await page.fill('Your relationship to the recipient', 'supplier');
+  await page.fill('Where the money comes from', 'business_revenue');
+  await page.click('button', 'Business', { exact: true });
+  await page.fill('Company registration number (SEC or DTI)', 'CS202054321');
+  await page.fill('Street address', '12 Osmeña Boulevard');
+  await page.fill('City', 'Cebu City');
+  await page.click('button', 'Save these details');
+  await page.find('text', /^✓ Given by/);
+  await page.click('button', 'Fund it another way');
+  await page.click('button', /^USD by card or bank, through Stripe/);
+  await declare();
+  await shot('transfer-fund-another-way');
+  await page.click('button', /^Bring in US\$/);
+  await page.find('text', 'In your payments vault', { timeoutMs: 30_000 });
+  await shot('transfer-funds-checked');
+  await page.click('button', 'Review and approve');
+  await page.waitFor(() => !!document.querySelector('.sx-approve'), [], { what: 'the externally funded transfer approval card' });
+  assert.match((await page.text('.sx-approve')).join('\n'), /through Stripe, checked and in your payments vault/);
+  await page.click('button', 'Approve with this device');
+  await page.find('heading', /^Paid\. Cebu Logistics Inc\. received ₱75,000\.00/, { timeoutMs: 60_000 });
+  await shot('transfer-external-paid');
 
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.
@@ -278,9 +348,9 @@ async function run(page, email) {
   //    since some are BIP39 words by coincidence; invoice text is ordinary English and gets check 1.
   const phrase = words.map((w) => w.toLowerCase());
   const word = new RegExp(`\\b(${phrase.join('|')})\\b`, 'i');
-  const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample', 'from', 'step']);
+  const ENUM_KEYS = new Set(['role', 'method', 'source', 'rehearsal', 'purpose', 'status', 'sample', 'from', 'step', 'sourceOfFunds', 'relationship', 'type', 'asset']);
   // What a person typed about a supplier or recipient (invoice text, transfer details) is ordinary English: check 1 only.
-  const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv', 'recipient', 'reference', 'verification']);
+  const INVOICE_TEXT_KEYS = new Set(['text', 'fields', 'csv', 'recipient', 'reference', 'verification', 'details']);
   const strings = (v, key, out) => {
     if (typeof v === 'string') {
       if (!ENUM_KEYS.has(key) && !INVOICE_TEXT_KEYS.has(key)) out.push(v);
@@ -362,7 +432,7 @@ async function run(page, email) {
 
 const skip = (!chrome && 'no Chrome, Edge or Chromium found (set CHROME_PATH)') || (!DEMO_PASSWORD && 'no seeded demo password in scripts/dev-db.mjs');
 
-test('dashboard, 1440 px and 390 px: setup to verified receipt, a paid batch, a phone payment; recovery words never sent', { skip, timeout: 420_000 }, async () => {
+test('dashboard, 1440 px and 390 px: setup to verified receipt, a paid batch, a phone payment; recovery words never sent', { skip, timeout: 600_000 }, async () => {
   const r = await walk('demo@acme.test');
   assert.ok(r.shots >= 20, `${r.shots} screenshots per width`);
 });

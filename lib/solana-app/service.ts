@@ -65,8 +65,9 @@ import { explainRoutes } from '../solana-zeke/router.ts';
 import { SAMPLE_INVOICE_TEXT } from '../solana-zeke/fixtures/sample-invoice.ts';
 
 import { awaitCommitment } from './confirm.ts';
+import { detailsView, missingDetails, purposeLine, recipientKey } from './transfer-details.ts';
 import { ServiceError } from './errors.ts';
-import { chainCallKey, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
+import { chainCallKey, DISCARDABLE_STATES, IllegalTransitionError, isCommitted, RESUMABLE_STATES, STATE_LABEL, type PaymentState } from './payment-machine.ts';
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
@@ -95,7 +96,8 @@ export const DEMO_LIMITS = { perPaymentUsdcMinor: 20_000_000_000n, dailyUsdcMino
 export const OFFLINE_FUND_MINOR = 25_000_000_000n;
 export const CIRCLE_FAUCET_URL = 'https://faucet.circle.com/';
 
-const POLICY_LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Fastest', safest: 'Safest' };
+/** What a person reads. The 'fastest' policy keeps its key, but is shown as the shortest route: no speed is claimed. */
+const POLICY_LABEL: Record<Policy, string> = { cheapest: 'Cheapest', fastest: 'Shortest route', safest: 'Safest' };
 
 export const CHECK_LABELS: Record<string, string> = {
   tier: 'Business tier verified',
@@ -144,7 +146,7 @@ export function getOrg(orgId: string): OrgRecord {
   return org;
 }
 
-function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
+export function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
   const inv = store().invoices.get(invoiceId);
   if (!inv || inv.orgId !== orgId) throw new ServiceError('invoice_not_found', 'That invoice is not on the server. Start the payment again.', 404);
   return inv;
@@ -214,12 +216,15 @@ export function requireVault(org: OrgRecord) {
   return org.vault;
 }
 
+/**
+ * How the partner reaches the recipient's bank: the rail's name, never a time. A promised arrival
+ * time is a speed claim, and Splash makes none (prompt 07 §0.6); the bank and the rail set it.
+ */
 function arrivalOf(q: RouteQuote): { words: string; rail: string } {
   const partner = q.steps.find((s) => s.kind === 'partner');
   const rail = partner?.provider.split('·').pop()?.trim() ?? '';
-  if (rail === 'PESONet') return { words: 'Same banking day, PESONet', rail };
-  if (rail === 'InstaPay') return { words: 'Within minutes, InstaPay', rail };
-  return { words: 'Arrival depends on the bank', rail };
+  if (rail === 'PESONet' || rail === 'InstaPay') return { words: `${rail}, to the recipient’s bank`, rail };
+  return { words: 'The partner’s bank transfer', rail };
 }
 
 function laneOf(kind: RouteKind): { line: string; solNote: string; routeLabel: string } {
@@ -228,7 +233,7 @@ function laneOf(kind: RouteKind): { line: string; solNote: string; routeLabel: s
   return { line: 'From Solana balance · CCTP V2 to Polygon', solNote: 'Needs 0.01 SOL in the vault (test pending)', routeLabel: 'CCTP V2 to Polygon' };
 }
 
-function findQuote(p: PaymentRecord, quoteId: string): RouteQuote | null {
+export function findQuote(p: PaymentRecord, quoteId: string): RouteQuote | null {
   for (const policy of POLICIES) {
     const hit = p.engine.ranked[policy].find((q) => q.id === quoteId);
     if (hit) return hit;
@@ -447,7 +452,9 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
+  // A discarded payment leaves the company's lists (nothing moved); the staff console still shows it.
   const payments = (await rt.payments.listByOrg(org.id))
+    .filter((p) => p.state !== 'discarded')
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .map((p) => {
       const inv = store().invoices.get(p.invoiceId);
@@ -458,6 +465,8 @@ export async function orgSummary(orgId: string) {
         kind: inv?.source === 'transfer' ? ('transfer' as const) : ('invoice' as const),
         state: p.state,
         stateLabel: STATE_LABEL[p.state],
+        /** Nothing has been sent yet, so a person may drop it (payments only; a batch is not dropped here). */
+        discardable: p.id.startsWith('pay_') && DISCARDABLE_STATES.includes(p.state),
         supplierName: inv?.confirmed?.supplierName ?? '',
         invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
         dueDate: inv?.confirmed?.dueDate ?? null,
@@ -522,6 +531,20 @@ function bankStatusFor(org: OrgRecord, fields: InvoiceFields): { status: Invoice
   const exact = sameName.find((s) => s.bank === fields.supplierBank && s.accountLast4 === fields.supplierAccountLast4);
   if (exact) return { status: 'known', known: exact.verified };
   return { status: sameName.length > 0 ? 'changed' : 'new', known: null };
+}
+
+/**
+ * Take a recipient off the company's saved, verified list (Transfer, step 1). Payments already made
+ * keep their records untouched. Paying this recipient again needs a new call-back, and the payout
+ * partner's questions are asked again, because the saved answers go with it.
+ */
+export function removeSupplier(orgId: string, who: { name: string; bank: string; accountLast4: string }): number {
+  const org = getOrg(orgId);
+  const before = org.suppliers.length;
+  org.suppliers = org.suppliers.filter((s) => !(s.name === who.name && s.bank === who.bank && s.accountLast4 === who.accountLast4));
+  if (org.suppliers.length === before) throw new ServiceError('bad_request', 'That recipient is not on your saved list.', 404);
+  if (org.recipientDetails) delete org.recipientDetails[recipientKey({ supplierName: who.name, supplierBank: who.bank, supplierAccountLast4: who.accountLast4 })];
+  return org.suppliers.length;
 }
 
 export async function readInvoiceDraft(orgId: string, input: { text?: string; sample?: boolean; source?: 'paste' | 'upload' }) {
@@ -782,7 +805,13 @@ function release(p: PaymentRecord, q: RouteQuote, day: string) {
 
 /* ------------------------------------------------------------------ quote and route */
 
-export async function quote(orgId: string, invoiceId: string, opts: { now?: Date; paymentId?: string } = {}): Promise<PaymentRecord> {
+/**
+ * `allowShort` (a transfer's Step 3): when the payments vault cannot cover any route yet, quote every
+ * route anyway, so the person sees what it costs and chooses how to fund it. No route can be chosen
+ * for approval until the vault holds the money (selectRoute checks the balance again), and the
+ * execute is simulated before it is sent, as for every payment.
+ */
+export async function quote(orgId: string, invoiceId: string, opts: { now?: Date; paymentId?: string; allowShort?: boolean } = {}): Promise<PaymentRecord> {
   const org = getOrg(orgId);
   const vault = requireVault(org);
   const inv = getInvoice(orgId, invoiceId);
@@ -801,17 +830,24 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   });
   const deposits = Object.fromEntries(payout.deposits.map((d) => [d.network, d.address]));
   const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
-  const engine = quoteRoutes({
-    paymentId,
-    amount: { amountPhpMinor },
-    senderBalanceUsdcMinor: balance,
-    partner: rt.partner.entry,
-    partnerQuotes,
-    deposits,
-    // No Fast Transfer fee is read offline (it comes from Circle's API), so no Fast candidate.
-    now,
-    homeChain: 'solana',
-  });
+  const engineFor = (senderBalanceUsdcMinor: bigint) =>
+    quoteRoutes({
+      paymentId,
+      amount: { amountPhpMinor },
+      senderBalanceUsdcMinor,
+      partner: rt.partner.entry,
+      partnerQuotes,
+      deposits,
+      // No Fast Transfer fee is read offline (it comes from Circle's API), so no Fast candidate.
+      now,
+      homeChain: 'solana',
+    });
+  let engine = engineFor(balance);
+  if (opts.allowShort && !POLICIES.some((p) => engine.picks[p])) {
+    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
+    // Priced as if the vault held enough for every route; funding comes before any approval.
+    if (needs.length) engine = engineFor(needs.reduce((a, b) => (b > a ? b : a)));
+  }
   if (!POLICIES.some((p) => engine.picks[p])) {
     const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
     if (needs.length) {
@@ -886,10 +922,44 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
   return cas(() => repo().transition(drafted.id, { from: 'draft', version: drafted.version }, 'quoted', undefined, 'quoted', now));
 }
 
-export async function requote(paymentId: string, now = new Date()) {
+export async function requote(paymentId: string, now = new Date(), opts: { allowShort?: boolean } = {}) {
   const p = await getPayment(paymentId);
   if (isCommitted(p.state)) throw new ServiceError('wrong_state', 'This payment has already been sent. It cannot be re-quoted.', 409);
-  return quote(p.orgId, p.invoiceId, { now, paymentId: p.id });
+  return quote(p.orgId, p.invoiceId, { now, paymentId: p.id, allowShort: opts.allowShort });
+}
+
+/**
+ * Drop a payment nobody has sent: it was quoted, checked, blocked, expired, or its proposal never
+ * reached the vault. It moves to the terminal state "discarded" with who and when on its
+ * transition row; nothing on chain is touched, and USDC already brought into the payments vault
+ * for it stays there. Once anything was sent, it cannot be discarded.
+ */
+export async function discardPayment(paymentId: string, by: string, now = new Date()): Promise<PaymentRecord> {
+  const p = await getPayment(paymentId);
+  if (p.state === 'discarded') return p;
+  if (!DISCARDABLE_STATES.includes(p.state)) {
+    throw new ServiceError('wrong_state', `This payment is ${STATE_LABEL[p.state].toLowerCase()}. Only a payment nothing was sent for can be discarded.`, 409);
+  }
+  return cas(() => repo().transition(p.id, { from: p.state, version: p.version }, 'discarded', (d) => {
+    d.prepared = null;
+    d.problem = null;
+  }, `discarded by ${by.trim() || 'a member'}`, now));
+}
+
+/** The payments vault must hold the route's full cost before it can be chosen or approved. */
+async function assertVaultCovers(p: PaymentRecord, q: RouteQuote): Promise<void> {
+  const vault = requireVault(getOrg(p.orgId));
+  const rt = runtime();
+  const balance = await rt.chain.getUsdcBalance(vault.vaultPda);
+  if (balance >= q.source.amountMinor) return;
+  const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+  throw new ServiceError('insufficient_balance', 'Your payments vault does not hold this payment yet. Pay from your vaults or fund it another way first.', 409, {
+    invoiceId: p.invoiceId,
+    balanceUsdcMinor: balance.toString(),
+    neededUsdcMinor: q.source.amountMinor.toString(),
+    shortUsdcMinor: (q.source.amountMinor - balance).toString(),
+    treasuryUsdcMinor: treasuryMinor.toString(),
+  });
 }
 
 function runPolicy(p: PaymentRecord, q: RouteQuote, now: Date): EnginePolicyResult {
@@ -951,6 +1021,7 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     depositAddress: q.target.depositAddress,
     draftedBy: transfer ? c.confirmedBy : 'Zeke',
     kind: transfer ? 'transfer' : 'invoice',
+    purpose: transfer ? purposeLine(inv.paymentDetails) : null,
     simulated: runtime().env.mode === 'offline',
   };
 }
@@ -963,6 +1034,12 @@ export async function selectRoute(paymentId: string, input: { quoteId: string; r
   }
   const q = findQuote(p, input.quoteId);
   if (!q) throw new ServiceError('bad_request', 'That route is not one of this payment’s quotes. Get a new quote.', 400);
+  const inv = getInvoice(p.orgId, p.invoiceId);
+  if (inv.source === 'transfer') {
+    const missing = missingDetails(inv.paymentDetails);
+    if (missing.length) throw new ServiceError('details_required', `The payout partner needs these first: ${missing.join(', ')}.`, 422, { missing });
+  }
+  await assertVaultCovers(p, q);
   const rt = runtime();
   const rehearsal = rt.env.mode === 'offline' ? (input.rehearsal ?? 'none') : 'none';
   const policy = runPolicy({ ...p, rehearsal }, q, now);
@@ -1827,7 +1904,7 @@ export async function paymentView(paymentId: string) {
     return {
       policy: q.policy,
       policies,
-      label: names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]!.toLowerCase()}`,
+      label: names.length === 1 ? names[0]! : `${[names[0]!, ...names.slice(1, -1).map((n) => n.toLowerCase())].join(', ')} and ${names[names.length - 1]!.toLowerCase()}`,
       quoteId: q.id,
       kind,
       receivePhpMinor: q.netLocal.amountMinor,
@@ -1866,7 +1943,7 @@ export async function paymentView(paymentId: string) {
     stateLabel: STATE_LABEL[p.state],
     createdAt: p.createdAt,
     simulated: rt.env.mode === 'offline',
-    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed },
+    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed, details: detailsView(inv.paymentDetails) },
     cards,
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,

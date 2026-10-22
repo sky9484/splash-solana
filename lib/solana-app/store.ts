@@ -53,6 +53,10 @@ export interface OrgRecord {
   treasuryFundings?: Array<{ signature: string; amountMinor: bigint; at: string; simulated: boolean; note: string }>;
   /** Moves between the company's own two vaults. Absent on companies saved before treasury existed. */
   moves?: MoveRecord[];
+  /** USDC brought in from outside the vaults for one payment. Absent on companies saved before it existed. */
+  paymentFundings?: PaymentFunding[];
+  /** The last details given for each recipient (key: name|bank|last4), offered again on the next transfer. */
+  recipientDetails?: Record<string, TransferDetails>;
   /** Splash refuses service: no Kora signature, no new proposal. Splash cannot freeze the vault itself. */
   suspended: { at: string; by: string; reason: string } | null;
   /** Every suspend and unsuspend, oldest first, never edited (the admin console's audit log). */
@@ -116,6 +120,42 @@ export interface MoveRecord {
   problem: { code: string; message: string } | null;
 }
 
+/** Where the USDC for one payment comes from when it is not already in the company's vaults (Sky, 13 Oct). */
+export type FundingMethod = 'wallet_usdc' | 'wallet_swap' | 'stripe' | 'airwallex';
+
+/**
+ * USDC brought into the company's own payments vault for one payment, from outside its vaults
+ * (lib/solana-app/funding-service.ts). The money lands in the vault, never with Splash, and only
+ * after a funds check: the sending source is screened and a person declares where the money comes
+ * from. Money already in the vaults was checked when it arrived, so paying from them needs neither.
+ */
+export interface PaymentFunding {
+  id: string;
+  orgId: string;
+  paymentId: string;
+  method: FundingMethod;
+  /** What the person sends: USDC, or the stablecoin swapped to USDC before it reaches the vault. */
+  asset: 'USDC' | 'USDT' | 'PYUSD' | 'USD';
+  /** The sending wallet (wallet methods only); screened before the money counts. */
+  fromAddress: string | null;
+  /** USDC (minor units) that lands in the payments vault: the chosen route's full cost. */
+  amountMinor: bigint;
+  /** The provider's or swap venue's charge on top, in USD minor units. Splash adds nothing. */
+  chargeMinor: bigint;
+  chargeBps: number;
+  sourceOfFunds: 'business_revenue' | 'owner_capital' | 'loan_or_facility' | 'customer_payment';
+  declaredBy: string;
+  declaredAt: string;
+  state: 'checking' | 'held' | 'in_vault';
+  /** When the funds check finishes (offline: a fixed hold, so the extra step is visible). */
+  checkUntil: string;
+  check: { resultId: string; label: string; flagged: boolean } | null;
+  signature: string | null;
+  simulated: boolean;
+  createdAt: string;
+  settledAt: string | null;
+}
+
 export interface InvoiceRecord {
   id: string;
   orgId: string;
@@ -128,6 +168,33 @@ export interface InvoiceRecord {
   bankVerification: (BankVerification & { bank: string; accountLast4: string }) | null;
   confirmed: ConfirmedInvoice | null;
   saltHex: string | null;
+  /** A transfer's answers for the payout partner (purpose, relationship, the recipient's details). */
+  paymentDetails?: TransferDetails | null;
+}
+
+/**
+ * What the payout partner needs with a transfer (lib/solana-app/transfer-details.ts): why the money
+ * is sent, where it comes from, who receives it. Given once per recipient, then offered again
+ * ("Same details as before?"), and frozen on the transfer it was given for.
+ */
+export interface TransferDetails {
+  purpose: 'goods' | 'services';
+  description: string;
+  relationship: 'supplier' | 'related_company' | 'contractor';
+  sourceOfFunds: 'business_revenue' | 'owner_capital' | 'loan_or_facility' | 'customer_payment';
+  recipient: {
+    type: 'business' | 'individual';
+    registrationNumber: string | null;
+    idNumber: string | null;
+    dateOfBirth: string | null;
+    addressLine1: string;
+    addressCity: string;
+    addressCountry: 'PH';
+    accountName: string;
+  };
+  reused: boolean;
+  givenBy: string;
+  givenAt: string;
 }
 
 export type ProposalPurpose = 'squads_proposal_create' | 'squads_proposal_approve';
@@ -199,6 +266,8 @@ export interface ApprovalCard {
   draftedBy: string;
   /** An invoice Zeke read, or a transfer a person typed in. */
   kind: 'invoice' | 'transfer';
+  /** A transfer's stated purpose, as the payout partner receives it ("Purchase of services: sea freight"). */
+  purpose?: string | null;
   simulated: boolean;
 }
 

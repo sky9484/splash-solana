@@ -9,7 +9,6 @@ import { api, ApiError, copyText, existingDeviceKey, pct, php, shareReceiptLink,
 import { InvoiceInbox, LoopStrip } from './InvoiceDesk';
 import { ProgressLine } from './ProgressLine';
 import { EmptyVaultNotice, ShortfallNotice } from './Shortfall';
-import { TransferStart, type TransferBody } from './TransferStart';
 import type { CompanyDTO, InvoiceDTO, PaymentDTO } from './types';
 import { notifyCompanyChanged, useCompany } from './useCompany';
 
@@ -185,23 +184,6 @@ export function PayFlow({ resumePaymentId, quoteInvoiceId, mode = 'invoice' }: {
   // The record a failed quote was for, so "quote again" needs nothing retyped.
   const pendingInvoiceId = invoice?.id ?? (typeof error?.detail?.invoiceId === 'string' ? error.detail.invoiceId : null) ?? quoteInvoiceId ?? null;
 
-  async function startTransfer(body: TransferBody) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api<{ invoice: InvoiceDTO }>('/transfers', { body });
-      setInvoice(res.invoice);
-      setPayment(null);
-      const q = await api<{ payment: PaymentDTO }>('/payments', { body: { invoiceId: res.invoice.id } });
-      setPayment(q.payment);
-      go('route');
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function readDraft(body: { sample?: boolean; text?: string; source?: 'paste' | 'upload' }) {
     setBusy(true);
     setError(null);
@@ -308,9 +290,6 @@ export function PayFlow({ resumePaymentId, quoteInvoiceId, mode = 'invoice' }: {
       </div>
 
       {screen === 'start' && mode === 'invoice' && <StartScreen org={org} busy={busy} error={error} onRead={readDraft} retryInvoiceId={pendingInvoiceId} onRetry={() => pendingInvoiceId && void getQuote(pendingInvoiceId)} />}
-      {screen === 'start' && mode === 'transfer' && (
-        <TransferStart org={org} busy={busy} error={error} retryInvoiceId={pendingInvoiceId} onStart={startTransfer} onRetry={() => pendingInvoiceId && void getQuote(pendingInvoiceId)} />
-      )}
       {screen === 'check' && invoice && (
         <CheckScreen
           personName={org.me.personName}
@@ -759,7 +738,7 @@ function RouteScreen({
       <div className="sx-row">
         {card && left > 0 ? (
           <button type="button" className="sx-btn" disabled={busy || !card} onClick={() => onChoose(selected, rehearsal)}>
-            {busy ? 'Checking your rules…' : `Review ${card.label.toLowerCase()} route`}
+            {busy ? 'Checking your rules…' : 'Review this route'}
           </button>
         ) : (
           <button type="button" className="sx-btn" onClick={onRefresh} disabled={busy}>
@@ -777,7 +756,7 @@ function RouteScreen({
 
 /* ------------------------------------------------------------------ 6. Done */
 
-function DoneScreen({ payment, mode, onAnother }: { payment: PaymentDTO; mode: PayMode; onAnother: () => void }) {
+export function DoneScreen({ payment, mode, onAnother }: { payment: PaymentDTO; mode: PayMode; onAnother: () => void }) {
   const [copied, setCopied] = useState(false);
   const c = payment.invoice.confirmed;
   const link = payment.receiptId ? `/dashboard/receipts/${payment.receiptId}` : null;

@@ -8,6 +8,8 @@ import { extname, join } from 'node:path';
 import test from 'node:test';
 
 const ROOTS = ['app', 'components', 'content'];
+/** Service files whose strings reach a screen (approval cards, route cards, funding and transfer copy). */
+const SCREEN_LIB = ['lib/solana-app/service.ts', 'lib/solana-app/funding-service.ts', 'lib/solana-app/transfer-details.ts', 'lib/solana-app/source-of-funds.ts', 'lib/solana-app/treasury-service.ts', 'lib/solana-app/batch-service.ts', 'lib/solana-zeke/router.ts'];
 const EXT = new Set(['.ts', '.tsx', '.mjs']);
 
 function files(dir) {
@@ -40,6 +42,10 @@ const RULES = [
   // The payout partner is never named on a surface (GCash and Maya are the recipient's own wallets,
   // not partners, so they may be named).
   { name: 'a payout partner’s name', pattern: /\bPDAX\b|\bCoins\.ph\b/i },
+  // An arrival promise is a speed claim even without a number.
+  { name: 'an arrival time', pattern: /\bwithin (?:minutes|seconds|an hour)\b|\bsame (?:banking )?day\b|\bin minutes\b|\bin about \$?\{?\w*\}? hours?\b/i },
+  // A speed ranking shown as a speed: the route the engine picks for least time is "the shortest route".
+  { name: 'a speed ranking', pattern: /(?<![-_])\b(?:fastest|quickest)\b/i, allow: /\bfastest:\s|'fastest'|\.fastest\b|picks\.fastest|ranked\.fastest/ },
 ];
 
 function violations(path, text) {
@@ -56,9 +62,10 @@ function violations(path, text) {
   return out;
 }
 
-test('no banned word on any surface a person reads (app, components, content, README)', () => {
+test('no banned word on any surface a person reads (app, components, content, the service copy, README)', () => {
   const found = [];
   for (const root of ROOTS) for (const f of files(root)) found.push(...violations(f, readFileSync(f, 'utf8')));
+  for (const f of SCREEN_LIB) found.push(...violations(f, readFileSync(f, 'utf8')));
   found.push(...violations('README.md', readFileSync('README.md', 'utf8')));
   assert.deepEqual(found, [], `\n  ${found.join('\n  ')}\n`);
 });
@@ -68,6 +75,11 @@ test('the rules catch what they claim to, and let the negations through', () => 
   assert.equal(violations('x.tsx', "<p>Settles in 400 ms</p>").length, 1);
   assert.equal(violations('x.tsx', '<span className="[animation-delay:150ms]" />').length, 0, 'a CSS duration is not a claim');
   assert.equal(violations('x.tsx', "<p>Paid by PDAX</p>").length, 1);
+  assert.equal(violations('x.tsx', "words: 'Within minutes, InstaPay'").length, 1);
+  assert.equal(violations('x.tsx', '<p>Same banking day, PESONet</p>').length, 1);
+  assert.equal(violations('x.tsx', '<p>Fastest route</p>').length, 1, 'a speed ranking shown as a speed');
+  assert.equal(violations('x.ts', "const best = r.picks.fastest; const k = 'fastest';").length, 0, 'the internal policy key is not copy');
+  assert.equal(violations('x.ts', 'return `arrives in about ${hours} hours`;').length, 1);
   assert.equal(violations('x.tsx', "<p>An autonomous vault</p>").length, 1);
   assert.equal(violations('x.tsx', "<p>Splash is not yet a licensed money-services business.</p>").length, 0);
   assert.equal(violations('x.tsx', '<p>It carries no availability guarantee from anyone.</p>').length, 0);
@@ -81,6 +93,7 @@ const BANNED_ART = [
   { file: 'isometric/treasury.svg', why: '"Smart Treasury 4.8% APY": a yield' },
   { file: 'isometric/payments.svg', why: '"2 min 34 sec" (a speed number) and a 0.8% fee Splash does not charge' },
   { file: 'isometric/loop-save-v3.png', why: 'idle USD growing at a "variable" rate: a yield' },
+  { file: 'isometric/loop-settle-v3.png', why: 'a "Minutes" clock: a speed claim (loop-settle-v4.png is the same art without it)' },
   { file: 'isometric/supply-settlement-v3.png', why: 'settlement on Sui' },
 ];
 

@@ -29,6 +29,7 @@ export function ApprovalCard({
   onApprove,
   onCancel,
   onRefresh,
+  fundedBy = null,
 }: {
   card: ApprovalDTO;
   now: number;
@@ -36,6 +37,8 @@ export function ApprovalCard({
   onApprove: () => void;
   onCancel: () => void;
   onRefresh: () => void;
+  /** A transfer's Step 3: where the USDC in the payments vault came from (a deterministic label). */
+  fundedBy?: string | null;
 }) {
   const left = secondsLeft(card.quoteExpiresAt, now);
   const expired = left === 0;
@@ -82,7 +85,7 @@ export function ApprovalCard({
             (route {pctFine(card.costs.routeBps)} · partner {pctFine(card.costs.partnerBps)} · Splash {pctFine(card.costs.splashBps)})
           </span>
         </dd>
-        <dt>Arrives</dt>
+        <dt>Delivered by</dt>
         <dd>{card.arrives}</dd>
         <dt>Route</dt>
         <dd>
@@ -104,6 +107,18 @@ export function ApprovalCard({
             <span className="sx-pill sx-pill-warn">amount differs</span>
           )}
         </dd>
+        {card.purpose ? (
+          <>
+            <dt>Purpose</dt>
+            <dd>{card.purpose}</dd>
+          </>
+        ) : null}
+        {fundedBy ? (
+          <>
+            <dt>Paid from</dt>
+            <dd>{fundedBy}</dd>
+          </>
+        ) : null}
         <dt>Quote expires</dt>
         <dd className="sx-num" aria-live={left <= 10 ? 'polite' : 'off'}>
           {expired ? 'Expired' : `in ${clock(left)}`}

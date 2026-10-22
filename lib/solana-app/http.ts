@@ -85,7 +85,21 @@ export const schemas = {
       confirmed: z.array(z.enum(['invoiceNumber', 'supplierName', 'supplierBank', 'supplierAccountLast4', 'amountPhpMinor', 'dueDate', 'einvoiceRef'])).max(7),
     })
     .strict(),
-  quote: z.object({ invoiceId: id('inv') }).strict(),
+  quote: z.object({ invoiceId: id('inv'), allowShort: z.boolean().optional() }).strict(),
+  requote: z.object({ allowShort: z.boolean().optional() }).strict(),
+  fundingId: id('fnd'),
+  /** Step 3 of a transfer: bring the route's USDC into the payments vault from outside the vaults. */
+  fund: z
+    .object({
+      method: z.enum(['wallet_usdc', 'wallet_swap', 'stripe', 'airwallex']),
+      quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80),
+      asset: z.enum(['USDC', 'USDT', 'PYUSD', 'USD']).optional(),
+      fromAddress: z.string().max(64).nullable().optional(),
+      sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
+      declared: z.literal(true),
+      rehearsal: z.enum(['none', 'kyt_flag']).optional(),
+    })
+    .strict(),
   select: z
     .object({ quoteId: z.string().regex(/^rq_[a-z0-9_]+$/).max(80), rehearsal: z.enum(['none', 'kyt_flag', 'partner_return']).optional() })
     .strict(),
@@ -125,6 +139,37 @@ export const schemas = {
       verification: z.object({ by: z.string().min(1).max(80), method: z.enum(['call-back', 'supplier-account']) }).strict().nullable().optional(),
     })
     .strict(),
+  invoiceId: id('inv'),
+  /** A saved recipient to take off the verified list, named exactly as the list shows it. */
+  supplierRemove: z.object({ name: z.string().min(1).max(200), bank: z.string().min(1).max(120), accountLast4: z.string().regex(/^\d{4}$/) }).strict(),
+  /** Step 3 of a transfer: the same details as last time for this recipient, or every answer given again. */
+  transferDetails: z.union([
+    z.object({ reuse: z.literal(true) }).strict(),
+    z
+      .object({
+        details: z
+          .object({
+            purpose: z.enum(['goods', 'services']),
+            description: z.string().max(140),
+            relationship: z.enum(['supplier', 'related_company', 'contractor']),
+            sourceOfFunds: z.enum(['business_revenue', 'owner_capital', 'loan_or_facility', 'customer_payment']),
+            recipient: z
+              .object({
+                type: z.enum(['business', 'individual']),
+                registrationNumber: z.string().max(40).nullable(),
+                idNumber: z.string().max(40).nullable(),
+                dateOfBirth: z.string().max(10).nullable(),
+                addressLine1: z.string().max(160),
+                addressCity: z.string().max(80),
+                addressCountry: z.literal('PH'),
+                accountName: z.string().max(140),
+              })
+              .strict(),
+          })
+          .strict(),
+      })
+      .strict(),
+  ]),
   moveId: id('mov'),
   /** A move between the company's own vaults; amountMinor in USDC minor units. A retry names the failed move instead. */
   movePrepare: z.union([
