@@ -76,7 +76,7 @@ export function ApprovalCard({
       <dl>
         <dt>You pay</dt>
         <dd className="sx-num">
-          <strong>{usd(card.youPayUsdcMinor)}</strong> from your Solana balance
+          <strong>{usd(card.youPayUsdcMinor)}</strong> from your Payments account
         </dd>
         <dt>All-in cost</dt>
         <dd className="sx-num">
@@ -142,7 +142,7 @@ export function ApprovalCard({
           ))}
         </ul>
       </details>
-      {card.simulated ? <p className="sx-small sx-muted" style={{ marginTop: 12 }}>Simulated · devnet-ready. Mock partner · devnet. The rate is a fixed reference, not a live rate.</p> : null}
+      {card.simulated ? <p className="sx-small sx-muted" style={{ marginTop: 12 }}>Test mode. Your payout partner is in test mode: this is a test rate, not a live one.</p> : null}
       <div className="sx-approve-actions">
         {expired ? (
           <button type="button" className="sx-btn" onClick={onRefresh}>

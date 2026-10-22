@@ -105,8 +105,14 @@ export const organizations = pgTable('organizations', {
    *  account). Kept so existing balances keep their key; new orgs are keyed
    *  by their vault (lib/compliance/org-kyb.ts resolveBusinessAccountId). */
   suiBusinessAccountId: text('sui_business_account_id'),
+  /** "Let other Splash businesses find us" (prompt 10 §5.4): off by default. Only an ACTIVE company shows. */
+  discoverable: boolean('discoverable').notNull().default(false),
+  /** Its Splash handle, lower case (drizzle/0035): how another business finds it, "@kuchingmarine". */
+  splashHandle: text('splash_handle'),
   ...timestamps,
-});
+}, (table) => [
+  uniqueIndex('organizations_splash_handle_unique').on(table.splashHandle),
+]);
 
 /**
  * A person. Identity only.

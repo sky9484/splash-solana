@@ -221,3 +221,14 @@ test('postgres: the table itself refuses an unknown state and a malformed id', a
   await assert.rejects(client.exec(`INSERT INTO solana_payments (id, org_id, state, version, record) VALUES ('INV-0412', 'o', 'draft', 1, '{}')`), /check/i);
   await close();
 });
+
+test('a payment to a Splash business (peer) goes confirmed → evidenced, with no partner states; a bank payout cannot', () => {
+  // Prompt 10 §5.2: the peer kind has no partner_paid.
+  assert.ok(canTransition('confirmed', 'evidenced', 'peer'));
+  assert.ok(!canTransition('confirmed', 'partner_paid', 'peer'));
+  assert.ok(!canTransition('confirmed', 'partner_failed', 'peer'));
+  assert.ok(!canTransition('confirmed', 'evidenced', 'bank'), 'a bank payout waits for the partner');
+  assert.ok(!canTransition('confirmed', 'evidenced'), 'bank is the default');
+  // Everything before confirmed is the same machine.
+  for (let i = 1; i < 7; i++) assert.ok(canTransition(HAPPY_PATH[i - 1], HAPPY_PATH[i], 'peer'), `${HAPPY_PATH[i - 1]} → ${HAPPY_PATH[i]}`);
+});

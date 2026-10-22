@@ -78,6 +78,8 @@ export interface PolicyInput {
   seenCommitments: ReadonlySet<string> | ((commitmentHex: string) => boolean);
   kyt?: KytScreener;
   now?: Date;
+  /** A payment to a Splash business: the USD amount typed, which the quote must deliver exactly. */
+  peerAmountUsdMinor?: bigint;
 }
 
 export interface EnginePolicyResult extends PolicyResult {
@@ -120,9 +122,16 @@ export function evaluatePolicy(input: PolicyInput): EnginePolicyResult {
   const bv = input.invoice.bankDetailsVerified;
   checks.push({ name: 'bank_details_verified', passed: bv !== null, detail: bv ? `${bv.method} by ${bv.by} at ${bv.at}` : 'bank details not verified out of band' });
 
-  const covers = input.quote.netLocal.currency === 'PHP' && input.quote.netLocal.amountMinor >= input.invoice.amountPhpMinor;
+  // A bank payout pays at least the invoice in PHP; a payment to a Splash business pays exactly what
+  // was typed, in USD (prompt 10 §5.2: no conversion, no fee).
+  const usdExact = input.quote.netLocal.currency === 'USD' && input.peerAmountUsdMinor !== undefined && input.quote.netLocal.amountMinor === input.peerAmountUsdMinor;
+  const covers = usdExact || (input.quote.netLocal.currency === 'PHP' && input.quote.netLocal.amountMinor >= input.invoice.amountPhpMinor);
   const extraChecks: EnginePolicyResult['extraChecks'] = [
-    { name: 'amount_covers_invoice', passed: covers, detail: `quote pays ${input.quote.netLocal.amountMinor} centavos; invoice ${input.invoice.amountPhpMinor}` },
+    {
+      name: 'amount_covers_invoice',
+      passed: covers,
+      detail: input.quote.netLocal.currency === 'USD' ? `they get ${input.quote.netLocal.amountMinor}; typed ${input.peerAmountUsdMinor ?? 'nothing'}` : `quote pays ${input.quote.netLocal.amountMinor} centavos; invoice ${input.invoice.amountPhpMinor}`,
+    },
   ];
 
   const failed = [...checks, ...extraChecks].filter((c) => !c.passed);

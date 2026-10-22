@@ -131,7 +131,7 @@ export function OverviewView({ data }: { data: OverviewDTO }) {
                 )}
               </p>
             </div>
-            <Image className="iso-art iso-bob iso-bob--slow iso-money__vault" src="/cinematic/vault-transparent.png" alt="" width={210} height={212} priority />
+            <Image className="iso-art iso-bob iso-bob--slow iso-money__vault" src="/cinematic/vault-transparent.png" alt="" width={210} height={117} priority />
           </div>
           <MoneyBar shares={m.shares} investmentsSetUp={m.investmentsSetUp} />
           <div className="iso-money__rows">
@@ -312,7 +312,7 @@ export function OverviewView({ data }: { data: OverviewDTO }) {
                         </span>
                       </td>
                       <td role="cell" className="iso-r" data-label="They got">
-                        {php(big(p.theyGetPhpMinor))}
+                        {p.theyGetUsdMinor ? usd(big(p.theyGetUsdMinor)) : php(big(p.theyGetPhpMinor))}
                       </td>
                       <td role="cell" className="iso-r" data-label="You paid">
                         {p.youPaidUsdMinor ? usd(big(p.youPaidUsdMinor)) : '—'}

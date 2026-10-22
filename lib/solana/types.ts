@@ -37,9 +37,10 @@ export interface RouteQuote {
   target: { network: DeliveryNetwork; token: 'USDC'; partnerId: string; depositAddress: string };
   steps: RouteStep[];
   costs: { routeMinor: bigint; partnerMinor: bigint; splashMinor: bigint; allInBps: number };
-  fx: { pair: 'USD/PHP'; rate: string; reference: string; capturedAt: string };
+  /** 'USD/USD' for a payment to another business on Splash: no conversion. */
+  fx: { pair: 'USD/PHP' | 'USD/USD'; rate: string; reference: string; capturedAt: string };
   /** What the supplier receives, in PHP centavos. */
-  netLocal: { currency: 'PHP'; amountMinor: bigint };
+  netLocal: { currency: 'PHP' | 'USD'; amountMinor: bigint };
   etaSec: number;
   expiresAt: string;
   flags: RouteFlag[];

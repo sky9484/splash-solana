@@ -52,7 +52,10 @@ export interface PartnerQuote {
   mock: boolean;
 }
 
-export type PartnerQuoteRequest = { amountUsdcMinor: bigint; amountPhpMinor?: never } | { amountPhpMinor: bigint; amountUsdcMinor?: never };
+export type PartnerQuoteRequest = ({ amountUsdcMinor: bigint; amountPhpMinor?: never } | { amountPhpMinor: bigint; amountUsdcMinor?: never }) & {
+  /** The recipient's bank, by the partner's code: a bank that takes one rail only is paid by it (banks.ts). */
+  bankCode?: string | null;
+};
 
 export interface PartnerDepositAddress {
   network: DeliveryNetwork;
@@ -70,7 +73,8 @@ export interface PartnerPayout {
   amountPhpMinor: bigint;
   /** What must arrive (USDC minor) for the payout to be made in full. */
   expectedUsdcMinor: bigint;
-  rail: PayoutRail;
+  /** 'Splash': a payment into another business's Splash account, with no partner (prompt 10 §5.1). */
+  rail: PayoutRail | 'Splash';
   beneficiary: { bank: string; accountLast4: string };
   deposits: PartnerDepositAddress[];
   status: PartnerPayoutStatus;
@@ -81,7 +85,11 @@ export interface CreatePayoutRequest {
   paymentId: string;
   amountPhpMinor: bigint;
   expectedUsdcMinor: bigint;
-  beneficiary: { bank: string; accountLast4: string };
+  /**
+   * `accountNumber`: the full number, read from the vault just for this request when the recipient has
+   * one (prompt 10 Phase S). A partner uses it to pay; it never comes back in the payout record.
+   */
+  beneficiary: { bank: string; accountLast4: string; accountNumber?: string };
   now?: Date;
 }
 
@@ -96,7 +104,7 @@ export interface PayoutPartner {
 
 export const MOCK_PARTNER_ENTRY: PartnerRegistryEntry = Object.freeze({
   id: 'mock-partner',
-  name: 'Mock partner · devnet',
+  name: 'Test payout partner',
   signed: false,
   sandbox: true,
   acceptedTargets: Object.freeze([

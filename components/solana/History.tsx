@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 
 import { stationLabel, stationOf, STATIONS, type StationId } from '@/lib/solana-app/stations';
 
-import { dateShort, payHref, php, shortKey, timeShort, usd } from './client';
+import { dateShort, payHref, php, timeShort, usd } from './client';
 import { DiscardButton } from './DiscardButton';
 import { StatusPill } from './StatusPill';
 import type { CompanyDTO } from './types';
@@ -44,7 +44,7 @@ export function History() {
   const param = useSearchParams()?.get('station') ?? null;
   const station = STATIONS.some((s) => s.id === param) ? (param as StationId) : null;
   const rows = useMemo(() => (state.status === 'ready' ? state.company.payments : []), [state]);
-  const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test).filter((p) => !station || stationOf(p.state) === station);
+  const shown = rows.filter(FILTERS.find((f) => f.key === filter)!.test).filter((p) => !station || stationOf(p.state, p.paymentKind) === station);
 
   if (state.status === 'loading') return <p className="sx-muted">Loading payments…</p>;
   if (state.status !== 'ready') {
@@ -109,15 +109,14 @@ export function History() {
             <caption className="sx-visually-hidden">Payments, newest first</caption>
             <thead>
               <tr>
-                <th scope="col">Supplier</th>
+                <th scope="col">Paid to</th>
                 <th scope="col" className="sx-num-col">
-                  Supplier receives
+                  They receive
                 </th>
                 <th scope="col" className="sx-num-col">
-                  From your vault
+                  You paid
                 </th>
                 <th scope="col">State</th>
-                <th scope="col">Transfer</th>
                 <th scope="col">
                   <span className="sx-visually-hidden">Open</span>
                 </th>
@@ -133,8 +132,9 @@ export function History() {
                       {p.invoiceNumber ?? 'Invoice not confirmed'} · {dateShort(p.createdAt)} {timeShort(p.createdAt)}
                     </span>
                   </td>
-                  <td className="sx-num-col" data-label="Supplier receives">{php(p.amountPhpMinor)}</td>
-                  <td className="sx-num-col" data-label="From your vault">{p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : <span className="sx-muted">No route yet</span>}</td>
+                  {/* A business on Splash gets US$, exactly what was sent; a bank gets pesos. */}
+                  <td className="sx-num-col" data-label="They receive">{p.paymentKind === 'peer' ? (p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : '—') : php(p.amountPhpMinor)}</td>
+                  <td className="sx-num-col" data-label="You paid">{p.youPayUsdcMinor ? usd(p.youPayUsdcMinor) : <span className="sx-muted">No route yet</span>}</td>
                   <td>
                     <StatusPill state={p.state} label={p.stateLabel} />
                     {p.problem ? (
@@ -142,22 +142,6 @@ export function History() {
                         {p.problem.message}
                       </span>
                     ) : null}
-                  </td>
-                  <td data-label="Transfer">
-                    {p.execute ? (
-                      p.execute.solscanUrl ? (
-                        <a href={p.execute.solscanUrl} target="_blank" rel="noreferrer">
-                          <span className="sx-mono">{shortKey(p.execute.signature, 5)}</span>
-                          <span className="sx-visually-hidden"> on Solscan (opens in a new tab)</span>
-                        </a>
-                      ) : (
-                        <span className="sx-mono" title={p.execute.signature}>
-                          {shortKey(p.execute.signature, 5)} <span className="sx-muted">(simulated)</span>
-                        </span>
-                      )
-                    ) : (
-                      <span className="sx-muted">Not sent</span>
-                    )}
                   </td>
                   <td>
                     {p.receiptId ? (

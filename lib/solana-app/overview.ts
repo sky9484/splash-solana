@@ -66,8 +66,11 @@ function invoiceOf(p: PaymentRecord): InvoiceRecord | undefined {
 }
 
 function kindOf(inv: InvoiceRecord | undefined): 'invoice' | 'transfer' {
-  return inv?.source === 'transfer' ? 'transfer' : 'invoice';
+  return inv?.source === 'transfer' || inv?.source === 'peer' ? 'transfer' : 'invoice';
 }
+
+/** Where a payment's stations come from: a bank payout, or a payment into a Splash business's account. */
+const kindOfPayment = (p: PaymentRecord) => p.kind ?? 'bank';
 
 function payHref(p: PaymentRecord): string {
   return `/dashboard/${kindOf(invoiceOf(p)) === 'transfer' ? 'transfer' : 'invoices'}?payment=${p.id}`;
@@ -75,11 +78,11 @@ function payHref(p: PaymentRecord): string {
 
 /** The status chip a payment shows: approval coral, warnings amber, proof ok, the rest ink. */
 function tagFor(p: PaymentRecord): { tone: 'coral' | 'amber' | 'ok' | 'ink' | 'danger'; label: string } {
-  const st = stationOf(p.state, 'bank');
+  const st = stationOf(p.state, kindOfPayment(p));
   if (st === 'waiting') return { tone: 'coral', label: 'Waiting approval' };
   if (st === 'recorded') return { tone: 'ok', label: 'Paid · proof recorded' };
   if (st === 'recording') return { tone: 'ok', label: 'Paid · recording proof' };
-  if (st === 'paid') return { tone: 'ok', label: 'Paid to bank' };
+  if (st === 'paid') return { tone: 'ok', label: stationLabel('paid', kindOfPayment(p)) };
   if (st === 'stopped') return { tone: p.state === 'quote_expired' ? 'amber' : 'danger', label: p.state === 'quote_expired' ? 'Quote expired' : 'Stopped' };
   if (st === 'draft') return { tone: 'ink', label: 'Draft' };
   return { tone: 'ink', label: stationLabel(st) };
@@ -133,7 +136,7 @@ export async function overviewFor(input: OverviewInput) {
         paymentId: p.id,
         supplierName: p.approval?.supplierName ?? inv?.confirmed?.supplierName ?? 'Payment',
         reference: inv?.confirmed?.invoiceNumber ?? null,
-        theyGet: formatPhp(p.payout.amountPhpMinor),
+        theyGet: inv?.peer ? formatUsd(inv.peer.amountUsdMinor) : formatPhp(p.payout.amountPhpMinor),
         youPay: p.approval ? formatUsd(p.approval.youPayUsdcMinor) : null,
         quoteExpiresAt: p.approval?.quoteExpiresAt ?? null,
         href: payHref(p),
@@ -152,7 +155,7 @@ export async function overviewFor(input: OverviewInput) {
   const month = monthKey(now.toISOString());
   const thisMonth = all.filter((p) => monthKey(p.createdAt) === month);
   const pipeline = pipelineFor('bank').map((id: StationId) => {
-    const here = thisMonth.filter((p) => stationOf(p.state, 'bank') === id);
+    const here = thisMonth.filter((p) => stationOf(p.state, kindOfPayment(p)) === id);
     return {
       id,
       label: stationLabel(id),
@@ -163,7 +166,7 @@ export async function overviewFor(input: OverviewInput) {
       href: `/dashboard/history?station=${id}`,
     };
   });
-  const paid = thisMonth.filter((p) => ['paid', 'recording', 'recorded'].includes(stationOf(p.state, 'bank')));
+  const paid = thisMonth.filter((p) => ['paid', 'recording', 'recorded'].includes(stationOf(p.state, kindOfPayment(p))));
   const paidUsdMinor = paid.reduce((n, p) => n + (p.approval?.youPayUsdcMinor ?? 0n), 0n);
   const verified = paid.filter((p) => p.state === 'anchored').length;
   const fees = paid.reduce(
@@ -182,13 +185,15 @@ export async function overviewFor(input: OverviewInput) {
     .slice(0, 5)
     .map((p) => {
       const inv = invoiceOf(p);
-      const st = stationOf(p.state, 'bank');
+      const st = stationOf(p.state, kindOfPayment(p));
       return {
         id: p.id,
         name: p.approval?.supplierName ?? inv?.confirmed?.supplierName ?? 'Payment',
         reference: inv?.confirmed?.invoiceNumber ?? null,
         date: shortDate(p.createdAt),
         theyGetPhpMinor: p.payout.amountPhpMinor,
+        /** A payment to a Splash business: what landed in its account, US$ (no PHP). */
+        theyGetUsdMinor: inv?.peer ? inv.peer.amountUsdMinor : null,
         youPaidUsdMinor: p.approval?.youPayUsdcMinor ?? null,
         tag: tagFor(p),
         receiptHref: p.receiptId ? `/dashboard/receipts/${p.receiptId}` : null,

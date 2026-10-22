@@ -2,7 +2,7 @@
  * Process-wide pieces the Solana app needs, built once and kept on globalThis:
  *   - the chain client, from `chain()` (offline → the shared simulator,
  *     devnet → DevnetChain). One code path for both modes.
- *   - the mock payout partner ("Mock partner · devnet") with a random webhook
+ *   - the mock payout partner ("Test payout partner") with a random webhook
  *     secret minted at startup;
  *   - the evidence attester key (Splash's, never a vault member: I-1), and the
  *     Splash fee account owner (receives the fee leg; never a payout target);

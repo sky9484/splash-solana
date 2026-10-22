@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import { formatMinor } from '@/lib/money';
 
@@ -68,44 +68,21 @@ const store = globalStore.splashFundingSessions ?? {
 };
 globalStore.splashFundingSessions = store;
 
-function isDemoMode(env: NodeJS.ProcessEnv) {
-  return env.NODE_ENV !== 'production' || env.USE_MOCK_APIS === 'true' || env.NEXT_PUBLIC_DEMO_MODE === 'true';
-}
-
-function readConfiguredCctpAddress(
-  businessAccountId: string,
-  sourceChain: CctpSourceChain,
-  env: NodeJS.ProcessEnv,
-) {
-  if (env.FUNDING_CCTP_DEPOSIT_ADDRESSES_JSON) {
-    const parsed = JSON.parse(env.FUNDING_CCTP_DEPOSIT_ADDRESSES_JSON) as Record<string, Partial<Record<CctpSourceChain, string>>>;
-    const address = parsed[businessAccountId]?.[sourceChain];
-    if (address) return address;
-  }
-  if (!isDemoMode(env)) {
-    throw new Error(`No CCTP ${sourceChain} deposit address is configured for this business account`);
-  }
-
-  const digest = createHash('sha256').update(`${businessAccountId}:${sourceChain}:demo`).digest('hex');
-  return `0x${digest.slice(0, 40)}`;
-}
-
 /**
  * Where a deposit goes. Native USDC on Solana goes straight to the org's own
  * Squads vault: Splash derives no deposit key and holds nothing in between.
- * CCTP deposits start on the source chain at the configured address.
+ *
+ * A CCTP deposit from another chain is refused (CRIT-1, docs/solana-build/FUNDING-AUDIT.md): this
+ * code used to hand out an address on the source chain that was not the company's own account. Money
+ * from another chain arrives through Circle's transfer straight into the company's own Payments
+ * account (Transfer's "Add money another way"), never through an address Splash gives out.
  */
-function stablecoinDepositAddress(
-  businessAccountId: string,
-  selection: Extract<FundingSelection, { type: 'stablecoin' }>,
-  vaultAddress: string | null,
-  env: NodeJS.ProcessEnv,
-) {
+function stablecoinDepositAddress(selection: Extract<FundingSelection, { type: 'stablecoin' }>, vaultAddress: string | null) {
   if (selection.rail === 'SOLANA') {
     if (!vaultAddress) throw new Error('This workspace has no vault yet. Finish setup to get a deposit address.');
     return vaultAddress;
   }
-  return readConfiguredCctpAddress(businessAccountId, selection.sourceChain!, env);
+  throw new Error(`A deposit from ${selection.sourceChain ?? 'another chain'} has no address here: it lands only in your own Payments account.`);
 }
 
 /** A Solana Pay request for a vault deposit; a plain address URI for a CCTP source chain. */
@@ -146,7 +123,7 @@ export function createFundingSession(input: {
   const now = new Date().toISOString();
   const stablecoinSelection = input.selection.type === 'stablecoin' ? input.selection : null;
   const address = stablecoinSelection
-    ? stablecoinDepositAddress(input.businessAccountId, stablecoinSelection, input.vaultAddress ?? null, env)
+    ? stablecoinDepositAddress(stablecoinSelection, input.vaultAddress ?? null)
     : undefined;
   const session: FundingSession = {
     id: `fund_${randomUUID()}`,

@@ -90,6 +90,11 @@ export function base64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
+/** A server challenge (text) approved with this device's key: the base58 signature the server checks. */
+export async function approveTextWithDevice(keyId: string, text: string): Promise<string> {
+  return bs58.encode(await signBytesWithDevice(keyId, new TextEncoder().encode(text)));
+}
+
 /** Sign each prepared transaction message with the device key. Returns base58 signatures. */
 export async function signPrepared(keyId: string, messages: Array<{ id: string; messageBase64: string }>) {
   const out: Array<{ id: string; signature: string }> = [];

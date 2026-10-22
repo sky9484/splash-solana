@@ -58,11 +58,13 @@ function Art({ art }: { art: StationArt }) {
   switch (art.kind) {
     case 'coin': {
       const w = art.size ?? 92;
-      return <Image className={clsx('iso-art iso-station__art iso-bob', art.late && 'iso-bob--late')} src={COIN_SRC[art.coin]} alt="" width={w} height={Math.round((w * 108) / 92)} />;
+      // The coin art is square (1024 × 1024).
+      return <Image className={clsx('iso-art iso-station__art iso-bob', art.late && 'iso-bob--late')} src={COIN_SRC[art.coin]} alt="" width={w} height={w} />;
     }
     case 'vault': {
       const w = art.size ?? 120;
-      return <Image className="iso-art iso-station__art iso-bob iso-bob--slow" src="/cinematic/vault-transparent.png" alt="" width={w} height={w} />;
+      // The vault art is 1377 × 768.
+      return <Image className="iso-art iso-station__art iso-bob iso-bob--slow" src="/cinematic/vault-transparent.png" alt="" width={w} height={Math.round((w * 768) / 1377)} />;
     }
     case 'block':
       return <IsoBlock glyph={art.glyph} size={art.size} />;

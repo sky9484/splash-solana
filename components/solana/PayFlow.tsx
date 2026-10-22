@@ -669,13 +669,15 @@ function RouteScreen({
   onRefresh: () => void;
   onBack: () => void;
 }) {
+  // The two lanes, plus the route to compare when one route won both (prompt 10 §5.6).
+  const routes = [...payment.cards, ...(payment.compare ? [payment.compare] : [])];
   const suggested = payment.cards.find((c) => c.policy === 'cheapest') ?? payment.cards[0];
   const [selected, setSelected] = useState<string>(payment.selectedQuoteId ?? suggested?.quoteId ?? '');
   const [rehearsal, setRehearsal] = useState('none');
   const groupRef = useRef<HTMLDivElement>(null);
-  const card = payment.cards.find((c) => c.quoteId === selected);
+  const card = routes.find((c) => c.quoteId === selected);
   const left = card ? secondsLeft(card.expiresAt, now) : 0;
-  const ids = payment.cards.map((c) => c.quoteId);
+  const ids = routes.map((c) => c.quoteId);
 
   function onKey(e: React.KeyboardEvent) {
     const i = ids.indexOf(selected);
@@ -693,7 +695,7 @@ function RouteScreen({
   return (
     <div className="sx-stack-lg">
       <div ref={groupRef} className="sx-routes" role="radiogroup" aria-label="Routes" onKeyDown={onKey}>
-        {payment.cards.map((c) => {
+        {routes.map((c) => {
           const on = c.quoteId === selected;
           return (
             <button key={c.quoteId} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} className="sx-route" onClick={() => setSelected(c.quoteId)}>
