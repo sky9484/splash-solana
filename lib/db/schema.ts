@@ -380,6 +380,67 @@ export const orgVaults = pgTable('org_vaults', {
   uniqueIndex('org_vaults_vault_unique').on(table.vaultPda),
 ]);
 
+/**
+ * The Solana payment state machine (prompt 07 §5.1, lib/solana-app/payment-machine.ts). One row per
+ * payment; `record` holds the full payment (bigint as {"$bigint": "…"}). Every change is a
+ * compare-and-set on (state, version) — lib/solana-app/payment-repo.ts — and writes a transition row.
+ * No FK on org_id: the offline demo's companies are not organizations rows (Phase 4 moves the flow
+ * onto signed-in organizations, whose ids then match).
+ */
+export const solanaPayments = pgTable('solana_payments', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id').notNull(),
+  state: text('state').notNull(),
+  version: integer('version').notNull(),
+  record: jsonb('record').notNull(),
+  ...timestamps,
+}, (table) => [
+  index('solana_payments_org_idx').on(table.orgId, table.createdAt),
+  index('solana_payments_state_idx').on(table.state),
+]);
+
+/** Append-only: one row per version of a payment. */
+export const solanaPaymentTransitions = pgTable('solana_payment_transitions', {
+  seq: bigint('seq', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  paymentId: text('payment_id').notNull().references(() => solanaPayments.id),
+  fromState: text('from_state'),
+  toState: text('to_state').notNull(),
+  version: integer('version').notNull(),
+  reason: text('reason'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('solana_payment_transitions_version_unique').on(table.paymentId, table.version),
+]);
+
+/**
+ * Every chain call, under its idempotency key `paymentId:step`, recorded with its signature BEFORE
+ * the bytes are broadcast. A resumed worker polls the signature; it never sends a second time.
+ */
+export const solanaChainCalls = pgTable('solana_chain_calls', {
+  key: text('key').primaryKey(),
+  paymentId: text('payment_id').notNull().references(() => solanaPayments.id),
+  step: text('step').notNull(),
+  status: text('status').notNull(),
+  signature: text('signature').notNull(),
+  lastValidBlockHeight: bigint('last_valid_block_height', { mode: 'bigint' }),
+  logs: jsonb('logs'),
+  error: text('error'),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('solana_chain_calls_signature_unique').on(table.signature),
+  index('solana_chain_calls_payment_idx').on(table.paymentId),
+]);
+
+/** Sponsored transactions per org per UTC day (prompt 07 §5.6), checked before Kora is asked. */
+export const solanaSponsorUsage = pgTable('solana_sponsor_usage', {
+  orgId: text('org_id').notNull(),
+  day: text('day').notNull(),
+  count: integer('count').notNull().default(0),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex('solana_sponsor_usage_org_day').on(table.orgId, table.day),
+]);
+
 /** Suppliers — the relationship-first noun (today's "recipients"). */
 /**
  * A beneficiary — the party who receives money.

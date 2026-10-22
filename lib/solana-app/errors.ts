@@ -29,6 +29,11 @@ export type ServiceErrorCode =
   | 'webhook_invalid'
   | 'transaction_too_large'
   | 'devnet_not_supported'
+  | 'org_suspended'
+  | 'not_an_approver'
+  | 'already_approved'
+  | 'payee_changed'
+  | 'sponsor_cap'
   | 'not_authorized'
   | 'device_exists';
 

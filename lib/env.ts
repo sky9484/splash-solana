@@ -100,6 +100,8 @@ export const envSchema = z.object({
   /** Kora: Splash's fee payer, so nobody needs SOL. Required in devnet mode. */
   KORA_RPC_URL: optional,
   KORA_API_KEY: optional,
+  /** Where Solana payments live (lib/solana-app/runtime.ts): Postgres when DATABASE_URL is set, unless 'memory'. */
+  SOLANA_PAYMENT_STORE: opt(z.enum(['memory', 'postgres'])),
   /** The non-custody gate (lib/server/custody-phase.ts). '2' only when a licence allows holding funds; anything else is Phase 0. */
   SPLASH_CUSTODY_PHASE: withDefault(z.enum(['0', '2']), '0'),
   /** Splash's fee wallet on Solana: receives the audit-anchor fee on USDC sent

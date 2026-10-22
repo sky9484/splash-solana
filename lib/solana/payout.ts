@@ -5,7 +5,9 @@
  *   outer:  ATA CreateIdempotent for the partner deposit owner (payer = Kora fee payer: ATA rent)
  *   vault:  USDC transferChecked vault ATA -> partner deposit ATA (6 decimals),
  *           + a Solana Pay style reference key (read-only, non-signer) on the transfer,
- *           + SPL Memo "splash:v1:<commitmentHex>"
+ *           + SPL Memo "splash:pay:v1:<paymentId>" (prompt 07 §5.3: the opaque payment id only,
+ *             no invoice data). The earlier memo "splash:v1:<commitmentHex>" is still accepted for
+ *             the runs recorded before it (docs/solana-build/devnet-run.json).
  *   outer:  the same memo again, top level, because RPC `getSignaturesForAddress().memo` is filled
  *           from top-level memo instructions (inner CPI memos are not reliably surfaced).
  * The vault-level memo is the one the approver signed; the outer copy is for indexing only and the
@@ -25,7 +27,8 @@
  *   - Not yet executed on devnet; run scripts/solana-devnet-e2e.ts.
  *
  * Invariants enforced here: I-2 (destination is exactly the partner's deposit address and never a
- * Splash key) and I-5 (memo carries only the salted commitment).
+ * Splash key) and I-5 (the memo carries no invoice data: an opaque payment id, or a salted
+ * commitment on the earlier memo).
  */
 import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 
@@ -33,8 +36,12 @@ import { PROGRAM_IDS, USDC_DECIMALS, usdcMint } from './config.ts';
 import type { Cluster } from './types.ts';
 
 export const SPLASH_MEMO_PREFIX = 'splash:v1:';
+export const PAYMENT_MEMO_PREFIX = 'splash:pay:v1:';
 const COMMITMENT_RE = /^[0-9a-f]{64}$/;
 const MEMO_RE = /^splash:v1:[0-9a-f]{64}$/;
+/** A payment id (`pay_` + 16 hex) or a batch chunk (`bat_` + 16 hex + `.c<n>`). Random, so it says nothing. */
+const PAYMENT_ID_RE = /^(pay|bat)_[0-9a-f]{16}(\.c\d{1,3})?$/;
+const PAYMENT_MEMO_RE = /^splash:pay:v1:(pay|bat)_[0-9a-f]{16}(\.c\d{1,3})?$/;
 const U64_MAX = (1n << 64n) - 1n;
 
 /** I-5: the only memo Splash ever writes. commitmentHex = sha256(salt || canonical invoice), lowercase hex. */
@@ -45,15 +52,28 @@ export function buildSplashMemo(commitmentHex: string): string {
   return `${SPLASH_MEMO_PREFIX}${commitmentHex}`;
 }
 
+/** The money-path memo (prompt 07 §5.3): the payment id and nothing else. */
+export function buildPaymentMemo(paymentId: string): string {
+  if (typeof paymentId !== 'string' || !PAYMENT_ID_RE.test(paymentId)) {
+    throw new Error('Memo refused: a payment memo carries only a Splash payment id (pay_ + 16 hex), never an invoice number or name');
+  }
+  return `${PAYMENT_MEMO_PREFIX}${paymentId}`;
+}
+
+export function isPaymentMemo(memo: string): boolean {
+  return PAYMENT_MEMO_RE.test(memo);
+}
+
+/** Either Splash memo: the payment id (current) or the salted commitment (earlier runs). */
 export function isSplashMemo(memo: string): boolean {
-  return MEMO_RE.test(memo);
+  return MEMO_RE.test(memo) || PAYMENT_MEMO_RE.test(memo);
 }
 
 export function assertSplashMemo(memo: string): void {
-  if (!isSplashMemo(memo)) throw new Error('Memo refused: only "splash:v1:<sha256 hex>" is allowed');
+  if (!isSplashMemo(memo)) throw new Error('Memo refused: only "splash:pay:v1:<payment id>" or "splash:v1:<sha256 hex>" is allowed');
 }
 
-/** SPL Memo with no signer accounts. Rejects anything but a Splash commitment memo. */
+/** SPL Memo with no signer accounts. Rejects anything but a Splash memo. */
 export function buildMemoInstruction(memo: string): TransactionInstruction {
   assertSplashMemo(memo);
   return new TransactionInstruction({ programId: PROGRAM_IDS.memo, keys: [], data: Buffer.from(memo, 'utf8') });
@@ -125,7 +145,10 @@ export interface PayoutParams {
   /** The deposit address from the quote (RouteQuote.target.depositAddress). Must equal `destination`. */
   expectedDepositAddress: string;
   amountMinor: bigint;
-  commitmentHex: string;
+  /** The payment id for the memo (prompt 07 §5.3). Give this or, for the earlier memo, commitmentHex. */
+  paymentId?: string;
+  /** The earlier memo's salted invoice commitment. */
+  commitmentHex?: string;
   /** Unique per payment, for indexing (Solana Pay reference). */
   reference: PublicKey;
   /** Every Splash-controlled key: fee payer, server keys, any Splash wallet or token account. */
@@ -250,7 +273,8 @@ export function buildPayoutInstructions(p: PayoutParams): PayoutPlan {
   if (p.reference.equals(p.vaultPda) || p.reference.equals(p.feePayer) || p.reference.equals(destinationOwner)) {
     throw new Error('Reference key must be a fresh, unrelated public key');
   }
-  const memo = buildSplashMemo(p.commitmentHex);
+  if ((p.paymentId === undefined) === (p.commitmentHex === undefined)) throw new Error('Memo refused: give exactly one of paymentId or commitmentHex');
+  const memo = p.paymentId !== undefined ? buildPaymentMemo(p.paymentId) : buildSplashMemo(p.commitmentHex!);
   const fee = p.splashFee
     ? buildSplashFeeInstructions({ cluster: p.cluster, vaultPda: p.vaultPda, feePayer: p.feePayer, fee: p.splashFee, payoutAmountMinor: p.amountMinor, payoutDestinationOwner: destinationOwner })
     : undefined;

@@ -1,7 +1,9 @@
 /**
- * Splash fee and the all-in cap (canon: Business Module v15.1 §5).
+ * Splash fee and the all-in cap (prompt 07 §5.2, canon D17; earlier: Business Module v15.1 §5).
  *
- *   Splash fee      0.10% Cheapest / 0.15% Fastest / 0.15% Safest, min US$2
+ *   Splash fee      0.10% per payout on every route (Business plan), min US$2.
+ *                   The earlier canon charged 0.15% on Fastest and Safest; D17 made it
+ *                   one rate (docs/solana-build/DECISIONS.md D-P3-2).
  *   All-in target   ≤ 0.33% on tickets from US$2,000
  *   Cap rule        on a ticket ≥ US$2,000 whose all-in is above 0.33%, Splash
  *                   lowers ITS OWN fee (only as far as needed) to a floor of
@@ -10,9 +12,9 @@
  *                   explicit tap. Splash never subsidises partner or route cost.
  *                   Below US$2,000 the minimum applies and no flag is raised.
  *
- * Worked example from the canon, reproduced by the tests: US$10,000, partner
- * 0.20%, Fastest 0.03% route + 0.20% + 0.15% = 0.38% → Splash cut to 0.10% →
- * 0.33%.
+ * Worked examples, reproduced by the tests: US$10,000, route 0.03% + partner
+ * 0.20% + Splash 0.10% = 0.33%, at the target, untouched; route 0.05% + 0.20% +
+ * 0.10% = 0.35% → Splash cut to 0.08% → 0.33%.
  *
  * "Ticket" here is the USDC value of the payout: what reaches the supplier,
  * expressed in USDC at the partner's rate (partner gross minus partner fee).
@@ -21,7 +23,7 @@
 import { applyBps, divRound, parseMinor } from '../money.ts';
 import type { Policy } from '../solana/types.ts';
 
-export const SPLASH_FEE_BPS: Readonly<Record<Policy, number>> = Object.freeze({ cheapest: 10, fastest: 15, safest: 15 });
+export const SPLASH_FEE_BPS: Readonly<Record<Policy, number>> = Object.freeze({ cheapest: 10, fastest: 10, safest: 10 });
 export const SPLASH_MIN_FEE_USDC_MINOR = 2_000_000n; // US$2
 export const FEE_CAP_MIN_TICKET_USDC_MINOR = 2_000_000_000n; // US$2,000
 export const ALL_IN_TARGET_BPS = 33n; // 0.33%

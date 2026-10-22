@@ -382,7 +382,14 @@ export function assertAutonomous(
   data: Uint8Array,
   opts: { splashKeys?: Iterable<string>; expectedMembers?: string[]; expectedThreshold?: number } = {},
 ): MultisigSummary {
-  const s = decodeMultisigAccount(data);
+  return assertAutonomousSummary(decodeMultisigAccount(data), opts);
+}
+
+/** The same checks on an already-decoded account (the chain client returns summaries). */
+export function assertAutonomousSummary(
+  s: MultisigSummary,
+  opts: { splashKeys?: Iterable<string>; expectedMembers?: string[]; expectedThreshold?: number } = {},
+): MultisigSummary {
   if (s.configAuthority !== null) throw new Error(`Multisig is not autonomous: configAuthority is ${s.configAuthority}`);
   if (s.timeLock !== 0) throw new Error(`Unexpected timeLock ${s.timeLock}`);
   const voters = s.members.filter((m) => (m.mask & multisig.types.Permission.Vote) !== 0).length;
