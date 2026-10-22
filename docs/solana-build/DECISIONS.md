@@ -194,3 +194,63 @@ A resumed worker polls that signature. It never sends again.
 - the invoice reservation and the daily-limit reservation
 
 Within one process those reservations are atomic: the check and the reservation happen with no await between them. Across instances, the payment's own compare-and-set still prevents a double send of one payment. Two payments for one invoice on two instances is the gap Phase 4 closes.
+
+## D-P4-1 · Every payment can be traced on Solscan (Sky, 13 Oct)
+
+Prompt 07 §6.2 says explorer links point to Solana Explorer. Sky asked on 13 Oct that every payment can be traced on Solscan, so Solscan is now the link shown first, and Solana Explorer is the second link on the receipt.
+
+- **One place builds the URLs.** `lib/explorer.ts` has `solscanTxUrl` and `solscanAccountUrl`. Devnet carries `?cluster=devnet`; mainnet-beta carries nothing. The test that no file builds an explorer URL by hand covers `solscan.io` too.
+- **Every transaction of a payment carries its memo at the top level.** The proposal, each approval and the execute all carry `splash:pay:v1:<paymentId>`, so each one shows the payment id in its Solscan program logs. Before this change only the execute did. A proposal stores the vault transaction without running it, so the memo inside the vault transaction never ran at proposal time.
+  - **Exception: a CCTP proposal.** Its `vaultTransactionCreate` leaves no room for a memo. The memo goes on every transaction that still fits.
+  - **Batch chunks.** Each chunk's proposals carry `<batchId>.c<n>`. The execute adds no copy: running the vault transaction runs its memo, and Solscan shows that log under the Squads execute. A copy would cost one payee per chunk (5 → 4, measured).
+- **Checked on Solscan, 13 Oct.** The Part A execute `4ZXV7pHN…` opens at `solscan.io/tx/…?cluster=devnet`. It shows the vault → deposit transfer, the Squads execute, a finalized result and a sponsored fee, and its program logs read `Memo (len 74): "splash:v1:…"`.
+- **What the receipt shows.** The receipt and the evidence pack list each transaction and each account (vault, the vault's USDC account, the partner deposit) with a Solscan link. Offline there are no links: a simulated signature exists on no network, and the panel says so.
+
+## D-P4-2 · The dashboard's organization is the Solana company, and its records are documents
+
+D-P3-6 left the companies, invoices and evidence in process memory, and `/api/solana` took `orgId` from the request body. Phase 4 closes both gaps.
+
+- **Who and which company come from the session.** Every company route goes through `lib/server/solana-company.ts`: the signed-in session, then the membership row, then the vault and this member's device as account setup recorded them (`org_vaults`, `member_devices`). No request schema accepts an `orgId`; a test scans every route to keep it that way.
+- **Approvals.** `prepare` signs with the member's own device on record, never a key the browser names. `approve` records the signed-in person's name on the approval.
+- **The public demo onboarding is gone.** `/api/solana/onboarding/*` and `/api/solana/orgs/[orgId]` created companies with no sign-in. Account setup (`/api/setup/*`, Phase 1) is now the only way to make a vault.
+- **Documents.** The company record (its salt, verified suppliers, fundings, paid commitments, daily totals and the refuse-service switch), its invoices, its evidence and its receipt share links are rows in `solana_documents` (migration 0031). They load on a company's first request and only the changed ones are written back after each request. Payments are unchanged: `solana_payments` with compare-and-set.
+- **Receipts are no longer readable by id alone.** Earlier, anyone holding a receipt id could read it and its evidence pack, which includes the invoice fields and salt. Now a receipt needs its company's session, or a share link the company minted ("Share with auditor": `shr_` plus 128 random bits, one live link per receipt).
+- **Offline restarts.** A vault the database recorded but the restarted simulator never saw is put back at its last used transaction index, with no simulated money.
+- **Still true.** Documents are last-writer-wins. Two app instances writing the same company's daily total at the same instant can lose one increment. The payment's own compare-and-set still prevents a double send, and the duplicate-invoice check reads the reloaded commitments. A per-company row lock is the fix if the app ever runs on more than one instance.
+
+## D-P4-3 · A batch is its own record, sent in measured chunks, retried chunk by chunk (§5.5)
+
+- **Its own record, not N payments.** A chunk's transactions pay up to six suppliers at once, so one signature belongs to many rows. `solana_chain_calls` keys a signature to exactly one payment, so it cannot hold a chunk. A batch is the company's document (`solana_documents`, kind `batch`) holding its rows, its chunks and each chunk's own chain-call ledger. Each signature is written to the document before the bytes are broadcast, the same rule a single payment follows.
+- **Quotes and deposits.** Every row gets its own one-payment deposit from the payout partner and its own quote on the Solana direct route. The rules run on the whole batch: balance, per-payment limit, today's limit, one deposit per supplier.
+- **One prompt signs every chunk.** Chunks are planned again at prepare time, at the vault's next transaction index, by measured size. The sample's 12 suppliers go 6 + 6, with the largest transaction at 1,181 of 1,232 bytes.
+- **Sending, and what the screen says.** Chunks go out in order. Each chunk pays all its suppliers or none; the batch as a whole does not, and the screen says so.
+  - A chunk whose proposal fails stops the chunks after it, because Squads indices are sequential.
+  - A chunk whose execute fails or expires is retried alone. Its execute is rebuilt with a fresh blockhash; the old bytes are never resent.
+  - An outcome still unknown at the end of a request shows as "Checking", and the next read polls it. It is never resent.
+- **Offline rehearsal.** "One chunk's transfer does not land" drops a chunk's execute in the simulator, so the retry can be shown.
+- **Not in this build:**
+  - Batches need a 1-of-N vault; a second approver would need a second prompt per chunk.
+  - Batch rows get no per-supplier evidence receipt yet. The chunk transactions carry the memo `splash:pay:v1:<batchId>.c<n>` and are on Solscan.
+  - Quotes live 60 seconds (the mock partner's TTL), which is short for reviewing a long file.
+
+## D-P4-4 · Invoices, Transfer and Treasury (Sky, 13 Oct)
+
+Sky asked for three changes to the Payments and Money sections. Prompt 07 §4.2 said "don't port treasury", because the Sui build's treasury was a yield product gated behind counsel (Amendment 01). This treasury is not that product; **Sebastian to confirm** (see the last point).
+
+- **Invoices replaces "Pay a supplier".** The earlier Invoices page had an "Inspection loop" (intake, Walrus proof, Seal access, Zeke draft, payment intent) on the legacy `/api/invoices` store. "Pay a supplier" ran the same idea for real on Solana. There is now one page, `/dashboard/invoices`:
+  - the loop as five stations, counted from the company's own records: read by Zeke, checked by a person, approved on a device, paid to the bank, proof anchored;
+  - the three ways to add an invoice;
+  - an inbox where each invoice shows how far round the loop it is.
+  
+  The legacy receivables "invoice vault" (pay links, USD collection) is not on the Solana build's nav; its API is untouched.
+- **Transfer comes back** at `/dashboard/transfer`, for a payment with no invoice. A person types the recipient, the amount in pesos and an optional reference. The record is `source: 'transfer'`, with `extractor: 'none'` because nothing was read; the person confirms it by sending it. From there it is the invoice path unchanged: quote, the same rules (in a transfer's words), one approval on the device, the payout partner, the proof.
+  - A new recipient still needs a call-back verification.
+  - The approval card says "Typed in by <person>", and shows the reference marked "no invoice".
+- **Fund first.** Payments leave only from the payments vault. When it cannot cover a payment, the quote now answers `insufficient_balance` with the shortfall, the balance and the treasury balance. The screen offers a move from the treasury prefilled with the shortfall (rounded up to the cent). After the move, it returns to the same transfer or invoice and quotes it again.
+- **Treasury is vault #1 of the company's own multisig.** Vault #0 pays suppliers. Both are PDAs of the same Squads multisig, with the same members and threshold, and with no new account or key: Splash holds no key to either.
+  - **A move** is one vault transaction from the source vault: a `transferChecked` to the other vault's USDC account, with its own memo `splash:move:v1:mov_<16 hex>`, so on Solscan it never reads as a payment. Its proposal and execute go to the device in one prompt.
+  - **Sending** follows the batch rule: each signature is written to the company record before broadcast, a pending send is checked and never resent, and a failed execute is retried alone at the same proposal index.
+  - **No Splash fee** on a move; Kora pays the network fee.
+  - **Gates.** A move needs the same gates as a payment (a device in the vault, KYB, terms). Moves need a 1-of-N vault in this build.
+  - **The memo rule (I-5)** now allows exactly three memos: `splash:pay:v1:`, `splash:move:v1:` and the earlier `splash:v1:` commitment.
+- **What this treasury is not.** It holds USDC in the company's own vault and nothing else: no yield, no rate, no lending, no Splash ledger. Every balance on the page is read from the vault's token account. The old `/api/treasury` ledger route stays deleted. **Sebastian to confirm** that a second vault of the company's own multisig is acceptable under Amendment 01. If it is not, the nav entry comes out, and moves stay available only through the API.

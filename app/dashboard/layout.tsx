@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import DashboardShell from '@/components/dashboard/DashboardShell';
+import { solscanAccountUrl } from '@/lib/explorer';
+import { readSolanaEnv } from '@/lib/solana/config';
 import { custodyPhaseEnabled, sweepAccountEnabled } from '@/lib/server/custody-phase';
 import { getCustomerSession } from '@/lib/server/customer-auth';
 import { readKybGateState } from '@/lib/server/kyb-gate';
@@ -22,8 +24,19 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // The device check (prompt 07 §3.2): no registered device, or no vault with
   // that device in it, means setup first. Fails closed when unreadable.
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? '/dashboard';
-  const setupRedirect = setupRedirectFor(pathname, isSetupExempt(pathname) ? null : await readSetupStatusForSession(session));
+  const setup = await readSetupStatusForSession(session);
+  const setupRedirect = setupRedirectFor(pathname, isSetupExempt(pathname) ? null : setup);
   if (setupRedirect) redirect(setupRedirect);
+
+  // The Solana rail the shell shows: the network, the run mode, and the vault account setup recorded.
+  // A vault made offline is simulated: it is on no network, so it gets no Solscan link.
+  const solanaEnv = readSolanaEnv();
+  const recorded = setup && 'vault' in setup ? setup.vault : null;
+  const solana = {
+    mode: solanaEnv.mode,
+    cluster: solanaEnv.cluster,
+    vault: recorded ? { address: recorded.vaultPda, solscanUrl: recorded.simulated || solanaEnv.mode !== 'devnet' ? null : solscanAccountUrl(recorded.vaultPda, recorded.cluster) } : null,
+  };
 
   // Wallet spec §3.2 — resolve the KYB state ONCE, here. Every page under
   // /dashboard is a client component and cannot read the session or the DB, so
@@ -55,5 +68,5 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // One line on purpose: tests/oxwal-frontend.test.mjs pins the shape
   // {children}</DashboardShell> as the no-second-wrapper contract.
   // sweepOn needs no database, so it is resolved even when `locks` is not.
-  return <DashboardShell session={session} kyb={kyb} locks={locks} sweepOn={sweepAccountEnabled()} launchScope={launchScope()}>{children}</DashboardShell>;
+  return <DashboardShell session={session} kyb={kyb} locks={locks} sweepOn={sweepAccountEnabled()} launchScope={launchScope()} solana={solana}>{children}</DashboardShell>;
 }

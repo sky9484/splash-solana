@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Banknote, CheckCircle2, Globe2, Loader2, Network, XCircle } from 'lucide-react';
 
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 import LocalTime from '@/components/LocalTime';
 
 /** Destination country names for the "Sent to …" stage (human language). */

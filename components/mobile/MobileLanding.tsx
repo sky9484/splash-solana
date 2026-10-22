@@ -88,7 +88,7 @@ export default function MobileLanding() {
           <span>Prove every payment.</span>
         </h1>
         <p className="mob-hero-copy">
-          Malaysian businesses pay suppliers in the Philippines and Indonesia in USDC on Solana.
+          Malaysian businesses pay suppliers in the Philippines in USDC on Solana.
           Delivered to their bank. Proof for the auditor. We never hold the money.
         </p>
         <div className="mob-hero-actions">

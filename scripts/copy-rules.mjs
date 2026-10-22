@@ -70,10 +70,18 @@ export const CUSTOMER_RULES = [
   },
 ];
 
+/**
+ * The two lines prompt 07 §6.1 puts on the landing, word for word: how-it-works step 4 and the small
+ * footer tech line. They name the evidence layer once, in context. Nothing else on a marketing route
+ * may: a customer buys a payment record, not a storage network.
+ */
+export const SANCTIONED_TECH_LINES = ['Proof saved: encrypted on Walrus, anchored on Solana', 'Settlement on Solana · Evidence encrypted with Seal, stored on Walrus'];
+const SANCTIONED = new RegExp(SANCTIONED_TECH_LINES.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+
 /** @type {CopyRule[]} */
 export const MARKETING_JARGON = [
-  { pattern: /\bWalrus\b/, reason: 'protocol jargon on a marketing route: a customer buys a payment record, not a storage network' },
-  { pattern: /\bSeal\b/, reason: 'protocol jargon on a marketing route: say "encrypted", not the name of the key server' },
+  { pattern: /\bWalrus\b/, allow: SANCTIONED, reason: 'protocol jargon on a marketing route: a customer buys a payment record, not a storage network' },
+  { pattern: /\bSeal\b/, allow: SANCTIONED, reason: 'protocol jargon on a marketing route: say "encrypted", not the name of the key server' },
   { pattern: /\bPTBs?\b/, reason: 'protocol jargon on a marketing route: a programmable transaction block is our implementation, not their product' },
   { pattern: /payment intent/i, reason: 'protocol jargon on a marketing route: the customer sends a payment; the intent object is ours' },
   { pattern: /audit spine/i, reason: 'protocol jargon on a marketing route: say "the record" or "the receipt"' },

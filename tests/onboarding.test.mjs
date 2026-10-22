@@ -140,9 +140,9 @@ test('the shell locks from a server-resolved prop and reroutes to setup — it i
   assert.match(shell, /locks\?: \{ termsDone: boolean; moneyBlocked: boolean; custodyOn: boolean; reason: string \}/);
   assert.match(shell, /function lockReasonFor\(/);
   // A KYB or terms lock sends the link to setup; the launch scope (which no
-  // setup step opens) sends it to Send USDC instead.
+  // setup step opens) sends it back to the overview instead.
   assert.match(shell, /href: '\/dashboard\/setup', action: 'Finish account setup'/);
-  assert.match(shell, /href: '\/dashboard\/send-usdc', action: 'Send USDC'/);
+  assert.match(shell, /href: '\/dashboard', action: 'Back to overview'/);
   assert.match(shell, /href=\{lock \? lock\.href : href\}/);
   assert.doesNotMatch(shell, /kybGateEnabled|readOrgKybState|getDb/, 'the client shell must not reach the DB or the gate itself');
   // Parity: the spend routes require the terms AND KYB, so the padlock must too

@@ -1,10 +1,11 @@
 /**
- * In-memory server store for the Solana demo: orgs, invoices and evidence.
- * Payments are NOT here: they live behind the payment repository
- * (payment-repo.ts), in Postgres when one is configured, so the state machine
- * survives a restart (prompt 07 §5.1). A module singleton kept on globalThis (so Next's dev reloads and
- * separately bundled route handlers share one copy); it resets when the
- * process restarts. Nothing here is a secret a person holds: the recovery
+ * The in-process working copy of the Solana app's companies, invoices, evidence and receipt share
+ * links. With a database these are documents in solana_documents, loaded on a company's first
+ * request and written back after each one (company.ts, doc-store.ts); without one, this is all
+ * there is. Payments are NOT here: they live behind the payment repository (payment-repo.ts), in
+ * Postgres when one is configured, so the state machine survives a restart (prompt 07 §5.1).
+ * A module singleton kept on globalThis (so Next's dev reloads and separately bundled route
+ * handlers share one copy). Nothing here is a secret a person holds: the recovery
  * words and the device private key never reach the server (only public keys
  * and proof-of-possession signatures do).
  */
@@ -19,6 +20,8 @@ import type { ReaderOutput } from '../solana-zeke/reader.ts';
 import type { RouterOutput } from '../solana-zeke/router.ts';
 import type { PossessionChallenge } from '../solana/recovery-kit.ts';
 import type { Cluster, ConfirmedInvoice, PartnerPayoutEvent, VaultInfo } from '../solana/types.ts';
+import type { BatchRecord } from './batch-service.ts';
+import type { ShareRecord } from './doc-store.ts';
 import type { PaymentState } from './payment-machine.ts';
 
 export type BankVerification = { by: string; method: 'call-back' | 'supplier-account' | 'existing-record'; at: string };
@@ -46,15 +49,57 @@ export interface OrgRecord {
   /** Invoice commitments already paid or in flight (duplicate check). */
   seenCommitments: string[];
   fundings: Array<{ signature: string; amountMinor: bigint; at: string; simulated: boolean; note: string }>;
+  /** USDC added to the treasury vault (vault #1). Absent on companies saved before treasury existed. */
+  treasuryFundings?: Array<{ signature: string; amountMinor: bigint; at: string; simulated: boolean; note: string }>;
+  /** Moves between the company's own two vaults. Absent on companies saved before treasury existed. */
+  moves?: MoveRecord[];
   /** Splash refuses service: no Kora signature, no new proposal. Splash cannot freeze the vault itself. */
   suspended: { at: string; by: string; reason: string } | null;
+}
+
+/** Which of the company's two vaults: #0 pays suppliers, #1 holds operating cash (treasury). */
+export type VaultKind = 'payments' | 'treasury';
+
+export interface MoveCall {
+  step: 'proposal' | 'execute';
+  part: number;
+  signature: string;
+  lastValidBlockHeight: number;
+  status: 'signed' | 'confirmed' | 'finalized' | 'failed' | 'expired' | 'pending';
+  at: string;
+}
+
+/**
+ * USDC moved between the company's own vaults (lib/solana-app/treasury-service.ts). Both vaults are
+ * PDAs of the company's Squads multisig: Splash holds no key to either, takes no fee on a move, and
+ * a person approves every move on a device.
+ */
+export interface MoveRecord {
+  id: string;
+  orgId: string;
+  from: VaultKind;
+  to: VaultKind;
+  amountMinor: bigint;
+  memo: string;
+  transactionIndex: bigint;
+  state: 'prepared' | 'sending' | 'checking' | 'confirmed' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  approvedBy: { who: string; keyPublic: string; at: string } | null;
+  vault: SerializedInstruction[];
+  preExecute: SerializedInstruction[];
+  prepared: { signer: string; messages: Array<{ id: string; step: 'proposal' | 'execute'; part: number; txBase64: string; messageBase64: string; lastValidBlockHeight: number }> } | null;
+  calls: MoveCall[];
+  problem: { code: string; message: string } | null;
 }
 
 export interface InvoiceRecord {
   id: string;
   orgId: string;
   createdAt: string;
-  source: 'sample' | 'paste' | 'upload';
+  /** Where the fields came from: Zeke read a document (sample, paste, upload), or a person typed a transfer. */
+  source: 'sample' | 'paste' | 'upload' | 'transfer';
   draft: ReaderOutput;
   /** Whether the draft's supplier bank details are already in the verified directory. */
   bankStatus: 'known' | 'new' | 'changed';
@@ -128,8 +173,10 @@ export interface ApprovalCard {
   signerPublicKey: string;
   /** The partner's one-payment deposit address the vault pays (shown so the approver sees the payee). */
   depositAddress: string;
-  /** Who prepared the payment: Zeke drafts, a person approves (§5.4). */
-  draftedBy: 'Zeke';
+  /** Who prepared the payment: Zeke drafts an invoice payment, a person types a transfer; a person approves either (§5.4). */
+  draftedBy: string;
+  /** An invoice Zeke read, or a transfer a person typed in. */
+  kind: 'invoice' | 'transfer';
   simulated: boolean;
 }
 
@@ -196,15 +243,23 @@ export interface SolanaAppStore {
   orgs: Map<string, OrgRecord>;
   invoices: Map<string, InvoiceRecord>;
   evidence: Map<string, EvidenceRecord>;
+  /** Receipt share links, by token. */
+  shares: Map<string, ShareRecord>;
+  /** Batch payouts (batch-service.ts), by id. */
+  batches: Map<string, BatchRecord>;
+  /** Which companies were loaded from the document store, and what was last written for each document. */
+  docs: { loaded: Set<string>; written: Map<string, string> };
 }
 
 const G = globalThis as typeof globalThis & { __splashSolanaAppStore?: SolanaAppStore };
 
 export function store(): SolanaAppStore {
-  if (!G.__splashSolanaAppStore) {
-    G.__splashSolanaAppStore = { orgs: new Map(), invoices: new Map(), evidence: new Map() };
-  }
-  return G.__splashSolanaAppStore;
+  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), docs: { loaded: new Set(), written: new Map() } });
+  // A store made by older code in this process (a dev reload) gains the maps added since.
+  s.shares ??= new Map();
+  s.batches ??= new Map();
+  s.docs ??= { loaded: new Set(), written: new Map() };
+  return s;
 }
 
 /** Tests only. */

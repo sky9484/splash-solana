@@ -81,7 +81,7 @@ async function chunkTransactions(env, chunk, blockhash) {
   const multisigPda = new PublicKey(env.v.multisigPda);
   const member = new PublicKey(env.device.publicKey);
   const proposal = buildVaultProposal({ multisigPda, transactionIndex: chunk.transactionIndex, member, feePayer, innerInstructions: chunk.vaultInstructions });
-  const budget = computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n });
+  const budget = [...computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n }), ...chunk.traceInstructions];
   const groups = groupProposalTransactions(proposal, feePayer, blockhash, budget);
   const execute = await buildVaultExecuteInstruction({ multisigPda, transactionIndex: chunk.transactionIndex, member, innerInstructions: chunk.vaultInstructions });
   const txs = [
@@ -116,6 +116,23 @@ test('a 30-payee batch: chunked by measured size, every chunk under the limit, f
   // Fewer payees per chunk when each line is heavier: zero-fee lines skip the fee legs and fit at least as many.
   const noFee = await plan(env, list.map((p) => ({ ...p, splashFeeMinor: 0n })));
   assert.ok(noFee[0].payees.length >= chunks[0].payees.length);
+});
+
+test('every chunk transaction shows the chunk memo on Solscan: proposals at the top level, the execute by running the vault memo', async () => {
+  const env = await vault();
+  const chunks = await plan(env, payees(12));
+  const blockhash = await runtime().chain.getLatestBlockhash();
+  const MEMO = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+  for (const chunk of chunks) {
+    const txs = await chunkTransactions(env, chunk, blockhash);
+    for (const tx of txs.slice(0, -1)) {
+      const keys = tx.message.staticAccountKeys.map((k) => k.toBase58());
+      const memos = tx.message.compiledInstructions.filter((ix) => keys[ix.programIdIndex] === MEMO).map((ix) => Buffer.from(ix.data).toString('utf8'));
+      assert.deepEqual(memos, [chunk.memo], `chunk ${chunk.index}: the proposal carries one top-level memo, the chunk's`);
+    }
+    const inner = chunk.vaultInstructions.filter((ix) => ix.programId.toBase58() === MEMO).map((ix) => ix.data.toString('utf8'));
+    assert.deepEqual(inner, [chunk.memo], `chunk ${chunk.index}: the vault transaction the execute runs holds the memo`);
+  }
 });
 
 test('all chunks run in one approval sequence; payees and the fee account get exact integer amounts', async () => {
@@ -159,7 +176,7 @@ test('each chunk is all-or-none and the batch is not: a failed chunk is retried 
   await assert.rejects(sim.sendSponsored(failingExecute, { orgId: env.org.id }), /blockhash not found or expired/, 'the old bytes are dead');
   const fresh = await sim.getLatestBlockhash();
   const retry = executeOf(await chunkTransactions(env, failing, fresh));
-  assert.ok(Buffer.from(retry.message.compiledInstructions.at(-1).data.subarray(0, 8)).equals(EXECUTE));
+  assert.ok(retry.message.compiledInstructions.some((ix) => Buffer.from(ix.data.subarray(0, 8)).equals(EXECUTE)), 'the retry is a vaultTransactionExecute');
   await sim.sendSponsored(retry, { orgId: env.org.id });
   for (const p of list) assert.equal(await sim.getUsdcBalance(p.depositAddress), p.amountMinor, `${p.id} paid exactly once`);
   assert.equal(await sim.getUsdcBalance(runtime().feeAccountOwner), batchTotals(chunks).feeMinor);

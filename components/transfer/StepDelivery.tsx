@@ -2,7 +2,7 @@
 
 import { Building2, Check, Landmark, Lock, Zap } from 'lucide-react';
 
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 import { useCustodyPhaseOn, useSweepSwitchOn } from '@/components/dashboard/CustodyPhaseContext';
 import { CUSTODY_PHASE_WHY, deliveryTierOpen } from '@/lib/custody-phase-rules';
 import { getCorridorFeeBps } from '@/lib/fx/corridors';
@@ -77,7 +77,7 @@ export default function StepDelivery({ state, set, prev, next }: { state: Transf
                       ? 'Locked until Phase 2'
                       : lock === 'sweep_switch'
                         ? 'Switched off right now. Choose a direct payout instead.'
-                        : 'Available when in-country custody partner is live — pilot via PDAX.'}
+                        : 'Available when an in-country custody partner is live.'}
                   </small>
                 )}
               </span>

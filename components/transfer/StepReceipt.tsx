@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import Receipt from '@/components/Receipt';
 import SettlementProofDrawer from '@/components/SettlementProofDrawer';
 import { receiptNetworkLine } from '@/lib/network-label';
-import type { TransferState } from '@/app/dashboard/transfer/page';
+import type { TransferState } from './state';
 
 export default function StepReceipt({ state, reset }: { state: TransferState; reset: () => void }) {
   const ref = useRef<HTMLDivElement>(null);

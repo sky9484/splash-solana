@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { Keypair } from '@solana/web3.js';
+import { Keypair, VersionedMessage } from '@solana/web3.js';
 import * as multisig from '@sqds/multisig';
 import bs58 from 'bs58';
 
@@ -261,4 +261,27 @@ test('the money-path memo is the payment id, inside the vault transaction and no
   const memos = runtime().chain.events.filter((e) => e.kind === 'memo').map((e) => e.detail.memo);
   assert.ok(memos.length >= 1);
   for (const memo of memos) assert.equal(memo, `splash:pay:v1:${p.id}`);
+});
+
+test('traceable on Solscan: every transaction of a payment carries its memo at the top level, and the view lists what to open', async () => {
+  const MEMO = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+  const { org, keys, vault } = await onboard();
+  const p = await chosen(org.id);
+  const prepared = await svc.prepareApproval(p.id);
+  assert.deepEqual([...new Set(prepared.messages.map((m) => m.purpose))], ['proposal', 'execute'], 'threshold 1: the proposal and the execute in one prompt');
+  for (const m of prepared.messages) {
+    const msg = VersionedMessage.deserialize(new Uint8Array(Buffer.from(m.messageBase64, 'base64')));
+    const keysOf = msg.staticAccountKeys.map((k) => k.toBase58());
+    const memos = msg.compiledInstructions.filter((ix) => keysOf[ix.programIdIndex] === MEMO).map((ix) => Buffer.from(ix.data).toString('utf8'));
+    assert.deepEqual(memos, [`splash:pay:v1:${p.id}`], `${m.purpose} carries the payment memo once at the top level`);
+  }
+  const done = await svc.submitApproval(p.id, { signatures: await sign(keys, org.id, prepared) });
+  const view = await svc.paymentView(done.id);
+  assert.equal(view.trace.memo, `splash:pay:v1:${p.id}`);
+  assert.deepEqual(view.trace.accounts.map((a) => a.label), ['Your vault', 'Your vault’s USDC account', 'Payout partner deposit']);
+  assert.equal(view.trace.accounts[0].address, vault.vaultPda);
+  // Offline every signature is simulated: no link to a transaction that exists on no network.
+  assert.ok(view.signatures.length >= 2);
+  for (const s of view.signatures) assert.equal(s.solscanUrl, null);
+  for (const a of view.trace.accounts) assert.equal(a.solscanUrl, null);
 });

@@ -27,13 +27,13 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 import bs58 from 'bs58';
 
-import { explorerAddressUrl, explorerTxUrl, usdcMint } from '../solana/config.ts';
+import { explorerAddressUrl, explorerTxUrl, solscanAccount, solscanTx, usdcMint } from '../solana/config.ts';
 import { buildDepositForBurnInstruction } from '../solana/cctp-v2-solana.ts';
 import { defaultSponsorPolicy, utcDay, type SponsorPolicy } from '../solana/kora.ts';
 import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
 import { buildMemoInstruction, buildPaymentMemo, buildPayoutInstructions, buildSplashFeeInstructions, getAssociatedTokenAddress } from '../solana/payout.ts';
 import { createPossessionChallenge, verifyPossession } from '../solana/recovery-kit.ts';
-import { SolanaSimulator, simulatedSignature } from '../solana/simulator.ts';
+import { isSimulator, simulatedSignature } from '../solana/simulator.ts';
 import {
   assertAutonomousSummary,
   buildCreateVaultInstruction,
@@ -44,8 +44,12 @@ import {
   deriveProposalAddresses,
   groupProposalTransactions,
   MAX_TRANSACTION_BYTES,
+  TREASURY_VAULT_INDEX,
+  transactionSize,
+  vaultPdaAt,
 } from '../solana/squads.ts';
-import type { ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote } from '../solana/types.ts';
+import type { Cluster, ConfirmedInvoice, InvoiceFields, PartnerPayoutEvent, Policy, RouteQuote, VaultInfo } from '../solana/types.ts';
+import type { ShareRecord } from './doc-store.ts';
 import { quoteRoutes, POLICIES } from '../route-engine/index.ts';
 import { createKytStub, evaluatePolicy, TIER_LIMITS, type EnginePolicyResult } from '../route-engine/policy.ts';
 import { isQuoteExpired, routeKindOf, type RouteKind } from '../route-engine/quote.ts';
@@ -71,6 +75,7 @@ import {
   type BankVerification,
   type EvidenceRecord,
   type InvoiceRecord,
+  type MoveRecord,
   type OrgRecord,
   type PaymentRecord,
   type PreparedApproval,
@@ -100,6 +105,13 @@ export const CHECK_LABELS: Record<string, string> = {
   quote_expiry: 'Quote still valid',
   bank_details_verified: 'Bank details verified',
   amount_covers_invoice: 'Supplier receives the full invoice amount',
+};
+
+/** The same rules, in a transfer's words: there is no invoice, only a reference. */
+const TRANSFER_CHECK_LABELS: Record<string, string> = {
+  duplicate_invoice: 'Not sent before (same recipient, amount and reference)',
+  bank_details_verified: 'Recipient bank details verified',
+  amount_covers_invoice: 'Recipient receives the full amount',
 };
 
 /* ------------------------------------------------------------------ helpers */
@@ -137,7 +149,66 @@ function getInvoice(orgId: string, invoiceId: string): InvoiceRecord {
   return inv;
 }
 
-function requireVault(org: OrgRecord) {
+/**
+ * Where a person follows something on Solscan (first) or Solana Explorer. Null offline, and for a
+ * simulated signature: it exists on no network, and a link to nothing would look like proof.
+ */
+export function traceLinks(kind: 'tx' | 'account', id: string, simulated: boolean): { solscanUrl: string | null; explorerUrl: string | null } {
+  const rt = runtime();
+  if (rt.env.mode !== 'devnet' || simulated) return { solscanUrl: null, explorerUrl: null };
+  return kind === 'tx'
+    ? { solscanUrl: solscanTx(id, rt.env.cluster), explorerUrl: explorerTxUrl(id, rt.env.cluster) }
+    : { solscanUrl: solscanAccount(id, rt.env.cluster), explorerUrl: explorerAddressUrl(id, rt.env.cluster) };
+}
+
+/**
+ * Everything needed to trace one payment on Solscan without Splash: the memo every one of its
+ * transactions carries, and the accounts it touched. The deposit is listed only for the Solana
+ * direct route (a CCTP route's deposit is on Polygon, not on Solscan).
+ */
+function paymentTrace(p: PaymentRecord) {
+  const org = store().orgs.get(p.orgId);
+  const vault = org?.vault;
+  const rt = runtime();
+  const accounts: Array<{ label: string; address: string; solscanUrl: string | null; explorerUrl: string | null }> = [];
+  if (vault) {
+    const ata = getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(vault.vaultPda)).toBase58();
+    accounts.push({ label: 'Your vault', address: vault.vaultPda, ...traceLinks('account', vault.vaultPda, vault.simulated) });
+    accounts.push({ label: 'Your vault’s USDC account', address: ata, ...traceLinks('account', ata, vault.simulated) });
+  }
+  const q = p.selectedQuoteId ? findQuote(p, p.selectedQuoteId) : null;
+  if (q && routeKindOf(q) === 'solana_direct') {
+    accounts.push({ label: 'Payout partner deposit', address: q.target.depositAddress, ...traceLinks('account', q.target.depositAddress, vault?.simulated ?? true) });
+  }
+  return { memo: buildPaymentMemo(p.id), accounts };
+}
+
+/** A move between the company's own vaults, as the screens show it. */
+export function moveSummary(m: MoveRecord) {
+  const last = [...m.calls].reverse().find((c) => c.step === 'execute') ?? m.calls[m.calls.length - 1] ?? null;
+  const simulated = runtime().env.mode === 'offline';
+  return {
+    id: m.id,
+    from: m.from,
+    to: m.to,
+    amountMinor: m.amountMinor,
+    memo: m.memo,
+    state: m.state,
+    createdAt: m.createdAt,
+    updatedAt: m.updatedAt,
+    createdBy: m.createdBy,
+    approvedBy: m.approvedBy,
+    problem: m.problem,
+    signature: last ? { signature: last.signature, step: last.step, simulated, ...traceLinks('tx', last.signature, simulated) } : null,
+  };
+}
+
+/** The company's treasury: vault #1 of its own multisig (vault #0 pays suppliers). */
+export function treasuryVaultPda(multisigPda: string): string {
+  return vaultPdaAt(new PublicKey(multisigPda), TREASURY_VAULT_INDEX).toBase58();
+}
+
+export function requireVault(org: OrgRecord) {
   if (!org.vault) throw new ServiceError('vault_missing', 'Create your vault first.', 409);
   return org.vault;
 }
@@ -277,13 +348,90 @@ export async function createVault(orgId: string) {
   return org.vault;
 }
 
+/* ------------------------------------------------------------------ the signed-in company */
+
+export interface AccountCompany {
+  /** The dashboard organization's id: the same company, not a copy of it. */
+  orgId: string;
+  companyName: string;
+  /** The signed-in person, shown on approvals they make. */
+  personName: string;
+  /** The vault the setup recorded (org_vaults), or null before setup. */
+  vault: (VaultInfo & { createdAt: string; signature: string; simulated: boolean; cluster: Cluster }) | null;
+  /** This member's own device key (member_devices), or null before setup. */
+  deviceKey: string | null;
+}
+
+/**
+ * The dashboard's organization IS the Solana app's company (prompt 07 §6.2). Who it is, its vault and
+ * the member's device come from what account setup wrote (org_vaults, member_devices); this makes the
+ * working copy agree with that on every request. The salt, verified suppliers and fundings are the
+ * company's own documents (company.ts) and are kept.
+ *
+ * Offline, a vault the database recorded but this process never saw (the dev server restarted) is put
+ * back into the simulator at its last used transaction index, with no simulated money.
+ */
+export async function syncAccountCompany(input: AccountCompany): Promise<OrgRecord> {
+  const s = store();
+  let org = s.orgs.get(input.orgId);
+  if (!org) {
+    org = { id: input.orgId, companyName: input.companyName, personName: input.personName, createdAt: nowIso(), saltHex: randomHex(32), challenges: {}, keys: {}, suppliers: [], dailyDebits: {}, seenCommitments: [], fundings: [], suspended: null };
+    s.orgs.set(org.id, org);
+  }
+  org.companyName = input.companyName;
+  org.personName = input.personName;
+  if (input.deviceKey && org.keys.device?.publicKey !== input.deviceKey) org.keys.device = { publicKey: input.deviceKey, provenAt: nowIso() };
+  if (input.vault) {
+    org.vault = input.vault;
+    const kit = input.vault.members.find((m) => m.role === 'recovery_kit_a');
+    if (kit && org.keys.kit?.publicKey !== kit.publicKey) org.keys.kit = { publicKey: kit.publicKey, provenAt: input.vault.createdAt };
+    const rt = runtime();
+    if (isSimulator(rt.chain) && input.vault.simulated && !(await rt.chain.getMultisig(new PublicKey(input.vault.multisigPda)))) {
+      const used = (await rt.payments.listByOrg(org.id)).reduce((max, p) => (p.transactionIndex !== null && p.transactionIndex > max ? p.transactionIndex : max), 0n);
+      rt.chain.restoreVault({ multisigPda: input.vault.multisigPda, threshold: input.vault.threshold, members: input.vault.members.map((m) => m.publicKey), transactionIndex: used });
+      // Simulated money does not survive a restart, and the old fundings are no longer in the vault.
+      org.fundings = [];
+    }
+  }
+  return org;
+}
+
+/* ------------------------------------------------------------------ receipt share links */
+
+/**
+ * A link a business hands its auditor: it opens this one receipt (the record, its verify steps, the
+ * Solscan trace and the evidence pack) without signing in, and nothing else. One live link per
+ * receipt; minting again returns it. The token is 128 random bits.
+ */
+export function shareReceipt(orgId: string, receiptId: string, by: string, now = new Date()): ShareRecord {
+  const e = getEvidence(receiptId);
+  if (e.orgId !== orgId) throw new ServiceError('receipt_not_found', 'That receipt is not on the server for this company.', 404);
+  const s = store();
+  for (const sh of s.shares.values()) if (sh.receiptId === receiptId && sh.revokedAt === null) return sh;
+  const share: ShareRecord = { token: `shr_${randomHex(16)}`, receiptId, orgId, createdAt: nowIso(now), createdBy: by, revokedAt: null };
+  s.shares.set(share.token, share);
+  return share;
+}
+
+/** The live share behind a token, or a not-found error that says nothing about why. */
+export function openShare(token: string): ShareRecord {
+  const share = store().shares.get(token);
+  if (!share || share.revokedAt !== null) throw new ServiceError('receipt_not_found', 'This receipt link is not valid. Ask the business that shared it for a new one.', 404);
+  return share;
+}
+
+/** A receipt only its own company may read. */
+export function assertReceiptOf(receiptId: string, orgId: string): void {
+  if (getEvidence(receiptId).orgId !== orgId) throw new ServiceError('receipt_not_found', 'That receipt is not on the server for this company.', 404);
+}
+
 /* ------------------------------------------------------------------ funding and summary */
 
 export async function fund(orgId: string) {
   const org = getOrg(orgId);
   const vault = requireVault(org);
   const rt = runtime();
-  if (!(rt.chain instanceof SolanaSimulator)) {
+  if (!isSimulator(rt.chain)) {
     throw new ServiceError('devnet_fund_manual', 'On devnet, send test USDC to your vault from the Circle faucet.', 409, {
       vaultAddress: vault.vaultPda,
       faucetUrl: CIRCLE_FAUCET_URL,
@@ -298,19 +446,37 @@ export async function orgSummary(orgId: string) {
   const org = getOrg(orgId);
   const rt = runtime();
   const balanceMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
-  const payments = (await rt.payments.listByOrg(org.id)).map((p) => {
-    const inv = store().invoices.get(p.invoiceId);
-    return {
-      id: p.id,
-      state: p.state,
-      stateLabel: STATE_LABEL[p.state],
-      supplierName: inv?.confirmed?.supplierName ?? '',
-      amountPhpMinor: p.payout.amountPhpMinor,
-      receiptId: p.receiptId,
-      createdAt: p.createdAt,
-    };
-  });
+  const payments = (await rt.payments.listByOrg(org.id))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+    .map((p) => {
+      const inv = store().invoices.get(p.invoiceId);
+      const execute = p.signatures.find((s) => s.purpose === 'squads_vault_execute') ?? null;
+      return {
+        id: p.id,
+        /** An invoice Zeke read, or a transfer a person typed in (its "invoice number" is the reference). */
+        kind: inv?.source === 'transfer' ? ('transfer' as const) : ('invoice' as const),
+        state: p.state,
+        stateLabel: STATE_LABEL[p.state],
+        supplierName: inv?.confirmed?.supplierName ?? '',
+        invoiceNumber: inv?.confirmed?.invoiceNumber ?? null,
+        dueDate: inv?.confirmed?.dueDate ?? null,
+        amountPhpMinor: p.payout.amountPhpMinor,
+        youPayUsdcMinor: p.approval?.youPayUsdcMinor ?? null,
+        receiptId: p.receiptId,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        /** Waiting for a person to approve on a device (the first approval, or the next one on a 2-of-N vault). */
+        awaitingApproval: p.state === 'checked' || p.state === 'proposed',
+        approvals: { approved: p.approvedBy.length, threshold: p.threshold },
+        execute: execute ? { signature: execute.signature, simulated: execute.simulated, ...traceLinks('tx', execute.signature, execute.simulated) } : null,
+        problem: p.problem,
+      };
+    });
   const inFlight = payments.filter((p) => ['proposed', 'approved', 'executed', 'confirmed'].includes(p.state));
+  // Invoices Zeke has read for this company, paid or not: the first stages of the invoice loop.
+  const read = [...store().invoices.values()].filter((i) => i.orgId === org.id && i.source !== 'transfer');
+  const treasuryPda = org.vault ? treasuryVaultPda(org.vault.multisigPda) : null;
+  const treasuryMinor = treasuryPda ? await rt.chain.getUsdcBalance(treasuryPda) : 0n;
   return {
     org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt, suspended: org.suspended },
     mode: rt.env.mode,
@@ -321,12 +487,26 @@ export async function orgSummary(orgId: string) {
       ? {
           ...org.vault,
           usdcTokenAccount: getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(org.vault.vaultPda)).toBase58(),
-          explorerUrl: rt.env.mode === 'devnet' ? explorerAddressUrl(org.vault.vaultPda, rt.env.cluster) : null,
+          ...traceLinks('account', org.vault.vaultPda, org.vault.simulated),
         }
       : null,
     /** The payable total is exactly the sum of the parts. Only the Solana lane exists in this build. */
     balance: { totalMinor: balanceMinor, parts: [{ lane: 'Solana', amountMinor: balanceMinor }], inFlightCount: inFlight.length },
     fundings: org.fundings,
+    /** Vault #1 of the same multisig: the company's operating cash. Moves to and from it are approved on a device. */
+    treasury:
+      org.vault && treasuryPda
+        ? {
+            vaultPda: treasuryPda,
+            vaultIndex: TREASURY_VAULT_INDEX,
+            usdcTokenAccount: getAssociatedTokenAddress(usdcMint(rt.env.cluster), new PublicKey(treasuryPda)).toBase58(),
+            balanceMinor: treasuryMinor,
+            ...traceLinks('account', treasuryPda, org.vault.simulated),
+            fundings: org.treasuryFundings ?? [],
+            moves: (org.moves ?? []).slice().reverse().map(moveSummary),
+          }
+        : null,
+    invoices: { read: read.length, confirmed: read.filter((i) => i.confirmed).length },
     suppliers: org.suppliers.map((x) => ({ name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified.at, method: x.verified.method })),
     limits: { perPaymentUsdcMinor: DEMO_LIMITS.perPaymentUsdcMinor, dailyUsdcMinor: DEMO_LIMITS.dailyUsdcMinor, usedTodayUsdcMinor: org.dailyDebits[utcDay(new Date())] ?? 0n },
     payments,
@@ -434,6 +614,84 @@ export function confirmInvoice(
   return confirmed;
 }
 
+/* ------------------------------------------------------------------ transfer (no invoice) */
+
+const TRANSFER_FIELDS: InvoiceFieldName[] = ['supplierName', 'invoiceNumber', 'amountPhpMinor', 'dueDate', 'supplierBank', 'supplierAccountLast4'];
+
+/**
+ * A transfer with no invoice: the person types who and how much, and it runs the same path as an
+ * invoice from here (quote, rules, one approval on the device, proof). Nothing is read, so Zeke drafts
+ * nothing ("extractor: none"); the person who typed it confirms every field by sending it. A new
+ * recipient still needs its bank details verified by call-back, the same rule as a new supplier.
+ */
+export function startTransfer(
+  orgId: string,
+  input: {
+    recipient: { name: string; bank: string; accountLast4: string };
+    amountPhpMinor: string;
+    reference?: string | null;
+    verification?: { by: string; method: 'call-back' | 'supplier-account' } | null;
+    by?: string;
+  },
+  now = new Date(),
+): InvoiceRecord {
+  const org = getOrg(orgId);
+  requireVault(org);
+  const day = utcDay(now);
+  const reference = (input.reference ?? '').trim() || `TRF-${day.replaceAll('-', '')}-${randomHex(2).toUpperCase()}`;
+  let amount: bigint;
+  try {
+    amount = BigInt(input.amountPhpMinor);
+  } catch {
+    throw new ServiceError('bad_request', 'The amount is not a valid number of centavos.');
+  }
+  const candidate = {
+    invoiceNumber: reference,
+    supplierName: input.recipient.name.trim(),
+    supplierBank: input.recipient.bank.trim(),
+    supplierAccountLast4: input.recipient.accountLast4.trim(),
+    amountPhpMinor: amount,
+    dueDate: day,
+  };
+  const parsed = InvoiceFieldsSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const bad = parsed.error.issues.map((i) => ({ invoiceNumber: 'reference (letters, digits, - / .)', supplierName: 'recipient name', supplierBank: 'bank', supplierAccountLast4: 'last four account digits', amountPhpMinor: 'amount' })[String(i.path[0])] ?? String(i.path[0]));
+    throw new ServiceError('bad_request', `Check the ${[...new Set(bad)].join(', ')}.`, 422);
+  }
+  const fields = parsed.data as InvoiceFields;
+  const { status } = bankStatusFor(org, fields);
+  const inv: InvoiceRecord = {
+    id: `inv_${randomHex(8)}`,
+    orgId: org.id,
+    createdAt: nowIso(now),
+    source: 'transfer',
+    draft: {
+      draft: true,
+      extractor: 'none',
+      fields,
+      sources: {},
+      suspicious: false,
+      suspiciousReasons: [],
+      needsConfirmation: TRANSFER_FIELDS,
+      notes: [`Typed in by ${input.by?.trim() || org.personName} for a transfer. No invoice document; nothing was read.`],
+    },
+    bankStatus: status,
+    bankVerification: null,
+    confirmed: null,
+    saltHex: null,
+  };
+  store().invoices.set(inv.id, inv);
+  if (status !== 'known' && input.verification) {
+    verifyBank(orgId, inv.id, { by: input.verification.by, method: input.verification.method, bank: fields.supplierBank, accountLast4: fields.supplierAccountLast4 });
+  }
+  confirmInvoice(orgId, inv.id, {
+    fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, String(v)])),
+    confirmed: TRANSFER_FIELDS,
+    confirmedBy: input.by,
+  });
+  return inv;
+}
+
 /* ------------------------------------------------------------------ payments: state and helpers */
 
 /**
@@ -464,7 +722,7 @@ async function cas<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function serializeIx(ix: TransactionInstruction): SerializedInstruction {
+export function serializeIx(ix: TransactionInstruction): SerializedInstruction {
   return {
     programId: ix.programId.toBase58(),
     keys: ix.keys.map((k) => ({ pubkey: k.pubkey.toBase58(), isSigner: k.isSigner, isWritable: k.isWritable })),
@@ -472,7 +730,7 @@ function serializeIx(ix: TransactionInstruction): SerializedInstruction {
   };
 }
 
-function deserializeIx(s: SerializedInstruction): TransactionInstruction {
+export function deserializeIx(s: SerializedInstruction): TransactionInstruction {
   return new TransactionInstruction({
     programId: new PublicKey(s.programId),
     keys: s.keys.map((k) => ({ pubkey: new PublicKey(k.pubkey), isSigner: k.isSigner, isWritable: k.isWritable })),
@@ -554,8 +812,20 @@ export async function quote(orgId: string, invoiceId: string, opts: { now?: Date
     homeChain: 'solana',
   });
   if (!POLICIES.some((p) => engine.picks[p])) {
-    const short = engine.excluded.some((e) => e.reason === 'insufficient_balance');
-    if (short) throw new ServiceError('insufficient_balance', 'Your Solana balance is too low for this invoice. Add USDC to your vault, then get a new quote.', 409);
+    const needs = engine.excluded.flatMap((e) => (e.reason === 'insufficient_balance' && e.neededMinor !== undefined ? [e.neededMinor] : []));
+    if (needs.length) {
+      // The cheapest route's need, so the shortfall is the least that unblocks this payment.
+      const neededMinor = needs.reduce((a, b) => (b < a ? b : a));
+      const treasuryMinor = await rt.chain.getUsdcBalance(treasuryVaultPda(vault.multisigPda));
+      const what = inv.source === 'transfer' ? 'this transfer' : 'this invoice';
+      throw new ServiceError('insufficient_balance', `Your payments vault is short for ${what}. Move USDC in from your treasury or add USDC, then get a new quote.`, 409, {
+        invoiceId: inv.id,
+        balanceUsdcMinor: balance.toString(),
+        neededUsdcMinor: neededMinor.toString(),
+        shortUsdcMinor: (neededMinor - balance).toString(),
+        treasuryUsdcMinor: treasuryMinor.toString(),
+      });
+    }
     throw new ServiceError('no_route', 'No route can pay this invoice right now. Try again in a minute.', 409);
   }
   const allQuotes = POLICIES.flatMap((p) => engine.ranked[p]);
@@ -645,7 +915,9 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
   const lane = laneOf(kind);
   const arrival = arrivalOf(q);
   const covers = policy.extraChecks.find((x) => x.name === 'amount_covers_invoice');
-  const checks = [...policy.checks, ...policy.extraChecks].map((x) => ({ name: x.name, label: CHECK_LABELS[x.name] ?? x.name, passed: x.passed, detail: x.detail }));
+  const transfer = inv.source === 'transfer';
+  const label = (name: string) => (transfer && TRANSFER_CHECK_LABELS[name]) || CHECK_LABELS[name] || name;
+  const checks = [...policy.checks, ...policy.extraChecks].map((x) => ({ name: x.name, label: label(x.name), passed: x.passed, detail: x.detail }));
   return {
     paymentId: p.id,
     quoteId: q.id,
@@ -676,7 +948,8 @@ function buildApprovalCard(p: PaymentRecord, q: RouteQuote, policy: EnginePolicy
     policy: { allowed: policy.allowed, checks, kytLabel: policy.kyt.label },
     signerPublicKey: org.keys.device!.publicKey,
     depositAddress: q.target.depositAddress,
-    draftedBy: 'Zeke',
+    draftedBy: transfer ? c.confirmedBy : 'Zeke',
+    kind: transfer ? 'transfer' : 'invoice',
     simulated: runtime().env.mode === 'offline',
   };
 }
@@ -720,7 +993,7 @@ function problemFromPolicy(policy: EnginePolicyResult): { code: string; message:
 /* ------------------------------------------------------------------ approve and execute */
 
 /** The refuse-service switch (§5.6): a suspended company gets no Kora signature and no new proposal. */
-function assertServiceable(orgId: string) {
+export function assertServiceable(orgId: string) {
   const org = getOrg(orgId);
   if (org.suspended) {
     throw new ServiceError('org_suspended', 'Splash has paused service for this company, so nothing new can be sent. Your money stays in your vault, which only your approvers control. Contact support.', 403);
@@ -732,7 +1005,7 @@ function approverKeys(org: OrgRecord): string[] {
   return (org.vault?.members ?? []).filter((m) => m.role === 'admin_device' || m.role === 'approver_device').map((m) => m.publicKey);
 }
 
-async function budgeted(feePayer: PublicKey, ixs: TransactionInstruction[], blockhash: string, fallbackLimit: number, simulateFirst: boolean): Promise<{ ixs: TransactionInstruction[]; unitLimit: number; microLamports: bigint }> {
+export async function budgeted(feePayer: PublicKey, ixs: TransactionInstruction[], blockhash: string, fallbackLimit: number, simulateFirst: boolean): Promise<{ ixs: TransactionInstruction[]; unitLimit: number; microLamports: bigint }> {
   const rt = runtime();
   const writable = [...new Map(ixs.flatMap((ix) => ix.keys.filter((k) => k.isWritable).map((k) => [k.pubkey.toBase58(), k.pubkey] as const))).values()];
   const estimate = await rt.chain.getPriorityFeeEstimate(writable);
@@ -868,6 +1141,9 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
   const approvalsAfter = p.approvedBy.length + (p.state === 'checked' || p.state === 'proposed' ? 1 : 0);
   const includesExecute = approvalsAfter >= p.threshold;
   const messages: PreparedMessage[] = [];
+  // Every transaction of this payment carries its memo at the top level, so each one reads
+  // "splash:pay:v1:<paymentId>" in its Solscan program logs, not only the execute.
+  const traceMemo = () => buildMemoInstruction(buildPaymentMemo(p.id));
 
   let transactionIndex = p.transactionIndex;
   let routePlan: { kind: RouteKind; transferAmount: bigint; splashFee: bigint; vault: TransactionInstruction[]; pre: TransactionInstruction[]; post: TransactionInstruction[]; ephemeralSigners: number };
@@ -875,14 +1151,22 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
     transactionIndex = await rt.chain.getNextTransactionIndex(multisigPda);
     routePlan = buildRoutePlan(p, q, vault, feePayer, keys, transactionIndex);
     const proposal = buildVaultProposal({ multisigPda, transactionIndex, member, feePayer, innerInstructions: routePlan.vault, ephemeralSigners: routePlan.ephemeralSigners });
+    const placeholder = computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n });
+    const fits = (ixs: TransactionInstruction[]) => transactionSize(buildSponsoredTransaction(feePayer, ixs, blockhash)) <= MAX_TRANSACTION_BYTES;
     let groups: TransactionInstruction[][];
     try {
-      groups = groupProposalTransactions(proposal, feePayer, blockhash, computeBudgetInstructions({ unitLimit: DEFAULT_UNIT_LIMITS.proposal, microLamports: 1n }));
-    } catch (e) {
-      throw new ServiceError('transaction_too_large', `This payment does not fit in a Solana transaction: ${(e as Error).message}`, 500);
+      groups = groupProposalTransactions(proposal, feePayer, blockhash, [...placeholder, traceMemo()]);
+    } catch {
+      // A CCTP vault transaction leaves no room for a memo beside vaultTransactionCreate. Group
+      // without it, then give the memo to every transaction that still has room.
+      try {
+        groups = groupProposalTransactions(proposal, feePayer, blockhash, placeholder).map((g) => (fits([...g, traceMemo()]) ? [...g, traceMemo()] : g));
+      } catch (e) {
+        throw new ServiceError('transaction_too_large', `This payment does not fit in a Solana transaction: ${(e as Error).message}`, 500);
+      }
     }
     for (const [i, raw] of groups.entries()) {
-      const body = raw.slice(2); // the grouping included a compute budget placeholder for sizing
+      const body = raw.slice(2); // the grouping included a compute budget placeholder for sizing; the memo stays
       const budget = await budgeted(feePayer, body, blockhash, DEFAULT_UNIT_LIMITS.proposal, i === 0);
       const purposes: ProposalPurpose[] = [];
       if (body.includes(proposal.create)) purposes.push('squads_proposal_create');
@@ -901,7 +1185,7 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
       ephemeralSigners: p.plan.ephemeralSigners,
     };
     if (p.state === 'proposed') {
-      const budget = await budgeted(feePayer, [buildProposalApprove(multisigPda, transactionIndex, member)], blockhash, DEFAULT_UNIT_LIMITS.proposal, true);
+      const budget = await budgeted(feePayer, [buildProposalApprove(multisigPda, transactionIndex, member), traceMemo()], blockhash, DEFAULT_UNIT_LIMITS.proposal, true);
       messages.push(preparedMessage(`m${messages.length}`, 'approve', `approve:${signerKey.slice(0, 16)}`, buildSponsoredTransaction(feePayer, budget.ixs, blockhash), lastValidBlockHeight, ['squads_proposal_approve'], budget, member));
     }
   }
@@ -935,7 +1219,7 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
 type SendOutcome = { status: 'confirmed' | 'finalized'; signature: string } | { status: 'failed'; signature: string | null; error: string; logs: string[] } | { status: 'expired'; signature: string } | { status: 'pending'; signature: string };
 
 /** How long a request waits for `confirmed` before answering "still checking". Offline: no wait. */
-function confirmWaitMs(): number {
+export function confirmWaitMs(): number {
   return runtime().env.mode === 'offline' ? 0 : 45_000;
 }
 
@@ -996,9 +1280,11 @@ const UNCERTAIN = { code: 'uncertain', message: "Checking whether this payment w
  * Execute only with the device key's signature on every prepared transaction (I-4). Signatures are
  * checked before anything is sent; a missing or wrong one sends nothing.
  */
-export async function submitApproval(paymentId: string, input: { signatures?: Array<{ id: string; signature: string }> }, now = new Date()): Promise<PaymentRecord> {
+export async function submitApproval(paymentId: string, input: { signatures?: Array<{ id: string; signature: string }>; who?: string }, now = new Date()): Promise<PaymentRecord> {
   let p = await getPayment(paymentId);
   assertServiceable(p.orgId);
+  // The approver's name on the record: the signed-in person, else the company's contact (the demo).
+  const who = input.who?.trim() || getOrg(p.orgId).personName;
   if (!['checked', 'proposed', 'approved', 'execute_failed'].includes(p.state)) throw new ServiceError('wrong_state', 'This payment is not waiting for approval.', 409);
   const prepared = p.prepared;
   if (!prepared) throw new ServiceError('not_prepared', 'Nothing to sign yet. Press approve again.', 409);
@@ -1090,8 +1376,8 @@ export async function submitApproval(paymentId: string, input: { signatures?: Ar
       d.approvedBy = approvedBy;
       d.pendingApprover = null;
       d.signatures.push(...records);
-      if (first) d.approvals.push({ who: org.personName, role: 'admin_device', action: 'propose', at, keyPublic: prepared.signer, policyResult });
-      d.approvals.push({ who: org.personName, role: roleOf(org, prepared.signer), action: 'approve', at, keyPublic: prepared.signer, policyResult });
+      if (first) d.approvals.push({ who, role: 'admin_device', action: 'propose', at, keyPublic: prepared.signer, policyResult });
+      d.approvals.push({ who, role: roleOf(org, prepared.signer), action: 'approve', at, keyPublic: prepared.signer, policyResult });
       if (!met) d.prepared = null;
     }, met ? 'threshold met' : `approval ${approvedBy.length} of ${p.threshold}`, now));
   }
@@ -1102,7 +1388,7 @@ export async function submitApproval(paymentId: string, input: { signatures?: Ar
     if (p.state === 'execute_failed') {
       p = await cas(() => repo().transition(p.id, { from: 'execute_failed', version: p.version }, 'approved', (d) => { d.problem = null; }, 'execute rebuilt', now));
     }
-    p = await executeStep(p, exec.m, exec.tx, prepared, q, now);
+    p = await executeStep(p, exec.m, exec.tx, prepared, q, who, now);
   }
   return p;
 }
@@ -1111,7 +1397,7 @@ function roleOf(org: OrgRecord, key: string): 'admin_device' | 'approver_device'
   return org.vault?.members.find((m) => m.publicKey === key)?.role === 'approver_device' ? 'approver_device' : 'admin_device';
 }
 
-async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTransaction, prepared: PreparedApproval, q: RouteQuote, now: Date): Promise<PaymentRecord> {
+async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTransaction, prepared: PreparedApproval, q: RouteQuote, who: string, now: Date): Promise<PaymentRecord> {
   const org = getOrg(p.orgId);
   const policyResult = { allowed: p.policy!.allowed, reasons: p.policy!.reasons, checks: p.policy!.checks };
   const out = await sendStep(p, m.step, tx, m.lastValidBlockHeight, async (signature) => {
@@ -1120,7 +1406,7 @@ async function executeStep(p: PaymentRecord, m: PreparedMessage, tx: VersionedTr
       d.execution.signature = signature;
       d.timeline.sentAt = nowIso();
       d.prepared = null;
-      d.approvals.push({ who: org.personName, role: roleOf(org, prepared.signer), action: 'execute', at: nowIso(), keyPublic: prepared.signer, policyResult });
+      d.approvals.push({ who, role: roleOf(org, prepared.signer), action: 'execute', at: nowIso(), keyPublic: prepared.signer, policyResult });
       d.signatures.push(signatureRecord('squads_vault_execute', signature), signatureRecord(prepared.kind === 'solana_direct' ? 'spl_transfer' : 'cctp_burn', signature));
       d.executedRoute = { quoteId: q.id, network: q.target.network, depositAddress: q.target.depositAddress, amountMinor: prepared.transferAmountMinor, steps: q.steps };
     }, 'execute broadcast', now));
@@ -1257,7 +1543,7 @@ export async function noteProblem(paymentId: string, problem: { code: string; me
  * Take one of the org's sponsored transactions for today before Kora is asked (§5.6). Refused when
  * the day's cap is reached: nothing is signed. The cap is the sponsor policy's (kora.toml).
  */
-async function takeSponsorSlot(orgId: string, now = new Date()): Promise<{ release: () => Promise<void> }> {
+export async function takeSponsorSlot(orgId: string, now = new Date()): Promise<{ release: () => Promise<void> }> {
   const rt = runtime();
   const cap = ((rt.chain as { policy?: SponsorPolicy }).policy ?? defaultSponsorPolicy(usdcMint(rt.env.cluster).toBase58())).perOrgDailyTxCap;
   const day = utcDay(now);
@@ -1295,7 +1581,7 @@ export async function observeDeposit(paymentId: string, now = new Date()): Promi
   if (p.state !== 'confirmed' || !p.executedRoute) throw new ServiceError('wrong_state', 'Nothing has landed for this payment yet.', 409);
   const rt = runtime();
   const route = p.executedRoute;
-  if (p.rehearsal === 'partner_return' && rt.chain instanceof SolanaSimulator) {
+  if (p.rehearsal === 'partner_return' && isSimulator(rt.chain)) {
     // Offline rehearsal: the mock partner returns the payment and sends the USDC back (simulated).
     await rt.chain.fundUsdc(getOrg(p.orgId).vault!.vaultPda, route.amountMinor);
     getOrg(p.orgId).fundings.push({ signature: 'simulated-return', amountMinor: route.amountMinor, at: nowIso(now), simulated: true, note: 'Returned by mock partner (simulated)' });
@@ -1305,7 +1591,7 @@ export async function observeDeposit(paymentId: string, now = new Date()): Promi
   if (route.network === 'solana') {
     arrived = await rt.chain.getUsdcBalance(route.depositAddress);
   } else {
-    if (!(rt.chain instanceof SolanaSimulator)) throw new ServiceError('devnet_not_supported', 'Watching Polygon is not built yet.', 409);
+    if (!isSimulator(rt.chain)) throw new ServiceError('devnet_not_supported', 'Watching Polygon is not built yet.', 409);
     const execSig = p.signatures.find((s) => s.purpose === 'cctp_burn')?.signature;
     const burn = rt.chain.burns.find((b) => b.signature === execSig);
     if (!burn) throw new ServiceError('wrong_state', 'No burn found for this payment.', 409);
@@ -1452,7 +1738,7 @@ async function buildEvidence(p: PaymentRecord): Promise<EvidenceRecord> {
   assertAttesterIsolated(rt.attester.publicKey.toBase58(), [org.vault!]);
   const anchorPlan = buildMemoAnchor({ attester: rt.attester.publicKey.toBase58(), rootHex: batch.rootHex, count: batch.count });
   let anchor: EvidenceRecord['anchor'];
-  if (rt.chain instanceof SolanaSimulator) {
+  if (isSimulator(rt.chain)) {
     // Offline: the attester signs the memo transaction; the signature is the simulator's deterministic one (I-7).
     const msg = new TransactionMessage({ payerKey: rt.attester.publicKey, recentBlockhash: await rt.chain.getLatestBlockhash(), instructions: [anchorPlan.instruction] }).compileToV0Message();
     const tx = new VersionedTransaction(msg);
@@ -1500,7 +1786,6 @@ export async function paymentView(paymentId: string) {
   const p = await getPayment(paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const rt = runtime();
-  const devnet = rt.env.mode === 'devnet';
   // At most three cards. Picks that are the same route at the same price share one card; if no pick
   // uses the CCTP lane, its best quote gets the last card so both lanes are visible.
   type Card = ReturnType<typeof cardFor>;
@@ -1541,7 +1826,6 @@ export async function paymentView(paymentId: string) {
     const cctp = POLICIES.flatMap((x) => p.engine.ranked[x]).filter((q) => q.target.network === 'polygon').sort((a, b) => (a.source.amountMinor < b.source.amountMinor ? -1 : a.source.amountMinor > b.source.amountMinor ? 1 : 0))[0];
     if (cctp) cards.push({ ...cardFor(cctp, [cctp.policy]), label: 'Via Polygon' });
   }
-  const explorer = (sig: string, simulated: boolean) => (devnet && !simulated ? explorerTxUrl(sig, rt.env.cluster) : null);
   // Zeke Checker: the deterministic results in plain words. It explains; it never decides.
   const checker = p.policy ? explainChecks({ tier: DEMO_TIER, checks: p.policy.checks, extraChecks: p.policy.extraChecks, screeningLabel: p.policy.kyt.label }) : null;
   if (checker) assertDraftOnly(checker);
@@ -1551,7 +1835,7 @@ export async function paymentView(paymentId: string) {
     stateLabel: STATE_LABEL[p.state],
     createdAt: p.createdAt,
     simulated: rt.env.mode === 'offline',
-    invoice: { id: inv.id, confirmed: inv.confirmed },
+    invoice: { id: inv.id, source: inv.source, confirmed: inv.confirmed },
     cards,
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,
@@ -1560,7 +1844,8 @@ export async function paymentView(paymentId: string) {
     rehearsal: p.rehearsal,
     timeline: p.timeline,
     finalized: p.execution.finalizedAt !== null,
-    signatures: p.signatures.map((s) => ({ ...s, explorerUrl: explorer(s.signature, s.simulated) })),
+    signatures: p.signatures.map((s) => ({ ...s, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+    trace: paymentTrace(p),
     partnerEvents: p.partnerEvents.map((e) => ({ status: e.status, at: e.at, bankReference: e.bankReference ?? null })),
     partnerLabel: rt.partner.entry.name,
     receiptId: p.receiptId,
@@ -1599,7 +1884,6 @@ export async function receiptView(receiptId: string) {
   const inv = getInvoice(p.orgId, p.invoiceId);
   const org = getOrg(p.orgId);
   const rt = runtime();
-  const devnet = rt.env.mode === 'devnet';
   return {
     receiptId: e.receiptId,
     paymentId: e.paymentId,
@@ -1620,9 +1904,22 @@ export async function receiptView(receiptId: string) {
     leafHex: e.leafHex,
     proof: e.proof,
     batch: e.batch,
-    anchor: { ...e.anchor, explorerUrl: devnet && e.anchor.signature ? explorerTxUrl(e.anchor.signature, rt.env.cluster) : null },
-    stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes },
+    anchor: { ...e.anchor, ...(e.anchor.signature ? traceLinks('tx', e.anchor.signature, e.anchor.simulated) : { solscanUrl: null, explorerUrl: null }) },
+    signatures: p.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+    trace: paymentTrace(p),
+    stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes, ciphertextSha256Hex: e.stored.ciphertextSha256Hex },
   };
+}
+
+/**
+ * The sealed record as stored (Walrus, or the in-memory store offline), for the receipt's "check the
+ * stored copy" step: the browser hashes it and compares with the sha256 recorded at storage. Ciphertext
+ * only. Null when the store no longer has it (the offline store empties on restart).
+ */
+export async function evidenceBlob(receiptId: string) {
+  const e = getEvidence(receiptId);
+  const ciphertext = await runtime().evidence.get(e.stored.blobId).catch(() => null);
+  return { blobId: e.stored.blobId, mode: e.stored.mode, ciphertextSha256Hex: e.stored.ciphertextSha256Hex, ciphertext };
 }
 
 /** The evidence pack a business hands its auditor. Includes the invoice fields and this invoice's salt so the commitment can be recomputed. */
@@ -1641,6 +1938,11 @@ export async function evidencePack(receiptId: string) {
     proof: e.proof,
     batch: e.batch,
     anchor: e.anchor,
+    trace: {
+      ...paymentTrace(p),
+      transactions: p.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+      anchor: e.anchor.signature ? { signature: e.anchor.signature, ...traceLinks('tx', e.anchor.signature, e.anchor.simulated) } : null,
+    },
     invoiceDisclosure: {
       fields: { invoiceNumber: c.invoiceNumber, supplierName: c.supplierName, supplierBank: c.supplierBank, supplierAccountLast4: c.supplierAccountLast4, amountPhpMinor: c.amountPhpMinor, dueDate: c.dueDate, einvoiceRef: c.einvoiceRef },
       saltHex: inv.saltHex,
@@ -1650,6 +1952,7 @@ export async function evidencePack(receiptId: string) {
       'leaf = sha256(utf8("splash.evidence.leaf.v1") || 0x00 || utf8(canonicalJson(bundle))); bigint values are decimal strings',
       'walk proof.siblings bottom-up: node = sha256(utf8("splash.evidence.node.v1") || 0x01 || left || right)',
       'the root must equal the root in the anchor memo "splash:root:v1:<root>:<count>"',
+      'on Solscan (devnet: ?cluster=devnet), every transaction in trace.transactions shows the program log Memo "splash:pay:v1:<paymentId>"; the execute moves USDC from the vault to the payout partner deposit and the Splash fee account, and nowhere else',
     ],
   };
 }

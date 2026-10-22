@@ -154,19 +154,13 @@ test('the invoice-batch card states the fact it follows and invents neither a sc
   assert.match(route, /confidence: null,/);
 });
 
-test('the copilot page labels the score for what it is, and its empty state claims nothing it did not check', async () => {
-  const page = await source('app/dashboard/copilot/page.tsx');
-  assert.doesNotMatch(page, /\?\?\s*0\.6/, 'no 60% for a missing score');
-  assert.match(page, /confidence: confidencePercent\(s\.confidence\)/);
-  assert.match(page, /\{suggestion\.confidence !== null && \(/, 'the label renders only with a score');
-  assert.match(page, /\{suggestion\.confidence\}% memory match/, 'it measures how closely a memory matched');
-  assert.doesNotMatch(page, /% confidence/);
-  // An empty list is not evidence of no unpaid invoices (a batch card needs
-  // two on one corridor) and no balance was ever read.
-  assert.doesNotMatch(page, /no unpaid invoices|idle balances worth/i);
-  assert.match(page, /Nothing to suggest right now\. Ask directly in the chat\./);
-  assert.doesNotMatch(page, /Read from your invoices and treasury/, 'nothing reads the treasury for these cards');
-  assert.match(page, /Drawn from your open invoices\./);
+test('the copilot page merged into Zeke (prompt 07 §6.2): its old address answers 308 there', async () => {
+  await assert.rejects(source('app/dashboard/copilot/page.tsx'), /ENOENT/);
+  const { movedRoute } = await import('../lib/route-moves.ts');
+  assert.equal(movedRoute('/dashboard/copilot'), '/dashboard/zeke');
+  // The Zeke desk shows no score of its own: it states no percentage anywhere.
+  const desk = await source('app/dashboard/zeke/ZekeDesk.tsx');
+  assert.doesNotMatch(desk, /% confidence|\?\?\s*0\.6/);
 });
 
 test('the invoice loop shows a percentage only for a measured score', async () => {

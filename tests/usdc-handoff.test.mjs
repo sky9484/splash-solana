@@ -183,10 +183,12 @@ test('Zeke answers it after the lane refusal and before the model', async () => 
 test('the card links only into Send USDC, which carries its query into Transfer', async () => {
   const thread = code(await readFile(new URL('../components/oxwal/ThreadView.tsx', import.meta.url), 'utf8'));
   assert.match(thread, /item\.handoff\.href\.startsWith\('\/dashboard\/send-usdc\?'\)/);
-  // Send USDC is part of Transfer on the Solana build; the hand-off's query survives the redirect.
-  const page = code(await readFile(new URL('../app/dashboard/send-usdc/page.tsx', import.meta.url), 'utf8'));
-  assert.match(page, /redirect\(suffix \? `\/dashboard\/transfer\?\$\{suffix\}` : '\/dashboard\/transfer'\)/);
-  assert.doesNotMatch(page, /fetch\(|quote/i, 'redirecting is not quoting');
+  // Send USDC is part of Transfer on the Solana build: proxy.ts answers its old address with a 308
+  // (lib/route-moves.ts), and the hand-off's query survives because only the path is rewritten.
+  const { movedRoute } = await import('../lib/route-moves.ts');
+  assert.equal(movedRoute('/dashboard/send-usdc'), '/dashboard/transfer');
+  const proxy = code(await readFile(new URL('../proxy.ts', import.meta.url), 'utf8'));
+  assert.match(proxy, /const target = request\.nextUrl\.clone\(\);\s*target\.pathname = moved;\s*return NextResponse\.redirect\(target, 308\);/);
 });
 
 // ─── Phase 12: more ways to ask, and the model's own way in ─────────────────

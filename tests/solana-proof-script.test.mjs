@@ -17,7 +17,9 @@ test('scripts/solana-devnet-proof.ts --dry-run walks the whole money path offlin
   assert.equal(record.mode, 'offline');
   assert.equal(record.simulated, true);
   assert.deepEqual(record.statePath, ['draft', 'quoted', 'checked', 'proposed', 'approved', 'executed', 'confirmed', 'partner_paid', 'evidenced', 'anchored']);
-  assert.ok(record.chainCalls.every((c) => c.status === 'finalized' && c.explorerUrl === null), 'simulated calls carry no explorer link');
+  assert.ok(record.chainCalls.every((c) => c.status === 'finalized' && c.explorerUrl === null && c.solscanUrl === null), 'simulated calls carry no explorer or Solscan link');
+  assert.equal(record.memo, `splash:pay:v1:${record.paymentId}`, 'the memo to look for on Solscan');
+  assert.equal(record.vault.solscanUrl, null);
   assert.match(record.evidence.sasAttestationAddress, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
   assert.equal(readFileSync('docs/solana-build/devnet-run.json', 'utf8'), before, 'a dry run writes nothing');
 });

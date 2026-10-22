@@ -1,38 +1,24 @@
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { SolanaDashPage } from '@/components/solana/SolanaDashPage';
+import { TreasuryDesk } from '@/components/solana/TreasuryDesk';
 
-import MoneyPathPanel from '@/components/compliance/MoneyPathPanel';
+export const metadata = { title: 'Treasury · Splash' };
+
+const MINOR = /^\d{1,15}$/;
+const BACK = /^\/dashboard\/(invoices|transfer|batch)(\?quote=inv_[0-9a-f]{16})?$/;
 
 /**
- * Treasury is not part of the Solana build.
- *
- * Money sits in the business's own Squads vault; Splash runs no treasury
- * product on this build, so this page shows no balances, no rates and no
- * projections. It keeps the dashboard frame so the nav entry lands somewhere
- * honest instead of a 404.
+ * Treasury (Sky, 13 Oct): the company's operating cash, in vault #1 of its own Squads multisig, and
+ * the moves that fund the payments vault (vault #0) directly. Both vaults are the company's: Splash
+ * holds no key to either, and a person approves every move on a device. `?move=` prefills a move to
+ * the payments vault (a shortfall, in USDC minor units); `?back=` is where to return after it.
  */
-export default function TreasuryPage() {
+export default async function TreasuryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const move = typeof sp.move === 'string' && MINOR.test(sp.move) ? sp.move : null;
+  const back = typeof sp.back === 'string' && BACK.test(sp.back) ? sp.back : null;
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header>
-        <span className="dash-kicker">Working capital</span>
-        <h1 className="dash-title mt-2">Treasury</h1>
-      </header>
-      <section className="dash-block p-6">
-        <h2 className="text-base font-semibold text-[#1F4452]">Not available on this build</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]/90">
-          Your USDC stays in your business&rsquo;s own vault on Solana, and a person on your team approves each payment
-          from it with their device key. This build has no treasury feature, so there are no balances or rates to show
-          here.
-        </p>
-        <Link
-          href="/dashboard"
-          className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--info)] underline-offset-4 hover:underline"
-        >
-          <ArrowLeft size={14} aria-hidden="true" /> Back to the dashboard
-        </Link>
-      </section>
-      <MoneyPathPanel />
-    </div>
+    <SolanaDashPage kicker="Money" title="Treasury" description="Your operating cash, in a second vault of your own multisig. Move it to your payments vault when you need to pay.">
+      <TreasuryDesk prefillMinor={move} back={back} />
+    </SolanaDashPage>
   );
 }

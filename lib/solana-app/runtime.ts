@@ -9,7 +9,8 @@
  *   - the single-use nonce store for proof of possession;
  *   - the evidence store and the key that seals bundles before storing;
  *   - the payment repository (prompt 07 §5.1): Postgres when DATABASE_URL is set (unless
- *     SOLANA_PAYMENT_STORE=memory), so payments survive a restart; memory otherwise.
+ *     SOLANA_PAYMENT_STORE=memory), so payments survive a restart; memory otherwise;
+ *   - the document store for companies, invoices, evidence and share links, chosen the same way.
  *
  * Env read here: `readSolanaEnv` (SPLASH_SOLANA_MODE and friends), DATABASE_URL and
  * SOLANA_PAYMENT_STORE.
@@ -24,6 +25,7 @@ import { chain, resetChain, type ChainClient } from '../solana/simulator.ts';
 import { createMockPartner, type MockPayoutPartner } from '../solana-partner/mock-partner.ts';
 import { InMemoryEvidenceStore } from '../solana-evidence/store.ts';
 import { getDb } from '../db/client.ts';
+import { createMemoryDocStore, createPostgresDocStore, type DocStore } from './doc-store.ts';
 import { createMemoryPaymentRepo, createPostgresPaymentRepo, type PaymentRepo } from './payment-repo.ts';
 import { createMemorySponsorLedger, createPostgresSponsorLedger, type SponsorLedger } from './sponsor-ledger.ts';
 
@@ -45,6 +47,8 @@ export interface SolanaAppRuntime {
   payments: PaymentRepo;
   /** Per-org daily sponsored-transaction counter, checked before Kora (§5.6). Same store as payments. */
   sponsors: SponsorLedger;
+  /** Companies, invoices, evidence and share links (solana_documents). Same store as payments. */
+  docs: DocStore;
 }
 
 function wantsPostgres(source: NodeJS.ProcessEnv): boolean {
@@ -62,6 +66,10 @@ export function paymentRepoFor(source: NodeJS.ProcessEnv): PaymentRepo {
 
 export function sponsorLedgerFor(source: NodeJS.ProcessEnv): SponsorLedger {
   return wantsPostgres(source) ? createPostgresSponsorLedger(getDb()) : createMemorySponsorLedger();
+}
+
+export function docStoreFor(source: NodeJS.ProcessEnv): DocStore {
+  return wantsPostgres(source) ? createPostgresDocStore(getDb()) : createMemoryDocStore();
 }
 
 const G = globalThis as typeof globalThis & { __splashSolanaRuntime?: SolanaAppRuntime };
@@ -89,6 +97,7 @@ export function runtime(source: NodeJS.ProcessEnv = process.env): SolanaAppRunti
     sealKey: globalThis.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']) as Promise<CryptoKey>,
     payments: paymentRepoFor(source),
     sponsors: sponsorLedgerFor(source),
+    docs: docStoreFor(source),
   };
   G.__splashSolanaRuntime = rt;
   return rt;

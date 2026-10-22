@@ -33,6 +33,18 @@ test('devnet links carry the cluster; mainnet-beta links carry none', async () =
   });
 });
 
+test('Solscan, the trace link shown first: devnet carries the cluster, mainnet-beta none', async () => {
+  await withCluster('devnet', (m) => {
+    assert.equal(m.solscanTxUrl(SIGNATURE), `https://solscan.io/tx/${SIGNATURE}?cluster=devnet`);
+    assert.equal(m.solscanAccountUrl(ADDRESS), `https://solscan.io/account/${ADDRESS}?cluster=devnet`);
+    assert.equal(m.solscanTxUrl('a/b?c'), 'https://solscan.io/tx/a%2Fb%3Fc?cluster=devnet');
+  });
+  await withCluster('mainnet-beta', (m) => {
+    assert.equal(m.solscanTxUrl(SIGNATURE), `https://solscan.io/tx/${SIGNATURE}`);
+    assert.equal(m.solscanAccountUrl(ADDRESS), `https://solscan.io/account/${ADDRESS}`);
+  });
+});
+
 test('an unset cluster is devnet, never mainnet', async () => {
   await withCluster(undefined, (m) => assert.equal(m.explorerCluster(), 'devnet'));
 });

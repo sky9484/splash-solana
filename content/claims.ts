@@ -14,9 +14,9 @@ export type Claim = {
 };
 
 export const lockedCopy = {
-  headline: 'Collect USD. Pay Southeast Asia. Keep cash working.',
-  fee: '0.70% to local currency',
-  feeFootnote: 'Flat on every corridor, no fixed fee. USDC transfers are free.',
+  headline: 'Pay suppliers abroad. Prove every payment.',
+  fee: '0.10% Splash fee per payout',
+  feeFootnote: "US$2 minimum. The payout partner's fee is shown before you approve.",
   /** No speed figure (claims rules): the payout partner's rail decides delivery. */
   delivery: 'Varies by bank rail',
   agent: 'Zeke prepares. You approve.',
@@ -50,7 +50,7 @@ export const claims = {
   },
   fee: {
     claim: lockedCopy.fee,
-    evidence: 'Corridor fee table in lib/fx/corridors.ts: 70 bps on every corridor and no fixed fee (pricing decision of 2026-09-26).',
+    evidence: 'lib/route-engine/fees.ts: SPLASH_FEE_BPS is 10 on every route, with a US$2 minimum and an all-in target of 0.33% from US$2,000 (docs/solana-build/DECISIONS.md D-P3-2, awaiting confirmation).',
     status: 'modeled',
   },
   receivable: {

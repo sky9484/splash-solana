@@ -400,9 +400,10 @@ export default function RecipientsPage() {
             <QuickLinksCard
               className="mt-3"
               links={[
-                { label: 'Send USDC to a wallet', href: '/dashboard/send-usdc', icon: Wallet },
-                { label: 'Single transfer', href: '/dashboard/transfer', icon: Send },
-                { label: 'Batch CSV payout', href: '/dashboard/batch', icon: Layers },
+                { label: 'Pay an invoice', href: '/dashboard/invoices', icon: Send },
+                { label: 'Transfer', href: '/dashboard/transfer', icon: Send },
+                { label: 'Batch payout', href: '/dashboard/batch', icon: Layers },
+                { label: 'Balance', href: '/dashboard/fund', icon: Wallet },
               ]}
             />
           </div>

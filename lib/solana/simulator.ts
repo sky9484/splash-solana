@@ -63,6 +63,14 @@ export interface SimulationResult {
   error: string | null;
 }
 
+/**
+ * The offline simulator, decided by its mode rather than `instanceof`: the chain client is shared across
+ * route bundles (globalThis), and a class from another bundle's copy of this module is a different class.
+ */
+export function isSimulator(chain: ChainClient): chain is SolanaSimulator {
+  return chain.mode === 'offline';
+}
+
 export interface ChainClient {
   readonly mode: RunMode;
   readonly cluster: Cluster;
@@ -263,6 +271,23 @@ export class SolanaSimulator implements ChainClient {
       transactionIndex: m.transactionIndex,
       members: m.members.map((x) => ({ publicKey: x.key, mask: x.mask })),
     };
+  }
+
+  /**
+   * Offline only: put back a vault the database recorded but this process never saw (the dev server
+   * restarted; the simulator's ledger is in memory). Members get every permission, as at creation
+   * (squads.ts). The balance starts at zero: simulated money does not survive a restart, and the
+   * screen says "Add test USDC" again. Does nothing if the vault is already here.
+   */
+  restoreVault(input: { multisigPda: string; threshold: number; members: string[]; transactionIndex: bigint }): boolean {
+    if (this.state.multisigs.has(input.multisigPda)) return false;
+    this.state.multisigs.set(input.multisigPda, {
+      threshold: input.threshold,
+      members: input.members.map((key) => ({ key, mask: multisig.types.Permissions.all().mask })),
+      transactionIndex: input.transactionIndex,
+      configAuthority: null,
+    });
+    return true;
   }
 
   async getNextTransactionIndex(multisigPda: PublicKey) {
