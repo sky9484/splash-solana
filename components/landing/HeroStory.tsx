@@ -289,9 +289,9 @@ export default function HeroStory() {
                   {index === 0 ? (
                     <>
                       {/* Coins fly between the map's countries while the opening beat is the one showing. */}
+                      {/* No floating USD and PHP tokens here: the map draws its own $ and EUR corner coins, and the old
+                          tokens sat on top of the EUR one. */}
                       <HeroCoinFlight active={beat === 0} />
-                      <Image src="/cinematic/token-usd.png" alt="" width={1024} height={1024} sizes="(max-width: 1000px) 160px, 13vw" className="lp-token lp-token--usd" />
-                      <Image src="/cinematic/token-php.png" alt="" width={1024} height={1024} sizes="(max-width: 1000px) 118px, 10vw" className="lp-token lp-token--php" />
                     </>
                   ) : null}
                   {index > 0 && index === beat && coin ? (
