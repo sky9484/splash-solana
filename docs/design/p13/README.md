@@ -22,6 +22,7 @@ between the countries on the hero's opening map. Screenshots from a freshly star
 |---|---|---|
 | Hero beat 0 (opening map) | `/isometric/gen/hero-sea-map.webp` | `/isometric/gen/hero-asean-map-2400.webp` |
 | Hero beat 01 | `/isometric/gen/hero-01-zeke-reads-invoice.webp` | `/isometric/gen/hero-01-zeke-reads-invoice-v2.webp` |
+| Hero beat 02 | `/isometric/gen/hero-02-person-approves.webp` | `/isometric/gen/hero-02-person-approves-v2.webp` |
 | Hero beat 03 | `/isometric/gen/hero-03-two-routes.webp` | `/isometric/gen/hero-03-two-routes-v2.webp` |
 | Hero beat 04 | `/isometric/gen/hero-04-receipt-proof.webp` | `/isometric/gen/hero-04-receipt-proof-v2.webp` |
 | Loop 01 Settle | `/isometric/loop-settle-v4.png` | `/isometric/gen/loop-01-corridor.webp` |
@@ -35,8 +36,9 @@ between the countries on the hero's opening map. Screenshots from a freshly star
 `hero-asean-map-960.webp` and `hero-asean-map-1600.webp` are copied for reference only; the page uses the 2400
 source and `next/image` makes the smaller sizes.
 
-Hero beat 02 still shows `/isometric/gen/hero-02-person-approves.webp`: its new door (eight lamps) waits for
-Sky's PNG to be converted.
+Hero beat 02 now shows `/isometric/gen/hero-02-person-approves-v2.webp` (1079 × 1400), Sky's new door with
+exactly eight lamps, converted the same way as the rest of the set. The old `hero-02-person-approves.webp` stays
+because Prompt 12's documents still name it.
 
 ## Files deleted
 
