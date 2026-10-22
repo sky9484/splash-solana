@@ -27,10 +27,36 @@ import type { PaymentState } from './payment-machine.ts';
 export type BankVerification = { by: string; method: 'call-back' | 'supplier-account' | 'existing-record'; at: string };
 
 export interface SupplierRecord {
+  /**
+   * Stable id (`sup_<uuid>`), the recipient's name everywhere: routes, the bank-number vault's
+   * beneficiary_id. Companies saved before it existed get one on first read (ensureSupplierIds).
+   */
+  id: string;
   name: string;
   bank: string;
   accountLast4: string;
   verified: BankVerification;
+  /** The current full number's record in bank_account_secrets (prompt 10 Phase S). Never the number. */
+  secretId?: string;
+  /** New bank details not yet confirmed by a call-back: the recipient reads as "changed" and can't be paid. */
+  pendingCallBack?: { since: string; previousLast4: string };
+}
+
+/** A new recipient id. */
+export const newSupplierId = () => `sup_${globalThis.crypto.randomUUID()}`;
+
+/**
+ * Give every saved recipient a stable id the first time its company is read (prompt 10 §S.1.0).
+ * Returns how many it assigned; a second run assigns none.
+ */
+export function ensureSupplierIds(org: { suppliers: Array<Omit<SupplierRecord, 'id'> & { id?: string }> }): number {
+  let assigned = 0;
+  for (const s of org.suppliers) {
+    if (s.id) continue;
+    s.id = newSupplierId();
+    assigned++;
+  }
+  return assigned;
 }
 
 export interface OrgRecord {

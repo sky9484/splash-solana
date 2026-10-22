@@ -44,7 +44,7 @@ export function StepBeneficiary({ org, value, onNext }: { org: CompanyDTO; value
     setRemoving(true);
     setRemoveError(null);
     try {
-      await api('/suppliers', { method: 'DELETE', body: { name: s.name, bank: s.bank, accountLast4: s.accountLast4 } });
+      await api('/suppliers', { method: 'DELETE', body: { id: s.id } });
       setConfirming(null);
       setPick(0);
       notifyCompanyChanged();
