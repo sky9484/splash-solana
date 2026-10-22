@@ -42,12 +42,10 @@ import { z } from 'zod';
 
 /* ── Shapes ───────────────────────────────────────────────────────────── */
 
-const OBJECT_ID = /^0x[a-fA-F0-9]{64}$/;
-const SUI_ADDRESS = OBJECT_ID;
-/** bech32 secret key as printed by `sui keytool`; the SDK decodes it. */
-const SUI_PRIVKEY = /^suiprivkey1[a-z0-9]{50,}$/;
-/** `0x…::module::Type` — a Move type tag. `0x2::sui::SUI` is the dev stand-in. */
-const COIN_TYPE = /^0x[a-fA-F0-9]{1,64}::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*$/;
+/** bech32 secret key as printed by `sui keytool`, for the evidence sponsor only (lib/evidence-sui/sponsor.ts). */
+const EVIDENCE_PRIVKEY = /^suiprivkey1[a-z0-9]{50,}$/;
+/** A Solana address: base58, 32 to 44 characters. */
+const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 const str = z.string().trim();
 const optional = str.optional();
@@ -57,10 +55,8 @@ const opt = <Out>(schema: z.ZodType<Out, unknown>) => z.preprocess(blankToUndefi
 const withDefault = <Out extends string | number | boolean>(schema: z.ZodType<Out, unknown>, def: Out) =>
   z.preprocess(blankToUndefined, schema.default(def));
 
-const objectId = opt(str.regex(OBJECT_ID, 'must be a canonical 0x + 64 hex Sui object ID'));
-const suiAddress = opt(str.regex(SUI_ADDRESS, 'must be a 0x + 64 hex Sui address'));
-const privkey = opt(str.regex(SUI_PRIVKEY, 'must be a suiprivkey1… secret key'));
-const coinType = opt(str.regex(COIN_TYPE, 'must be a Move type tag like 0x…::module::Type'));
+const evidencePrivkey = opt(str.regex(EVIDENCE_PRIVKEY, 'must be a suiprivkey1… secret key'));
+const solanaAddress = opt(str.regex(SOLANA_ADDRESS, 'must be a base58 Solana address'));
 const url = opt(str.url());
 const httpsUrl = opt(str.url().refine((u) => u.startsWith('https://') || u.startsWith('http://localhost'), 'must be https (or http://localhost)'));
 const int = (def: number, min = 0) => withDefault(z.coerce.number().int().min(min), def);
@@ -74,9 +70,11 @@ const removedFromEnv = z.preprocess(
   z.undefined({ error: 'no longer used — accounts are rows in `users`; remove it from .env.local and from the host' }),
 );
 
-const renamedAnchorCap = z.preprocess(
+/** A secret whose signer was removed with the earlier settlement rail. Unset is the only
+ *  valid state: a stale private key left on a host is a key nobody watches. */
+const removedSigner = z.preprocess(
   blankToUndefined,
-  z.undefined({ error: 'renamed to SPLASH_ANCHOR_CAP_ID with the Phase 6 cap split — set that instead, and remove this from .env.local and from the host' }),
+  z.undefined({ error: 'its signer was removed with the earlier settlement rail (prompt 07 §4.2) — delete this secret from .env.local and from the host' }),
 );
 
 const movedToSealFile = z.preprocess(
@@ -92,112 +90,59 @@ const flag = (def: 'true' | 'false' = 'false') =>
 export const envSchema = z.object({
   NODE_ENV: withDefault(z.enum(['development', 'test', 'production']), 'development'),
 
-  /* Sui network and the published contracts. lib/sui.ts and
-     lib/server/contract-config.ts (FIELD_TO_ENV, as the fallback behind
-     data/contract-config.json). */
-  SUI_NETWORK: withDefault(z.enum(['testnet', 'mainnet']), 'testnet'),
-  NEXT_PUBLIC_SUI_NETWORK: opt(z.enum(['testnet', 'mainnet'])),
-  SUI_RPC_URL: url,
-  SPLASH_PACKAGE_ID: objectId,
-  SPLASH_CORE_PACKAGE_ID: objectId,
-  SPLASH_CUSTODY_PACKAGE_ID: objectId,
-  SPLASH_PAYOUT_DELEGATION_ID: objectId,
-  SPLASH_TREASURY_ID: objectId,
-  SPLASH_ADMIN_CAP_ID: objectId,
-  /** Phase 6 split the money authority out of `AdminCap`. This is the cap that
-   *  can take value out of a custodial object, and the ONLY one — it belongs on
-   *  the cold 2-of-3 and must never be online. */
-  SPLASH_TREASURY_CAP_ID: objectId,
-  SPLASH_ANCHOR_CAP_ID: objectId,
-  /** Phase 7 break-glass. The shared CapRegistry holding the live generation
-   *  for each revocable capability. Every call that USES an AnchorCap or a
-   *  ComplianceCap passes it, so a revoked capability stops working on chain
-   *  rather than being rejected by convention off it. */
-  SPLASH_CAP_REGISTRY_ID: objectId,
-  /** Renamed with the Phase 6 cap split (`AttestationCap` -> `AnchorCap`).
-   *  Declared must-be-unset rather than silently ignored: a stale object id
-   *  under the old name would point at a capability type that no longer
-   *  exists, and a key that governs nothing but still reads like a control
-   *  is worse than no key. */
-  SPLASH_ATTESTATION_CAP_ID: renamedAnchorCap,
-  SPLASH_PEG_STATE_ID: objectId,
-  SPLASH_COMPLIANCE_CONFIG_ID: objectId,
-  SPLASH_COMPLIANCE_CAP_ID: objectId,
-  SPLASH_BUSINESS_ACCOUNT_ID: objectId,
-  SPLASH_TRANSFER_COIN_ID: objectId,
-  SPLASH_SETTLEMENT_REGISTRY_ID: objectId,
-  SPLASH_TEST_RECIPIENT_ADDRESS: suiAddress,
-  SPLASH_SMART_TREASURY_SUI_ID: objectId,
-  SPLASH_USDC_TREASURY_ID: objectId,
-  SPLASH_USDY_TREASURY_ID: objectId,
-  DEEPBOOK_POOL_ID: objectId,
-  DEEPBOOK_QUOTE_TYPE: coinType,
-  USDC_TYPE: coinType,
-  USDT_TYPE: coinType,
-  USDY_TYPE: coinType,
-  USDSUI_TYPE: coinType,
-  USDT_BUFFER_ID: objectId,
-  TREASURY_ADDRESS: suiAddress,
-  OPERATOR_SUI_ADDRESS: suiAddress,
-  /** Splash's Sui mainnet fee wallet: receives the audit-anchor fee on USDC
-   *  sent out of Splash, in the same transaction, when STABLECOIN_ANCHOR_FEE
-   *  is on. Stablecoin transfers are otherwise free and do not need it. A real
-   *  fee must have a real, named destination: never defaulted. */
-  SPLASH_FEE_ADDRESS_MAINNET: suiAddress,
+  /* Solana. lib/solana/config.ts readSolanaEnv validates the values; offline
+     is the default and touches no network. The client sees the cluster as
+     NEXT_PUBLIC_SOLANA_CLUSTER (lib/explorer.ts). */
+  SPLASH_SOLANA_MODE: opt(z.enum(['offline', 'devnet'])),
+  SOLANA_CLUSTER: opt(z.enum(['devnet', 'mainnet-beta'])),
+  NEXT_PUBLIC_SOLANA_CLUSTER: opt(z.enum(['devnet', 'mainnet-beta'])),
+  SOLANA_RPC_URL: optional,
+  /** Kora: Splash's fee payer, so nobody needs SOL. Required in devnet mode. */
+  KORA_RPC_URL: optional,
+  KORA_API_KEY: optional,
+  /** The non-custody gate (lib/server/custody-phase.ts). '2' only when a licence allows holding funds; anything else is Phase 0. */
+  SPLASH_CUSTODY_PHASE: withDefault(z.enum(['0', '2']), '0'),
+  /** Splash's fee wallet on Solana: receives the audit-anchor fee on USDC sent
+   *  out of Splash, in the same transaction, when STABLECOIN_ANCHOR_FEE is on.
+   *  A real fee must have a real, named destination: never defaulted. */
+  SPLASH_FEE_ADDRESS: solanaAddress,
   /* 'on' charges the audit-anchor fee on USDC sent out of Splash (lib/payments/stablecoin-lane.ts). */
   STABLECOIN_ANCHOR_FEE: opt(z.enum(['on', 'off'])),
-  /* Unset or 'on': wallet transfers go gasless. 'off': the sending wallet pays gas in SUI. */
-  STABLECOIN_GASLESS: opt(z.enum(['on', 'off'])),
+  /* Signers removed with the earlier settlement rail: must be unset. */
+  OPERATOR_SUI_PRIVATE_KEY: removedSigner,
+  SUI_SPONSOR_PRIVATE_KEY: removedSigner,
   /** Chainalysis's free sanctions-screening API. Unset: wallet recipients
    *  are saved unscreened, and reach mainnet only through a named admin's
    *  attestation (lib/server/wallet-screening.ts). */
   CHAINALYSIS_SANCTIONS_API_KEY: opt(str.min(8)),
-  /** Mainnet fullnode (gRPC-web) for the stablecoin lane, which is mainnet-only
-   *  while the rest of the app may run on testnet — so it cannot share
-   *  SUI_RPC_URL. Unset: Mysten's public mainnet fullnode. */
-  SUI_MAINNET_RPC_URL: url,
-  /** The Splash demo x402 seller (app/api/x402/demo) is paid here, in USDC on
-   *  Sui mainnet. Unset: the demo seller answers 503. Use an address you
-   *  control — paying it moves real USDC. */
-  X402_DEMO_PAY_TO: suiAddress,
-  /** Ondo has confirmed this deployment's businesses may hold USDY. Off: the
-   *  treasury USDY quote is a preview (SANDBOX) — numbers, never a swap. */
-  USDY_ONDO_ELIGIBILITY_CONFIRMED: flag('false'),
-  MIN_USDC_FLOAT_MICRO: int(0),
-  SPLASH_SETTLEMENT_COIN_TYPE: coinType,
-  SPLASH_PEG_USDC_DEVIATION_PPM: int(0),
-  SPLASH_PEG_USDT_DEVIATION_PPM: int(0),
-
-  /* Settlement. lib/server/sui-settlement.ts, lib/sui/gas.ts. */
-  SUI_SETTLEMENT_MODE: withDefault(z.enum(['auto', 'live', 'simulate']), 'auto'),
-  SUI_BATCH_SETTLEMENT_MODE: optional,
-  OPERATOR_SUI_PRIVATE_KEY: privkey,
-  SUI_SPONSOR_PRIVATE_KEY: privkey,
-  SUI_PEG_UPDATE_GAS_BUDGET: int(10_000_000, 1),
-  SUI_RECORD_SETTLEMENT_GAS_BUDGET: int(10_000_000, 1),
-  SUI_COMPOSED_GAS_BUDGET: int(30_000_000, 1),
-  SUI_AUDIT_ANCHOR_GAS_BUDGET: int(20_000_000, 1),
-  SUI_KYB_VERIFY_GAS_BUDGET: int(20_000_000, 1),
   USE_MOCK_APIS: flag('false'),
-  /* 'stablecoin' opens USDC on Sui only (lib/launch-scope-rules.ts): fiat,
-     payout runs, treasury and Splash's own settlement answer 403, and the
-     keys only they use stop being required. Default 'full'. */
+  /* 'stablecoin' opens the USDC wallet lane only (lib/launch-scope-rules.ts):
+     fiat, payout runs and treasury answer 403, and the keys only they use
+     stop being required. Default 'full'. */
   LAUNCH_SCOPE: withDefault(z.enum(['full', 'stablecoin']), 'full'),
 
-  /* Zeke chain composition. lib/chain/compose.ts, lib/agent/oxwal.ts. */
+  /* Zeke drafts. lib/agent/simulate-draft.ts: 'live' fails closed until the
+     Solana simulation lands (Phase 3). */
   OXWAL_CHAIN_MODE: withDefault(z.enum(['mock', 'live']), 'mock'),
-  OXWAL_SUI_SENDER: suiAddress,
-  OXWAL_GAS_BUDGET: opt(z.coerce.number().int().min(1)),
   OXWAL_FORCE_LOCAL: flag('false'),
   OXWAL_OPERATOR_ROLE: withDefault(str, 'APPROVER'),
 
   /* Seal. The committee, threshold, package and policy live in a committed
      file — config/seal.<NODE_ENV>.json — loaded and validated by
-     lib/server/seal-config.ts, which validateEnvAtBoot() runs so its twelve
+     lib/evidence-sui/seal-config.ts, which validateEnvAtBoot() runs so its twelve
      checks happen at boot. The seven keys below MOVED into that file: each
      is declared here only so that, if one is still set, boot fails and
      names it. Two sources for one setting is how Seal diverged. */
   SEAL_CONFIG_FILE: optional,
+
+  /* Evidence on Sui (lib/evidence-sui/): Seal encryption + Walrus storage +
+     the allowlist sponsor. The only Sui the Solana build uses. */
+  EVIDENCE_SUI_NETWORK: withDefault(z.enum(['testnet', 'mainnet']), 'testnet'),
+  EVIDENCE_SUI_RPC_URL: url,
+  /** Gas for allowlist updates only. Devnet/testnet; mainnet must use a KMS (refused here). */
+  EVIDENCE_SPONSOR_SUI_PRIVATE_KEY: evidencePrivkey,
+  /** Walrus storage period in epochs for each evidence blob (stored permanent). */
+  WALRUS_EPOCHS: int(53, 1),
   SEAL_KEY_SERVER_ENDPOINTS: movedToSealFile,
   SEAL_KEY_SERVER_URLS: movedToSealFile,
   SEAL_KEY_SERVER_MODE: movedToSealFile,
@@ -209,7 +154,7 @@ export const envSchema = z.object({
   SEAL_HEALTH_TIMEOUT_MS: int(10_000, 1),
   SEAL_ALERT_WEBHOOK_URL: httpsUrl,
 
-  /* Walrus. lib/server/walrus.ts. Mocked when USE_MOCK_APIS or unset. */
+  /* Walrus. lib/evidence-sui/walrus.ts. Mocked when USE_MOCK_APIS or unset. */
   WALRUS_PUBLISHER_URL: url,
   WALRUS_AGGREGATOR_URL: url,
 
@@ -324,24 +269,17 @@ export const envSchema = z.object({
   STRIPE_SECRET_KEY: optional,
   AIRWALLEX_API_KEY: optional,
   FUNDING_WEBHOOK_SECRET: optional,
-  FUNDING_DEPOSIT_DERIVATION_SECRET: optional,
   FUNDING_CCTP_DEPOSIT_ADDRESSES_JSON: opt(str.refine((s) => { try { return typeof JSON.parse(s) === 'object'; } catch { return false; } }, 'must be a JSON object')),
-  FUNDING_DEX_QUOTES_JSON: opt(str.refine((s) => { try { JSON.parse(s); return true; } catch { return false; } }, 'must be valid JSON')),
   FUNDING_SELF_CUSTODY_STAGED_LIMIT_USD: int(10_000),
   FUNDING_ASSET_USDC_ENABLED: flag('true'),
-  FUNDING_ASSET_USDT_ENABLED: flag('false'),
-  FUNDING_ASSET_USDSUI_ENABLED: flag('true'),
-  FUNDING_RAIL_SUI_NATIVE_ENABLED: flag('true'),
+  FUNDING_RAIL_SOLANA_ENABLED: flag('true'),
   FUNDING_RAIL_CCTP_ENABLED: flag('true'),
   FUNDING_CCTP_ETHEREUM_ENABLED: flag('false'),
   FUNDING_CCTP_BASE_ENABLED: flag('false'),
   FUNDING_CCTP_ARBITRUM_ENABLED: flag('false'),
-  FUNDING_CCTP_SOLANA_ENABLED: flag('false'),
   FUNDING_PROVIDER_STRIPE_ENABLED: flag('true'),
   FUNDING_PROVIDER_AIRWALLEX_ENABLED: flag('true'),
   USDC_AVAILABLE_MICRO: opt(z.coerce.number().int().min(0)),
-  USDT_AVAILABLE_MICRO: opt(z.coerce.number().int().min(0)),
-  USDT_BUFFER_AGE_MS: int(0),
 
   /* Payout and settlement partners. Mocked when USE_MOCK_APIS or unset. */
   PDAX_API_BASE_URL: url,
@@ -349,24 +287,7 @@ export const envSchema = z.object({
   LABUAN_API_BASE_URL: withDefault(str.url(), 'https://settlement.splash-labuan.internal'),
   LABUAN_API_KEY: optional,
   LABUAN_OTC_MIN_USD: int(10_000),
-  DEEPBOOK_INDEXER_URL: url,
-  DEEPBOOK_STABLE_PAIRS: optional,
-  DEEPBOOK_TIMEOUT_MS: int(2_500, 1),
-  DEEPBOOK_PEG_TOLERANCE_BPS: int(100, 0),
 
-  /* Treasury and yield. lib/server/usdy.ts, treasury.ts, copilot.ts. */
-  USDY_NET_APY_PCT: opt(z.coerce.number()),
-  USDY_NAV_STALE_MS: int(6 * 60 * 60 * 1000, 1),
-  USDY_REDEMPTION_USD: opt(z.coerce.number().min(0)),
-  /* Ondo's USDY price oracle is read through this Ethereum node (lib/server/ondo-oracle.ts). */
-  ETHEREUM_RPC_URL: url,
-  USDY_ORACLE: opt(z.enum(['on', 'off'])),
-  USDY_REDEMPTION_AS_OF: optional,
-  USDY_SWAP_SLIPPAGE_BPS: int(30, 0),
-  USDY_SWAP_VENUE: withDefault(z.enum(['cetus', 'aftermath']), 'cetus'),
-  USDY_WITHDRAWAL_DAYS: int(2, 0),
-  SPLASH_PROMO_APY_PCT: opt(z.coerce.number()),
-  SPLASH_PROMO_UNTIL: optional,
   OPERATING_BUFFER_USD: int(5_000),
   BATCH_SAVED_BPS_PER_ROW: int(6),
   SPLASH_BUSINESS_TIMEZONE: withDefault(str, 'Asia/Singapore'),
@@ -402,20 +323,9 @@ export const envSchema = z.object({
    *  webhook could launder an unchecked business into the state a human
    *  signs off on the basis that a provider already checked it. */
   SUMSUB_WEBHOOK_SECRET: optional,
-  MEMWAL_PRIVATE_KEY: optional,
-  MEMWAL_ACCOUNT_ID: objectId,
-  MEMWAL_SERVER_URL: url,
-  MEMWAL_NAMESPACE: optional,
 
-  /* Solana build (Colosseum). lib/solana/config.ts readSolanaEnv validates the
-   * values; offline is the default and touches no network. */
-  SPLASH_SOLANA_MODE: opt(z.enum(['offline', 'devnet'])),
-  SOLANA_CLUSTER: opt(z.enum(['devnet', 'mainnet-beta'])),
-  SOLANA_RPC_URL: optional,
-  KORA_RPC_URL: optional,
-  KORA_API_KEY: optional,
   /** Route engine home lane for this build. */
-  ENGINE_HOME_CHAIN: opt(z.enum(['solana', 'sui', 'arbitrum'])),
+  ENGINE_HOME_CHAIN: opt(z.enum(['solana', 'arbitrum'])),
   /** HMAC secret for the mock payout partner's webhooks (devnet demo only). */
   MOCK_PARTNER_WEBHOOK_SECRET: optional,
 });
@@ -453,16 +363,12 @@ function productionIssues(env: Env): Issue[] {
 
   /* Unconditional: what the app cannot run safely without. */
   need('CUSTOMER_SESSION_SECRET', 'sessions would be signed with nothing');
-  need('ADMIN_SESSION_SECRET', 'staff sessions would be signed with nothing, and lib/server/seal.ts falls back to a hard-coded dev key');
+  need('ADMIN_SESSION_SECRET', 'staff sessions would be signed with nothing, and lib/evidence-sui/seal.ts falls back to a hard-coded dev key');
   need('CRON_SECRET', 'every /api/cron route would accept any caller');
   need('DATABASE_URL', 'authority and persistence require Postgres');
-  need('SPLASH_PACKAGE_ID', 'nothing can be composed against 0x0');
   notDemo('ADMIN_PASSWORD');
   if (!env.NEXT_PUBLIC_APP_URL.startsWith('https://')) {
     issues.push({ key: 'NEXT_PUBLIC_APP_URL', message: 'must be https in production' });
-  }
-  if (env.USDC_TYPE === '0x2::sui::SUI') {
-    issues.push({ key: 'USDC_TYPE', message: 'is the development stand-in (native SUI); set the real USDC coin type' });
   }
 
   /* Email: a grant requires a verified mailbox, and verification is a link
@@ -480,40 +386,26 @@ function productionIssues(env: Env): Issue[] {
     need('EMAIL_FROM', 'EMAIL_TRANSPORT=resend — the sender address');
   }
 
-  /* Settlement: keys are required when settlement can actually move value.
-     'auto' with mocks off resolves to live at runtime. */
-  const settlementLive = env.SUI_SETTLEMENT_MODE === 'live' || (env.SUI_SETTLEMENT_MODE === 'auto' && !env.USE_MOCK_APIS);
-  /* LAUNCH_SCOPE=stablecoin: USDC on Sui only. Every route that would settle,
+  /* Solana: in devnet mode every vault transaction is sponsored, so the fee
+     payer must be named. Mainnet is refused by readSolanaEnv in this build. */
+  if (env.SPLASH_SOLANA_MODE === 'devnet') {
+    need('KORA_RPC_URL', 'SPLASH_SOLANA_MODE=devnet sends sponsored transactions; without the fee payer they are refused');
+  }
+  if (env.STABLECOIN_ANCHOR_FEE === 'on') {
+    need('SPLASH_FEE_ADDRESS', 'STABLECOIN_ANCHOR_FEE=on charges a fee, which needs a named destination');
+  }
+
+  /* LAUNCH_SCOPE=stablecoin: the USDC wallet lane only. Every route that would
      pay out or take fiat answers 403 (lib/server/launch-scope.ts), so the
      keys only those routes use are not required — and nothing may fake what
-     the scope leaves out. A settlement caller that slipped past the guards
-     still fails closed: 'auto' with mocks off and no key throws rather than
-     simulating (lib/server/sui-settlement.ts, resolveSettlementExecution). */
+     the scope leaves out. */
   const stablecoinOnly = env.LAUNCH_SCOPE === 'stablecoin';
   if (stablecoinOnly) {
-    const scoped = 'LAUNCH_SCOPE=stablecoin launches USDC on Sui only';
+    const scoped = 'LAUNCH_SCOPE=stablecoin opens the USDC wallet lane only';
     if (env.USE_MOCK_APIS) issues.push({ key: 'USE_MOCK_APIS', message: `must be false: ${scoped}, and mocks would fake settlement` });
     if (env.NEXT_PUBLIC_DEMO_MODE) issues.push({ key: 'NEXT_PUBLIC_DEMO_MODE', message: `must be false: ${scoped}, and demo mode credits deposits nobody made` });
     if (env.CARD_FUNDING_ENABLED) issues.push({ key: 'CARD_FUNDING_ENABLED', message: `must be false: ${scoped}` });
     if (env.TREASURY_EXECUTION_ENABLED) issues.push({ key: 'TREASURY_EXECUTION_ENABLED', message: `must be false: ${scoped}` });
-    if (env.SUI_SETTLEMENT_MODE === 'live') issues.push({ key: 'SUI_SETTLEMENT_MODE', message: `must not be live: ${scoped}` });
-    // Staff approving a business's verification records it on Sui with the
-    // operator key (lib/compliance/org-kyb.ts), and a verified business gets
-    // the higher USDC limits, so this launch still needs the signer.
-    need('OPERATOR_SUI_PRIVATE_KEY', `${scoped}, and approving a business's verification records it on Sui`);
-    need('OPERATOR_SUI_ADDRESS', 'the signer must be named so it can be checked against the key');
-  }
-  if (settlementLive && !stablecoinOnly) {
-    need('OPERATOR_SUI_PRIVATE_KEY', `SUI_SETTLEMENT_MODE=${env.SUI_SETTLEMENT_MODE} with mocks off means real signing`);
-    need('OPERATOR_SUI_ADDRESS', 'the signer must be named so it can be checked against the key');
-    need('SPLASH_TREASURY_ID', 'settlement records against the treasury object');
-    need('USDC_TYPE', 'settlement needs the real coin type');
-  }
-  if (env.TREASURY_EXECUTION_ENABLED) {
-    need('OPERATOR_SUI_PRIVATE_KEY', 'TREASURY_EXECUTION_ENABLED moves treasury funds');
-  }
-  if (env.OXWAL_CHAIN_MODE === 'live') {
-    need('OXWAL_SUI_SENDER', 'OXWAL_CHAIN_MODE=live composes real transactions');
   }
 
   /* Vendors: required when their feature is on. Mocks and demo mode make
@@ -536,9 +428,6 @@ function productionIssues(env: Env): Issue[] {
     need('GOOGLE_OIDC_CLIENT_ID', 'FEATURE_GOOGLE_SIGNIN=true');
     need('GOOGLE_OIDC_CLIENT_SECRET', 'FEATURE_GOOGLE_SIGNIN=true');
     need('GOOGLE_OIDC_REDIRECT_URI', 'FEATURE_GOOGLE_SIGNIN=true');
-  }
-  if ((env.MEMWAL_PRIVATE_KEY === undefined) !== (env.MEMWAL_ACCOUNT_ID === undefined)) {
-    issues.push({ key: 'MEMWAL_PRIVATE_KEY', message: 'MEMWAL_PRIVATE_KEY and MEMWAL_ACCOUNT_ID must be set together or not at all' });
   }
 
   return issues;
@@ -597,7 +486,7 @@ export function getEnv(): Env {
  */
 export async function validateEnvAtBoot(): Promise<Env> {
   const env = getEnv();
-  const { getSealConfig } = await import('./server/seal-config.ts');
+  const { getSealConfig } = await import('./evidence-sui/seal-config.ts');
   try {
     getSealConfig();
   } catch (error) {

@@ -49,7 +49,7 @@ export type InvoiceRow = {
   transferIntentId?: string;
   recipientId?: string;
   demo?: boolean;
-  /** Paid in USDC on Sui to the issuer's own wallet: the proving transaction. */
+  /** Paid in USDC to the issuer's own vault: the proving transaction. */
   usdcTxDigest?: string;
   usdcPaidAt?: string;
   createdAt: string;

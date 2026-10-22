@@ -97,7 +97,7 @@ export async function listUsdcRecords(db: Db, orgId: string): Promise<UsdcRecord
 export async function loadActivityLabels(db: Db, orgId: string, digests: string[], ownWallet: string | null = null) {
   const outflowsByDigest = new Map<string, { kind: string; recipientName: string | null; resource: string | null; feeMinor: bigint }>();
   const recipientsByAddress = new Map<string, string>();
-  // Deposits that paid one of this workspace's invoices (pay link, USDC on Sui).
+  // Deposits that paid one of this workspace's invoices (pay link, USDC on Solana).
   const invoicesByDigest = new Map<string, { invoiceId: string; payerName: string | null }>();
   // The caller's own passkey wallet is theirs, not the workspace's: a send
   // they made through Splash in another workspace is not "no record". Only

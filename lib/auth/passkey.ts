@@ -7,29 +7,23 @@ import { passkeyCredentials } from '../db/schema.ts';
 import type * as schemaModule from '../db/schema.ts';
 
 /**
- * Passkey authority: enrolment, lookup, and verification of a signed approval.
+ * Passkeys: enrolment and lookup. Verification is plain WebAuthn in
+ * lib/auth/webauthn.ts; the passkey is a sign-in and step-up factor, not a
+ * vault signer (prompt 07 §3.2).
  *
- * SIP-9. A passkey is a secp256r1 keypair held by the authenticator — a
- * phone's secure enclave or a laptop's TPM. The private half never leaves it
- * and cannot be exported, so an approval signed this way could only have been
- * produced by someone holding that device and passing its biometric or PIN
- * check. That is the property the whole design is for: an approval becomes a
- * cryptographic object rather than a database row saying a name approved.
+ * A passkey is a P-256 keypair held by the authenticator — a phone's secure
+ * enclave or a laptop's TPM. The private half never leaves it, so an assertion
+ * could only have been made by someone holding that device and passing its
+ * biometric or PIN check.
  *
- * The public key is captured at enrolment and never again. WebAuthn returns
- * it once, in the attestation; a later assertion returns a signature and a
- * credential id and no key. The SDK's fallback for a server that did not keep
- * it is signAndRecover + findCommonPublicKey — sign twice, recover candidates
- * from each, intersect them — which is two extra user gestures on the approval
- * path to rebuild something we were handed for free. Hence this module stores
- * it, and hence the address is stored beside it rather than recomputed.
+ * The public key is captured at enrolment and never again: WebAuthn returns it
+ * once, at registration; a later assertion carries a signature and a
+ * credential id and no key. Hence this module stores it.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DrizzleDb = PgDatabase<any, typeof schemaModule, any>;
 
-/** SIP-9 signature scheme flag for passkey (secp256r1 over WebAuthn). */
-export const PASSKEY_FLAG = 0x06;
 /** A compressed secp256r1 point. Anything else is not a passkey key. */
 export const COMPRESSED_P256_BYTES = 33;
 
@@ -51,7 +45,6 @@ export type EnrolledCredential = {
   userId: string;
   credentialId: string;
   publicKey: string;
-  suiAddress: string;
   rpId: string;
 };
 
@@ -100,19 +93,13 @@ export function assertCompressedP256(publicKeyB64: string): Uint8Array {
     );
   }
   // Compressed points start 0x02 or 0x03. An uncompressed 0x04 point is the
-  // common mistake and would derive a different address silently.
+  // common mistake: the right family, the wrong encoding.
   if (bytes[0] !== 0x02 && bytes[0] !== 0x03) {
     throw new PasskeyError('public key is not a compressed point (expected a 0x02 or 0x03 prefix)', 'bad_public_key');
   }
   return new Uint8Array(bytes);
 }
 
-/** The Sui address for a passkey public key, via the SIP-9 scheme. */
-export async function suiAddressForPasskey(publicKeyB64: string): Promise<string> {
-  const bytes = assertCompressedP256(publicKeyB64);
-  const { PasskeyPublicKey } = await import('@mysten/sui/keypairs/passkey');
-  return new PasskeyPublicKey(bytes).toSuiAddress();
-}
 
 /**
  * Enrol a credential.
@@ -126,7 +113,7 @@ export async function enrolPasskey(
   db: DrizzleDb,
   input: { userId: string; credentialId: string; publicKey: string; rpId: string },
 ): Promise<EnrolledCredential> {
-  const suiAddress = await suiAddressForPasskey(input.publicKey);
+  assertCompressedP256(input.publicKey);
 
   const existing = await db
     .select({ id: passkeyCredentials.id })
@@ -155,11 +142,11 @@ export async function enrolPasskey(
     userId: input.userId,
     credentialId: input.credentialId,
     publicKey: input.publicKey,
-    suiAddress,
+    suiAddress: null,
     rpId: input.rpId,
   });
 
-  return { id, userId: input.userId, credentialId: input.credentialId, publicKey: input.publicKey, suiAddress, rpId: input.rpId };
+  return { id, userId: input.userId, credentialId: input.credentialId, publicKey: input.publicKey, rpId: input.rpId };
 }
 
 /** The active credential for this user on this origin, or null. */
@@ -185,7 +172,6 @@ export async function findCredential(
         userId: row.userId,
         credentialId: row.credentialId,
         publicKey: row.publicKey,
-        suiAddress: row.suiAddress,
         rpId: row.rpId,
       }
     : null;
@@ -194,83 +180,6 @@ export async function findCredential(
 /** Retire a credential. A tombstone, so anchored approvals keep their referent. */
 export async function revokePasskey(db: DrizzleDb, id: string): Promise<void> {
   await db.update(passkeyCredentials).set({ revokedAt: new Date() }).where(eq(passkeyCredentials.id, id));
-}
-
-export type ApprovalVerification =
-  | { ok: true; credential: EnrolledCredential }
-  | { ok: false; code: string; reason: string };
-
-/**
- * Verify a passkey-signed approval.
- *
- * Three things must hold, and all three are checked here rather than trusted
- * from the request:
- *
- *  1. The signature verifies against the ENROLLED public key. Not a key the
- *     request supplied — that would let a caller bring their own key and sign
- *     anything.
- *  2. The transaction's sender equals the enrolled Sui address, so the
- *     approval is attributable to a specific human's device.
- *  3. The canon hash is unchanged since the intent was raised, so the bytes
- *     signed describe the payment that was actually reviewed.
- *
- * Together these give PSD2 RTS Article 5 dynamic linking by construction
- * rather than as a bolted-on control: the transaction bytes contain the intent
- * id, the intent object on chain carries the amount and the payee, and the
- * signature covers those bytes. Changing the amount changes the intent,
- * changes the canon hash, and invalidates the signature — there is no path
- * where a signed approval survives an edit to what it approved.
- */
-export async function verifyApprovalSignature(input: {
-  credential: EnrolledCredential;
-  /** BCS transaction bytes, base64, exactly as signed. */
-  transactionBytes: string;
-  /** The passkey signature, base64. */
-  signature: string;
-  /** The sender the transaction declares. */
-  sender: string;
-  /** Canon hash carried by the request. */
-  presentedCanonHash: string;
-  /** Canon hash of the intent as it stands server-side, now. */
-  currentCanonHash: string;
-}): Promise<ApprovalVerification> {
-  if (input.presentedCanonHash !== input.currentCanonHash) {
-    return {
-      ok: false,
-      code: 'canon_changed',
-      reason: 'the payment changed after it was signed; it must be reviewed and approved again',
-    };
-  }
-
-  if (input.sender.toLowerCase() !== input.credential.suiAddress.toLowerCase()) {
-    return {
-      ok: false,
-      code: 'sender_mismatch',
-      reason: 'the transaction sender is not the address enrolled for this approver',
-    };
-  }
-
-  let verified = false;
-  try {
-    const { PasskeyPublicKey } = await import('@mysten/sui/keypairs/passkey');
-    const publicKey = new PasskeyPublicKey(assertCompressedP256(input.credential.publicKey));
-    verified = await publicKey.verifyTransaction(
-      new Uint8Array(Buffer.from(input.transactionBytes, 'base64')),
-      input.signature,
-    );
-  } catch (error) {
-    return {
-      ok: false,
-      code: 'verification_error',
-      reason: error instanceof Error ? error.message : 'signature could not be checked',
-    };
-  }
-
-  if (!verified) {
-    return { ok: false, code: 'bad_signature', reason: 'the signature does not match the enrolled passkey' };
-  }
-
-  return { ok: true, credential: input.credential };
 }
 
 /** Record a use, for the security page. Never gates anything. */

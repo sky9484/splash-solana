@@ -4,7 +4,7 @@
  * Every corridor payout carries fixed costs that do not scale down: an on-chain
  * settlement, an audit anchor, a Walrus/Seal evidence write, and a partner
  * payout leg. Below ~$100 that fixed cost outweighs the 0.70% corridor fee, and
- * on the settlement side a sub-minimum batch cannot even clear DeepBook's
+ * on the settlement side a sub-minimum batch cannot even clear the venue's
  * minimum order size — it returns a zero quote and aborts (see S-11 in
  * docs/KEY-CEREMONY-RUNBOOK.md).
  *

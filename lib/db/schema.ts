@@ -100,8 +100,9 @@ export const organizations = pgTable('organizations', {
    *  tailors which setup steps are emphasised and NOTHING else — the KYB
    *  lifecycle above stays the single authority on what may move money. */
   intent: text('intent'),
-  /** Wallet spec §2.3 — the org's on-chain BusinessAccount object id. Null
-   *  until the AdminCap-gated business_account::verify_business has run. */
+  /** The org's ledger key from the earlier build (its on-chain business
+   *  account). Kept so existing balances keep their key; new orgs are keyed
+   *  by their vault (lib/compliance/org-kyb.ts resolveBusinessAccountId). */
   suiBusinessAccountId: text('sui_business_account_id'),
   ...timestamps,
 });
@@ -242,12 +243,9 @@ export const loginAttempts = pgTable('login_attempts', {
  * WebAuthn returns a credential's public key exactly once, in the attestation
  * at creation. A later assertion — an actual signature — returns the signature
  * and the credential id, and no key. So a server that did not store the key at
- * enrolment cannot identify which Sui address just signed. The SDK's own
- * workaround for that situation is `PasskeyKeypair.signAndRecover` plus
- * `findCommonPublicKey`: sign two different messages, recover the candidate
- * keys from each, and intersect them. That is two extra user gestures and a
- * guess, on the approval path, to recover something we were handed for free
- * once and threw away.
+ * enrolment cannot check a later signature at all. Recovering the key from
+ * signatures afterwards takes extra user gestures and a guess, to rebuild
+ * something we were handed for free once and threw away.
  *
  * So: persist it at enrolment, and never need recovery.
  *
@@ -271,9 +269,9 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
   /** 33-byte compressed secp256r1 point, base64. Captured at creation because
    *  the authenticator will never send it again. */
   publicKey: text('public_key').notNull(),
-  /** Derived from the public key at enrolment, with the SIP-9 0x06 flag. The
-   *  address an approval's sender must equal. */
-  suiAddress: text('sui_address').notNull(),
+  /** RETIRED (drizzle/0028): the earlier build derived a chain address from
+   *  the passkey. Nullable and unread; dropped with the other address columns. */
+  suiAddress: text('sui_address'),
   /**
    * The WebAuthn relying-party id this credential is bound to.
    *
@@ -303,11 +301,11 @@ export const passkeyCredentials = pgTable('passkey_credentials', {
 ]);
 
 /**
- * RETIRED. Held the per-person Sui signer address of the earlier (Sui) build,
+ * RETIRED. Held the per-person signer address of the earlier build,
  * derived at sign-in. Nothing reads or writes it any more: on Solana a
  * person's signer is their device key, registered per member, and sign-in
  * (password or Google) derives no key. Kept only until the migration that
- * drops it together with the other Sui address columns.
+ * drops it together with the other earlier-build address columns.
  *
  * `oauth_sub` is a provider user id — treat it as PII: never log it raw.
  */
@@ -470,13 +468,15 @@ export const suppliers = pgTable('suppliers', {
   recipientMetadata: jsonb('recipient_metadata'),
 
   /** How this recipient is paid. BANK: local currency through a partner rail
-   *  (locked until the paying business is verified). WALLET: USDC on Sui to
+   *  (locked until the paying business is verified). WALLET: USDC on Solana to
    *  `walletAddress` — the only lane an unverified business may use. */
   payoutMethod: text('payout_method').notNull().default('BANK'),
-  /** Sui address, lower-cased, validated by normaliseSuiAddress — never an
-   *  Ethereum address padded to fit. Null for BANK recipients. */
+  /** Solana address (base58, case-sensitive), validated by
+   *  normaliseSolanaAddress — never an address from another chain. Rows saved
+   *  by the earlier build may hold an older address and cannot be paid
+   *  (migration 0029). Null for BANK recipients. */
   walletAddress: text('wallet_address'),
-  /** 'SLUSH' | 'METAMASK_SUI_SNAP' — the wallet the recipient said they use. */
+  /** 'PHANTOM' | 'SOLFLARE' | 'BACKPACK' | 'OTHER' — the wallet the recipient said they use. */
   walletProvider: text('wallet_provider'),
 
   ...timestamps,
@@ -512,7 +512,7 @@ export const invoices = pgTable('invoices', {
    *  `payment_intents.invoice_id`; without this one, "was this paid" is a scan. */
   transferIntentId: text('transfer_intent_id'),
   demo: boolean('demo').notNull().default(false),
-  /** Paid in USDC on Sui to the issuer's own wallet (migration 0024): the
+  /** Paid in USDC to the issuer's own vault (migration 0024): the
    *  transaction that proved it. One transaction pays one invoice. */
   usdcTxDigest: text('usdc_tx_digest'),
   usdcPaidAt: timestamp('usdc_paid_at', { withTimezone: true }),
@@ -941,7 +941,8 @@ export const batchRuns = pgTable('batch_runs', {
   targetCurrency: text('target_currency'),
   idempotencyKey: text('idempotency_key').notNull(),
   digest: text('digest'),
-  packageId: text('package_id'),
+  /** Set by the earlier build only (its settling contract). */
+  legacyContract: text('package_id'),
   /** Which proposal authorized this run, when it needed a second approver. */
   proposalId: text('proposal_id'),
   demo: boolean('demo').notNull().default(false),

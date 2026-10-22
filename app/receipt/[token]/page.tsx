@@ -1,4 +1,4 @@
-import { suiVisionTxUrl } from '@/lib/explorer';
+import { solanaTxUrl } from '@/lib/explorer';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -23,7 +23,7 @@ export default async function SharedReceiptPage({ params }: { params: Promise<{ 
 
   const { intent, audit, display } = share;
   const settled = Boolean(intent.suiTxDigest);
-  const explorerUrl = intent.suiTxDigest ? suiVisionTxUrl(intent.suiTxDigest) : null;
+  const explorerUrl = intent.suiTxDigest ? solanaTxUrl(intent.suiTxDigest) : null;
   const history = audit?.statusHistory ?? [];
   const sentAt = history[0]?.at ?? intent.createdAt;
   const deliveredAt =

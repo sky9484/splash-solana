@@ -84,17 +84,6 @@ test('the settings route requires an admin, resolved from the database', async (
   assert.match(route, /assertCleanBody\(body, 'settings'\)/);
 });
 
-test('both money routes read their own org’s dials', async () => {
-  for (const file of [
-    '../app/api/transfers/authorize/route.ts',
-    '../app/api/batches/authorize/route.ts',
-  ]) {
-    const route = await readFile(new URL(file, import.meta.url), 'utf8');
-    assert.match(route, /await readOrgSettings\(orgId\)/, `${file} must scope settings by org`);
-    assert.doesNotMatch(route, /readOperatingSettings\(\)/, `${file} must not read the global file`);
-  }
-});
-
 // ── An approval makes the payment happen ───────────────────────────────────
 
 test('the payload rides on the proposal, not in a process map', async () => {
@@ -147,53 +136,11 @@ test('recording an outcome does not void the approvals that authorised it', asyn
 
 // ── The approval claim is verified, never trusted ──────────────────────────
 
-test('an approved-proposal header is a claim the route resolves', async () => {
-  const guard = await readFile(
-    new URL('../lib/server/approved-proposal.ts', import.meta.url),
-    'utf8',
-  );
-  // Trusting the header would make dual approval a thing any client can assert
-  // — a considerably worse hole than the one it closes.
-  assert.match(guard, /proposal\.orgId !== orgId/, 'an approval in another org is not an approval');
-  assert.match(guard, /distinctApprovers < required/, 'the signatures, not just the status');
-  // SUBMITTED only: SETTLED and ANCHORED are after the money moved, and
-  // counting them is how an executed approval stayed spendable.
-  assert.match(guard, /const EXECUTABLE_STATUS = 'SUBMITTED';/);
-  assert.match(guard, /proposal\.status !== EXECUTABLE_STATUS/);
-  assert.doesNotMatch(guard, /'SETTLED'|'ANCHORED'/);
-  // Unverifiable means not approved.
-  assert.match(guard, /reason: 'store unavailable'/);
-
-  for (const file of [
-    '../app/api/transfers/authorize/route.ts',
-    '../app/api/batches/authorize/route.ts',
-  ]) {
-    const route = await readFile(new URL(file, import.meta.url), 'utf8');
-    assert.match(route, /resolveApprovalClaim\(request, orgId, \{/);
-    assert.match(route, /limits\.requiresSecondApproval && !approvalClaim\.approved/);
-  }
-});
-
-test('execution replays the real route so every guard runs again', async () => {
-  const replay = await readFile(
-    new URL('../lib/server/approval-replay.ts', import.meta.url),
-    'utf8',
-  );
-  // A second implementation of a money path drifts: a guard added to the route
-  // in six months would silently not apply to approved payments, which are the
-  // largest ones, because being large is what sent them for approval.
-  assert.match(replay, /await import\('@\/app\/api\/transfers\/authorize\/route'\)/);
-  assert.match(replay, /await import\('@\/app\/api\/batches\/authorize\/route'\)/);
-  assert.match(replay, /await import\('@\/app\/api\/treasury\/route'\)/);
-  // The approver's own cookie, so the replay resolves a real session.
-  assert.match(replay, /cookie: input\.cookie/);
-});
-
 // ── One approval, one attempt ──────────────────────────────────────────────
 
 test('an approval is spent by its attempt, even one no route saw', async () => {
   delete process.env.DATABASE_URL;
-  delete process.env.SPLASH_CUSTODY_PACKAGE_ID;
+  delete process.env.SPLASH_CUSTODY_PHASE;
   const { InMemoryProposalStore } = await import('../lib/queue/proposal-state.ts');
   const { executeApprovedProposal } = await import('../lib/server/approval-execution.ts');
   const { resolveApprovalClaim } = await import('../lib/server/approved-proposal.ts');

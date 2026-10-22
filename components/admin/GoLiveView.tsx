@@ -11,22 +11,18 @@ import type { Check, HealthReport } from '@/lib/server/health-checks';
 type Key = keyof HealthReport['checks'];
 type Row = { key: Key; name: string; role: string };
 
-// In the order docs/STABLECOIN-LANE.md and the setup guide walk them.
+// The setup a person does by hand, in the order the setup guide walks it.
 const MONEY: Row[] = [
-  { key: 'laneNode', name: 'Sui mainnet node', role: 'Builds, dry-runs and sends USDC transfers' },
-  { key: 'peg', name: 'Stablecoin peg (DeepBook)', role: 'Gates every payout' },
-  { key: 'usdyPrice', name: 'USDY price (Ondo)', role: 'Values the treasury preview' },
-  { key: 'feeAddress', name: 'Fee wallet', role: 'Receives the audit-anchor fee on USDC sent out of Splash, when it is on' },
+  { key: 'kora', name: 'Fee payer (Kora)', role: 'Pays Solana network fees so nobody needs SOL; never sends SOL or tokens' },
   { key: 'twilio', name: 'WhatsApp codes (Twilio)', role: 'Delivers approval codes to the main admin' },
-  { key: 'passkeyDomain', name: 'Passkey domain', role: "Ties each admin's Splash wallet to this site" },
+  { key: 'passkeyDomain', name: 'Passkey domain', role: 'The site sign-in passkeys are bound to' },
   { key: 'screening', name: 'Wallet screening (Chainalysis)', role: 'Checks new wallet recipients against sanctions lists' },
 ];
 
 const INFRASTRUCTURE: Row[] = [
-  { key: 'rpc', name: 'Sui RPC', role: 'The app network the contracts live on' },
-  { key: 'package', name: 'Splash package', role: 'The published Move package' },
-  { key: 'db', name: 'Postgres', role: 'Ledger, approvals and the 30-day allowance' },
-  { key: 'seal', name: 'Seal', role: 'Encrypted records' },
+  { key: 'rpc', name: 'Solana RPC', role: 'The network vaults and payments settle on' },
+  { key: 'db', name: 'Postgres', role: 'Accounts, devices, vault records and approvals' },
+  { key: 'seal', name: 'Seal (evidence)', role: 'Encrypts evidence before it is stored on Walrus' },
   { key: 'launchScope', name: 'Launch scope', role: 'Which lanes this server opens (LAUNCH_SCOPE)' },
 ];
 
@@ -103,7 +99,7 @@ export default function GoLiveView({ report, rerunHref }: { report: HealthReport
       <CheckList
         id="go-live-money"
         title="Moving real money"
-        lead="The setup a person does by hand: the price sources payouts and the treasury preview read, the fee wallet, WhatsApp delivery, the passkey domain and wallet screening."
+        lead="The setup a person does by hand: the fee payer, WhatsApp delivery, the passkey domain and wallet screening."
         rows={MONEY}
         report={report}
       />

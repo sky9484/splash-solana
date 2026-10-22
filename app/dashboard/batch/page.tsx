@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Download, FileWarning, Layers, Loader2, PercentCircle, ShieldCheck, Upload, Wallet, XCircle, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Download, FileWarning, Loader2, ShieldCheck, Upload, Wallet, XCircle, type LucideIcon } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 
@@ -40,7 +40,7 @@ type BatchStatus = {
   acceptedRows: number;
   totalAmount: string;
   digest: string | null;
-  explorer: { suiVisionTxUrl: string | null; suiScanTxUrl: string | null };
+  explorer: { txUrl: string | null };
   demo?: boolean;
 };
 
@@ -69,31 +69,24 @@ function buildSampleCsv() {
   return [csvHeader, ...rows].join("\n");
 }
 
+// Each claim here is something the batch flow does. Never describe a whole
+// batch as all-or-nothing: Solana transactions are size-limited, so only a
+// chunk that fits one transaction can land whole or not at all.
 const batchBenefits = [
   {
-    icon: PercentCircle,
-    title: "15–30 bps cheaper FX",
-    body: "Batched rows are netted against treasury inventory, so we quote one tighter rate instead of paying spread on every transfer.",
-  },
-  {
     icon: ShieldCheck,
-    title: "One signed authorization",
-    body: "Approve the whole payroll with a single TOTP. No re-keying per beneficiary, and an immutable approver trail on Sui.",
+    title: "One approval for the batch",
+    body: "A person approves the cleared rows once, without re-keying each beneficiary. Who approved is kept in the audit trail.",
   },
   {
     icon: CheckCircle2,
-    title: "Atomic compliance",
-    body: "AML, KYT, structuring and corridor checks run before any value moves. Bad rows are isolated; cleared rows still ship.",
+    title: "Checks before anything moves",
+    body: "AML, KYT, structuring and corridor checks run before any value moves. Bad rows are held back; cleared rows still go.",
   },
   {
     icon: Wallet,
-    title: "One reconciliation entry",
-    body: "Operating account sees a single debit and a merkle-rooted receipt — your accountants stop reconciling 50 line items.",
-  },
-  {
-    icon: Layers,
-    title: "Off-peak window pricing",
-    body: "Batches can target the next settlement window where corridor fees drop further, saving on cross-border partner costs.",
+    title: "One batch record",
+    body: "Every row keeps its own receipt under one batch, so reconciliation starts from a single place.",
   },
 ];
 

@@ -1,0 +1,27 @@
+# splash_evidence — the Seal access policy for Splash evidence (prompt 07 §4.4).
+#
+# The ONLY Move package in the Solana build. Settlement is Solana; this package
+# decides one thing: who may decrypt an org's evidence bundles (encrypted with
+# Seal, stored on Walrus). It holds no value and has no power over any account.
+#
+# Ported from sky9484/phase1 (feat/v15-splash-evidence, allowlist.move) with
+# the §4.4 rules: authority is membership, not a transferable Cap; the Splash
+# sponsor pays gas and is never a member; any authority change revokes every
+# auditor grant. The phase1 `anchor` module is not ported: anchoring is a SAS
+# attestation on Solana (lib/solana-evidence/anchor.ts).
+#
+# GATE G1: not published. No publish, upgrade or address change without
+# Sebastian's written confirmation in the PR.
+#
+# No third-party dependencies; the Sui framework is implicit.
+[package]
+name = "splash_evidence"
+version = "0.0.1"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Splash Finance"]
+
+[dependencies]
+
+[addresses]
+splash_evidence = "0x0"

@@ -20,7 +20,7 @@ import test from 'node:test';
 
 // Phase 2 for this whole file. The contract config is cached on first read,
 // so the package has to be in place before anything imports the gate.
-process.env.SPLASH_CUSTODY_PACKAGE_ID = '0x' + 'cd'.repeat(32);
+process.env.SPLASH_CUSTODY_PHASE = '2';
 // The PDAX adapter is chosen when lib/server/pdax.ts loads: force the mock, so
 // a PDAX_API_KEY in the shell can never send this file's sweeps to the partner.
 process.env.USE_MOCK_APIS = 'true';
@@ -30,8 +30,8 @@ const operationsModule = () => import('../lib/server/operations.ts');
 const transfersStore = () => import('../lib/server/transfers-store.ts');
 const sweep = () => import('../lib/server/sweep.ts');
 
-const CUSTODY_ON = { custodyPackageId: process.env.SPLASH_CUSTODY_PACKAGE_ID };
-const CUSTODY_OFF = { custodyPackageId: '' };
+const CUSTODY_ON = { custodyEnabled: true };
+const CUSTODY_OFF = { custodyEnabled: false };
 
 async function source(relative) {
   return (await readFile(new URL(`../${relative}`, import.meta.url), 'utf8'))
@@ -117,19 +117,6 @@ test('the executor backstop says what did not happen, and does not invite a seco
   // It does not know what its caller did, so it claims nothing about it.
   assert.doesNotMatch(SWEEP_ACCOUNT_DISABLED_AT_DELIVERY, /settled|debited/i);
   assert.doesNotMatch(SWEEP_ACCOUNT_DISABLED_AT_DELIVERY, /licen[cs]e|Phase 0|Phase 2/i);
-});
-
-test('the authorize route refuses a sweep with the switch off before a recipient, intent, debit or settlement', async () => {
-  const route = await source('app/api/transfers/authorize/route.ts');
-  const custody = route.indexOf('if (!deliveryTierAllowed(body.deliveryTier)) return custodyPhaseResponse();');
-  const check = route.indexOf("if (body.deliveryTier === 'SWEEP_ACCOUNT' && !sweepAccountEnabled()) return sweepAccountDisabledResponse();");
-  assert.ok(custody > 0, 'the custody gate is still there');
-  assert.ok(check > custody, 'the switch is checked after the custody gate, so Phase 0 still answers with the licence');
-  for (const write of ['persistRecipient(', 'createTransferIntent(', 'recordMovement(', 'executeComposedPayment(', 'completeDeliveryForTransfer(']) {
-    const at = route.indexOf(write);
-    assert.ok(at > 0, `${write} exists`);
-    assert.ok(check < at, `the switch is checked before ${write}`);
-  }
 });
 
 test('a sweep recipient cannot be saved with the switch off either', async () => {

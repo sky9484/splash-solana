@@ -8,7 +8,7 @@ import { kindInScope, launchScope, laneInScope, LAUNCH_SCOPE_REASON } from '../s
  * What Zeke may prepare for a business, given how far through verification it
  * is — and the words it says when the answer is no.
  *
- * A business still in onboarding can send USDC on Sui to wallet recipients it
+ * A business still in onboarding can send USDC on Solana to wallet recipients it
  * has saved (lib/payments/stablecoin-lane.ts). It cannot bring USD in, pay out
  * in a local currency, convert USD into one, or use Treasury. Zeke refuses
  * those at TWO points, because either alone leaves a gap:
@@ -57,7 +57,7 @@ export async function zekeLaneState(orgId: string): Promise<KybLifecycleState> {
 }
 
 const WALLET_ALTERNATIVE =
-  'What you can do today: send USDC on Sui to a wallet recipient saved under Recipients — up to 5,000 USDC in any 30 days, with x402 payments counting toward the same limit. Finish verification in Account setup to unlock USD in and local-currency payouts.';
+  'What you can do today: send USDC on Solana from your vault to a wallet recipient saved under Recipients — up to 5,000 USDC in any 30 days. Finish verification in Account setup to unlock USD in and local-currency payouts.';
 
 /** The refusal, in the words an operator can act on. */
 export function laneRefusalText(lane: Lane, state: KybLifecycleState, currency: string | null = null): string {
@@ -72,9 +72,9 @@ export function laneRefusalText(lane: Lane, state: KybLifecycleState, currency: 
       return `I can't prepare that. Your business isn't verified yet, and ${what} stays locked until verification is complete.\n\n${WALLET_ALTERNATIVE}`;
     }
     case 'FIAT_IN_USD':
-      return `I can't set that up. USD in stays locked until your business is verified. You can fund with USDC instead — including USDC from Ethereum, Arbitrum, Base or Solana, brought to your own Sui wallet through Circle's CCTP.\n\n${WALLET_ALTERNATIVE}`;
+      return `I can't set that up. USD in stays locked until your business is verified. You can fund with USDC instead: send USDC on Solana to your vault, or bring USDC from Ethereum, Arbitrum or Base to it through Circle's CCTP.\n\n${WALLET_ALTERNATIVE}`;
     case 'TREASURY':
-      return `${access.reason} Treasury moves USDC into a yield-bearing asset, and that is only offered to verified businesses.`;
+      return `${access.reason} Treasury is not part of Splash today, and it would only ever be offered to verified businesses.`;
     default:
       return access.reason;
   }
@@ -173,10 +173,12 @@ const PAYOUT_VERB = /\b(pay|pays|paying|payment|payments|send|sending|transfer|t
 const CONVERT_VERB = /\b(convert|converting|exchange)\b/i;
 const RATE_QUESTION = /\b(rate|rates|how much is|how much would|quote)\b/i;
 const BANK_TARGET = /\b(bank account|to (?:their|his|her|my|our|the) bank)\b/i;
-const STABLECOIN_TARGET = /\b(usdc|wallet|sui)\b/i;
+const STABLECOIN_TARGET = /\b(usdc|wallet|solana)\b/i;
 const USD_IN = /\b(deposit|fund|top ?up|add funds|wire in|bank in)\b/i;
 const USD_WORD = /\b(usd|dollars?|bank wire|wire transfer|ach|swift)\b/i;
-const TREASURY_WORD = /\b(treasury|vault|usdy)\b/i;
+// Not "vault": on this build the vault is where the business's USDC sits
+// (its Squads vault), so "fund the vault" is not a Treasury request.
+const TREASURY_WORD = /\b(treasury|usdy)\b/i;
 const TREASURY_VERB = /\b(allocate|deposit|move|put|invest|fund|sweep|park|stake|swap)\b/i;
 
 export interface LaneIntent {

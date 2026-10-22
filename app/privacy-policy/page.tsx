@@ -32,7 +32,7 @@ export default function PrivacyPolicyPage() {
       <h2>2. Which service this covers</h2>
       <p>
         This policy covers <strong>v2.splashz.xyz</strong>, which is a demonstration environment. It
-        runs against the Sui test network, and the tokens it moves are test tokens with no monetary
+        runs against Solana devnet, a test network, and the tokens it moves are test tokens with no monetary
         value. Do not use it to send real money and do not upload data you would not want in a test
         system.
       </p>
@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
 
       <h2>4. What is permanent, and why that matters</h2>
       <p>
-        Some records are anchored to a public blockchain to make them tamper-evident. Anchored
+        Some records are anchored to a public blockchain (Solana) to make them tamper-evident. Anchored
         records are <strong>permanent and publicly readable, and we cannot delete or alter
         them</strong> — that is the property that makes an audit trail worth having, and it is also
         an irreversible disclosure. So what goes on chain is deliberately narrow.

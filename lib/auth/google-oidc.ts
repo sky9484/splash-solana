@@ -18,7 +18,7 @@ import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, 
  *   - `email_verified` is the boolean `true`, or the sign-in is refused.
  *
  * The strict decoding and claim checks were carried over from the earlier
- * build's Google verifier, minus everything Sui, with the nonce made mandatory.
+ * build's Google verifier, minus everything chain-specific, with the nonce made mandatory.
  */
 
 export type GoogleIdClaims = {

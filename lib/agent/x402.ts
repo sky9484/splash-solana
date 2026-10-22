@@ -15,26 +15,26 @@
  * What it deliberately is NOT — recorded here so nobody "finishes" it by
  * accident (docs/X402-ASSESSMENT.md carries the full argument):
  *
- *   1. Splash settles on Sui; x402 'exact' settles USDC on EVM chains. There
- *      is no shared rail today, so "integration" can only mean Splash
+ *   1. Splash settles USDC on Solana, from the business's own Squads vault;
+ *      the x402 'exact' sellers this module knows settle USDC on EVM chains.
+ *      There is no shared rail, so "integration" can only mean Splash
  *      operating an EVM spend wallet — new custody surface, new key, and a
- *      capability the Move invariants never reviewed.
+ *      capability the vault invariants (no Splash key moves customer money)
+ *      never allowed for. This build has no x402 payment route either.
  *   2. The product's first law is that the agent proposes and a HUMAN
- *      approves each release. Autonomous per-request micro-payments are the
+ *      approves each release. Unattended per-request micro-payments are the
  *      point of x402 — and the exact thing the pipeline exists to prevent.
  *      The honest bridge is the SESSION-PAYMENT MANDATE (Build Prompt v3.1
- *      §3.2): a capped, revocable, human-signed budget. That primitive is
- *      Move work awaiting Sebastian; until it exists, x402 spend has no home
- *      that respects the invariants.
+ *      §3.2): a capped, revocable, human-signed budget. That primitive does
+ *      not exist on this build; until it does, x402 spend has no home that
+ *      respects the invariants.
  *
- * So `x402SettlementAvailability()` refuses, with the reason, always.
+ * So `x402SettlementAvailability()` refuses, with the reason, always. Do not
+ * add a Solana settlement path here: the refusal is the design.
  */
 
-/** Networks the reference facilitators actually serve. */
+/** Networks the reference facilitators actually serve (EVM only). */
 export const X402_KNOWN_NETWORKS = [
-  // x402 v2 exact scheme on Sui (native USDC) — payable by a person, from
-  // the Send USDC page; never by Zeke.
-  'sui:mainnet',
   'arbitrum-one',
   'arbitrum-sepolia',
   'base',
@@ -46,7 +46,7 @@ export interface X402Requirement {
   network: string;
   /** Base units of the asset (USDC: 6dp), as a bigint — never float money. */
   maxAmountRequiredMinor: bigint;
-  /** The payment asset: an ERC-20 contract on EVM, a full coin type on Sui. */
+  /** The payment asset: an ERC-20 contract address on EVM. */
   asset: string;
   payTo: string;
   resource: string;
@@ -141,7 +141,7 @@ export function x402SettlementAvailability(): { available: false; reason: string
   return {
     available: false,
     reason:
-      'Zeke can read this x402 request and price it, but Zeke never pays it: every release of value here is approved by a named human, and per-request agent spending waits for the capped, revocable, human-signed session mandate on-chain. If the seller accepts USDC on Sui mainnet, pay it yourself on the Send USDC page (x402): you approve it, sign it in your own wallet, and it counts against the same allowance as your transfers. Sellers that accept only EVM chains (Base, Arbitrum) are not payable from a Sui wallet.',
+      'Zeke can read this x402 request and price it, but Zeke never pays it: every release of value here is approved by a named human, and per-request agent spending would need a capped, revocable, human-signed session mandate, which Splash does not offer yet. Splash cannot pay it from your vault either: your USDC sits on Solana, and the x402 sellers Splash recognises are paid on EVM chains (Base, Arbitrum), so there is no route between the two in Splash today.',
   };
 }
 

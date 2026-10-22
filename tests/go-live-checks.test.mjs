@@ -3,12 +3,9 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  checkFeeAddress,
   checkPasskeyDomain,
-  checkPeg,
   checkScreening,
   checkTwilio,
-  checkUsdyPrice,
 } from '../lib/server/go-live-checks.ts';
 
 /**
@@ -25,39 +22,6 @@ const TWILIO = {
   TWILIO_AUTH_TOKEN: 'super-secret-token',
   TWILIO_WHATSAPP_FROM: '+14155238886',
 };
-
-test('the fee wallet: not needed while transfers are free, required once the anchor fee is on, and never an object id', async () => {
-  const wallet = async () => false;
-  const unset = await checkFeeAddress({}, wallet);
-  assert.equal(unset.status, 'skipped');
-  assert.match(unset.detail, /not needed while stablecoin transfers are free/);
-  const needed = await checkFeeAddress({ STABLECOIN_ANCHOR_FEE: 'on' }, wallet);
-  assert.equal(needed.status, 'fail');
-  assert.match(needed.detail, /USDC transfers out of Splash are closed until the fee wallet is set/);
-  assert.equal((await checkFeeAddress({ SPLASH_FEE_ADDRESS_MAINNET: '0x52908400098527886E0F7030069857D2E4169EE7' }, wallet)).status, 'fail');
-
-  const set = await checkFeeAddress({ SPLASH_FEE_ADDRESS_MAINNET: `0x${'ab'.repeat(32)}` }, wallet);
-  assert.equal(set.status, 'ok');
-  assert.match(set.detail, /fee wallet 0xabab…abab is a wallet address on mainnet; the audit-anchor fee is off, so stablecoin transfers are free/);
-  const on = await checkFeeAddress({ SPLASH_FEE_ADDRESS_MAINNET: `0x${'ab'.repeat(32)}`, STABLECOIN_ANCHOR_FEE: 'on' }, wallet);
-  assert.match(on.detail, /the audit-anchor fee is on and goes there/);
-
-  // A coin id copied from an explorer looks exactly like an address.
-  const object = await checkFeeAddress({ SPLASH_FEE_ADDRESS_MAINNET: `0x${'cd'.repeat(32)}` }, async () => true);
-  assert.equal(object.status, 'fail');
-  assert.match(object.detail, /is an object on mainnet, not a wallet/);
-
-  const unreachable = await checkFeeAddress({ SPLASH_FEE_ADDRESS_MAINNET: `0x${'ab'.repeat(32)}` }, async () => { throw new Error('connection reset'); });
-  assert.equal(unreachable.status, 'fail');
-  for (const c of [unset, needed, set, on, object, unreachable]) consistent(c);
-});
-
-test('.env.example keeps the fee address blank: it is a template, and the app never reads it', () => {
-  // 2026-09-26: the real address was typed into .env.example, where the app
-  // did not see it (the lane stayed closed) and a commit would have published it.
-  const example = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
-  assert.match(example, /^SPLASH_FEE_ADDRESS_MAINNET=\s*$/m);
-});
 
 test('without WhatsApp delivery, production refuses WhatsApp approvals instead of locking the workspace', async () => {
   const { whatsappDeliveryMissing } = await import('../lib/server/whatsapp.ts');
@@ -147,46 +111,10 @@ test('wallet screening: a key Chainalysis accepts, rejects, or none at all', asy
   }
 });
 
-test('USDY price: Ondo’s oracle, or a failure that says what the preview does instead', async () => {
-  assert.equal((await checkUsdyPrice({ USDY_ORACLE: 'off' })).status, 'skipped');
-  const word = (n) => BigInt(n).toString(16).padStart(64, '0');
-  const now = Math.floor(Date.now() / 1000);
-  const good = await checkUsdyPrice({}, async () => json({ jsonrpc: '2.0', id: 1, result: `0x${word(1_147_300_010_000_000_000n)}${word(now)}` }));
-  assert.equal(good.status, 'ok');
-  assert.match(good.detail, /^\$1\.147300 from Ondo's oracle via ethereum-rpc\.publicnode\.com/);
-  const down = await checkUsdyPrice({}, async () => new Response('bad gateway', { status: 502 }));
-  assert.equal(down.status, 'fail');
-  assert.match(down.detail, /falls back to USDY_REDEMPTION_USD/);
-  for (const c of [good, down]) consistent(c);
-});
-
-test('the peg: DeepBook’s reading, or payouts paused, said plainly', async () => {
-  const realFetch = globalThis.fetch;
-  try {
-    globalThis.fetch = async () => json([{ trading_pairs: 'USDSUI_USDC', last_price: 1, highest_bid: 0.9999, lowest_ask: 1.0001, base_volume: 500_000 }]);
-    const good = await checkPeg({});
-    assert.equal(good.status, 'ok');
-    assert.match(good.detail, /^USDSUI_USDC mid 1\.0000, 0 bps from 1/);
-
-    globalThis.fetch = async () => new Response('down', { status: 503 });
-    const none = await checkPeg({});
-    assert.equal(none.status, 'fail');
-    assert.match(none.detail, /payouts pause \(peg_unverified\)/);
-
-    globalThis.fetch = async () => json([{ trading_pairs: 'USDSUI_USDC', last_price: 0.97, highest_bid: 0.9690, lowest_ask: 0.9700, base_volume: 500_000 }]);
-    const broken = await checkPeg({});
-    assert.equal(broken.status, 'fail');
-    assert.match(broken.detail, /past the tolerance/);
-    for (const c of [good, none, broken]) consistent(c);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-});
-
 test('doctor and /api/health both show every go-live check, by name', () => {
   const health = readFileSync(new URL('../lib/server/health-checks.ts', import.meta.url), 'utf8');
   const doctor = readFileSync(new URL('../scripts/doctor.mjs', import.meta.url), 'utf8');
-  for (const key of ['laneNode', 'peg', 'usdyPrice', 'feeAddress', 'twilio', 'passkeyDomain', 'screening', 'launchScope']) {
+  for (const key of ['rpc', 'kora', 'twilio', 'passkeyDomain', 'screening', 'launchScope']) {
     assert.match(health, new RegExp(`\\b${key}\\b`), `${key} in the health report`);
     assert.match(doctor, new RegExp(`\\b${key}: '`), `${key} named in doctor`);
   }
@@ -200,7 +128,7 @@ test('the admin Go-live page shows every check in the report, staff-only, and ne
   // Every key the report carries has a row, so a new check cannot go unseen.
   const block = health.slice(health.indexOf('checks: {'), health.indexOf('};', health.indexOf('checks: {')));
   const keys = [...block.matchAll(/\b([a-zA-Z]+): Check\b/g)].map((m) => m[1]);
-  assert.ok(keys.length >= 12, `found ${keys.length} report keys`);
+  assert.ok(keys.length >= 8, `found ${keys.length} report keys`);
   for (const key of keys) assert.match(view, new RegExp(`key: '${key}'`), `${key} has a row on the page`);
   // The same module as doctor and /api/health.
   assert.match(page, /runHealthChecks\(\)/);

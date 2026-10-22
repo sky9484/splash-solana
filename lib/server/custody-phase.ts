@@ -1,5 +1,4 @@
 import { CUSTODY_PHASE_REASON, PHASE0_DELIVERY_TIERS, deliveryTierOpen } from '../custody-phase-rules.ts';
-import { getContractConfig } from './contract-config.ts';
 
 /**
  * Which phase the deployment is in, decided by the one thing the code can
@@ -12,13 +11,13 @@ import { getContractConfig } from './contract-config.ts';
  * "Money broking license: RM 1–1.5m paid-up capital"; the MFCA is a bank
  * account, not a licence, and is never described as one).
  *
- * The code cannot check a licence. It checks the custody package: the
- * `splash_custody` Move package is published only when the licence exists,
- * so `SPLASH_CUSTODY_PACKAGE_ID` (or `custodyPackageId` in
- * data/contract-config.json) being set IS the Phase-2 switch. Until then every
- * fund-holding path refuses with the same plain reason, and the treasury
- * surfaces say when they arrive rather than showing a projection as if it
- * were a balance.
+ * The code cannot check a licence. It checks one server-only switch,
+ * SPLASH_CUSTODY_PHASE=2, which is set only when the licence exists (the
+ * earlier build keyed this on publishing a custody Move package; the Solana
+ * build has no such package). Unset, or anything else, is Phase 0. Until then
+ * every fund-holding path refuses with the same plain reason, and the
+ * treasury surfaces say when they arrive rather than showing a projection as
+ * if it were a balance.
  */
 
 // The tier lists, the customer-facing reason and the tier decision live in
@@ -31,18 +30,23 @@ export type CustodyPhase = 'PHASE_0_PAYOUT_ONLY' | 'PHASE_2_CUSTODY';
 export const CUSTODY_PHASE_CODE = 'custody_not_licensed';
 
 /** Only the field the decision reads, so callers and tests can pass a literal. */
-export type CustodyConfig = { custodyPackageId?: string };
+export type CustodyConfig = { custodyEnabled?: boolean };
 
-export function custodyPhaseEnabled(config: CustodyConfig = getContractConfig()): boolean {
-  return Boolean((config.custodyPackageId ?? '').trim());
+/** The deployment's switch, read on every call so tests can set it. */
+export function custodyConfigFromEnv(env: NodeJS.ProcessEnv = process.env): CustodyConfig {
+  return { custodyEnabled: env.SPLASH_CUSTODY_PHASE?.trim() === '2' };
 }
 
-export function currentCustodyPhase(config: CustodyConfig = getContractConfig()): CustodyPhase {
+export function custodyPhaseEnabled(config: CustodyConfig = custodyConfigFromEnv()): boolean {
+  return config.custodyEnabled === true;
+}
+
+export function currentCustodyPhase(config: CustodyConfig = custodyConfigFromEnv()): CustodyPhase {
   return custodyPhaseEnabled(config) ? 'PHASE_2_CUSTODY' : 'PHASE_0_PAYOUT_ONLY';
 }
 
 /** Whether a delivery tier may be used now. Unknown tiers are never allowed. */
-export function deliveryTierAllowed(tier: string, config: CustodyConfig = getContractConfig()): boolean {
+export function deliveryTierAllowed(tier: string, config: CustodyConfig = custodyConfigFromEnv()): boolean {
   return deliveryTierOpen(tier, custodyPhaseEnabled(config));
 }
 
@@ -97,7 +101,7 @@ export const SWEEP_ACCOUNT_DISABLED_AT_DELIVERY =
  */
 export function invoiceDeliveryTier(
   targetCurrency: string | undefined,
-  config: CustodyConfig = getContractConfig(),
+  config: CustodyConfig = custodyConfigFromEnv(),
   sweepOn: boolean = sweepAccountEnabled(),
 ): 'PAYOUT_ONLY' | 'SWEEP_ACCOUNT' {
   return targetCurrency === 'PHP' && deliveryTierAllowed('SWEEP_ACCOUNT', config) && sweepOn ? 'SWEEP_ACCOUNT' : 'PAYOUT_ONLY';

@@ -1,6 +1,4 @@
-import { suiScanTxUrl, suiVisionTxUrl } from '@/lib/explorer';
-import { getContractConfig } from '@/lib/server/contract-config';
-import { rememberForOrg } from '@/lib/server/memwal';
+import { solanaTxUrl } from '@/lib/explorer';
 import type { StoredSettlementEvidence } from '@/lib/evidence/settlement';
 import type {
   CctpSourceChain,
@@ -99,8 +97,7 @@ export type BatchRecord = {
   blockedRows: number;
   totalAmount: string;
   digest: string | null;
-  packageId: string | null;
-  explorer: { suiVisionTxUrl: string | null; suiScanTxUrl: string | null };
+  explorer: { txUrl: string | null };
   demo?: boolean;
   /** The on-chain BusinessAccount this run settles from. Recorded, not the
    *  scoping key — see `orgId` above. */
@@ -143,11 +140,11 @@ export type RecipientRecord = {
     sweepDelaySeconds: number;
   };
   kybInviteSent?: boolean;
-  /** BANK (local currency via a partner rail) or WALLET (USDC on Sui). */
+  /** BANK (local currency via a payout partner) or WALLET (USDC on Solana). */
   payoutMethod?: 'BANK' | 'WALLET';
-  /** Lower-cased Sui address; set only for WALLET recipients. */
+  /** Solana address (base58, case-sensitive); set only for WALLET recipients. */
   walletAddress?: string;
-  /** 'SLUSH' | 'METAMASK_SUI_SNAP'. */
+  /** 'PHANTOM' | 'SOLFLARE' | 'BACKPACK' | 'OTHER'. */
   walletProvider?: string;
   /** Sanctions screening outcome; null/absent = never screened. */
   screeningVerdict?: string | null;
@@ -215,7 +212,7 @@ export type InvoiceRecord = {
   documentSha256?: string;
   transferIntentId?: string;
   demo?: boolean;
-  /** Paid in USDC on Sui to the issuer's own wallet (lib/server/usdc-invoice-payments.ts). */
+  /** Paid in USDC to the issuer's own vault (lib/server/usdc-invoice-payments.ts). */
   usdcTxDigest?: string;
   usdcPaidAt?: string;
   createdAt: string;
@@ -281,7 +278,6 @@ export type AuditReceipt = {
   invoiceId?: string;
   walrusBlobId?: string;
   sealPolicyId?: string;
-  memwalRecordId?: string;
   extractionSnapshot?: unknown;
   approvedBy?: string;
   approvedAt?: string;
@@ -320,8 +316,7 @@ export type TransactionRecord = {
   functionName: string;
   amount: string;
   digest: string | null;
-  packageId: string | null;
-  explorer: { suiVisionTxUrl: string | null; suiScanTxUrl: string | null };
+  explorer: { txUrl: string | null };
   createdAt: string;
 };
 
@@ -368,8 +363,7 @@ export function createPayLinkSlug() {
 
 function explorerLinks(digest: string | null) {
   return {
-    suiVisionTxUrl: digest ? suiVisionTxUrl(digest) : null,
-    suiScanTxUrl: digest ? suiScanTxUrl(digest) : null,
+    txUrl: digest ? solanaTxUrl(digest) : null,
   };
 }
 
@@ -502,7 +496,6 @@ export function buildBatch(input: {
     blockedRows: input.blockedRows,
     totalAmount: input.totalAmount,
     digest: null,
-    packageId: null,
     explorer: explorerLinks(null),
     accountId: input.accountId,
     idempotencyKey: input.idempotencyKey,
@@ -731,8 +724,8 @@ export function readRateHoldFor(orgId: string, holdId: string) {
 // receipt from the transfer's own row and its `intent_transitions`, scoped, and
 // spells cross-tenant reach `readAuditReceiptForStaff`.
 //
-// `findAuditReceiptByHash` went with them, unmourned: it scanned every tenant's
-// receipts for a hash and nothing had ever called it.
+// The by-hash receipt lookup went with them, unmourned: it scanned every
+// tenant's receipts for a hash and nothing had ever called it.
 
 /** Demo seed only — the in-process map, never a real tenant's receipt. */
 function updateAuditReceipt(intentId: string, patch: Partial<AuditReceipt>) {
@@ -766,7 +759,6 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
     functionName: 'settle_payment',
     amount: `$${transfer.sourceAmountUsd}`,
     digest: transfer.suiTxDigest,
-    packageId: getContractConfig().packageId || null,
     explorer: explorerLinks(transfer.suiTxDigest),
     createdAt: transfer.createdAt,
   }));
@@ -779,7 +771,6 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
     functionName: 'settle_batch',
     amount: `$${batch.totalAmount}`,
     digest: batch.digest,
-    packageId: batch.packageId,
     explorer: batch.explorer,
     createdAt: batch.createdAt,
   }));
@@ -789,12 +780,6 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
 function seedDemoData() {
   if (operations.demoSeeded || process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') return;
   operations.demoSeeded = true;
-  // Demo memories belong to the demo org like the rest of the seed. They used
-  // to go to the namespace every workspace shared.
-  void rememberForOrg(DEMO_ORG_ID, 'Pays PH suppliers weekly');
-  void rememberForOrg(DEMO_ORG_ID, 'Batches on Friday');
-  void rememberForOrg(DEMO_ORG_ID, 'Prefers USD settlement');
-
   // Demo seed lives in this process only, owned by DEMO_ORG_ID so it can never
   // be read alongside a real tenant's beneficiaries.
   const seedRecipient = (input: Parameters<typeof buildRecipient>[0]) => {

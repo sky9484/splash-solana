@@ -197,6 +197,20 @@
       "when": 1790899200000,
       "tag": "0027_member_devices_and_org_vaults",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790985600000,
+      "tag": "0028_passkey_sui_address_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791072000000,
+      "tag": "0029_wallet_lane_on_solana",
+      "breakpoints": true
     }
   ]
 }

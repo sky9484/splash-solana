@@ -6,6 +6,7 @@ import FloatingCopilot from '@/components/FloatingCopilot';
 import DashboardHeader from '@/components/DashboardHeader';
 import { CustodyPhaseContext, LaunchScopeContext, SweepSwitchContext } from '@/components/dashboard/CustodyPhaseContext';
 import type { CustomerSession } from '@/lib/auth/customer-session';
+import { explorerCluster } from '@/lib/explorer';
 import { LAUNCH_SCOPE_REASON, type LaunchScope } from '@/lib/launch-scope-rules';
 import {
   Bot,
@@ -129,7 +130,7 @@ function lockReasonFor(
   if (href === '/dashboard/treasury') {
     if (locks.moneyBlocked) return locks.reason;
     if (!locks.termsDone) return termsReason;
-    if (!locks.custodyOn) return 'Treasury arrives with our licence. Nothing is held for you today.';
+    if (!locks.custodyOn) return 'Treasury is not available on this build.';
     return null;
   }
   if (spend.includes(href)) {
@@ -258,10 +259,10 @@ export default function DashboardShell({ children, session, kyb, locks, sweepOn,
         {/* Bottom items */}
         {!collapsed && (
           <div className="fintech-sidebar-signal">
-            <Image src="/isometric/sui-logo-clean.svg" alt="" width={32} height={42} />
+            <Lock size={20} aria-hidden="true" className="mx-auto text-white/80" />
             <span>
               <small>Settlement rail</small>
-              <strong><i /> Sui testnet ready</strong>
+              <strong><i /> {explorerCluster() === 'mainnet-beta' ? 'Solana' : 'Solana devnet'}</strong>
             </span>
           </div>
         )}

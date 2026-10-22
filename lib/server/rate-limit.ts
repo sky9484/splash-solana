@@ -57,11 +57,11 @@ export const RATE_LIMITS = {
   /** The public pay link: marks an invoice paid and creates a recipient. */
   payLinkIp: { bucket: 'pay-link:ip', limit: 20, windowMs: 15 * MINUTE },
   // A payer checking for their USDC payment: each check reads the issuer's
-  // wallet from the Sui indexer. Public, so bounded by network.
+  // wallet from the chain indexer. Public, so bounded by network.
   payLinkUsdcIp: { bucket: 'pay-link-usdc:ip', limit: 30, windowMs: 15 * MINUTE },
   // The issuer matching all open invoices against one read of its wallet.
   invoiceUsdcSyncUser: { bucket: 'invoice-usdc-sync:user', limit: 30, windowMs: 15 * MINUTE },
-  // Each treasury quote asks the Cetus aggregator what Sui can fill.
+  // Each treasury quote asks a swap aggregator what it can fill.
   treasuryQuoteUser: { bucket: 'treasury-quote:user', limit: 30, windowMs: 15 * MINUTE },
   /** Zeke chat spends model credits per message. */
   copilotChatUser: { bucket: 'copilot-chat:user', limit: 30, windowMs: HOUR },
@@ -85,7 +85,7 @@ export const RATE_LIMITS = {
   stepUpVerifyUser: { bucket: 'step-up-verify:user', limit: 60, windowMs: 15 * MINUTE },
   // The public demo x402 seller simulates and broadcasts on each paid call.
   x402DemoIp: { bucket: 'x402-demo:ip', limit: 60, windowMs: 15 * MINUTE },
-  // Wallet activity pages through the Sui indexer (up to four queries each).
+  // Wallet activity pages through the chain indexer (up to four queries each).
   stablecoinActivityUser: { bucket: 'stablecoin-activity:user', limit: 60, windowMs: 15 * MINUTE },
   // The records export reads every transfer the workspace ever quoted.
   stablecoinExportUser: { bucket: 'stablecoin-export:user', limit: 20, windowMs: HOUR },

@@ -16,7 +16,7 @@ const doctorSource = readFileSync(new URL('../scripts/doctor.mjs', import.meta.u
 
 test('flags report the posture switches an operator needs, and only those', () => {
   const flags = featureFlags();
-  for (const key of ['NODE_ENV', 'SUI_NETWORK', 'SUI_SETTLEMENT_MODE', 'USE_MOCK_APIS', 'FEATURE_GOOGLE_SIGNIN', 'OXWAL_CHAIN_MODE']) {
+  for (const key of ['NODE_ENV', 'SPLASH_SOLANA_MODE', 'SOLANA_CLUSTER', 'USE_MOCK_APIS', 'FEATURE_GOOGLE_SIGNIN', 'OXWAL_CHAIN_MODE']) {
     assert.ok(key in flags, `${key} should be reported`);
   }
   // Nothing whose name suggests a secret is a flag.

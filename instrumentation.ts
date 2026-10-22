@@ -9,6 +9,6 @@ export async function register() {
   const { validateEnvAtBoot } = await import('@/lib/env');
   await validateEnvAtBoot();
 
-  const { checkSealHealth } = await import('@/lib/server/seal-health');
+  const { checkSealHealth } = await import('@/lib/evidence-sui/seal-health');
   await checkSealHealth({ force: true });
 }

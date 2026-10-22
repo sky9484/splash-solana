@@ -71,6 +71,61 @@ If the database write fails after the chain call, the vault exists without a rec
 
 ---
 
-## D-P2-x · Key reuse across Solana and Seal (prompt 07 §4.3, gate G2)
+## D-P2-1 · One device key for Solana and Seal, pending G2 (prompt 07 §4.3)
 
-*To be written in Phase 2, after Sebastian answers G2.*
+The member's non-extractable Ed25519 device key is their Squads member (base58) and their Seal identity (blake2b256(0x00 ‖ pubkey)). `lib/evidence-sui/device-sui-signer.ts` lets the Sui SDK use it without exporting it.
+
+Why reuse is safe: the key signs three disjoint kinds of bytes.
+- **Sui:** only 32-byte intent digests. The signer refuses any other length.
+- **Solana:** transaction messages, which are always longer than 32 bytes.
+- **Splash:** the `splash:challenge:v1:` text, which parses as neither a Solana message nor an intent.
+
+An Ed25519 signature is valid for exactly one message, so a signature made for one kind can't be replayed as another. The vectors in `tests/device-sui-signer.test.mjs` match both SDKs byte for byte.
+
+**If Sebastian says no** at G2: generate a second non-extractable key for evidence only, and have the recovery kit hold both.
+
+## D-P2-2 · The Seal allowlist is member-governed, not capability-governed (§4.4, gate G1)
+
+The phase1 policy gave the issuer a transferable `Cap`, and whoever held it could change the list. §4.4 says only an existing member may, and that the sponsor has no cap. So `move/splash_evidence` has no Cap at all: authority is `ctx.sender()` being a member.
+
+Adding or removing a member revokes every auditor grant. The last member can't be removed. Grants are capped at 90 days.
+
+Not published. The README carries the security review and two decisions for Sebastian:
+- make the UpgradeCap immutable (recommended)
+- require the Squads threshold for membership changes, or keep it a single member
+
+## D-P2-3 · SAS schema v2 binds an anchor to its Walrus blobs (§4.5)
+
+`splash.evidence.root.v2` replaces `sui_digest` with `walrus_blob_ids_root`: sha256 over the batch's blob ids, sorted and joined with newlines, as lowercase hex. A verifier holding the batch's blob ids can then check that none was swapped.
+
+v1 was never created on devnet, and SAS schemas are immutable, so this is a new schema name rather than a migration.
+
+## D-P2-4 · Wallet recipients are Solana addresses; old rows are kept but cannot be paid
+
+- Migration 0029 replaces the wallet-shape CHECK with a base58 one and Solana wallet providers. It is `NOT VALID`, so earlier-build rows stay as history.
+- `normaliseSolanaAddress` refuses them before any send.
+- Addresses are trimmed and **never re-cased**, because base58 is case-sensitive.
+
+## D-P2-5 · Native USDC deposits go to the org's own vault
+
+- The earlier build derived a per-business deposit key from a server secret. On Solana that would be a Splash-held key, so it is gone.
+- A deposit is a Solana Pay request to the org's Squads vault.
+- CCTP deposits still start at the configured source-chain address.
+- Funding is USDC only (D-7).
+
+## D-P2-6 · Zeke states no fee percentage until Phase 3
+
+The canon plan fee (0.10%, minimum US$2) lives in `lib/route-engine/fees.ts`. The dashboard quote still uses `lib/fx/corridors.ts`, which charges 70 bps.
+
+So that Zeke never contradicts the quote a person sees, its replies point at the fee line in the quote instead of a number. Phase 3 moves the dashboard quote onto the route engine, and the number can return then.
+
+## D-P2-7 · The §4.2 grep allows the evidence layer, and nothing else
+
+`tests/solana-boundary.test.mjs` runs the §4.2 grep over app, components and lib. It allows only these:
+- `lib/evidence-sui/**`
+- import paths into it (the directory name contains "sui")
+- its env keys
+- the /trust evidence sentence
+- the admin "Sui sponsor (evidence only)" label
+
+Note: the pattern's case-insensitive `PTB` also matches inside words such as `ReceiptByHash`. Such lines were reworded rather than allow-listed.
