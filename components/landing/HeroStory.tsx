@@ -63,8 +63,8 @@ export const BEATS: Beat[] = [
     lines: ['Zeke drafts.', 'A person approves.'],
     accent: 'On your device.',
     lede: 'Eight rules run as code before the approval card appears. The quote stays fresh for sixty seconds. Nobody at Splash can press this button.',
-    // Waits for Sky's new door (eight lamps); until it is converted this keeps the current picture, still decorative.
-    art: { src: '/isometric/gen/hero-02-person-approves.webp', width: 960, height: 818, alt: '' },
+    // Sky's new door (art refresh, 22 Oct): exactly eight lamps, one per rule in the lede.
+    art: { src: '/isometric/gen/hero-02-person-approves-v2.webp', width: 1079, height: 1400, alt: 'A vault door with eight lit lamps, opened by a phone in the keyhole; a locked laptop sits beside it' },
   },
   {
     id: 'routes',
