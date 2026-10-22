@@ -537,6 +537,9 @@
 .iso .iso-dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 11px 16px; font-size: var(--iso-15); font-variant-numeric: tabular-nums; }
 .iso .iso-dl dt { color: var(--text-2); }
 .iso .iso-dl dd { margin: 0; font-weight: 700; text-align: right; color: var(--ink-deep); }
+.iso .iso-dl--rows { display: flex; flex-direction: column; gap: 11px; }
+.iso .iso-dl--rows > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.iso .iso-dl--rows dd { margin-left: auto; }
 .iso .iso-dl__total { border-top: 2px solid var(--ink-deep); padding-top: 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .iso .iso-dl__total strong { font-size: 28px; font-weight: 900; color: var(--ink-deep); font-variant-numeric: tabular-nums; }
 
@@ -660,6 +663,20 @@
 .iso .iso-table .iso-r { text-align: right; }
 .iso .iso-table tr:last-child td { border-bottom: 0; }
 .iso .iso-table strong { color: var(--ink-deep); }
+/* A table that stacks into one card per row on a phone: name across the top, the two amounts side by
+   side, then the status and its link. The header is kept for screen readers only. */
+@media (max-width: 640px) {
+  .iso .iso-table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .iso .iso-table--stack, .iso .iso-table--stack tbody { display: block; }
+  .iso .iso-table--stack tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+  .iso .iso-table--stack tr:last-child { border-bottom: 0; }
+  .iso .iso-table--stack td { display: block; padding: 0; border: 0; }
+  .iso .iso-table--stack td:first-child { grid-column: 1 / -1; }
+  .iso .iso-table--stack td.iso-r { text-align: left; }
+  .iso .iso-table--stack td.iso-r + td.iso-r { text-align: right; }
+  .iso .iso-table--stack td[data-label]::before { content: attr(data-label); display: block; font-size: var(--iso-13); color: var(--text-2); }
+  .iso .iso-table--stack .iso-table__act { text-align: right; align-self: center; }
+}
 
 .iso .iso-tabs { display: flex; flex-wrap: wrap; border-bottom: 2px solid var(--ink-deep); }
 .iso .iso-tabs__tab {
@@ -1080,3 +1097,45 @@
 @media (max-width: 767px) {
   .iso.iso-side:not(.iso-side--phone) { display: none; }
 }
+
+/* ── Overview (prompt 10 Phase 2) ─────────────────────────────────────── */
+.iso .iso-money { padding: 26px 28px; display: flex; flex-direction: column; gap: 18px; }
+.iso .iso-money__top { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+.iso .iso-money__lead { flex: 1 1 320px; min-width: 0; container-type: inline-size; }
+.iso .iso-money__label { margin: 0 0 12px; font-size: var(--iso-15); font-weight: 700; color: var(--text-2); }
+/* Sized to its own length (--chars, set by the page): a long total shrinks rather than run into the art. */
+.iso .iso-money .iso-extrude--xl { font-size: clamp(30px, calc((100cqi - 8px) / (var(--chars, 12) * .58)), 64px); }
+.iso .iso-money__sentence { margin: 14px 0 0; font-size: var(--iso-15); line-height: 1.5; color: rgb(12 62 72 / .9); font-variant-numeric: tabular-nums; max-width: 60ch; }
+.iso .iso-money__sentence strong { color: var(--ink-deep); }
+.iso .iso-money__short { color: var(--amber-ink); }
+.iso .iso-money__short strong { color: var(--amber-ink); }
+.iso .iso-money__vault { flex: 0 0 auto; width: 210px; height: auto; }
+.iso .iso-money__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.iso .iso-money__row { display: flex; gap: 10px; align-items: flex-start; }
+.iso .iso-money__row > div { display: flex; flex-direction: column; gap: 1px; }
+.iso .iso-money__name { color: var(--ink-deep); }
+.iso .iso-money__amount { font-size: 20px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.iso .iso-money__amount--none { font-size: var(--iso-15); font-weight: 700; color: var(--text-2); }
+.iso .iso-money__promises {
+  display: flex; flex-wrap: wrap; gap: 8px 22px;
+  margin: 0; padding-top: 14px;
+  border-top: 1px dashed rgb(12 62 72 / .24);
+  font-size: var(--iso-13); color: rgb(12 62 72 / .9);
+}
+.iso .iso-money__promises span { display: inline-flex; align-items: center; gap: 6px; }
+.iso .iso-money__promises svg { color: var(--teal); }
+@media (max-width: 640px) {
+  .iso .iso-money { padding: 20px 18px; }
+  /* The art is decorative; on a phone it would sit alone on its own row. */
+  .iso .iso-money__vault { display: none; }
+  /* A peek at the next stop shows the pipeline scrolls. */
+  .iso .iso-ov-pipeline .iso-station { flex-basis: 112px; }
+}
+.iso .iso-needs { display: flex; flex-direction: column; }
+.iso .iso-needs .iso-list .iso-ring { font-size: var(--iso-13); }
+.iso .iso-needs__zeke { margin-top: auto; }
+.iso .iso-paylist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-paylist li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 14px; border: 1.5px solid rgb(12 62 72 / .18); }
+.iso .iso-paylist li.is-open { border-color: var(--teal); background: var(--white); }
+.iso .iso-paylist li > div { display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-paylist strong { color: var(--ink-deep); }
