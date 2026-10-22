@@ -4,9 +4,10 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 
-import { IsoDisplay, Morph, Tag, type TagTone } from '@/components/iso';
+import { canMorph, IsoDisplay, Morph, Tag, type TagTone } from '@/components/iso';
 import { PageHead } from '@/components/dashboard/PageHead';
 import { INVOICE_LINKS } from '@/lib/dashboard/links';
 
@@ -21,13 +22,29 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const shown = (tags: Array<{ tone: TagTone; label: string } | null>) => tags.filter((t): t is { tone: TagTone; label: string } => t !== null);
 
 /**
- * Invoices (prompt 10 §6.1, frame Flow-Inv-Choose): only the choice. Two big cards, each with its live
- * counts from server state (GET /api/solana/invoices/summary), nothing when a count is zero. The chosen
- * card grows into the page it opens (a named view transition); with reduced motion it is a plain
- * navigation.
+ * The navigation's view-transition type: styles/iso-ui.css fades the rest of the page (the card that
+ * wasn't chosen with it) over the morph's own 420 ms, for these navigations only.
+ */
+export const INV_TYPES = ['iso-inv'];
+
+/** How long the fallback holds the chosen card up before it navigates (prompt 11 Phase 3). */
+const FALLBACK_MS = 320;
+
+/**
+ * Invoices (prompt 10 §6.1, frame Flow-Inv-Choose; prompt 11 Phase 3): only the choice. Two big cards,
+ * each with its live counts from server state (GET /api/solana/invoices/summary), nothing when a count
+ * is zero. The chosen card grows into the hero of the page it opens (a named view transition, 420 ms)
+ * and the other fades out. Where view transitions can't run, the chosen card lifts to 1.03 for 320 ms
+ * and then navigates. With reduced motion it is a plain navigation. Enter on a focused card is a
+ * click, so the keyboard gets the same. The cards prefetch their whole page: the morph plays only
+ * when the page renders in the same commit as the navigation, which needs its content cached (Next's
+ * view-transitions guide); by default a dynamic page is prefetched only down to its loading boundary.
  */
 export function InvoicesChooser() {
+  const router = useRouter();
   const [summary, setSummary] = useState<ChooserSummary | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const timer = useRef<number | null>(null);
   useEffect(() => {
     let stop = false;
     api<ChooserSummary>('/invoices/summary')
@@ -35,12 +52,24 @@ export function InvoicesChooser() {
       .catch(() => undefined);
     return () => {
       stop = true;
+      if (timer.current !== null) window.clearTimeout(timer.current);
     };
   }, []);
-  return <InvoicesChooserView summary={summary} />;
+  function choose(e: MouseEvent<HTMLAnchorElement>, href: string) {
+    // A new tab or window is the browser's own business; a morph runs inside the Link's navigation.
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (canMorph() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    e.preventDefault();
+    if (chosen) return;
+    setChosen(href);
+    timer.current = window.setTimeout(() => router.push(href), FALLBACK_MS);
+  }
+  return <InvoicesChooserView summary={summary} chosen={chosen} onChoose={choose} />;
 }
 
-export function InvoicesChooserView({ summary }: { summary: ChooserSummary | null }) {
+export function InvoicesChooserView({ summary, chosen = null, onChoose }: { summary: ChooserSummary | null; chosen?: string | null; onChoose?: (e: MouseEvent<HTMLAnchorElement>, href: string) => void }) {
+  const getHref = INVOICE_LINKS.get ?? '/dashboard/invoices/get';
+  const payHref = INVOICE_LINKS.pay;
   const getTags = summary ? shown([summary.get.overdue > 0 ? { tone: 'amber', label: `${summary.get.overdue} overdue` } : null, summary.get.unpaid > 0 ? { tone: 'ink', label: plural(summary.get.unpaid, 'unpaid request', 'unpaid requests') } : null]) : [];
   const payTags = summary
     ? shown([
@@ -53,9 +82,9 @@ export function InvoicesChooserView({ summary }: { summary: ChooserSummary | nul
   return (
     <div className="iso iso-page">
       <PageHead title="Invoices" context="Get paid by your customers, or pay what your suppliers send you." />
-      <div className="iso-chooser">
+      <div className={`iso-chooser${chosen ? ' iso-chooser--leaving' : ''}`}>
         <Morph name="iso-inv-get">
-          <Link className="iso-chooser__card iso-rise iso-rise-2" href={INVOICE_LINKS.get ?? '/dashboard/invoices/get'}>
+          <Link className={`iso-chooser__card iso-chooser__card--first iso-rise${chosen === getHref ? ' is-chosen' : ''}`} href={getHref} prefetch transitionTypes={INV_TYPES} onClick={onChoose ? (e) => onChoose(e, getHref) : undefined}>
             <span className="iso-chooser__top">
               <IsoDisplay size="lg">Get paid</IsoDisplay>
               <Image className="iso-chooser__art iso-bob" src="/cinematic/token-usd.png" alt="" width={96} height={96} />
@@ -76,7 +105,7 @@ export function InvoicesChooserView({ summary }: { summary: ChooserSummary | nul
           </Link>
         </Morph>
         <Morph name="iso-inv-pay">
-          <Link className="iso-chooser__card iso-rise iso-rise-3" href={INVOICE_LINKS.pay}>
+          <Link className={`iso-chooser__card iso-chooser__card--second iso-rise${chosen === payHref ? ' is-chosen' : ''}`} href={payHref} prefetch transitionTypes={INV_TYPES} onClick={onChoose ? (e) => onChoose(e, payHref) : undefined}>
             <span className="iso-chooser__top">
               <IsoDisplay size="lg">Pay an invoice</IsoDisplay>
               <Image className="iso-chooser__art iso-bob iso-bob--late" src="/cinematic/token-php.png" alt="" width={96} height={96} />
