@@ -11,12 +11,12 @@ export default function GoogleSignInButton({ returnTo = '/dashboard' }: { return
   const href = `/api/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
   return (
     <>
-      <div className="iso-auth-divider" role="separator">or</div>
-      <a className="iso-auth-oauth" href={href}>
+      <div className="au-divider" role="separator">or</div>
+      <a className="au-oauth" href={href}>
         <GoogleMark />
         Continue with Google
       </a>
-      <p className="iso-auth-oauth-note">
+      <p className="au-oauth-note">
         Google confirms who you are. Approving a payment still needs this device.
       </p>
     </>

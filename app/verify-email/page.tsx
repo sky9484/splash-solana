@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowRight, CheckCircle2, Mail } from 'lucide-react';
+import { CheckCircle2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import IsometricAuthShell from '@/components/auth/IsometricAuthShell';
@@ -21,7 +21,7 @@ export default function VerifyEmailPage() {
   // useSearchParams needs a Suspense boundary above it for the production
   // build; the fallback is the same shell with nothing in it yet.
   return (
-    <Suspense fallback={<Shell title="Confirm your email." description="One moment." />}>
+    <Suspense fallback={<Shell title="Confirm your email" description="One moment." />}>
       <VerifyEmail />
     </Suspense>
   );
@@ -33,13 +33,12 @@ function Shell(props: { title: string; description: string; children?: ReactNode
       eyebrow="Confirm your email"
       title={props.title}
       description={props.description}
-      art="/cinematic/treasury-island.png"
-      artAlt="Isometric vault holding the business’s money"
-      visualTitle="One address, one owner"
-      visualCopy="Only the person who reads the mailbox can finish creating the account."
+      art="signup"
+      visualTitle="Your own account, from day one"
+      visualCopy="Keys made in your browser. Nobody at Splash can move the money."
     >
       {props.children}
-      <p className="iso-auth-switch">
+      <p className="au-switch">
         Already confirmed? <Link href="/login">Sign in</Link>
       </p>
     </IsometricAuthShell>
@@ -56,8 +55,8 @@ function VerifyEmail() {
 
   if (stage === 'done') {
     return (
-      <Shell title="Email confirmed." description="Your address is proven and your password is set.">
-        <section className="iso-auth-success">
+      <Shell title="Email confirmed" description="Your address is proven and your password is set.">
+        <section className="au-success">
           <CheckCircle2 aria-hidden="true" />
           <h2>You can sign in now</h2>
           <p>
@@ -65,7 +64,7 @@ function VerifyEmail() {
             before it can act on anything.
           </p>
           <Link href="/login">
-            Go to sign in <ArrowRight aria-hidden="true" />
+            Go to sign in
           </Link>
         </section>
       </Shell>
@@ -74,7 +73,7 @@ function VerifyEmail() {
 
   if (stage === 'set') {
     return (
-      <Shell title="Confirm your email." description="Choose the password for this account. The link proves the address is yours.">
+      <Shell title="Confirm your email" description="Choose the password for this account. The link proves the address is yours.">
         <PasswordFromLinkForm
           endpoint="/api/auth/verify-email"
           token={token}
@@ -87,7 +86,7 @@ function VerifyEmail() {
             setStage('resend');
           }}
         />
-        <div className="iso-auth-help">
+        <div className="au-note">
           <strong>Why a new password?</strong>
           <span>Whoever opens this link owns the account. Any password entered before now stops working.</span>
         </div>
@@ -97,7 +96,7 @@ function VerifyEmail() {
 
   return (
     <Shell
-      title={linkProblem ? 'That link has expired.' : 'Need a new link?'}
+      title={linkProblem ? 'That link has expired' : 'Need a new link?'}
       description={
         linkProblem
           ? 'Links work once and for 30 minutes. Enter your address and we will send another.'
@@ -140,7 +139,7 @@ function ResendForm() {
 
   if (sent) {
     return (
-      <section className="iso-auth-success">
+      <section className="au-success">
         <CheckCircle2 aria-hidden="true" />
         <h2>Check your inbox</h2>
         <p>{sent}</p>
@@ -149,8 +148,8 @@ function ResendForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="iso-auth-form">
-      <label className="iso-auth-field" htmlFor="resend-email">
+    <form onSubmit={onSubmit} className="au-form">
+      <label className="au-field" htmlFor="resend-email">
         <span>Business email</span>
         <div>
           <Mail aria-hidden="true" />
@@ -165,10 +164,9 @@ function ResendForm() {
           />
         </div>
       </label>
-      {error ? <p className="iso-auth-error" role="alert">{error}</p> : null}
-      <button type="submit" disabled={!email.includes('@') || submitting} className="iso-auth-submit">
+      {error ? <p className="au-error" role="alert">{error}</p> : null}
+      <button type="submit" disabled={!email.includes('@') || submitting} className="au-submit">
         {submitting ? 'Sending...' : 'Send a new link'}
-        {!submitting ? <ArrowRight aria-hidden="true" /> : null}
       </button>
     </form>
   );

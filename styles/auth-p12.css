@@ -1,0 +1,778 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Prompt 12 Phase 3 (preview tab 2): the sign-in pages (.au), the loader (.sl),
+   and the 404 and error card (.st). Imported by app/globals.css after
+   styles/landing-p12.css. --sp-* tokens only (styles/tokens.css, .sp-page), no
+   raw colours. Labels are sentence case. One orchestrated moment: the art
+   fades up when the page changes. The loader's bob and pulse are the only
+   things that move by themselves (tests/motion-audit.test.mjs); reduced motion
+   stops them.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── The kicker: sentence case, gold dash in front (§0.5.3) ─────────────── */
+
+.au-kick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-kick);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.au-kick::before {
+  width: 18px;
+  height: 3px;
+  border-radius: 3px;
+  content: "";
+  background: var(--sp-gold);
+}
+
+.au-kick--light { color: var(--sp-on-cyan-2); }
+
+/* ── The shell (§3.1) ─────────────────────────────────────────────────── */
+
+.au {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 24px 48px;
+  color: var(--sp-ink);
+}
+
+.au-top {
+  display: flex;
+  width: 100%;
+  max-width: 1120px;
+  margin-bottom: 12px;
+}
+
+.au-back {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--sp-teal);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.au-card {
+  display: grid;
+  width: 100%;
+  max-width: 1120px;
+  min-height: 620px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  margin-block: auto;
+  overflow: hidden;
+  border-radius: 30px;
+  background: var(--sp-surface);
+  box-shadow: var(--sp-lift-2);
+}
+
+.au-art {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 36px;
+  color: var(--sp-on-cyan);
+  background: var(--sp-cyan);
+}
+
+/* Sign in: the night picture is opaque, so the panel takes its colour (decision 5). */
+.au-art--night { background: var(--sp-auth-night); }
+
+.au-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-on-cyan);
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+
+.au-wordmark__icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--sp-paper);
+}
+
+.au-wordmark__icon img {
+  width: 22px;
+  height: auto;
+}
+
+.au-art__brand p {
+  margin-top: 4px;
+  color: var(--sp-on-cyan-2);
+  font-size: 12.5px;
+}
+
+.au-art__picture {
+  display: flex;
+  justify-content: center;
+}
+
+.au-art__picture img {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  max-height: 300px;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 24px color-mix(in srgb, var(--sp-deep) 45%, transparent));
+  animation: au-rise var(--sp-t-art) var(--sp-ease) both;
+}
+
+/* The night desk fills the panel's width; a soft oval mask hides its square edge. */
+.au-art--night .au-art__picture img {
+  max-width: 100%;
+  max-height: none;
+  border-radius: 22px;
+  filter: none;
+  -webkit-mask-image: radial-gradient(ellipse 66% 64% at 50% 52%, var(--sp-ink) 45%, transparent 100%);
+  mask-image: radial-gradient(ellipse 66% 64% at 50% 52%, var(--sp-ink) 45%, transparent 100%);
+}
+
+@keyframes au-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.au-art__line {
+  max-width: 26ch;
+  margin-top: 8px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.au-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.au-points li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sp-on-cyan-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.au-points svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--sp-gold);
+}
+
+.au-form-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px;
+  background: var(--sp-paper);
+}
+
+.au-title {
+  color: var(--sp-deep);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.15;
+}
+
+.au-sub {
+  max-width: 48ch;
+  color: var(--sp-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── The form ──────────────────────────────────────────────────────────── */
+
+.au-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.au-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.au-field > span {
+  color: var(--sp-deep);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* 30 px radius, 48 px tall, a leading icon; the edge reads at 3:1 on white and on cream. */
+.au-field > div {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--sp-ink) 62%, transparent);
+  border-radius: 30px;
+  padding-inline: 18px 8px;
+  background: var(--sp-surface);
+  transition: border-color var(--sp-t-ui) var(--sp-ease), box-shadow var(--sp-t-ui) var(--sp-ease);
+}
+
+.au-field > div:focus-within {
+  border-color: var(--sp-teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-teal) 24%, transparent);
+}
+
+.au-field > div > svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--sp-teal);
+}
+
+.au-field input,
+.au-field select {
+  min-width: 0;
+  min-height: 44px;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  color: var(--sp-ink);
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+}
+
+.au-field select { cursor: pointer; }
+.au-field input::placeholder { color: color-mix(in srgb, var(--sp-ink) 70%, transparent); opacity: 1; }
+
+.au-reveal {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: var(--sp-teal);
+  background: none;
+  cursor: pointer;
+}
+
+.au-reveal svg {
+  width: 17px;
+  height: 17px;
+}
+
+.au-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); /* the company name is the longer of the two */
+  gap: 12px;
+}
+
+.au-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
+.au-options label {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-text-2);
+  cursor: pointer;
+}
+
+.au-options a,
+.au-switch a {
+  color: var(--sp-teal);
+  font-weight: 700;
+}
+
+.au input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  accent-color: var(--sp-teal);
+}
+
+.au-strength {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.au-strength span {
+  width: 34px;
+  height: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sp-ink) 16%, transparent);
+}
+
+.au-strength span.is-active { background: var(--sp-teal); }
+
+.au-strength small {
+  margin-left: 6px;
+  color: var(--sp-text-2);
+  font-size: 12px;
+}
+
+.au-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--sp-text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.au-consent input { margin-top: 1px; }
+
+.au-error {
+  border-radius: 20px;
+  padding: 10px 14px;
+  color: var(--sp-coral-ink);
+  background: var(--sp-coral-fill);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* The main action: 48 px, teal, no arrow. */
+.au-submit {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 30px;
+  padding-inline: 24px;
+  color: var(--sp-on-cyan);
+  background: var(--sp-teal);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter var(--sp-t-ui) var(--sp-ease), transform var(--sp-t-ui) var(--sp-ease);
+}
+
+.au-submit:hover:not(:disabled) { filter: brightness(1.08); }
+.au-submit:active:not(:disabled) { transform: translateY(1px); }
+
+.au-submit:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.au-switch {
+  color: var(--sp-text-2);
+  font-size: 13px;
+}
+
+.au-note {
+  border-radius: 20px;
+  padding: 12px 16px;
+  color: var(--sp-deep);
+  background: var(--sp-amber-fill);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.au-note strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.au-note span { display: block; }
+
+.au-note ol {
+  margin: 0;
+  padding-left: 18px;
+  list-style: decimal; /* Tailwind's preflight takes list markers off */
+}
+
+.au-success {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 20px;
+  padding: 18px;
+  color: var(--sp-ok-ink);
+  background: var(--sp-ok-fill);
+}
+
+.au-success > svg {
+  width: 22px;
+  height: 22px;
+}
+
+.au-success h2 {
+  color: var(--sp-deep);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.au-success p {
+  color: var(--sp-ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.au-success a,
+.au-success button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  color: var(--sp-teal);
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.au-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--sp-text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.au-divider::before,
+.au-divider::after {
+  height: 1px;
+  flex: 1;
+  content: "";
+  background: var(--sp-line);
+}
+
+.au-oauth {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--sp-ink) 30%, transparent);
+  border-radius: 30px;
+  color: var(--sp-deep);
+  background: var(--sp-surface);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.au-oauth-note {
+  color: var(--sp-text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.au a:focus-visible,
+.au button:focus-visible,
+.au select:focus-visible,
+.au input[type="checkbox"]:focus-visible {
+  outline: 2.5px solid var(--sp-teal);
+  outline-offset: 2px;
+}
+
+.au-art a:focus-visible { outline-color: var(--sp-gold); }
+
+/* ── The loader (§3.2) ─────────────────────────────────────────────────── */
+
+/* It appears only after 300 ms, so a quick load never flashes it: the animation's first frame (fill
+   mode both) holds it transparent through the delay, then it fades in. */
+.sl {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  animation: sl-show var(--sp-t-ui) var(--sp-ease) 300ms both;
+}
+
+@keyframes sl-show {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sl-card {
+  display: flex;
+  width: min(320px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  border-radius: 30px;
+  padding: 26px 26px 22px;
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+  box-shadow: var(--sp-lift-2);
+}
+
+.sl-mark {
+  position: relative;
+  width: 104px;
+  height: 104px;
+}
+
+/* The mark's file has wide empty margins: drawn larger than its box, the droplet itself fills the box. */
+.sl-drop {
+  display: block;
+  width: 156px;
+  max-width: none;
+  height: auto;
+  margin: -26px;
+  animation: sl-bob 2.6s ease-in-out infinite;
+}
+
+.sl-token {
+  position: absolute;
+  right: -10px;
+  bottom: 8px;
+  width: 34px;
+  height: auto;
+  animation: sl-bob 2.6s ease-in-out .8s infinite;
+}
+
+@keyframes sl-bob {
+  50% { transform: translateY(-6px); }
+}
+
+.sl-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-deep);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+
+.sl-wordmark img {
+  width: 22px;
+  height: auto;
+}
+
+.sl-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sl-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sl-steps li.is-done { color: var(--sp-ok-ink); }
+
+.sl-steps svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.sl-steps i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-inline: 3px;
+  border: 1.5px solid var(--sp-deep);
+  border-radius: 50%;
+  background: var(--sp-gold);
+}
+
+.sl-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.sl-dots i {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--sp-deep);
+  border-radius: 50%;
+  background: var(--sp-gold);
+  animation: sl-pulse 1.4s ease-in-out infinite;
+}
+
+.sl-dots i:nth-child(2) { animation-delay: .2s; }
+.sl-dots i:nth-child(3) { animation-delay: .4s; }
+
+@keyframes sl-pulse {
+  0%, 80%, 100% { opacity: .5; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-7px); }
+}
+
+/* ── The 404 and the error card (§3.3) ───────────────────────────────── */
+
+.st {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 24px;
+  color: var(--sp-ink);
+}
+
+.st-card {
+  display: flex;
+  width: min(520px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  border-radius: 30px;
+  padding: 36px 32px;
+  text-align: center;
+  background: var(--sp-surface);
+  box-shadow: var(--sp-lift-1);
+}
+
+.st-card h1 {
+  color: var(--sp-deep);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+
+.st-card p {
+  max-width: 44ch;
+  color: var(--sp-text-2);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.st-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--sp-coral-ink);
+  background: var(--sp-coral-fill);
+}
+
+.st-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.st-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.st-btn {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 30px;
+  padding-inline: 22px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter var(--sp-t-ui) var(--sp-ease);
+}
+
+.st-btn--primary { color: var(--sp-on-cyan); background: var(--sp-teal); }
+.st-btn--quiet { border-color: color-mix(in srgb, var(--sp-ink) 22%, transparent); color: var(--sp-deep); background: var(--sp-surface); }
+.st-btn:hover { filter: brightness(.96); }
+
+.st-btn:focus-visible {
+  outline: 2.5px solid var(--sp-teal);
+  outline-offset: 2px;
+}
+
+/* The digest, in mono: it is an identifier for support. */
+.st-card .st-ref {
+  margin-top: 6px;
+  color: var(--sp-text-2);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+/* ── Narrower screens ─────────────────────────────────────────────────── */
+
+@media (max-width: 1000px) {
+  .au-card {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .au-art { padding: 24px; }
+  .au-art__picture img { max-height: 190px; }
+  .au-art--night .au-art__picture img { max-height: 240px; }
+  .au-form-panel { padding: 28px 20px; }
+}
+
+@media (max-width: 700px) {
+  .au { padding: 8px 16px 32px; }
+  .au-options a { display: inline-flex; min-height: 44px; align-items: center; }
+  .au-field-grid { grid-template-columns: minmax(0, 1fr); }
+  .au-reveal { width: 44px; height: 44px; }
+  .st-card { padding: 28px 20px; }
+}
+
+/* ── Reduced motion: nothing moves ────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .au-art__picture img,
+  .sl-drop,
+  .sl-token,
+  .sl-dots i { animation: none; }
+
+  .au-field > div,
+  .au-submit,
+  .st-btn { transition: none; }
+
+  .au-submit:active:not(:disabled) { transform: none; }
+}

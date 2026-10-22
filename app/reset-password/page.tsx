@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, type ReactNode } from 'react';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 import IsometricAuthShell from '@/components/auth/IsometricAuthShell';
 import PasswordFromLinkForm from '@/components/auth/PasswordFromLinkForm';
@@ -15,7 +15,7 @@ import PasswordFromLinkForm from '@/components/auth/PasswordFromLinkForm';
  */
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<Shell title="Reset your password." description="One moment." />}>
+    <Suspense fallback={<Shell title="Reset your password" description="One moment." />}>
       <ResetPassword />
     </Suspense>
   );
@@ -27,13 +27,12 @@ function Shell(props: { title: string; description: string; children?: ReactNode
       eyebrow="Account recovery"
       title={props.title}
       description={props.description}
-      art="/cinematic/treasury-island.png"
-      artAlt="Isometric vault holding the business’s money"
-      visualTitle="Secure by default"
-      visualCopy="A new password ends every session that was open before it."
+      art="recovery"
+      visualTitle="Recover access"
+      visualCopy="The password opens the desk. The vault stays locked until you approve on your device."
     >
       {props.children}
-      <p className="iso-auth-switch">
+      <p className="au-switch">
         Remembered it? <Link href="/login">Back to sign in</Link>
       </p>
     </IsometricAuthShell>
@@ -49,13 +48,13 @@ function ResetPassword() {
 
   if (stage === 'done') {
     return (
-      <Shell title="Password updated." description="Every session that was signed in before now has ended.">
-        <section className="iso-auth-success">
+      <Shell title="Password updated" description="Every session that was signed in before now has ended.">
+        <section className="au-success">
           <CheckCircle2 aria-hidden="true" />
           <h2>Sign in with your new password</h2>
           <p>Nothing else about the account changed.</p>
           <Link href="/login">
-            Go to sign in <ArrowRight aria-hidden="true" />
+            Go to sign in
           </Link>
         </section>
       </Shell>
@@ -64,7 +63,7 @@ function ResetPassword() {
 
   if (stage === 'set') {
     return (
-      <Shell title="Reset your password." description="Choose a new password. The link proves the address is yours.">
+      <Shell title="Reset your password" description="Choose a new password. The link proves the address is yours.">
         <PasswordFromLinkForm
           endpoint="/api/auth/reset-password"
           token={token}
@@ -80,10 +79,10 @@ function ResetPassword() {
 
   return (
     <Shell
-      title="That link has expired."
+      title="That link has expired"
       description="Reset links work once and for 30 minutes. Request another and we will email it to you."
     >
-      <div className="iso-auth-help">
+      <div className="au-note">
         <strong>Request a new link</strong>
         <span>
           <Link href="/forgot-password">Go to password reset</Link>

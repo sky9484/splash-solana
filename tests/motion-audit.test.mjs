@@ -38,6 +38,14 @@ const LANDING_ALLOWED = [
   { selector: '.lp-bob', why: 'the Routes bridge, a gentle 6 s bob (§2.8)' },
 ];
 
+/** Prompt 12 §3.2 and Phase 7: the loader (styles/auth-p12.css) bobs and pulses while something loads, nothing else there moves by itself. */
+const AUTH_CSS = readFileSync('styles/auth-p12.css', 'utf8');
+const AUTH_ALLOWED = [
+  { selector: '.sl-drop', why: 'the loader’s droplet mark bobbing while the desk opens' },
+  { selector: '.sl-token', why: 'the US dollar token bobbing beside the droplet' },
+  { selector: '.sl-dots i', why: 'the loader’s three-dot pulse' },
+];
+
 function files(dir, exts) {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name).replaceAll('\\', '/');
@@ -65,6 +73,19 @@ test('nothing on the landing loops on its own but the hero tokens and the bridge
   assert.match(reduced, /\.lp-token,[\s\S]*?\.lp-bob,[\s\S]*?\{ animation: none; \}/, 'the tokens and the bridge stop');
   // The pinned story stops pinning: its beats stack as plain sections.
   assert.match(reduced, /\.lp-story__pin \{[^}]*position: static;/);
+});
+
+test('nothing on the sign-in pages, the loader, the 404 or the error page loops on its own but the loader, and it stops with reduced motion', () => {
+  const looping = loopingRules(AUTH_CSS).map(([s]) => s);
+  const unexpected = looping.filter((s) => !AUTH_ALLOWED.some((a) => a.selector === s));
+  assert.deepEqual(unexpected, [], `loops not on the list:\n  ${unexpected.join('\n  ')}`);
+  for (const a of AUTH_ALLOWED) assert.ok(looping.includes(a.selector), `${a.selector} (${a.why}) no longer loops; take it off the list`);
+  const body = AUTH_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  const reduced = body.slice(body.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert.match(reduced, /\.sl-drop,\s*\.sl-token,\s*\.sl-dots i \{ animation: none; \}/, 'the bob and the pulse stop');
+  // The loader still waits 300 ms before it shows, so a quick load never flashes it.
+  assert.match(body, /\.sl \{[^}]*animation: sl-show [^;]* 300ms both;/);
+  assert.match(body, /@keyframes sl-show \{\s*from \{ opacity: 0; \}/);
 });
 
 test('the bob is the Invoices chooser’s only', () => {

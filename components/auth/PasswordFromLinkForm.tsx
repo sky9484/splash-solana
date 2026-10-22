@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 /** Mirrors MIN_PASSWORD_LENGTH in lib/auth/password.ts; the server is the authority. */
@@ -68,8 +68,8 @@ export default function PasswordFromLinkForm(props: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="iso-auth-form">
-      <label className="iso-auth-field" htmlFor="link-password">
+    <form onSubmit={onSubmit} className="au-form">
+      <label className="au-field" htmlFor="link-password">
         <span>Choose a password</span>
         <div>
           <Lock aria-hidden="true" />
@@ -85,7 +85,7 @@ export default function PasswordFromLinkForm(props: Props) {
           />
           <button
             type="button"
-            className="iso-auth-reveal"
+            className="au-reveal"
             onClick={() => setShowPassword((value) => !value)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
@@ -94,7 +94,7 @@ export default function PasswordFromLinkForm(props: Props) {
         </div>
       </label>
 
-      <div className="iso-password-strength" aria-label={strong ? 'Password meets the policy' : 'Password does not yet meet the policy'}>
+      <div className="au-strength" aria-label={strong ? 'Password meets the policy' : 'Password does not yet meet the policy'}>
         {[1, 2, 3].map((level) => (
           <span
             className={
@@ -110,11 +110,10 @@ export default function PasswordFromLinkForm(props: Props) {
         <small>{strong ? 'Meets the policy' : `Use ${MIN_PASSWORD_LENGTH}+ characters with a letter and a number`}</small>
       </div>
 
-      {error ? <p className="iso-auth-error" role="alert">{error}</p> : null}
+      {error ? <p className="au-error" role="alert">{error}</p> : null}
 
-      <button type="submit" disabled={!canSubmit} className="iso-auth-submit">
+      <button type="submit" disabled={!canSubmit} className="au-submit">
         {submitting ? props.busyLabel : props.submitLabel}
-        {!submitting ? <ArrowRight aria-hidden="true" /> : null}
       </button>
     </form>
   );
