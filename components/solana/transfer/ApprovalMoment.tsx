@@ -293,10 +293,11 @@ export function ApprovalMoment({
               <dt>Reference</dt>
               <dd className="iso-mono">{a.invoiceNumber}</dd>
             </div>
-            {a.purpose ? (
+            {/* §5.7 / frame T4: every card says what the payment is for; a bill's is its invoice. */}
+            {a.purpose || a.kind === 'invoice' ? (
               <div>
                 <dt>{peer ? 'Note' : 'Purpose'}</dt>
-                <dd>{a.purpose}</dd>
+                <dd>{a.purpose ?? `Paying invoice ${a.invoiceNumber}`}</dd>
               </div>
             ) : null}
             <div>

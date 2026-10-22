@@ -364,6 +364,10 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
       />
 
       <section className="sx-card sx-stack" aria-labelledby="verify-title">
+        {/* The checks show fingerprints and the recorded proof as they are: a receipt's Technical details (§0.6). */}
+        <p className="sx-vault-kicker" style={{ margin: 0 }}>
+          Technical details
+        </p>
         <h2 id="verify-title">Verify this receipt</h2>
         <p className="sx-muted">Five checks, run in this browser. The server supplies the record; it does not supply the answer.</p>
         <dl className="sx-kv">

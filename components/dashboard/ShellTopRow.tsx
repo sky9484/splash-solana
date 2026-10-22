@@ -43,14 +43,16 @@ export function ShellTopRow({ data, person, role, company, testMode }: { data: N
       <ShellSearch />
       <RateStrip rate={data?.rate ?? null} className="iso-desktop-only" />
       {testMode ? <TestModeBadge /> : null}
-      <Link href="/dashboard/profile" className="iso-profile" aria-label={`Your profile: ${person}, ${ROLE_LABEL[role ?? ''] ?? 'Member'} at ${company}`}>
+      <Link href="/dashboard/profile" className="iso-profile">
+        <span className="iso-sr">Your profile: </span>
         <span className="iso-profile__initials" aria-hidden="true">
           {initials(person)}
         </span>
         <span className="iso-profile__text">
           <strong>{person}</strong>
           <span>
-            {ROLE_LABEL[role ?? ''] ?? 'Member'} · {company}
+            {/* The company's own name and the owner's role, from the server's read once it answers. */}
+            {data?.me?.isOwner ? 'Owner' : (ROLE_LABEL[role ?? ''] ?? 'Member')} · {data?.me?.companyName ?? company}
           </span>
         </span>
       </Link>

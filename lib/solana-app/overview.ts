@@ -37,7 +37,8 @@ const shortDate = (iso: string) => {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 };
 /** "Tuesday, 14 Oct". */
-const longDay = (d: Date) => d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Kuala_Lumpur' });
+const longDay = (d: Date) =>
+  `${d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Asia/Kuala_Lumpur' })}, ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kuala_Lumpur' })}`;
 
 /** A basis-point figure with two decimals of a percent, from integers: 27 bps → "0.27%". */
 export function bpsText(bpsTimes100: bigint): string {

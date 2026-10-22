@@ -607,6 +607,8 @@
 }
 .iso .iso-actionbar__sum { font-size: var(--iso-15); line-height: 1.45; font-variant-numeric: tabular-nums; }
 .iso .iso-actionbar__sum strong { color: var(--paper-warm); }
+/* A disabled button's reason, on the ink bar: paper, not ink (Lighthouse found it at 1.09:1). */
+.iso .iso-actionbar .iso-btn-why { color: rgb(255 250 241 / .88); }
 
 /* ── Quote ring (§2.3 QuoteRing) ─────────────────────────────────────── */
 .iso .iso-ring { display: inline-flex; align-items: center; gap: 8px; font-size: var(--iso-14); color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -1527,4 +1529,19 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-desk__count { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
   .iso .iso-desk__thread { min-height: 280px; padding: 14px 16px; }
   .iso .iso-desk__ask, .iso .iso-desk__chips, .iso .iso-desk__foot { padding-left: 16px; padding-right: 16px; }
+  .iso .iso-desk__roster tr { grid-template-columns: minmax(0, 1fr); }
+}
+/* Treasury's hero on a phone: the three accounts as rows, so no amount is clipped (independent check M6). */
+@media (max-width: 720px) {
+  .iso .iso-treasury__hero .iso-routemap { flex-direction: column; align-items: stretch; gap: 12px; overflow: visible; padding: 0; }
+  .iso .iso-treasury__hero .iso-wire { display: none; }
+  .iso .iso-treasury__hero .iso-station {
+    flex: none; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; grid-template-areas: "art label amount" "art help help";
+    align-items: center; gap: 2px 12px; text-align: left; padding: 8px 0; border-top: 1px dashed var(--line-strong);
+  }
+  .iso .iso-treasury__hero .iso-station:first-child { border-top: 0; }
+  .iso .iso-treasury__hero .iso-station__art { grid-area: art; height: 48px; width: 48px; }
+  .iso .iso-treasury__hero .iso-station__label { grid-area: label; }
+  .iso .iso-treasury__hero .iso-station__amount { grid-area: amount; font-size: var(--iso-17); }
+  .iso .iso-treasury__hero .iso-station__help, .iso .iso-treasury__hero .iso-station > .iso-testmode { grid-area: help; justify-self: start; max-width: none; }
 }

@@ -9,5 +9,5 @@ export const dynamic = 'force-dynamic';
  * Zeke's count and the rate strip. From this company's own state, never guessed in the browser.
  */
 export async function GET(request: Request) {
-  return companyRoute(request, async (ctx) => navShell(ctx.orgId));
+  return companyRoute(request, async (ctx) => ({ ...(await navShell(ctx.orgId)), me: { companyName: ctx.companyName, isOwner: ctx.isOwner } }));
 }

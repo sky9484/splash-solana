@@ -9,6 +9,8 @@ import type { NavCounts } from '@/lib/dashboard/nav';
 export interface NavShellData {
   counts: NavCounts;
   rate: { pair: string; rate: string; label: string; next: string[] };
+  /** Who is asking: the company's own name and whether this member is its owner (the profile chip). */
+  me?: { companyName: string; isOwner: boolean };
 }
 
 const CHANGED = 'splash-company-changed';

@@ -312,13 +312,14 @@ export function BatchFlow({ batchId }: { batchId?: string | null }) {
                 {c.payees} supplier{c.payees === 1 ? '' : 's'} · {usd(BigInt(c.payoutMinor) + BigInt(c.feeMinor))}
               </p>
               <p className="sx-small sx-muted">
-                Largest transaction {Math.max(c.sizes.execute, ...c.sizes.proposal).toLocaleString('en-US')} of {BYTES.toLocaleString('en-US')} bytes
+                {/* How full the chunk's largest transfer is, as a share of what one transfer can hold. */}
+                Fills {Math.floor((Math.max(c.sizes.execute, ...c.sizes.proposal) * 100) / BYTES)}% of one transfer
               </p>
               {c.calls.length ? (
                 <ul className="sx-mock-list sx-small">
                   {c.calls.map((k) => (
                     <li key={k.signature}>
-                      {k.step === 'proposal' ? 'Proposal' : 'Transfer'}
+                      {k.step === 'proposal' ? 'Approval' : 'Transfer'}
                       {k.status === 'expired' ? ' (expired, never landed)' : k.status === 'failed' ? ' (failed, nothing moved)' : ''}{' '}
                       {k.solscanUrl ? (
                         <a href={k.solscanUrl} target="_blank" rel="noreferrer">

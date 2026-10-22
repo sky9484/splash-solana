@@ -112,7 +112,7 @@ test('the roster and the safety card are read from the code', () => {
   for (const r of ZEKE_ROSTER) assert.match(r.never, /^Never /);
   // "It can only read and draft" appears only while the code says so.
   assert.equal(ZEKE_AUTHORITY.canApprove, false);
-  assert.equal(safetyLines('ready')[0], 'It can only read and draft. It can’t approve, pay or change a rule.');
+  assert.equal(safetyLines('ready')[0], 'It can only read and draft. It can’t approve a payment, move money or change a rule.');
   assert.match(safetyLines('on').join(' '), /Emergency stop is on/);
 });
 

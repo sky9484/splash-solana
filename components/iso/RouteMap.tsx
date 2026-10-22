@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { useCallback, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -15,9 +15,23 @@ import clsx from 'clsx';
  * fade, never greyed in place. On a phone the row scrolls, with the current station centred.
  */
 export function RouteMap({ label, children, className, wireTop }: { label: string; children: ReactNode; className?: string; /** Where the wire meets the stations' art, in px. */ wireTop?: number }) {
+  const row = useRef<HTMLDivElement>(null);
+  // The current station stays centred when the row's width changes (a phone turned, a window resized),
+  // not only when it first becomes current.
+  useEffect(() => {
+    const el = row.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const cur = el.querySelector<HTMLElement>('[aria-current="step"]');
+      if (!cur || el.scrollWidth <= el.clientWidth) return;
+      el.scrollLeft = Math.max(0, cur.offsetLeft - (el.clientWidth - cur.offsetWidth) / 2);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
     // Focusable: on a phone the row scrolls sideways, and a keyboard must be able to scroll it too.
-    <div className={clsx('iso-routemap', className)} role="group" aria-label={label} tabIndex={0} style={wireTop ? ({ '--wire-top': `${wireTop}px` } as CSSProperties) : undefined}>
+    <div ref={row} className={clsx('iso-routemap', className)} role="group" aria-label={label} tabIndex={0} style={wireTop ? ({ '--wire-top': `${wireTop}px` } as CSSProperties) : undefined}>
       {children}
     </div>
   );

@@ -146,7 +146,7 @@ export async function createBatch(orgId: string, input: { rows: BatchRowInput[];
   const org = getOrg(orgId);
   const vault = requireVault(org);
   assertServiceable(orgId);
-  if (vault.threshold !== 1) throw new ServiceError('wrong_state', 'Batch payouts need a vault where one approval is enough in this build. Pay these suppliers one by one.', 409);
+  if (vault.threshold !== 1) throw new ServiceError('wrong_state', 'Batch payouts need accounts where one approval is enough in this build. Pay these suppliers one by one.', 409);
   if (input.rows.length === 0) throw new ServiceError('bad_request', 'Add at least one supplier row.');
   const rt = runtime();
   const id = `bat_${hex(8)}`;
@@ -161,7 +161,7 @@ export async function createBatch(orgId: string, input: { rows: BatchRowInput[];
     const q = POLICIES.map((p) => engine.picks[p]).find((x) => x && routeKindOf(x) === 'solana_direct');
     if (!q) {
       const short = engine.excluded.some((e) => e.reason === 'insufficient_balance');
-      throw new ServiceError(short ? 'insufficient_balance' : 'no_route', short ? `Your balance is too low for line ${r.line} (${r.supplierName}) alone. Add USDC to your vault first.` : `No route can pay line ${r.line} right now. Try again in a minute.`, 409);
+      throw new ServiceError(short ? 'insufficient_balance' : 'no_route', short ? `Your balance is too low for line ${r.line} (${r.supplierName}) alone. Add money to your Payments account first.` : `No route can pay line ${r.line} right now. Try again in a minute.`, 409);
     }
     rows.push({
       id: rowId,
@@ -195,7 +195,7 @@ export async function createBatch(orgId: string, input: { rows: BatchRowInput[];
   const usedToday = org.dailyDebits[utcDay(now)] ?? 0n;
   const biggest = rows.reduce((m, r) => (r.youPayUsdcMinor > m.youPayUsdcMinor ? r : m), rows[0]!);
   const checks = [
-    { name: 'balance', label: 'Enough USDC in your vault for the whole batch', passed: totals.youPayMinor <= balance, detail: `needs ${totals.youPayMinor} of ${balance} (USDC minor units)` },
+    { name: 'balance', label: 'Enough in your Payments account for the whole batch', passed: totals.youPayMinor <= balance, detail: `needs ${totals.youPayMinor} of ${balance} (USDC minor units)` },
     { name: 'per_payment', label: 'Every line within the per-payment limit', passed: biggest.youPayUsdcMinor <= DEMO_LIMITS.perPaymentUsdcMinor, detail: `largest line ${biggest.youPayUsdcMinor}, limit ${DEMO_LIMITS.perPaymentUsdcMinor}` },
     { name: 'daily', label: 'Within today’s limit', passed: usedToday + totals.youPayMinor <= DEMO_LIMITS.dailyUsdcMinor, detail: `${usedToday} used today, ${totals.youPayMinor} more, limit ${DEMO_LIMITS.dailyUsdcMinor}` },
     { name: 'deposits', label: 'Every line pays its own partner deposit, never a Splash account', passed: new Set(rows.map((r) => r.depositAddress)).size === rows.length, detail: 'one fresh deposit address per supplier' },
@@ -277,7 +277,7 @@ export async function prepareBatch(orgId: string, batchId: string, input: { sign
   const vault = requireVault(org);
   const member = new PublicKey(input.signer);
   if (!vault.members.some((m) => m.publicKey === input.signer && (m.role === 'admin_device' || m.role === 'approver_device'))) {
-    throw new ServiceError('not_an_approver', 'That device is not an approver of this vault.', 403);
+    throw new ServiceError('not_an_approver', 'That device isn’t one of your company’s approvers.', 403);
   }
   const multisigPda = new PublicKey(vault.multisigPda);
   const feePayer = await rt.chain.getFeePayer();
@@ -398,7 +398,7 @@ export async function submitBatch(orgId: string, batchId: string, input: { signa
     } catch {
       valid = false;
     }
-    if (!valid) throw new ServiceError('signature_invalid', 'That signature is not from this vault’s device key. Nothing was sent.', 403);
+    if (!valid) throw new ServiceError('signature_invalid', 'That approval isn’t from one of your company’s devices. Nothing was sent.', 403);
     const tx = VersionedTransaction.deserialize(fromB64(m.txBase64));
     tx.addSignature(signer, sig);
     signed.set(m.id, tx);
@@ -525,7 +525,7 @@ const CHUNK_LABEL: Record<BatchChunkState, string> = {
   planned: 'Planned',
   proposed: 'Proposed',
   checking: 'Checking',
-  confirmed: 'Sent on Solana',
+  confirmed: 'Sent · confirmed',
   failed: 'Failed, nothing moved',
   not_sent: 'Not sent',
 };

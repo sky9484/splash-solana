@@ -304,7 +304,7 @@ test('CCTP route (offline) and the problem rehearsals: screening flag, partner r
   await svc.deliverPartnerEvents(k.id);
   const returned = await svc.getPayment(k.id);
   assert.equal(returned.state, 'partner_failed');
-  assert.match(returned.problem.message, /Money is back in your Solana balance/);
+  assert.match(returned.problem.message, /What it received is back in your Payments account/);
   const back = await runtime().chain.getUsdcBalance(vault.vaultPda);
   assert.equal(before - back, returned.approval.costs.splashMinor, 'the payout came back; the fee leg did not');
 });
