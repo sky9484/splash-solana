@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Floating Zeke · states · look 9</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..900&amp;family=Geist+Mono:wght@400..800&amp;display=swap">
+<style>
+body{margin:0;background:#f6f0ed}
+a{color:#0d6370}a:hover{color:#083640}
+.sp{font-family:'Geist',system-ui,sans-serif;color:#0c3e48;-webkit-font-smoothing:antialiased}
+.sp *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums}
+.paper-grid{background-color:#f6f0ed;background-image:linear-gradient(rgba(12,62,72,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(12,62,72,.05) 1px,transparent 1px);background-size:24px 24px}
+.hero-wash{background-color:#fffaf4;background-image:linear-gradient(rgba(12,62,72,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(12,62,72,.06) 1px,transparent 1px),linear-gradient(135deg,#ddefea 0%,#eaf4ef 40%,#fffaf4 74%);background-size:24px 24px,24px 24px,100% 100%;border:2px solid #083640;box-shadow:6px 6px 0 #083640}
+.x-display{font-weight:900;letter-spacing:-.05em;line-height:.95;color:#fffaf1;-webkit-text-stroke:1.5px #083640;text-shadow:2px 2px 0 #0d6370,4px 4px 0 #0d6370,6px 6px 0 #083640}
+.side{position:relative;overflow:hidden;background:linear-gradient(165deg,#245563 0%,#143c47 55%,#0c3039 100%);color:#fffaf1}
+.side::before,.side::after{content:"";position:absolute;right:-90px;bottom:-90px;border-radius:50%;border:1px solid rgba(159,207,199,.14);pointer-events:none}
+.side::before{width:260px;height:260px}.side::after{width:380px;height:380px}
+.s-grp{margin:0 0 6px;padding:0 12px;font-size:12px;font-weight:700;color:rgba(255,250,241,.72)}
+.s-a{position:relative;display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;color:rgba(255,250,241,.86);text-decoration:none;font-weight:600;font-size:14px;border:1.5px solid transparent;transition:background .18s,transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s}
+.s-a:hover{background:rgba(255,250,241,.08);color:#fffaf1}
+.s-a svg{flex:0 0 18px;color:rgba(159,207,199,.95)}
+.s-a.is-on{background:#fffaf4;color:#0c3e48;border-color:#fffaf4;box-shadow:3px 3px 0 #041c22;transform:translate(-1px,-1px)}
+.s-a.is-on svg{color:#0d6370}
+.s-badge{margin-left:auto;padding:2px 7px;font:700 12px/1.4 'Geist',sans-serif;border:1px solid rgba(255,250,241,.4);color:#fffaf1}
+.s-badge.coral{background:#e39774;border-color:#e39774;color:#083640}
+.s-a.is-on .s-badge{border-color:#0c3e48;color:#0c3e48}
+.s-a:focus-visible{outline:2.5px solid #9fcfc7;outline-offset:2px}
+.card{background:#fffaf4;border:1.5px solid rgba(12,62,72,.16)}
+.h2{margin:0;font-size:19px;font-weight:800;color:#083640}
+.muted{color:rgba(12,62,72,.86)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 20px;font:700 15px/1 'Geist',sans-serif;cursor:pointer;border:1.5px solid #083640;text-decoration:none;transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s;background:#fffaf4;color:#083640}
+.btn-lg{min-height:52px;padding:0 24px}
+.btn-primary{background:#0d6370;color:#fffaf1;box-shadow:3px 3px 0 #083640}
+.btn-primary:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #083640;color:#fffaf1}
+.btn-primary:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #083640}
+.btn-quiet{background:#fffaf4;color:#083640;border-color:rgba(12,62,72,.3)}
+.btn-quiet:hover{border-color:#083640;color:#083640}
+.btn-approve{background:#e39774;color:#083640;box-shadow:3px 3px 0 #083640}
+.btn-approve:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #083640;color:#083640}
+.btn-approve:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #083640}
+.btn-approve[disabled]{background:#f3d6c8;color:rgba(12,62,72,.6);box-shadow:none;cursor:not-allowed;transform:none}
+.btn-onink{background:transparent;color:#fffaf1;border-color:rgba(255,250,241,.45)}
+.btn-onink:hover{color:#fffaf1;border-color:#fffaf1}
+.btn-paper{background:#fffaf1;color:#083640;border-color:#fffaf1;box-shadow:3px 3px 0 #0d6370}
+.btn-paper:hover{color:#083640;transform:translate(-1px,-1px);box-shadow:4px 4px 0 #0d6370}
+.btn-sm{min-height:40px;padding:0 14px;font-size:14px}
+.tip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0;background:none;border:0;color:#0d6370;font:600 14px/1 'Geist',sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font:700 12px/1.4 'Geist',sans-serif;border:1.5px solid currentColor;white-space:nowrap}
+.tag-ok{color:#1f6152;background:#e4f1ed;border-color:#9fcfc7}
+.tag-gold{color:#6b4a0c;background:#fbefd6;border-color:#efc46f}
+.tag-ink{color:#083640;background:#fffaf4;border-color:rgba(12,62,72,.35)}
+.tag-coral{color:#9f4f2c;background:#fbe7dd;border-color:#e39774}
+.tag-amber{color:#8a5208;background:#fbefdd;border-color:#e8c48d}
+.tag-danger{color:#b3402f;background:#f9e7e3;border-color:#e2b0a6}
+.amber{background:#fbefdd;border:1.5px solid #e8c48d;color:#8a5208}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{padding:9px 10px;text-align:left;font-size:13px;font-weight:700;color:rgba(12,62,72,.86);border-bottom:2px solid #083640}
+.tbl td{padding:12px 10px;border-bottom:1px solid rgba(12,62,72,.14);vertical-align:middle}
+.tbl .r{text-align:right}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label,.fld .lb{font-size:13px;font-weight:700;color:#083640}
+.fld input,.fld .box{width:100%;min-height:56px;padding:0 14px;border:1.5px solid rgba(12,62,72,.35);background:#fff;font:500 17px 'Geist',sans-serif;color:#083640;display:flex;align-items:center;gap:10px}
+.fld input:focus{outline:2.5px solid #0d6370;outline-offset:1px;border-color:#083640}
+.sp input::placeholder{color:rgba(12,62,72,.75)}
+.fld .help{font-size:13px;line-height:1.45;color:rgba(12,62,72,.86)}
+.seg{display:inline-flex;border:1.5px solid #083640;background:#fffaf4}
+.seg button{min-height:44px;padding:0 16px;font:700 14px/1 'Geist',sans-serif;background:#fffaf4;color:#083640;border:0;cursor:pointer}
+.seg button+button{border-left:1.5px solid #083640}
+.seg button[aria-pressed="true"]{background:#0d6370;color:#fffaf1}
+.tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:2px solid #083640}
+.tabs button{min-height:44px;padding:0 16px;font:700 14px/1 'Geist',sans-serif;background:transparent;color:rgba(12,62,72,.86);border:0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer}
+.tabs button[aria-pressed="true"]{color:#083640;border-bottom-color:#0d6370;background:#fffaf4}
+.choice{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;padding:18px 20px;text-align:left;font:inherit;color:#0c3e48;background:#fffaf4;border:1.5px solid rgba(12,62,72,.22);cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,border-color .2s;text-decoration:none}
+.choice:hover{border-color:#083640;color:#0c3e48}
+.choice.is-on{border:2px solid #083640;background:#fff;transform:translate(-2px,-2px);box-shadow:5px 5px 0 #083640}
+.row-btn{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1.5px solid rgba(12,62,72,.3);background:#fffaf4;color:#083640;font:700 14px/1 'Geist',sans-serif;text-decoration:none;cursor:pointer}
+.row-btn:hover{border-color:#083640;color:#083640}
+.station{display:flex;flex-direction:column;align-items:center;gap:8px;flex:0 0 140px;text-align:center}
+.wire{position:relative;flex:1 1 44px;min-width:32px;height:30px;align-self:flex-start;margin-top:40px}
+.wire svg{position:absolute;inset:0;width:100%;height:100%}
+.wire line{stroke:rgba(12,62,72,.3)}
+.wire.on line{stroke:#083640;stroke-dasharray:6 8;animation:flow 1.1s linear infinite}
+.wire.done line{stroke:#0d6370}
+@keyframes flow{to{stroke-dashoffset:-28}}
+.wire .coin{display:none;position:absolute;top:8px;left:0;width:14px;height:14px;border-radius:50%;background:#efc46f;border:1.5px solid #083640}
+.wire.on .coin{display:block;animation:travel 2.2s cubic-bezier(.45,.05,.55,.95) infinite}
+.wire.on .coin.c2{animation-delay:1.1s}
+@keyframes travel{0%{left:0;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:calc(100% - 14px);opacity:0}}
+.dot{display:inline-flex;width:56px;height:56px;align-items:center;justify-content:center;font-size:22px;font-weight:900;border:2px solid rgba(12,62,72,.3);background:#fffaf4;color:rgba(12,62,72,.5)}
+.dot.done{background:#0d6370;border-color:#083640;color:#fffaf1}
+.dot.now{background:#fffaf4;border-color:#083640;color:#083640;box-shadow:3px 3px 0 #083640}
+.btn:focus-visible,.choice:focus-visible,.row-btn:focus-visible,.tip:focus-visible,.seg button:focus-visible,.tabs button:focus-visible,.zk-launch:focus-visible,.zk-x:focus-visible{outline:2.5px solid #0d6370;outline-offset:3px}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.rise{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+.r2{animation-delay:.08s}.r3{animation-delay:.16s}.r4{animation-delay:.24s}
+@keyframes pop{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:none}}
+.pop{animation:pop .32s cubic-bezier(.2,.8,.2,1) both}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.sheet{animation:slidein .32s cubic-bezier(.2,.8,.2,1) both}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.bob{animation:bob 5s ease-in-out infinite}.bob-2{animation-delay:-2.5s}
+.zk-launch{position:fixed;right:28px;z-index:30;display:inline-flex;align-items:center;gap:10px;padding:0;background:none;border:0;cursor:pointer;font:inherit}
+.zk-tile{position:relative;display:inline-flex;width:64px;height:64px;align-items:center;justify-content:center;background:#fffaf4;border:2px solid #083640;box-shadow:3px 3px 0 #083640;transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s}
+.zk-launch:hover .zk-tile{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #083640}
+.zk-launch:active .zk-tile{transform:translate(2px,2px);box-shadow:1px 1px 0 #083640}
+.zk-count{position:absolute;top:-9px;right:-9px;min-width:22px;height:22px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;background:#e39774;border:1.5px solid #083640;color:#083640;font:800 12px/1 'Geist',sans-serif}
+.zk-nudge{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;background:#083640;color:#fffaf1;font:600 13px/1.2 'Geist',sans-serif;box-shadow:2px 2px 0 #0d6370}
+.zk-panel{position:fixed;right:28px;z-index:31;width:400px;max-width:calc(100vw - 32px);display:flex;flex-direction:column;background:#fffaf4;border:2px solid #083640;box-shadow:6px 6px 0 #083640}
+.zk-head{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;background:#083640;color:#fffaf1}
+.zk-x{display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;background:transparent;border:1.5px solid rgba(255,250,241,.35);color:#fffaf1;cursor:pointer;text-decoration:none}
+.zk-x:hover{border-color:#fffaf1;color:#fffaf1}
+.zk-ctx{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#ddefea;border-bottom:1.5px solid rgba(12,62,72,.2);font-size:13px;color:#083640}
+.zk-msg{max-width:88%;padding:10px 12px;font-size:14px;line-height:1.5}
+.zk-z{align-self:flex-start;background:#fff;border:1.5px solid rgba(12,62,72,.2);color:#0c3e48}
+.zk-u{align-self:flex-end;background:#0d6370;color:#fffaf1}
+.zk-chip{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1.5px solid rgba(12,62,72,.3);background:#fffaf4;color:#083640;font:600 13px/1 'Geist',sans-serif;white-space:nowrap;cursor:pointer}
+.zk-chip:hover{border-color:#083640}
+.zk-compose{display:flex;gap:8px;padding:12px;border-top:1.5px solid rgba(12,62,72,.2);background:#fffaf4}
+.zk-compose input{flex:1 1 auto;min-width:0;min-height:48px;padding:0 12px;border:1.5px solid rgba(12,62,72,.35);background:#fff;font:500 15px 'Geist',sans-serif;color:#083640}
+.zk-ico{display:inline-flex;flex:0 0 48px;width:48px;height:48px;align-items:center;justify-content:center;border:1.5px solid rgba(12,62,72,.35);background:#fffaf4;color:#083640;cursor:pointer}
+.zk-send{background:#0d6370;border-color:#083640;color:#fffaf1;box-shadow:2px 2px 0 #083640}
+.zk-draft{display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#fffaf4;border:1.5px dashed #083640}
+@media (prefers-reduced-motion:reduce){.sp *{animation:none!important;transition:none!important}.wire.on .coin{left:45%}}
+</style>
+</helmet>
+<div class="sp paper-grid" style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 56px 60px; display: flex; flex-direction: column; gap: 28px">
+  <div style="display: flex; align-items: center; gap: 16px">
+    <span style="display: inline-flex; width: 56px; height: 56px; align-items: center; justify-content: center; background: #fffaf4; border: 2px solid #083640; box-shadow: 3px 3px 0 #083640"><img src="/cinematic/agent-bot-cut.png" alt="" style="width: 44px; height: 44px; object-fit: contain"></span>
+    <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -.03em; color: #083640">Floating Zeke</h1>
+  </div>
+  <div style="display: flex; gap: 28px; align-items: stretch; flex: 1 1 auto">
+    <div style="display: flex; flex-direction: column; gap: 28px; flex: 0 0 300px">
+      <div style="display: flex; flex-direction: column; gap: 16px; flex: 0 1 auto">
+        <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #083640">Resting</h2>
+        <div style="flex: 1 1 auto; display: flex; align-items: flex-end; justify-content: flex-end; padding: 26px; min-height: 200px; border: 1.5px dashed rgba(12,62,72,.3); background: rgba(255,250,244,.6)"><button type="button" class="zk-launch" style="position: static" aria-label="Open Zeke"><span class="zk-tile"><img src="/cinematic/agent-bot-cut.png" alt="" style="width: 46px; height: 46px; object-fit: contain"></span></button></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px; flex: 0 1 auto">
+        <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #083640">Something needs you</h2>
+        <div style="flex: 1 1 auto; display: flex; align-items: flex-end; justify-content: flex-end; padding: 26px; min-height: 200px; border: 1.5px dashed rgba(12,62,72,.3); background: rgba(255,250,244,.6)"><button type="button" class="zk-launch" style="position: static" aria-label="Open Zeke. 1 draft needs your approval"><span class="zk-nudge">1 draft needs your approval</span><span class="zk-tile"><img src="/cinematic/agent-bot-cut.png" alt="" style="width: 46px; height: 46px; object-fit: contain"><span class="zk-count">1</span></span></button></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px; flex: 0 0 auto">
+      <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #083640">Open, on a page</h2>
+      <section class="zk-panel" role="dialog" aria-label="Zeke" style="position: static; width: 400px; max-width: 100%">
+        <div style="background: #083640"><div class="zk-head">
+          <span style="display: inline-flex; flex: 0 0 40px; width: 40px; height: 40px; align-items: center; justify-content: center; background: #fffaf4"><img src="/cinematic/agent-bot-cut.png" alt="" style="width: 32px; height: 32px; object-fit: contain"></span>
+          <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="display: flex; align-items: center; gap: 8px"><strong style="font-size: 16px">Zeke</strong><span style="padding: 1px 6px; border: 1.5px solid rgba(255,250,241,.5); font-size: 11px; font-weight: 800">AI</span></span><span style="font-size: 12px; color: rgba(255,250,241,.8)">Reads and drafts. A person approves.</span></span>
+          <a class="zk-x" href="Flow-Zeke.dc.html" aria-label="Open the full Zeke page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"></path></svg></a>
+          <button type="button" class="zk-x" aria-label="Close Zeke"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div></div>
+        <div class="zk-ctx"><span style="width: 8px; height: 8px; background: #0d6370"></span><span>Looking at: <strong>Transfer · Step 3, quote</strong></span></div>
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px">
+          <div class="zk-msg zk-u">Why is Cheapest cheaper?</div>
+          <span style="font-size: 12px; font-weight: 700" class="muted">Zeke</span>
+          <div class="zk-msg zk-z">It sends your dollars through the partner's lower-cost lane first, where their fee is 0.15% instead of 0.20%. That saves US$2.50 on this payment. Manila Freight gets the same ₱287,000.00 either way.</div>
+          <div class="zk-draft">
+            <span class="tag tag-ink" style="align-self: flex-start">Draft · not approved</span>
+            <strong style="font-size: 15px; color: #083640">Manila Freight · ₱287,000.00</strong>
+            <span class="num muted" style="font-size: 13px">You pay US$5,012.50 · Cheapest</span>
+            <a class="row-btn" href="Flow-T4-Approve.dc.html" style="align-self: flex-start">Open to approve</a>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 12px"><button type="button" class="zk-chip">Is Manila Freight verified?</button><button type="button" class="zk-chip">What's left of today's limit?</button></div>
+        <div class="zk-compose">
+          <button type="button" class="zk-ico" aria-label="Attach an invoice or a payout sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"></path></svg></button>
+          <input type="text" aria-label="Ask Zeke" placeholder="Ask Zeke, or attach an invoice">
+          <button type="button" class="zk-ico zk-send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </div>
+        <div style="padding: 0 14px 12px; font-size: 12px; line-height: 1.45; color: rgba(12,62,72,.86)">Zeke can't approve or move money, and it can be wrong. Check before you approve.</div>
+      </section>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px; flex: 0 0 auto">
+      <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #083640">Open, on a phone</h2>
+      <div style="width: 390px; height: 760px; display: flex; flex-direction: column; justify-content: flex-end; background: #f6f0ed; border: 2px solid #083640; overflow: hidden">
+          <div style="flex: 1 1 auto; background: rgba(8,54,64,.32)"></div>
+          <section class="zk-panel" role="dialog" aria-label="Zeke" style="position: static; width: 100%; max-width: 100%; box-shadow: none; border-bottom: 0">
+        <div style="background: #083640"><span aria-hidden="true" style="display: block; width: 44px; height: 5px; margin: 8px auto 0; background: rgba(255,250,241,.5)"></span><div class="zk-head">
+          <span style="display: inline-flex; flex: 0 0 40px; width: 40px; height: 40px; align-items: center; justify-content: center; background: #fffaf4"><img src="/cinematic/agent-bot-cut.png" alt="" style="width: 32px; height: 32px; object-fit: contain"></span>
+          <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="display: flex; align-items: center; gap: 8px"><strong style="font-size: 16px">Zeke</strong><span style="padding: 1px 6px; border: 1.5px solid rgba(255,250,241,.5); font-size: 11px; font-weight: 800">AI</span></span><span style="font-size: 12px; color: rgba(255,250,241,.8)">Reads and drafts. A person approves.</span></span>
+          
+          <button type="button" class="zk-x" aria-label="Close Zeke"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div></div>
+        <div class="zk-ctx"><span style="width: 8px; height: 8px; background: #0d6370"></span><span>Looking at: <strong>Transfer · Step 3, quote</strong></span></div>
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px">
+          <div class="zk-msg zk-u">Why is Cheapest cheaper?</div>
+          <span style="font-size: 12px; font-weight: 700" class="muted">Zeke</span>
+          <div class="zk-msg zk-z">It sends your dollars through the partner's lower-cost lane first, where their fee is 0.15% instead of 0.20%. That saves US$2.50 on this payment. Manila Freight gets the same ₱287,000.00 either way.</div>
+          <div class="zk-draft">
+            <span class="tag tag-ink" style="align-self: flex-start">Draft · not approved</span>
+            <strong style="font-size: 15px; color: #083640">Manila Freight · ₱287,000.00</strong>
+            <span class="num muted" style="font-size: 13px">You pay US$5,012.50 · Cheapest</span>
+            <a class="row-btn" href="Flow-T4-Approve.dc.html" style="align-self: flex-start">Open to approve</a>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 12px"><button type="button" class="zk-chip">Is Manila Freight verified?</button><button type="button" class="zk-chip">What's left of today's limit?</button></div>
+        <div class="zk-compose">
+          <button type="button" class="zk-ico" aria-label="Attach an invoice or a payout sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"></path></svg></button>
+          <input type="text" aria-label="Ask Zeke" placeholder="Ask Zeke, or attach an invoice">
+          <button type="button" class="zk-ico zk-send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </div>
+        <div style="padding: 0 14px 12px; font-size: 12px; line-height: 1.45; color: rgba(12,62,72,.86)">Zeke can't approve or move money, and it can be wrong. Check before you approve.</div>
+      </section>
+        </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
