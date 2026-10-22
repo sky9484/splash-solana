@@ -1,6 +1,6 @@
 {
   "baseline": 366,
-  "current": 203,
+  "current": 173,
   "targetMax": 54,
   "history": [
     {
@@ -26,6 +26,11 @@
     {
       "phase": "4-invoices",
       "count": 203,
+      "date": "2026-10-14"
+    },
+    {
+      "phase": "5-treasury",
+      "count": 173,
       "date": "2026-10-14"
     }
   ],

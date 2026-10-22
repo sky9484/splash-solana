@@ -14,3 +14,7 @@ export const billHref = (invoiceId: string) => `/dashboard/invoices/pay?invoice=
 
 /** One payment request, by its id: Get paid opens it. */
 export const requestHref = (requestId: string) => `/dashboard/invoices/get?request=${requestId}`;
+
+/** Treasury (prompt 10 §7): the page, and one sweep draft to review on it. */
+export const TREASURY_LINKS = { root: '/dashboard/treasury' } as const;
+export const sweepHref = (draftId: string) => `/dashboard/treasury?sweep=${draftId}`;

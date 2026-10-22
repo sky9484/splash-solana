@@ -4,13 +4,15 @@
  * money that went in and out of the Payments account. From the company's own state, integers only;
  * every sum is made here, with the shared money rules (lib/treasury/reserve.ts). The screen formats.
  *
- * Money in and out is read from the same records History reads: payments, fundings and the moves
- * between the company's own accounts.
+ * Money in and out is read from the same records History reads: payments, fundings, the moves
+ * between the company's own accounts, and treasury orders that drew on or landed in the Payments account.
  */
 import { payablesDue, reserveFloor, sharesPct } from '../treasury/reserve.ts';
+import { investmentsSummary, treasuryHistory } from './investments.ts';
+import { accountBalances, payablesOf } from './money-position.ts';
 import { isCommitted, type PaymentState } from './payment-machine.ts';
 import { runtime } from './runtime.ts';
-import { getOrg, treasuryVaultPda } from './service.ts';
+import { getOrg } from './service.ts';
 import { stationLabel, stationOf } from './stations.ts';
 import { store, type PaymentRecord } from './store.ts';
 
@@ -75,19 +77,15 @@ function paymentRow(p: PaymentRecord, now: Date): MoneyRow | null {
 export async function balanceFor(orgId: string, now = new Date()) {
   const org = getOrg(orgId);
   const rt = runtime();
-  const paymentsMinor = org.vault ? await rt.chain.getUsdcBalance(org.vault.vaultPda) : 0n;
-  const reserveMinor = org.vault ? await rt.chain.getUsdcBalance(treasuryVaultPda(org.vault.multisigPda)) : 0n;
-  // Investments (vault #2) arrive with Treasury (Phase 5): none until then.
-  const investmentsMinor = 0n;
-
-  const all = (await rt.payments.listByOrg(org.id)).filter((p) => p.state !== 'discarded');
-  const waitingMinor = all.filter((p) => p.state === 'checked' || p.state === 'proposed').reduce((n, p) => n + (p.approval?.youPayUsdcMinor ?? 0n), 0n);
-  const approvedUnsentMinor = all.filter((p) => p.state === 'approved').reduce((n, p) => n + (p.approval?.youPayUsdcMinor ?? 0n), 0n);
+  // The same reading Overview and Treasury make (money-position.ts), so the three never disagree.
+  const { paymentsMinor, reserveMinor } = await accountBalances(org);
+  const invested = investmentsSummary(org, now);
+  const { all, waitingMinor, approvedUnsentMinor, billsDueMinor } = await payablesOf(org, now);
   const waitingShown = waitingMinor < paymentsMinor ? waitingMinor : paymentsMinor;
   const freeMinor = max0(paymentsMinor - waitingMinor);
   const [freePct, waitingPct] = sharesPct([freeMinor, waitingShown]);
   // What the Reserve is kept for: what's due, plus the margin (the same floor Overview shows).
-  const floorMinor = reserveFloor(payablesDue({ approvedUnsentMinor, billsDueMinor: 0n }));
+  const floorMinor = reserveFloor(payablesDue({ approvedUnsentMinor, billsDueMinor }));
 
   const rows: MoneyRow[] = [];
   for (const p of all) {
@@ -127,6 +125,17 @@ export async function balanceFor(orgId: string, now = new Date()) {
       href: '/dashboard/treasury',
     });
   }
+  // Treasury orders that drew on the Payments account, or landed in it (prompt 10 §7.4): gold, like History.
+  for (const o of treasuryHistory(org)) {
+    const href = o.receiptId ? `/dashboard/receipts/${o.receiptId}` : '/dashboard/treasury';
+    if ((o.kind === 'subscribe' || o.kind === 'buy') && o.fromPaymentsMinor > 0n) {
+      const what = o.kind === 'subscribe' ? 'Subscribed to T-bills' : `Bought ${o.name}`;
+      rows.push({ id: o.id, at: o.at, date: dayLabel(o.at, now), what, detail: 'from your Payments account, into your Investments account', amountMinor: -o.fromPaymentsMinor, tag: { tone: 'gold', label: 'Treasury' }, href });
+    } else if (o.landsIn === 'payments') {
+      const what = o.kind === 'redeem' ? 'Redeemed T-bills' : `Sold ${o.name}`;
+      rows.push({ id: o.id, at: o.at, date: dayLabel(o.at, now), what, detail: 'from your Investments account, into your Payments account', amountMinor: o.amountMinor, tag: { tone: 'gold', label: 'Treasury' }, href });
+    }
+  }
   rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
   return {
@@ -137,8 +146,8 @@ export async function balanceFor(orgId: string, now = new Date()) {
     bar: { freePct, waitingPct },
     reserveMinor,
     reserveFloorMinor: floorMinor,
-    investmentsMinor,
-    investmentsSetUp: false,
+    investmentsMinor: invested.investmentsMinor,
+    investmentsSetUp: invested.setUp,
     rows: rows.slice(0, BALANCE_ROWS),
     more: rows.length > BALANCE_ROWS,
     simulated: rt.env.mode === 'offline',

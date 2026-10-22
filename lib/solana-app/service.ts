@@ -59,6 +59,7 @@ import type { PartnerPayout } from '../solana-partner/registry.ts';
 import { assertAttesterIsolated, buildMemoAnchor } from '../solana-evidence/anchor.ts';
 import { buildCorridorPayoutBundle, buildEvidenceBatch, buildPeerTransferBundle, bundleLeafHex, computeInvoiceCommitment, type ChainSignatureRecord, type EvidenceBundle } from '../solana-evidence/bundle.ts';
 import { canonicalJson } from '../solana-evidence/canonical.ts';
+import { stockRef, TBILLS } from '../treasury/reference.ts';
 import { anchoredRootFromMemo, verifyBundle, type VerifyResult } from '../solana-evidence/verify.ts';
 import { assertDraftOnly, assertRouterRefersToEngineQuote } from '../solana-zeke/guard.ts';
 import { InvoiceFieldsSchema, readInvoice, ReaderError, type InvoiceFieldName } from '../solana-zeke/reader.ts';
@@ -545,6 +546,12 @@ export async function orgSummary(orgId: string) {
             moves: (org.moves ?? []).slice().reverse().map(moveSummary),
           }
         : null,
+    /** Treasury orders (prompt 10 §7.4), settled, newest first: History's gold "Treasury" rows. */
+    treasuryOrders: (org.investments?.orders ?? [])
+      .filter((o) => o.state === 'settled')
+      .slice()
+      .reverse()
+      .map((o) => ({ id: o.id, kind: o.kind, asset: o.asset, name: o.asset === 'usdy' ? TBILLS.name : (stockRef(o.asset)?.name ?? o.asset), amountMinor: o.amountMinor, at: o.approval?.at ?? o.createdAt, landsIn: o.landsIn, receiptId: o.receiptId, sweep: Boolean(o.sweepDraftId) })),
     invoices: { read: read.length, confirmed: read.filter((i) => i.confirmed).length },
     suppliers: org.suppliers.map((x) => ({ id: x.id, name: x.name, bank: x.bank, accountLast4: x.accountLast4, verifiedAt: x.verified?.at ?? null, method: x.verified?.method ?? null, callBackPending: Boolean(x.pendingCallBack) })),
     limits: { perPaymentUsdcMinor: DEMO_LIMITS.perPaymentUsdcMinor, dailyUsdcMinor: DEMO_LIMITS.dailyUsdcMinor, usedTodayUsdcMinor: org.dailyDebits[utcDay(new Date())] ?? 0n },
@@ -2435,9 +2442,71 @@ function receivableReceipt(e: EvidenceRecord) {
   };
 }
 
+/** A treasury order (kind 6): the company's own accounts, the device approval, no payment behind it. */
+function treasuryTrace(e: EvidenceRecord) {
+  const b = e.bundle;
+  if (b.kindName !== 'treasury') throw new Error('not a treasury order');
+  const vault = store().orgs.get(e.orgId)?.vault;
+  const simulated = b.receipt.simulated;
+  const accounts: Array<{ label: string; address: string; solscanUrl: string | null; explorerUrl: string | null }> = [];
+  accounts.push({ label: 'Your Investments account', address: b.org.investmentsAccount, ...traceLinks('account', b.org.investmentsAccount, simulated) });
+  if (vault) {
+    accounts.push({ label: 'Your Payments account', address: vault.vaultPda, ...traceLinks('account', vault.vaultPda, simulated) });
+    const reserve = treasuryVaultPda(vault.multisigPda);
+    accounts.push({ label: 'Your Reserve', address: reserve, ...traceLinks('account', reserve, simulated) });
+  }
+  return { memo: '', accounts, approvedTextSha256: b.approval.messageSha256 };
+}
+
+function treasuryReceipt(e: EvidenceRecord) {
+  const b = e.bundle;
+  if (b.kindName !== 'treasury') throw new Error('not a treasury order');
+  const org = getOrg(e.orgId);
+  const name = b.asset.id === 'usdy' ? TBILLS.name : (stockRef(b.asset.id)?.name ?? b.asset.id);
+  return {
+    receiptId: e.receiptId,
+    paymentId: e.paymentId,
+    simulated: e.anchor.simulated || b.receipt.simulated,
+    companyName: org.companyName,
+    summary: {
+      kind: 'treasury' as const,
+      supplierName: name,
+      bank: 'Splash',
+      accountLast4: '',
+      invoiceNumber: '',
+      receivePhpMinor: 0n,
+      receiveUsdMinor: b.order.amountMinor,
+      youPayUsdcMinor: b.order.amountMinor,
+      paidAt: b.createdAt,
+      bankReference: null,
+      partnerLabel: null,
+      note: null,
+      treasury: {
+        orderKind: b.order.kind,
+        path: b.order.path,
+        unitsMicro: b.order.unitsMicro,
+        priceMinor: b.order.priceMinor,
+        landsIn: b.order.landsIn,
+        holdUntil: b.order.holdUntil,
+        sweep: Boolean(b.sweep),
+        approvedBy: b.approval.who,
+      },
+    },
+    bundle: e.bundle,
+    leafHex: e.leafHex,
+    proof: e.proof,
+    batch: e.batch,
+    anchor: { ...e.anchor, ...(e.anchor.signature ? traceLinks('tx', e.anchor.signature, e.anchor.simulated) : { solscanUrl: null, explorerUrl: null }) },
+    signatures: b.chain.signatures.map((s) => ({ purpose: s.purpose, network: s.network, signature: s.signature, simulated: s.simulated, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
+    trace: treasuryTrace(e),
+    stored: { blobId: e.stored.blobId, mode: e.stored.mode, sizeBytes: e.stored.sizeBytes, ciphertextSha256Hex: e.stored.ciphertextSha256Hex },
+  };
+}
+
 export async function receiptView(receiptId: string) {
   const e = getEvidence(receiptId);
   if (e.bundle.kindName === 'receivable') return receivableReceipt(e);
+  if (e.bundle.kindName === 'treasury') return treasuryReceipt(e);
   const p = await getPayment(e.paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
   const org = getOrg(p.orgId);
@@ -2502,6 +2571,26 @@ export async function evidenceBlob(receiptId: string) {
 /** The evidence pack a business hands its auditor. Includes the invoice fields and this invoice's salt so the commitment can be recomputed. */
 export async function evidencePack(receiptId: string) {
   const e = getEvidence(receiptId);
+  if (e.bundle.kindName === 'treasury') {
+    return {
+      format: 'splash.evidence.pack.v1',
+      simulated: e.anchor.simulated || e.bundle.receipt.simulated,
+      note: e.anchor.simulated ? 'Simulated · devnet-ready. Produced by the offline simulator; no network was used.' : 'Devnet run.',
+      receiptId: e.receiptId,
+      bundle: e.bundle,
+      leafHex: e.leafHex,
+      proof: e.proof,
+      batch: e.batch,
+      anchor: e.anchor,
+      trace: treasuryTrace(e),
+      howToVerify: [
+        'leaf = sha256(utf8("splash.evidence.leaf.v1") || 0x00 || utf8(canonicalJson(bundle))); bigint values are decimal strings',
+        'walk proof.siblings bottom-up: node = sha256(utf8("splash.evidence.node.v1") || 0x01 || left || right)',
+        'the root must equal the root in the anchor memo "splash:root:v1:<root>:<count>"',
+        'bundle.approval.signature is an ed25519 signature by bundle.approval.keyPublic over the order text whose sha256 is bundle.approval.messageSha256',
+      ],
+    };
+  }
   if (e.bundle.kindName === 'receivable') {
     const req = store().requests.get(e.bundle.requestId);
     return {

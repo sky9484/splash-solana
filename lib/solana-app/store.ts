@@ -120,6 +120,71 @@ export interface OrgRecord {
    * Splash paying, or someone paying a request's link. Oldest first.
    */
   received?: ReceivedRecord[];
+  /** Treasury's investments (prompt 10 §7.4): what the Investments account holds, and every order. */
+  investments?: { lots: InvestmentLot[]; orders: InvestmentOrder[] };
+  /** The owner's treasury rules: sweep, the one-time eligibility confirmation, and the log of who changed what. */
+  treasuryRules?: TreasuryRules;
+  /** Sweep drafts, at most one a day (prompt 10 §7.3). Newest last; the last 60 kept. */
+  sweepDrafts?: SweepDraftRecord[];
+}
+
+/** Units of one asset bought in one order. A unit straight from Ondo may be held until `heldUntil`. */
+export interface InvestmentLot {
+  id: string;
+  asset: string;
+  /** Millionths of a unit still held from this lot. */
+  unitsMicro: bigint;
+  /** What the units still held cost, US$ minor units. */
+  costMinor: bigint;
+  at: string;
+  heldUntil: string | null;
+  orderId: string;
+}
+
+/** An order a member's device approves: off-chain in test mode, the device signs its exact text. */
+export interface InvestmentOrder {
+  id: string;
+  asset: string;
+  kind: 'subscribe' | 'redeem' | 'buy' | 'sell';
+  path: 'market' | 'ondo';
+  amountMinor: bigint;
+  unitsMicro: bigint;
+  priceMinor: bigint;
+  priceMovedBps: bigint | null;
+  holdUntil: string | null;
+  /** Where the money came from, for a subscription or a buy. */
+  from: { reserveMinor: bigint; paymentsMinor: bigint } | null;
+  landsIn: 'investments' | 'payments' | 'bank_wire';
+  state: 'prepared' | 'settled' | 'expired';
+  createdAt: string;
+  createdBy: string;
+  expiresAt: string;
+  nonce: string;
+  sweepDraftId: string | null;
+  approval: { who: string; keyPublic: string; at: string; signature: string } | null;
+  settlement: { signatures: string[]; simulated: boolean; at: string } | null;
+  receiptId: string | null;
+}
+
+export interface TreasuryRules {
+  sweep: { on: boolean; cushionMinor: bigint };
+  /** The owner confirmed once that no owner (25% or more), director or approver is a US person. */
+  eligibility: { by: string; at: string } | null;
+  audit: Array<{ at: string; by: string; change: string }>;
+}
+
+/** One day's sweep draft. Nothing moves until a person approves it on a device. */
+export interface SweepDraftRecord {
+  id: string;
+  /** UTC day, YYYY-MM-DD. */
+  day: string;
+  kind: 'subscribe' | 'redeem';
+  amountMinor: bigint;
+  reason: string;
+  createdAt: string;
+  state: 'drafted' | 'approved' | 'replaced' | 'withdrawn';
+  orderId: string | null;
+  cushionMinor: bigint;
 }
 
 /** Money in from outside the company, into its own Payments account. */
