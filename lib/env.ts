@@ -173,7 +173,6 @@ export const envSchema = z.object({
   SUI_BATCH_SETTLEMENT_MODE: optional,
   OPERATOR_SUI_PRIVATE_KEY: privkey,
   SUI_SPONSOR_PRIVATE_KEY: privkey,
-  ENOKI_API_KEY: optional,
   SUI_PEG_UPDATE_GAS_BUDGET: int(10_000_000, 1),
   SUI_RECORD_SETTLEMENT_GAS_BUDGET: int(10_000_000, 1),
   SUI_COMPOSED_GAS_BUDGET: int(30_000_000, 1),
@@ -259,13 +258,16 @@ export const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: withDefault(str.url(), 'http://localhost:3000'),
   NEXT_PUBLIC_SUPPORT_EMAIL: opt(str.email()),
 
-  /* zkLogin. lib/auth/zklogin.ts, app/api/auth/zklogin/route.ts. The client
-     ID is part of address derivation: it is decided once per environment and
-     never rotated after users exist. */
-  FEATURE_ZKLOGIN: flag('false'),
-  ZKLOGIN_GOOGLE_CLIENT_ID: optional,
-  ZKLOGIN_MICROSOFT_CLIENT_ID: optional,
-  ZKLOGIN_USER_SALT: optional,
+  /**
+   * "Continue with Google" (lib/auth/google-oidc.ts): plain OIDC, code + PKCE.
+   * Identity only; no key material comes from Google. Use a separate OAuth
+   * client per environment: the ID token's `aud` must equal this client id.
+   */
+  FEATURE_GOOGLE_SIGNIN: flag('false'),
+  GOOGLE_OIDC_CLIENT_ID: optional,
+  GOOGLE_OIDC_CLIENT_SECRET: optional,
+  /** Must be registered with Google exactly, e.g. https://app.example/api/auth/google/callback. */
+  GOOGLE_OIDC_REDIRECT_URI: httpsUrl,
 
   /**
    * WebAuthn relying-party id. A credential is bound to it and the browser
@@ -521,8 +523,6 @@ function productionIssues(env: Env): Issue[] {
     need('PDAX_API_KEY', 'PHP payout is live (USE_MOCK_APIS and NEXT_PUBLIC_DEMO_MODE are both off)');
     need('WALRUS_PUBLISHER_URL', 'audit proofs are live');
     need('WALRUS_AGGREGATOR_URL', 'audit proofs are live');
-    // Not ENOKI_API_KEY: nothing calls Enoki. USDC transfers carry no gas
-    // (lib/payments/stablecoin-lane.ts, Gas) and settlement pays its own.
   }
   if (env.CARD_FUNDING_ENABLED || (vendorsLive && env.FUNDING_PROVIDER_STRIPE_ENABLED)) {
     need('STRIPE_SECRET_KEY', env.CARD_FUNDING_ENABLED ? 'CARD_FUNDING_ENABLED=true' : 'Stripe funding is enabled and mocks are off');
@@ -532,9 +532,10 @@ function productionIssues(env: Env): Issue[] {
     need('SUMSUB_APP_TOKEN', 'FEATURE_KYB_GATE=true');
     need('SUMSUB_SECRET_KEY', 'FEATURE_KYB_GATE=true');
   }
-  if (env.FEATURE_ZKLOGIN) {
-    need('ZKLOGIN_GOOGLE_CLIENT_ID', 'FEATURE_ZKLOGIN=true — and it is part of address derivation, so decide it once per environment');
-    need('ZKLOGIN_USER_SALT', 'FEATURE_ZKLOGIN=true');
+  if (env.FEATURE_GOOGLE_SIGNIN) {
+    need('GOOGLE_OIDC_CLIENT_ID', 'FEATURE_GOOGLE_SIGNIN=true');
+    need('GOOGLE_OIDC_CLIENT_SECRET', 'FEATURE_GOOGLE_SIGNIN=true');
+    need('GOOGLE_OIDC_REDIRECT_URI', 'FEATURE_GOOGLE_SIGNIN=true');
   }
   if ((env.MEMWAL_PRIVATE_KEY === undefined) !== (env.MEMWAL_ACCOUNT_ID === undefined)) {
     issues.push({ key: 'MEMWAL_PRIVATE_KEY', message: 'MEMWAL_PRIVATE_KEY and MEMWAL_ACCOUNT_ID must be set together or not at all' });

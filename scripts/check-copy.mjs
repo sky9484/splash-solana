@@ -102,7 +102,7 @@ const allowedHexes = new Set([
   '#d9fff6', '#e0b05a', '#e7eef0', '#eaf6f1', '#eaf7f8', '#ede8e4', '#eef4f5',
   '#efc46f', '#f4efe4', '#f4f8fa', '#f8fcfd', '#ffd9c9', '#ffe6a4', '#fffaf6',
   '#fffdf9',
-  // Google's brand mark, in components/auth/ZkLoginButton.tsx. These four are
+  // Google's brand mark, in components/auth/GoogleSignInButton.tsx. These four are
   // fixed by Google's identity guidelines and are not Splash palette: they
   // cannot become tokens, because a token implies we may change them. Inline
   // rather than an <img> so the sign-in button needs no network request to

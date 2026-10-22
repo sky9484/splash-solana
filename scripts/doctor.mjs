@@ -91,7 +91,7 @@ function envFileCheck() {
   return {
     name: 'Env file',
     status: 'skipped',
-    detail: 'no .env.local — development defaults apply; secrets (DATABASE_URL, ENOKI_API_KEY) belong here',
+    detail: 'no .env.local — development defaults apply; secrets (DATABASE_URL, CUSTOMER_SESSION_SECRET) belong here',
   };
 }
 
@@ -134,7 +134,7 @@ const { runHealthChecks } = await import('@/lib/server/health-checks.ts');
 const report = await runHealthChecks();
 
 const NAMES = {
-  rpc: 'Sui RPC', package: 'Package ID', db: 'Postgres', seal: 'Seal', enoki: 'Enoki',
+  rpc: 'Sui RPC', package: 'Package ID', db: 'Postgres', seal: 'Seal',
   // Go-live: the setup steps a person does by hand.
   laneNode: 'Sui mainnet (USDC)', peg: 'Peg (DeepBook)', usdyPrice: 'USDY price (Ondo)', feeAddress: 'Fee wallet',
   twilio: 'WhatsApp (Twilio)', passkeyDomain: 'Passkey domain', screening: 'Wallet screening',

@@ -41,6 +41,15 @@ function resolveSecret(): string | null {
   return cachedDevSecret;
 }
 
+/**
+ * The session secret, for callers that derive a separate key from it (the
+ * Google sign-in flow cookie, lib/auth/google-oidc.ts). Never returned to a
+ * client. null in production when CUSTOMER_SESSION_SECRET is unset.
+ */
+export function customerSessionSecret(): string | null {
+  return resolveSecret();
+}
+
 function loadOrCreateDevSecret(): string {
   try {
     if (existsSync(DEV_SECRET_FILE)) {
@@ -76,7 +85,6 @@ function sessionFromIdentity(input: {
   now?: Date;
   ttlSeconds?: number;
   userRole?: CustomerWorkspaceRole;
-  suiAddress?: string;
   orgId?: string;
   credentialVersion?: number;
 }): CustomerSession {
@@ -158,8 +166,8 @@ async function readSession(): Promise<{ session: CustomerSession; refresh: boole
   // a cookie an attacker held before the mailbox owner verified stops
   // reading as a session at that moment — no session table, nothing to
   // sweep. Without a database there is no row to compare against; the
-  // password route refuses to mint in that state, and a zkLogin session is
-  // accepted as-is because there is nothing it could be checked against.
+  // password and Google routes both refuse to mint in that state, so no
+  // session read here was minted by a sign-in on this deployment.
   if (process.env.DATABASE_URL) {
     const { getDb } = await import('@/lib/db/client');
     const current = await sessionCredentialIsCurrent(getDb() as never, session);
@@ -226,7 +234,6 @@ export async function setCustomerSessionCookie(
     organization: session.organization,
     ttlSeconds: maxAge,
     userRole: session.userRole,
-    suiAddress: session.suiAddress,
     orgId: session.orgId,
     credentialVersion: session.credentialVersion,
   });
