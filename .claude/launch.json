@@ -2,15 +2,21 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "splash-dev",
+      "name": "splash-solana-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3000"
+      ],
       "port": 3000,
-      "autoPort": true,
+      "autoPort": false,
       "env": {
-        "TEMP": "D:\\latest-splash\\.tmp",
-        "TMP": "D:\\latest-splash\\.tmp",
-        "TMPDIR": "D:\\latest-splash\\.tmp",
+        "TEMP": "D:\\splash-solana\\.tmp",
+        "TMP": "D:\\splash-solana\\.tmp",
+        "TMPDIR": "D:\\splash-solana\\.tmp",
         "NEXT_TELEMETRY_DISABLED": "1",
         "NODE_OPTIONS": "--use-system-ca"
       }
