@@ -128,6 +128,13 @@ export function usdcExact(minor: string | bigint): string {
   return `${v < 0n ? '−' : ''}${whole}.${(abs % 1_000_000n).toString().padStart(6, '0')} USDC`;
 }
 
+/** "US$5,416.082957": the same exact figure, in the dashboard's words (prompt 10 §0.6: US dollars). */
+export function usdExact(minor: string | bigint): string {
+  // usdcExact's figure without its five-character unit suffix.
+  const figure = usdcExact(minor).slice(0, -5);
+  return figure.startsWith('−') ? `−US$${figure.slice(1)}` : `US$${figure}`;
+}
+
 export function php(minor: string | bigint): string {
   return formatPhp(BigInt(minor));
 }

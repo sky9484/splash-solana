@@ -170,10 +170,10 @@ async function run(page, email) {
   for (const label of labels) await page.fill(label, words[Number(label.replace(/\D/g, '')) - 1]);
   await shot('three-word-check');
   await page.click('button', 'Check words', { exact: true });
-  await page.find('heading', 'A key for this device, and your vault');
+  await page.find('heading', 'A key for this device, and your accounts');
   await shot('device-key');
-  await page.click('button', 'Create the key and the vault');
-  await page.find('heading', 'Your vault is ready', { timeoutMs: 60_000 });
+  await page.click('button', 'Create the key and your accounts');
+  await page.find('heading', 'Your accounts are ready', { timeoutMs: 60_000 });
   assert.match((await page.text('.sx-kv')).join('\n'), /Config authority: none/);
   await shot('vault-ready');
 
@@ -459,7 +459,7 @@ async function run(page, email) {
 
   // Zeke, history, rules, and the overview with everything in it.
   await page.goto(`${BASE}/dashboard/zeke`);
-  await page.find('heading', 'Zeke’s agents');
+  await page.find('heading', 'What each part of Zeke does');
   await shot('zeke');
   await page.goto(`${BASE}/dashboard/history`);
   await page.waitFor(() => document.querySelectorAll('.sx-table tbody tr').length >= 1, [], { what: 'the payment row' });
@@ -873,6 +873,42 @@ async function run(page, email) {
   await page.find('heading', 'Treasury');
   assert.equal(await page.evaluate(() => document.querySelectorAll('section[aria-labelledby="history-treasury"] li').length), 7, 'seven settled orders');
   await shot('history-treasury');
+
+  // A bill due this week, with its payment drafted: Kuching asks for US$100 due in three days, and Acme
+  // opens it in Transfer (a draft, not approved). Zeke then finds it when asked (below).
+  const dueSoon = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  await signInAs('peer@acme.test');
+  const askedSoon = await asApi('/requests', { method: 'POST', body: JSON.stringify({ payer: { kind: 'splash', payerOrgId: 'demo-business' }, number: 'KMS-0101', dueDate: dueSoon, lines: [{ description: 'Shackles, galvanised', quantity: '4', unitMinor: '25000000' }], note: 'Due this week', send: true }) });
+  assert.equal(askedSoon.status, 201, JSON.stringify(askedSoon.body));
+  await signInAs(email);
+  await page.goto(`${BASE}/dashboard/invoices/pay`);
+  await page.waitFor(() => /KMS-0101/.test(document.querySelector('[role=tabpanel]')?.innerText ?? ''), [], { what: 'the new request in the inbox' });
+  await tap('Pay Kuching Marine Supply');
+  await page.find('heading', 'How US$100 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
+  const draftedFor = await page.evaluate(() => new URLSearchParams(location.search).get('payment'));
+  assert.match(draftedFor ?? '', /^pay_[0-9a-f]{16}$/);
+
+  // The Zeke page (prompt 10 §7A): the counters, "Waiting for you" and "Today" from server state, the
+  // roster read from the code, and nothing on the page that approves. Asked "What's due this week?",
+  // Zeke lists the bill, and its ticket opens the drafted payment on Transfer (§10).
+  await page.goto(`${BASE}/dashboard/zeke`);
+  await page.find('heading', 'What should we look at?');
+  await page.waitFor(() => /Read (an invoice|\d+ invoices)/.test(document.querySelector('section[aria-labelledby="zk-log"]')?.innerText ?? ''), [], { what: 'Zeke’s log for today' });
+  const zekeCounts = await page.evaluate(() => [...document.querySelectorAll('.iso-desk__count dd')].map((d) => d.innerText.trim()));
+  assert.equal(zekeCounts.length, 3);
+  assert.ok(zekeCounts.every((c) => /^\d+$/.test(c)), `the counters come from the server: ${zekeCounts.join(', ')}`);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].filter((b) => /approve/i.test(b.innerText)).length), 0, 'no approve control on the Zeke page');
+  assert.equal(await page.evaluate(() => document.querySelector('.iso-zk')), null, 'the floating Zeke steps aside');
+  await page.find('text', 'It can only read and draft. It can’t approve, pay or change a rule.');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('section[aria-labelledby="zk-team"] tbody tr').length), 7, 'every part of Zeke, from the code');
+  await page.fill('Ask Zeke', 'What’s due this week?');
+  await page.click('button', 'Send', { exact: true });
+  await page.waitFor(() => /KMS-0101[\s\S]*already has a payment drafted/.test(document.querySelector('.iso-desk__thread')?.innerText ?? ''), [], { what: 'Zeke’s answer', timeoutMs: 60_000 });
+  await page.find('text', 'Draft · not approved');
+  await shot('zeke-page');
+  await page.click('link', 'Open to review');
+  await page.waitFor((id) => location.pathname === '/dashboard/transfer' && new URLSearchParams(location.search).get('payment') === id, [draftedFor], { what: 'Transfer, on the drafted payment' });
+  await page.find('heading', 'How US$100 reaches Kuching Marine Supply', { timeoutMs: 60_000 });
 
   // Secrets: nothing the page sent contains the recovery words.
   // 1. No request (URL, body, headers) carries the phrase, or any two neighbouring words of it.

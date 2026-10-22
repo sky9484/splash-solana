@@ -9,7 +9,7 @@ import test from 'node:test';
 
 const ROOTS = ['app', 'components', 'content'];
 /** Service files whose strings reach a screen (approval cards, route cards, funding and transfer copy). */
-const SCREEN_LIB = ['lib/solana-app/service.ts', 'lib/solana-app/funding-service.ts', 'lib/solana-app/transfer-details.ts', 'lib/solana-app/source-of-funds.ts', 'lib/solana-app/treasury-service.ts', 'lib/solana-app/batch-service.ts', 'lib/solana-app/investments.ts', 'lib/treasury/reference.ts', 'lib/solana-zeke/router.ts'];
+const SCREEN_LIB = ['lib/solana-app/service.ts', 'lib/solana-app/funding-service.ts', 'lib/solana-app/transfer-details.ts', 'lib/solana-app/source-of-funds.ts', 'lib/solana-app/treasury-service.ts', 'lib/solana-app/batch-service.ts', 'lib/solana-app/investments.ts', 'lib/treasury/reference.ts', 'lib/solana-app/zeke-desk.ts', 'lib/solana-zeke/roster.ts', 'lib/solana-zeke/router.ts'];
 const EXT = new Set(['.ts', '.tsx', '.mjs']);
 
 function files(dir) {

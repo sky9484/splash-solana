@@ -1483,3 +1483,48 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 @media (prefers-reduced-motion: reduce) {
   .iso .iso-resbar__fill { animation: none; }
 }
+
+/* ── The Zeke page (prompt 10 Phase 6, frame Flow-Zeke) ─────────────────── */
+.iso .iso-desk__title { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.iso .iso-desk__title .iso-tag { font-size: 13px; letter-spacing: 0; }
+.iso .iso-desk__face { display: inline-flex; flex: 0 0 64px; width: 64px; height: 64px; align-items: center; justify-content: center; background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-1); }
+.iso .iso-desk__face img { width: 50px; height: 50px; object-fit: contain; }
+.iso .iso-desk__counts { margin: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.iso .iso-desk__count { min-width: 120px; padding: 10px 16px; background: var(--paper); border: 1.5px solid var(--line); }
+.iso .iso-desk__count dt { font-size: var(--iso-13); color: var(--text-2); }
+.iso .iso-desk__count dd { margin: 0; font-size: 24px; font-weight: 900; color: var(--ink-deep); }
+.iso .iso-desk__count--coral { border-color: var(--coral); }
+.iso .iso-desk__count--coral dt { color: var(--coral-ink); }
+.iso .iso-desk__count--amber { border-color: var(--amber-line); }
+.iso .iso-desk__count--amber dt { color: var(--amber-ink); }
+.iso .iso-desk__chat { display: flex; flex-direction: column; }
+.iso .iso-desk__ask { padding: 20px 22px 0; }
+.iso .iso-desk__thread { display: flex; flex-direction: column; gap: 12px; padding: 16px 22px 18px; min-height: 420px; max-height: 62vh; overflow-y: auto; }
+.iso .iso-desk__thread .iso-zk__msg { max-width: 92%; }
+.iso .iso-desk__draft { max-width: 92%; background: var(--white); }
+.iso .iso-desk__chips { padding: 0 22px 12px; }
+.iso .iso-desk__compose { background: rgb(255 250 244 / .9); }
+.iso .iso-desk__foot { padding: 10px 22px 14px; }
+.iso .iso-desk__rail { gap: 22px; }
+.iso .iso-desk__waits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-desk__wait { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 48px; padding: 12px 14px; background: var(--white); border: 1.5px solid var(--line); color: var(--ink); text-decoration: none; }
+.iso .iso-desk__wait > span:first-child { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.iso .iso-desk__wait strong { color: var(--ink-deep); }
+.iso .iso-desk__wait:hover { border-color: var(--ink-deep); }
+.iso .iso-desk__wait--approve { border-color: var(--coral); }
+.iso .iso-desk__wait--verify { border-color: var(--amber-line); }
+.iso .iso-desk__amount { font-weight: 800; color: var(--ink-deep); white-space: nowrap; }
+.iso .iso-desk__log { list-style: none; margin: 6px 0 0; padding: 0; }
+.iso .iso-desk__log li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--iso-14); line-height: 1.45; }
+.iso .iso-desk__log li:last-child { border-bottom: 0; }
+.iso .iso-desk__log li > span:last-child { display: flex; flex-direction: column; }
+.iso .iso-desk__log strong { color: var(--ink-deep); }
+.iso .iso-desk__safe { display: flex; flex-direction: column; gap: 10px; }
+.iso .iso-desk__safe .iso-h3 { color: var(--paper-warm); }
+.iso .iso-desk__safe ul { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: var(--iso-14); line-height: 1.5; color: rgb(255 250 241 / .92); }
+@media (max-width: 720px) {
+  .iso .iso-desk__counts { width: 100%; }
+  .iso .iso-desk__count { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
+  .iso .iso-desk__thread { min-height: 280px; padding: 14px 16px; }
+  .iso .iso-desk__ask, .iso .iso-desk__chips, .iso .iso-desk__foot { padding-left: 16px; padding-right: 16px; }
+}

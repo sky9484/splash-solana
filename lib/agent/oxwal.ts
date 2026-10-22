@@ -1656,6 +1656,23 @@ async function* runLocalPlanner(request: OxwalAgentRequest): AsyncGenerator<Oxwa
     for (const warning of invoice.warnings) yield { type: 'warning', warning };
   }
 
+  // "What's due this week?" (prompt 10 §7A): answered from the company's own bills, read only. A bill
+  // that already has a drafted payment becomes a ticket that opens it on Transfer, where a person
+  // approves it on a device. If the company can't be read, the general answer below stands.
+  if (/\bdue\b/i.test(message) && !extractKnownCounterpartyId(message)) {
+    try {
+      const { loadCompany } = await import('../solana-app/company.ts');
+      await loadCompany(orgId);
+      const { dueThisWeek } = await import('../solana-app/due-this-week.ts');
+      const answer = await dueThisWeek(orgId);
+      for (const token of tokens(answer.text)) yield { type: 'delta', text: token };
+      if (answer.handoff) yield { type: 'handoff', handoff: answer.handoff };
+      return;
+    } catch {
+      /* fall through to the general answer */
+    }
+  }
+
   const wantsPayment = /\b(pay|payout|send|settle|invoice)\b/i.test(message);
   if (wantsPayment) {
     const counterpartyId = extractKnownCounterpartyId(message);

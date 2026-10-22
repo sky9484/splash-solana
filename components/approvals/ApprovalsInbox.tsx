@@ -26,7 +26,7 @@ type Pending = {
 };
 
 const PURPOSE_LABEL: Record<string, string> = {
-  STABLECOIN_TRANSFER: 'USDC transfer',
+  STABLECOIN_TRANSFER: 'US dollar transfer',
   FIAT_TRANSFER: 'Payout',
   BATCH_PAYOUT: 'Batch payout',
   SETTINGS_CHANGE: 'Settings change',

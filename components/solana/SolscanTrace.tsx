@@ -1,3 +1,6 @@
+// copy: technical
+// A receipt's "Technical details" (prompt 10 §0.6: one of the places crypto words are allowed): the
+// transactions behind a payment, on Solscan and the Solana explorer.
 import { shortKey } from './client';
 
 type Link = { solscanUrl: string | null; explorerUrl: string | null };
@@ -42,6 +45,7 @@ export function SolscanTrace({ memo, transactions, accounts, anchor, auditor = f
   const rows = [...bySignature(transactions).map((t) => ({ key: t.signature, label: labelFor(t.purposes, auditor), value: t.signature, link: t, simulated: t.simulated, onSolana: t.network === 'solana' })), ...(anchor ? [{ key: `anchor-${anchor.signature}`, label: 'Proof anchored', value: anchor.signature, link: anchor, simulated: anchor.simulated, onSolana: true }] : [])];
   return (
     <section className="sx-card sx-stack" aria-labelledby="trace-title">
+      <p className="sx-vault-kicker" style={{ margin: 0 }}>Technical details</p>
       <h2 id="trace-title">Trace it on Solscan</h2>
       {simulated ? (
         <p className="sx-muted">

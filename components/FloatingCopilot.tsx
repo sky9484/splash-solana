@@ -280,7 +280,8 @@ function DraftTicket({ title, lines = [], href, onOpen }: { title: string; lines
           {l}
         </span>
       ))}
-      <Link href={href} className="iso-zk__open" onClick={onOpen}>
+      {/* The link arrives on the agent's stream: only a page inside the dashboard (or the queue) opens. */}
+      <Link href={/^\/(dashboard|queue)(\/|\?|$)/.test(href) ? href : '/dashboard'} className="iso-zk__open" onClick={onOpen}>
         Open to approve
         <ArrowRight size={14} aria-hidden="true" />
       </Link>

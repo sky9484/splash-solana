@@ -114,21 +114,21 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         key: 'leaf',
         title: 'Recompute this payment’s fingerprint (leaf)',
         state: result ? (passed(['bundle_shape', 'leaf']) ? 'pass' : 'fail') : 'skip',
-        detail: result?.leafHex ? <span className="sx-hash">{result.leafHex}</span> : 'The record is not anchored yet.',
+        detail: result?.leafHex ? <span className="sx-hash">{result.leafHex}</span> : 'The proof isn’t recorded yet.',
       },
       {
         key: 'path',
-        title: 'Walk the Merkle path to the batch root',
+        title: 'Check it belongs to the day’s proof',
         state: result ? (passed(['proof']) ? 'pass' : 'fail') : 'skip',
-        detail: result ? <span className="sx-hash">{result.computedRootHex ?? 'no root'}</span> : 'The record is not anchored yet.',
+        detail: result ? <span className="sx-hash">{result.computedRootHex ?? 'no root'}</span> : 'The proof isn’t recorded yet.',
       },
       {
         key: 'anchor',
-        title: onDevnet ? 'Read the anchor on Solana' : 'Read the anchor (in the simulator)',
+        title: onDevnet ? 'Read the recorded proof' : 'Read the recorded proof (in test mode)',
         state: result ? (passed(['root_matches_anchor', 'count_matches_anchor', 'period', 'blob_ids', 'simulated_label']) ? 'pass' : 'fail') : 'skip',
         detail: result ? (
           <>
-            Anchored root <span className="sx-hash">{result.anchoredRootHex}</span>
+            Recorded proof <span className="sx-hash">{result.anchoredRootHex}</span>
             {result.checks
               .filter((c) => ['root_matches_anchor', 'count_matches_anchor', 'period', 'blob_ids', 'simulated_label'].includes(c.name) && !c.passed)
               .map((c) => (
@@ -140,13 +140,13 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
               <>
                 {' '}
                 <a href={receipt.anchor.solscanUrl} target="_blank" rel="noreferrer">
-                  View on Solscan
+                  Open its record
                 </a>
               </>
             ) : null}
           </>
         ) : (
-          'The anchor is still pending.'
+          'The proof is still being recorded.'
         ),
       },
     ];
@@ -154,7 +154,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
     try {
       const { blob } = await api<{ blob: { ciphertext: string | null; ciphertextSha256Hex: string; mode: string; blobId: string } }>(p.blob);
       if (!blob.ciphertext) {
-        out.push({ key: 'blob', title: 'Check the stored copy', state: 'skip', detail: blob.mode === 'memory' ? 'The offline store empties when the demo server restarts, so this copy is gone. On devnet the copy is on Walrus.' : 'The store did not return this copy right now. Try again.' });
+        out.push({ key: 'blob', title: 'Check the stored copy', state: 'skip', detail: blob.mode === 'memory' ? 'The offline store empties when the demo server restarts, so this copy is gone. Outside offline test mode the copy is kept on Walrus.' : 'The store did not return this copy right now. Try again.' });
       } else {
         const hex = await sha256Hex(blob.ciphertext);
         out.push({
@@ -164,7 +164,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           detail: (
             <>
               sha256 <span className="sx-hash">{hex}</span>
-              {hex === blob.ciphertextSha256Hex ? ' matches the hash recorded when it was stored.' : ` differs from the recorded ${blob.ciphertextSha256Hex}.`}
+              {hex === blob.ciphertextSha256Hex ? ' matches the fingerprint recorded when it was stored.' : ` differs from the recorded ${blob.ciphertextSha256Hex}.`}
             </>
           ),
         });
@@ -200,7 +200,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
                 : `${receipt.companyName} paid ${s.supplierName}`}
           </p>
         </div>
-        {receipt.simulated ? <span className="sx-pill sx-pill-sim">Simulated · devnet-ready</span> : <span className="sx-pill sx-pill-ok">Solana devnet</span>}
+        {receipt.simulated ? <span className="sx-pill sx-pill-sim">Test mode · simulated</span> : <span className="sx-pill sx-pill-ok">Test mode</span>}
       </div>
 
       <section className="sx-card sx-stack" aria-labelledby="sum-title">
@@ -299,12 +299,12 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
               <dt>Bank reference</dt>
               <dd className="sx-mono">{s.bankReference}</dd>
               <dt>{source.kind === 'company' ? 'You paid' : 'Paid from'}</dt>
-              <dd className="sx-num">{usd(s.youPayUsdcMinor)} from the company’s Solana vault</dd>
+              <dd className="sx-num">{usd(s.youPayUsdcMinor)} from the company’s Payments account</dd>
               {bundle.kindName === 'corridor_payout' ? (
                 <>
                   <dt>Rate</dt>
                   <dd>
-                    {bundle.fx.rate} PHP per USDC <span className="sx-muted">({bundle.fx.reference})</span>
+                    {bundle.fx.rate} PHP per US$ <span className="sx-muted">({bundle.fx.reference})</span>
                   </dd>
                 </>
               ) : null}
@@ -315,14 +315,14 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           <dl className="sx-kv">
             <dt>Approved by</dt>
             <dd>
-              {bundle.approval.who} with device key <span className="sx-mono">{shortKey(bundle.approval.keyPublic)}</span>
+              {bundle.approval.who}, on their device (key <span className="sx-mono">{shortKey(bundle.approval.keyPublic)}</span>)
             </dd>
           </dl>
         ) : bundle.kindName !== 'receivable' ? (
           <dl className="sx-kv">
             <dt>Approved by</dt>
             <dd>
-              {[...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', ')} with device key{' '}
+              {[...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', ')}, on their device · key{' '}
               <span className="sx-mono">{shortKey(bundle.approvals[0]?.keyPublic)}</span>
             </dd>
           </dl>
@@ -367,8 +367,8 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         <h2 id="verify-title">Verify this receipt</h2>
         <p className="sx-muted">Five checks, run in this browser. The server supplies the record; it does not supply the answer.</p>
         <dl className="sx-kv">
-          <dt>Anchor memo</dt>
-          <dd className="sx-hash">{receipt.anchor.status === 'anchored' ? receipt.anchor.memo : 'Recorded, anchor pending'}</dd>
+          <dt>Recorded proof</dt>
+          <dd className="sx-hash">{receipt.anchor.status === 'anchored' ? receipt.anchor.memo : 'Saved; the proof is still being recorded'}</dd>
           <dt>{bundle.kindName === 'peer_transfer' ? 'Reference commitment' : bundle.kindName === 'receivable' ? 'Request commitment' : bundle.kindName === 'treasury' ? 'Approved order (sha256)' : 'Invoice commitment'}</dt>
           <dd className="sx-hash">
             {bundle.kindName === 'peer_transfer' ? bundle.reference.commitmentHex : bundle.kindName === 'receivable' ? bundle.request.commitmentHex : bundle.kindName === 'treasury' ? bundle.approval.messageSha256 : bundle.invoice.commitmentHex}
@@ -415,7 +415,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         {steps ? (
           <div aria-live="polite" className="sx-stack">
             <div className={`sx-notice ${failed || !verdict?.ok ? 'sx-notice-error' : 'sx-notice-ok'}`}>
-              <h3>{failed || !verdict?.ok ? 'Does not verify. This record differs from what was anchored or stored.' : 'Verified. This record matches the anchored root and the stored copy.'}</h3>
+              <h3>{failed || !verdict?.ok ? 'Does not verify. This record differs from the recorded proof or the stored copy.' : 'Verified. This record matches the recorded proof and the stored copy.'}</h3>
             </div>
             <ol className="sx-verify">
               {steps.map((st) => (
