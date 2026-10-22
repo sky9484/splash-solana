@@ -12,7 +12,16 @@
 //   SPLASH_SOLANA_MODE=offline npx next dev -p 3100
 //   node --test tests/solana-ui.e2e.mjs
 // It signs in as the seeded demo@acme.test and starts at setup, so restart the dev database to run it
-// again. Env: BASE_URL (default http://localhost:3100), SCREENSHOT_DIR (default
+// again. It ends in the staff console (prompt 07 §7), with the dev staff login.
+//
+// Never point it at a dev server someone is using: it takes over demo@acme.test's company. Run its own
+// beside it instead, with its own database and output folder (next.config.ts NEXT_DIST_DIR):
+//   DEV_DB_PORT=5434 node --experimental-strip-types --import ./scripts/alias-hook.mjs scripts/dev-db.mjs
+//   NEXT_DIST_DIR=.next-e2e DATABASE_URL=postgres://postgres@127.0.0.1:5434/postgres?sslmode=disable \
+//     SPLASH_SOLANA_MODE=offline npx next dev -p 3200
+//   BASE_URL=http://localhost:3200 node --test tests/solana-ui.e2e.mjs
+// (next dev adds the .next-e2e folders to tsconfig.json's include; restore it afterwards.)
+// Env: BASE_URL (default http://localhost:3100), SCREENSHOT_DIR (default
 // docs/solana-build/screenshots), CHROME_PATH. Not part of `npm test` (that glob is *.test.mjs).
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -25,6 +34,12 @@ const BASE = process.env.BASE_URL ?? 'http://localhost:3100';
 const OUT = process.env.SCREENSHOT_DIR ?? 'docs/solana-build/screenshots';
 // The seeded demo password, read from the seed itself so it lives in one place.
 const DEMO_PASSWORD = /const DEMO_PASSWORD = '([^']+)'/.exec(readFileSync('scripts/dev-db.mjs', 'utf8'))?.[1];
+// The dev staff login: ADMIN_EMAIL / ADMIN_PASSWORD when set, else the dev fallback in admin-auth.ts.
+const adminSource = readFileSync('lib/server/admin-auth.ts', 'utf8');
+const ADMIN = {
+  email: process.env.ADMIN_EMAIL ?? /const fallbackEmail = '([^']+)'/.exec(adminSource)?.[1],
+  password: process.env.ADMIN_PASSWORD ?? /const fallbackPassword = '([^']+)'/.exec(adminSource)?.[1],
+};
 const chrome = findChrome();
 
 const DESKTOP = [1440, 900];
@@ -298,6 +313,50 @@ async function run(page, email) {
   assert.ok(apiPosts.length >= 10, `the walkthrough exercised the API (${apiPosts.length} posts)`);
   const errors = page.errors.filter((e) => !/Failed to load resource|fonts\.g|webpack-hmr|_next\/webpack|Download the React DevTools/i.test(e));
   assert.deepEqual(errors, [], 'no page errors');
+
+  // The staff console (prompt 07 §7): the six sections, over what this walkthrough just did.
+  await page.goto(`${BASE}/admin/login`);
+  await page.fill('Staff email', ADMIN.email);
+  await page.fill('Password', ADMIN.password);
+  await page.click('button', 'Enter staff console');
+  await page.waitFor(() => location.pathname === '/admin' || location.pathname === '/admin/', [], { what: 'the staff console' });
+  // A webhook with a forged signature, so the webhooks section shows a refusal next to the real ones.
+  const forged = await page.evaluate(async () => {
+    const res = await fetch('/api/solana/partner/webhook', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ partnerId: 'mock-partner', paymentId: 'pay_0123456789abcdef', status: 'paid', amountPhpMinor: '100', at: new Date().toISOString(), signature: '0'.repeat(64) }),
+    });
+    return res.status;
+  });
+  assert.equal(forged, 401, 'a forged webhook is refused');
+  await page.goto(`${BASE}/admin/orgs`);
+  await page.find('heading', 'Orgs and vaults');
+  assert.match((await page.text('table')).join('\n'), /none/, 'the config authority reads none, from the chain');
+  await shot('admin-orgs');
+  await page.goto(`${BASE}/admin/payments`);
+  await page.find('heading', 'Payments');
+  await shot('admin-payments');
+  await page.goto(`${BASE}/admin/fee-payer`);
+  await page.find('heading', 'Fee payer (Kora)');
+  await shot('admin-fee-payer');
+  await page.goto(`${BASE}/admin/evidence`);
+  await page.find('heading', 'Evidence');
+  await shot('admin-evidence');
+  await page.goto(`${BASE}/admin/webhooks`);
+  await page.find('heading', 'Partner webhooks');
+  assert.match((await page.text('table')).join('\n'), /refused/, 'the forged webhook is in the log');
+  await shot('admin-webhooks');
+  await page.goto(`${BASE}/admin/compliance`);
+  await page.find('heading', 'Refuse service');
+  await page.fill('Reason for the audit log', 'KYB documents expired (walkthrough)');
+  await page.click('button', /^Suspend /);
+  await page.waitFor(() => [...document.querySelectorAll('table td')].some((td) => td.innerText.includes('KYB documents expired (walkthrough)')), [], { what: 'the suspension in the audit log' });
+  await shot('admin-compliance');
+  await page.fill('Reason for the audit log', 'Restored after the walkthrough');
+  await page.click('button', /^Restore service for /);
+  await page.waitFor(() => [...document.querySelectorAll('table td')].some((td) => td.innerText.includes('Restored after the walkthrough')), [], { what: 'the restore in the audit log' });
+
   return { requests: page.requests.length, apiPosts: apiPosts.length, shots: n };
 }
 

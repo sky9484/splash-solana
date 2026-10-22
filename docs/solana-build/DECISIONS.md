@@ -254,3 +254,17 @@ Sky asked for three changes to the Payments and Money sections. Prompt 07 §4.2 
   - **Gates.** A move needs the same gates as a payment (a device in the vault, KYB, terms). Moves need a 1-of-N vault in this build.
   - **The memo rule (I-5)** now allows exactly three memos: `splash:pay:v1:`, `splash:move:v1:` and the earlier `splash:v1:` commitment.
 - **What this treasury is not.** It holds USDC in the company's own vault and nothing else: no yield, no rate, no lending, no Splash ledger. Every balance on the page is read from the vault's token account. The old `/api/treasury` ledger route stays deleted. **Sebastian to confirm** that a second vault of the company's own multisig is acceptable under Amendment 01. If it is not, the nav entry comes out, and moves stay available only through the API.
+
+## D-P5-1 · The admin console reads the chain, and the fee payer's spend is counted exactly (§7)
+
+- **Six sections.** Orgs and vaults, Payments, Fee payer, Evidence, Refuse service and Partner webhooks are server pages over one read model (`lib/solana-app/admin-service.ts`). They read public facts only: addresses, states, amounts, signatures and counts. No private key, recovery word or invoice salt is read or returned.
+- **The config authority is the chain's word.** Orgs and vaults reads each multisig from the chain (`getMultisig`), not from Splash's own record. It shows "none" in green, anything else in red, and "not read" when the RPC does not answer, never "none".
+- **What the fee payer spent is exact.**
+  - Every sponsored send passes one wrapper in `runtime()`, whichever service makes it.
+  - The wrapper adds to `solana_sponsor_usage` (migration 0032) the fee, read from the transaction itself (5,000 lamports per signature plus price × limit), and the rent of the accounts the send created.
+  - Offline, the ledger equals what the simulated fee payer lost, to the lamport; a test holds this.
+  - On devnet the rent of Squads accounts is an estimate from their sizes, and the page says so.
+  - Splash's vaults set no rent collector, so that rent never comes back. The page shows it as locked.
+- **Refusing service has a last word in front of Kora.** The services already refused a suspended company. The same wrapper now refuses any sponsored send for one, from any code path, before Kora is asked. Suspend and unsuspend each need a reason, and are appended to the company's audit log with the staff member's email. Only compliance and operations staff can change service; support can see it.
+- **Webhooks are logged with their signature check**, accepted, replayed or refused. A webhook naming a payment this server does not have used to be refused with a 404 before its signature was checked, and was never logged. It now goes through the same check, so a forgery is never silent. The log is in process memory (the last 200, since the server started).
+- **Not in this build:** the Kora fee payer alert line is fixed at 0.5 SOL, not configurable. Moves and batches are counted in the per-company spend, but they are not listed on the Payments page.

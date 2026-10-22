@@ -2,7 +2,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 
-import { evidenceSuiNetwork } from '@/lib/evidence-sui/client';
+import { evidenceSuiClient, evidenceSuiNetwork } from '@/lib/evidence-sui/client';
 
 /**
  * The Sui gas sponsor for the evidence allowlist, and for nothing else
@@ -36,6 +36,19 @@ export class SponsorRefusedError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SponsorRefusedError';
+  }
+}
+
+/**
+ * The sponsor's gas money, in MIST (1 SUI = 10^9 MIST), for the admin console. null when the Sui
+ * node cannot be reached (the offline demo has no network). Reads only; holds no key.
+ */
+export async function sponsorBalanceMist(address: string): Promise<bigint | null> {
+  try {
+    const res = await evidenceSuiClient().core.getBalance({ owner: address });
+    return BigInt(res.balance.balance);
+  } catch {
+    return null;
   }
 }
 

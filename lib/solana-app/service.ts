@@ -77,6 +77,7 @@ import {
   type InvoiceRecord,
   type MoveRecord,
   type OrgRecord,
+  type WebhookLogEntry,
   type PaymentRecord,
   type PreparedApproval,
   type PreparedMessage,
@@ -1555,16 +1556,27 @@ export async function takeSponsorSlot(orgId: string, now = new Date()): Promise<
 }
 
 /** Staff pause service for a company: no Kora signature, no new proposal. The vault stays the company's. */
+/**
+ * Refuse service (prompt 07 §7.5): no fee-payer signature and no new proposal for this company, from
+ * any code path (assertServiceable here, and the runtime's chain wrapper in front of Kora). Splash
+ * cannot freeze or move the money: the vault is the company's, and its approvers still control it.
+ * Every suspend and unsuspend is appended to the company's audit log, never edited.
+ */
 export function suspendOrg(orgId: string, input: { by: string; reason: string }, now = new Date()) {
   const org = getOrg(orgId);
   const reason = input.reason.trim();
   if (reason.length < 3) throw new ServiceError('bad_request', 'Give a reason for the audit log.');
-  org.suspended = { at: nowIso(now), by: input.by.trim() || 'staff', reason };
+  const by = input.by.trim() || 'staff';
+  org.suspended = { at: nowIso(now), by, reason };
+  (org.serviceLog ??= []).push({ at: nowIso(now), by, action: 'suspend', reason });
   return org.suspended;
 }
 
-export function unsuspendOrg(orgId: string) {
+export function unsuspendOrg(orgId: string, input: { by: string; reason: string } = { by: 'staff', reason: 'Service restored' }, now = new Date()) {
   const org = getOrg(orgId);
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new ServiceError('bad_request', 'Give a reason for the audit log.');
+  if (org.suspended) (org.serviceLog ??= []).push({ at: nowIso(now), by: input.by.trim() || 'staff', action: 'unsuspend', reason });
   org.suspended = null;
   return null;
 }
@@ -1600,7 +1612,26 @@ export async function observeDeposit(paymentId: string, now = new Date()): Promi
   return rt.partner.simulateDeposit({ payoutId: p.payout.payoutId, network: route.network, address: route.depositAddress, amountUsdcMinor: arrived, now });
 }
 
+/** Every partner webhook goes in the log (the admin console's webhooks section), with what was done with it. */
 export async function receivePartnerWebhook(raw: Record<string, unknown>, now = new Date()) {
+  const log = (result: WebhookLogEntry['result'], signatureOk: boolean | null, reason: string | null) => {
+    const l = store().webhookLog;
+    l.push({ at: nowIso(now), paymentId: String(raw.paymentId ?? '').slice(0, 40), status: String(raw.status ?? '').slice(0, 20), result, signatureOk, reason });
+    if (l.length > 200) l.splice(0, l.length - 200);
+  };
+  try {
+    const out = await applyPartnerWebhook(raw, now);
+    log(out.duplicate ? 'duplicate' : 'accepted', true, out.duplicate ? 'The same payment and status again: no change.' : null);
+    return out;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    const signatureOk = /missing signature|bad signature/.test(message) ? false : /malformed|Unknown webhook status/.test(message) ? null : true;
+    log('refused', signatureOk, message);
+    throw e;
+  }
+}
+
+async function applyPartnerWebhook(raw: Record<string, unknown>, now: Date) {
   let event: PartnerPayoutEvent;
   try {
     event = {

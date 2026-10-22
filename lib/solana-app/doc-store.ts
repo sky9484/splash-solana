@@ -52,6 +52,8 @@ export interface DocStore {
   /** Which company a document belongs to, for requests that arrive with only its id (a share link). */
   ownerOf(kind: DocKind, id: string): Promise<string | null>;
   save(docs: Doc[]): Promise<void>;
+  /** Every company with a saved record, for the admin console. */
+  listOrgIds(): Promise<string[]>;
 }
 
 export function createMemoryDocStore(): DocStore {
@@ -63,6 +65,9 @@ export function createMemoryDocStore(): DocStore {
       return null;
     },
     async save() {},
+    async listOrgIds() {
+      return [];
+    },
   };
 }
 
@@ -86,6 +91,10 @@ export function createPostgresDocStore(db: Db): DocStore {
         .insert(solanaDocuments)
         .values(docs.map((d) => ({ kind: d.kind, id: d.id, orgId: d.orgId, body: encodeRecord(d.body) })))
         .onConflictDoUpdate({ target: [solanaDocuments.kind, solanaDocuments.id], set: { body: sql`excluded.body`, updatedAt: sql`now()` } });
+    },
+    async listOrgIds() {
+      const rows = await db.select({ orgId: solanaDocuments.orgId }).from(solanaDocuments).where(eq(solanaDocuments.kind, 'org'));
+      return [...new Set(rows.map((r) => r.orgId))];
     },
   };
 }

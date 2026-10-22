@@ -437,6 +437,10 @@ export const solanaSponsorUsage = pgTable('solana_sponsor_usage', {
   orgId: text('org_id').notNull(),
   day: text('day').notNull(),
   count: integer('count').notNull().default(0),
+  /** Fees the Kora fee payer paid for this company that day (drizzle/0032), exact. */
+  feeLamports: bigint('fee_lamports', { mode: 'bigint' }).notNull().default(0n),
+  /** Rent the fee payer put into accounts this company's sends created (drizzle/0032). */
+  rentLamports: bigint('rent_lamports', { mode: 'bigint' }).notNull().default(0n),
   ...timestamps,
 }, (table) => [
   uniqueIndex('solana_sponsor_usage_org_day').on(table.orgId, table.day),

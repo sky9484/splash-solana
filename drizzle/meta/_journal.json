@@ -225,6 +225,13 @@
       "when": 1791244800000,
       "tag": "0031_solana_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791331200000,
+      "tag": "0032_sponsor_spend",
+      "breakpoints": true
     }
   ]
 }
