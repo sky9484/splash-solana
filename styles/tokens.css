@@ -81,7 +81,10 @@
   /* Paper and ink */
   --paper: #FFFAF4;
   --paper-warm: #FFFAF1;
-  --ground: #F6F0ED;
+  /* The dashboard's page: warm paper, no grid (prompt 11 §1.1). */
+  --ground: #F4EEE9;
+  /* The pay page someone else opens keeps today's ground and its grid (prompt 11 §1.2). */
+  --ground-grid: #F6F0ED;
   --white: #FFFFFF;
   --ink: #0C3E48;
   --ink-deep: #083640;
@@ -119,10 +122,24 @@
   --line: rgb(12 62 72 / .2);
   --line-soft: rgb(12 62 72 / .14);
   --line-strong: rgb(12 62 72 / .35);
+  /* The 24 px grid: kept for the pay page; the dashboard no longer draws it (prompt 11 §1.1). */
   --grid: rgb(12 62 72 / .05);
   --grid-hero: rgb(12 62 72 / .06);
 
-  /* Surfaces: flat paper, solid offset ledges, square corners. No blurred shadow anywhere. */
+  /* Boxes float off the page (prompt 11 §1.1, decision 3): a near-white fill, a 1 px edge and a soft
+     shadow, square corners. They rise a little on hover and settle back. Only these four shadows may
+     blur; buttons, tags and the sidebar keep their solid offset ledges below. */
+  --surface: #FFFDFA;
+  --surface-line: rgb(12 62 72 / .09);
+  --lift-1: 0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26);
+  --lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
+  --lift-hero: 0 2px 4px rgb(8 54 64 / .07), 0 18px 38px -16px rgb(8 54 64 / .34);
+  --lift-hero-2: 0 3px 6px rgb(8 54 64 / .08), 0 28px 52px -18px rgb(8 54 64 / .42);
+  --rise: -3px;
+  --rise-chooser: -5px;
+  --t-lift: 220ms cubic-bezier(.2, .7, .2, 1);
+
+  /* Ledges: solid offset shadows, for buttons, tags and the sidebar. */
   --ledge-1: 3px 3px 0 var(--ink-deep);
   --ledge-2: 5px 5px 0 var(--ink-deep);
   --ledge-hero: 6px 6px 0 var(--ink-deep);
@@ -152,4 +169,14 @@
   --side-gradient: linear-gradient(165deg, #245563 0%, #143C47 55%, #0C3039 100%);
   --side-text: rgb(255 250 241 / .86);
   --side-label: rgb(255 250 241 / .72);
+}
+
+/* The dashboard screens not yet rebuilt in look 9 (History, Recipients, Rules, Settings) sit outside
+   .iso, so the shell carries the lift too: their page boxes float the same way (prompt 11 decision 3).
+   Same values as the .iso block; tests/iso-tokens.test.mjs keeps the two equal. */
+.iso-app {
+  --lift-1: 0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26);
+  --lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
+  --rise: -3px;
+  --t-lift: 220ms cubic-bezier(.2, .7, .2, 1);
 }

@@ -404,6 +404,41 @@ async function run(page, email) {
   await page.fill('What was bought', 'Pallets and stretch film');
   await choose('How you know them', 'Supplier');
   await choose('Where this money comes from', 'Business revenue');
+  // Prompt 11 §1.3: on a phone, with the field at the bottom of the window (where the list used to open
+  // under the sticky action bar), the list opens in a portal above everything, inside the window, and
+  // its last option takes the click: nothing covers it.
+  await page.setViewport(...PHONE);
+  await page.evaluate(() => {
+    const label = [...document.querySelectorAll('label')].find((l) => l.innerText.trim() === 'Where this money comes from');
+    const input = document.getElementById(label.htmlFor);
+    input.scrollIntoView({ block: 'end' });
+    // The field still has focus from the choice above; a person taps it again, which opens the list.
+    input.blur();
+    input.focus();
+  });
+  await page.waitFor(() => document.querySelectorAll('[role=listbox] [role=option]').length > 1, [], { what: 'the open list' });
+  await page.sleep(300);
+  const lastOption = await page.evaluate(() => {
+    const list = document.querySelector('[role=listbox]');
+    const opts = [...list.querySelectorAll('[role=option]')];
+    const last = opts[opts.length - 1];
+    last.scrollIntoView({ block: 'nearest' });
+    const r = last.getBoundingClientRect();
+    const box = list.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { label: last.querySelector('span').innerText.replace(/\s+/g, ' ').trim(), onTop: last.contains(hit), inWindow: box.top >= 0 && box.bottom <= innerHeight, outsideMain: !list.closest('main'), z: getComputedStyle(list).zIndex, side: list.dataset.side };
+  });
+  assert.ok(lastOption.outsideMain, 'the list is drawn in a portal, outside the page');
+  assert.equal(lastOption.z, '70');
+  assert.ok(lastOption.inWindow, `the list stays inside the window (${lastOption.side} the field)`);
+  assert.ok(lastOption.onTop, `nothing covers the last option, ${lastOption.label}`);
+  await page.evaluate(() => {
+    const opts = [...document.querySelectorAll('[role=listbox] [role=option]')];
+    opts[opts.length - 1].click();
+  });
+  await page.waitFor((want) => [...document.querySelectorAll('input[role=combobox]')].some((i) => i.value === want), [lastOption.label], { what: 'the last option chosen' });
+  await page.setViewport(...DESKTOP);
+  await choose('Where this money comes from', 'Business revenue');
   await page.fill('Reference on their bank statement (optional)', 'PO-1201');
   await page.find('text', 'This payment fits your limits');
   await shot('transfer-amount');
