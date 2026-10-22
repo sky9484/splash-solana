@@ -69,10 +69,17 @@ export async function launch({ executable = findChrome(), timeoutMs = 30_000, pr
       for (const l of listeners) l(msg);
     }
   };
+  // A command Chrome never answers (a page whose main thread is stuck) fails with its name after
+  // 90 s, so a walkthrough reports where it stopped instead of waiting out its whole time limit.
   const send = (method, params = {}, sessionId) =>
     new Promise((resolve, reject) => {
       const id = ++nextId;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!pending.has(id)) return;
+        pending.delete(id);
+        reject(new Error(`Chrome did not answer ${method} within 90 s (the page may be stuck)`));
+      }, 90_000);
+      pending.set(id, { resolve: (v) => (clearTimeout(timer), resolve(v)), reject: (e) => (clearTimeout(timer), reject(e)) });
       ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
 

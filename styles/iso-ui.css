@@ -4,9 +4,10 @@
    - flat paper surfaces, solid offset ledges (the only elevation), square
      corners; circles only for coins and the quote ring;
    - colours only from the `.iso` block in styles/tokens.css;
-   - every selector starts with `.iso`, so it outranks the older dashboard
-     rules in app/globals.css (`.fintech-dashboard-main input`, `thead th`, …)
-     without !important;
+   - every selector starts with `.iso` (or `.iso-app`, `.iso-sheet-root`,
+     `.iso-modal-root` for roots that portal or wrap screens not yet rebuilt), so
+     it outranks the older dashboard rules in app/globals.css
+     (`.fintech-dashboard-main input`, `thead th`, …) without !important;
    - nothing moves on its own except coins and dashes on a wire that carries
      real (or chosen) movement, and coin art bobbing. prefers-reduced-motion
      stops all of it (coins sit mid-wire).
@@ -120,8 +121,11 @@
 .iso .iso-surface--ink a { color: var(--mint); }
 .iso .iso-divider { border: 0; border-top: 1px dashed rgb(12 62 72 / .24); margin: 0; }
 
-/* ── Extruded display (§2.2): one per visible state ──────────────────── */
-.iso .iso-display {
+/* ── Extruded display (§2.2): one per visible state ──────────────────────
+   The prompt's `.iso-display`, named `.iso-extrude` because the landing owns
+   `.iso-display` (unscoped). No class here may share a name with the
+   landing's CSS: tests/iso-tokens.test.mjs checks. */
+.iso .iso-extrude {
   display: inline-block;
   font-weight: 900;
   letter-spacing: -.05em;
@@ -134,9 +138,9 @@
   padding-bottom: 6px;
   white-space: nowrap;
 }
-.iso .iso-display--xl { font-size: var(--iso-display); }
-.iso .iso-display--lg { font-size: clamp(40px, 4.4vw, 64px); }
-.iso .iso-display--md { font-size: clamp(30px, 3vw, 36px); }
+.iso .iso-extrude--xl { font-size: var(--iso-extrude); }
+.iso .iso-extrude--lg { font-size: clamp(40px, 4.4vw, 64px); }
+.iso .iso-extrude--md { font-size: clamp(30px, 3vw, 36px); }
 
 /* ── Buttons (§2.3 IsoButton) ────────────────────────────────────────── */
 .iso .iso-btn {
@@ -434,7 +438,7 @@
 .iso .iso-field__control textarea:focus,
 .iso .iso-field__control textarea:focus-visible { outline: 0; box-shadow: none; background: transparent; border: 0; }
 .iso .iso-field__control input::placeholder,
-.iso .iso-field__control textarea::placeholder { color: rgb(12 62 72 / .62); }
+.iso .iso-field__control textarea::placeholder { color: var(--text-2); }
 .iso .iso-field__help { font-size: var(--iso-13); line-height: 1.45; color: var(--text-2); }
 .iso .iso-field__error { font-size: var(--iso-13); line-height: 1.45; color: var(--danger-ink); font-weight: 600; }
 .iso .iso-field__okmark { flex: 0 0 auto; color: var(--ok-mark); }
@@ -743,4 +747,336 @@
   .iso .iso-row-btn:hover,
   .iso .iso-lane[aria-checked="true"],
   .iso .iso-choice--on { transform: none; }
+}
+
+/* ── The shell (prompt 10 Phase 1) ───────────────────────────────────────
+   The sidebar keeps today's dark-teal gradient and its two faint rings; the
+   page ground is look 9's paper with the 24 px grid. The shell root itself is
+   not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
+.iso-app { background-color: #F6F0ED; }
+.iso-app::before { display: none; }
+.iso-app .iso-main {
+  padding: 18px 16px 112px;
+  background-color: #F6F0ED;
+  background-image:
+    linear-gradient(rgb(12 62 72 / .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(12 62 72 / .05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1);
+}
+@media (min-width: 768px) {
+  .iso-app .iso-main { padding: 18px 36px 112px; }
+}
+@media (max-width: 767px) {
+  .iso-app .iso-main { padding-top: 72px; }
+}
+
+/* The sidebar */
+.iso.iso-side {
+  position: fixed; left: 0; top: 0; z-index: 30;
+  height: 100vh; height: 100dvh;
+  width: 264px;
+  flex-direction: column; gap: 18px;
+  padding: 20px 14px 16px;
+  /* On a short window the whole column scrolls, so no item hides inside a nested scroller. */
+  overflow-x: hidden; overflow-y: auto;
+  scrollbar-width: thin;
+  color: var(--paper-warm);
+  background: var(--side-gradient);
+  transition: width var(--t-sheet) var(--ease-iso);
+}
+.iso.iso-side.is-collapsed { width: 80px; padding-inline: 12px; overflow: visible; }
+.iso .iso-side__rings,
+.iso .iso-side__rings::after {
+  position: absolute; right: -90px; bottom: -90px;
+  width: 260px; height: 260px;
+  border-radius: 50%;
+  border: 1px solid rgb(159 207 199 / .14);
+  pointer-events: none;
+}
+.iso .iso-side__rings::after { content: ""; right: -60px; bottom: -60px; width: 380px; height: 380px; }
+.iso.iso-side.is-collapsed .iso-side__rings { display: none; }
+.iso.iso-side > :not(.iso-side__rings) { position: relative; }
+.iso.iso-side :focus-visible { outline: 2.5px solid var(--mint); outline-offset: 2px; }
+
+.iso .iso-logo {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px 6px 0;
+  background: none; border: 0; color: inherit; text-align: left; text-decoration: none;
+  cursor: pointer;
+}
+.iso .iso-logo__tile {
+  display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center;
+  background: var(--paper); box-shadow: var(--ledge-side);
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso);
+}
+.iso .iso-logo:hover .iso-logo__tile { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ledge-dark); }
+.iso .iso-logo:active .iso-logo__tile { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ledge-dark); }
+.iso .iso-logo__tile--sm { flex-basis: 34px; width: 34px; height: 34px; box-shadow: 2px 2px 0 var(--ledge-dark); }
+.iso .iso-logo__mark { width: 70%; height: auto; object-fit: contain; }
+.iso .iso-logo__words { display: flex; flex-direction: column; }
+.iso .iso-logo__words strong,
+.iso .iso-logo--phone strong { font-size: 22px; font-weight: 900; letter-spacing: -.03em; color: var(--paper-warm); }
+.iso .iso-logo__dot { color: var(--mint); }
+.iso .iso-logo__words small { font-size: 12px; font-weight: 600; color: var(--side-label); }
+.iso.iso-side.is-collapsed .iso-logo { justify-content: center; padding-inline: 0; }
+
+.iso .iso-setupcard {
+  display: block;
+  padding: 14px;
+  color: var(--paper-warm);
+  text-decoration: none;
+  background: rgb(255 250 241 / .07);
+  border: 1.5px solid rgb(255 250 241 / .18);
+}
+.iso .iso-setupcard:hover { background: rgb(255 250 241 / .11); color: var(--paper-warm); }
+.iso .iso-setupcard__head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; }
+.iso .iso-setupcard__bar { display: block; margin-top: 8px; height: 6px; background: rgb(255 250 241 / .16); }
+.iso .iso-setupcard__bar > span { display: block; height: 100%; background: var(--mint); }
+.iso .iso-setupcard__next { display: block; margin-top: 8px; font-size: 13px; color: rgb(255 250 241 / .86); }
+
+.iso .iso-sidenav { display: flex; flex-direction: column; gap: 14px; flex: 0 0 auto; margin-inline: -4px; padding: 2px 4px; }
+.iso.iso-side.is-collapsed .iso-sidenav { gap: 10px; }
+.iso .iso-navgroup { display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-navgroup__title { margin: 0 0 6px; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--side-label); }
+.iso .iso-navitem {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 44px; padding: 0 12px;
+  font: 600 14px/1.2 var(--font-sans);
+  color: var(--side-text);
+  text-decoration: none;
+  background: none;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background-color var(--t-ui), transform var(--t-ui) var(--ease-iso), box-shadow var(--t-ui) var(--ease-iso);
+}
+.iso .iso-navitem svg { flex: 0 0 18px; color: rgb(159 207 199 / .95); }
+.iso .iso-navitem:hover { background: rgb(255 250 241 / .08); color: var(--paper-warm); }
+.iso .iso-navitem.is-on,
+.iso .iso-navitem[aria-current="page"] {
+  background: var(--paper); color: var(--ink); border-color: var(--paper);
+  box-shadow: var(--ledge-side); transform: translate(-1px, -1px);
+}
+.iso .iso-navitem.is-on svg,
+.iso .iso-navitem[aria-current="page"] svg { color: var(--teal); }
+.iso .iso-navitem.is-locked .iso-navitem__label { opacity: .62; }
+.iso .iso-navitem__label { flex: 1 1 auto; min-width: 0; }
+.iso .iso-navitem__lock { flex: 0 0 auto; }
+.iso .iso-navitem.is-rail { justify-content: center; padding: 0; }
+.iso .iso-navbadge {
+  margin-left: auto;
+  padding: 2px 7px;
+  font: 700 12px/1.4 var(--font-sans);
+  color: var(--paper-warm);
+  border: 1px solid rgb(255 250 241 / .4);
+  white-space: nowrap;
+}
+.iso .iso-navitem.is-on .iso-navbadge { border-color: var(--ink); color: var(--ink); }
+.iso .iso-navbadge--coral,
+.iso .iso-navitem.is-on .iso-navbadge--coral { background: var(--coral); border-color: var(--coral); color: var(--ink-deep); }
+.iso .iso-navbadge--dot { width: 10px; height: 10px; padding: 0; background: var(--amber-line); border: 1.5px solid var(--ink-deep); }
+.iso .iso-navbadge--pip { position: absolute; top: 2px; right: 4px; margin: 0; padding: 0 4px; font-size: 11px; background: var(--coral); border-color: var(--ink-deep); color: var(--ink-deep); }
+.iso .iso-zeke-icon { position: relative; display: inline-flex; flex: 0 0 auto; }
+.iso .iso-zeke-icon svg { flex: 0 0 auto; }
+.iso .iso-zeke-icon__spark { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); }
+/* The collapsed rail's tooltips: the label and the badge, on hover or keyboard focus. */
+.iso .iso-navtip {
+  position: absolute; left: calc(100% + 12px); top: 50%; z-index: 40;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  white-space: nowrap;
+  font: 700 13px/1.2 var(--font-sans);
+  color: var(--ink-deep); background: var(--paper);
+  border: 1.5px solid var(--ink-deep); box-shadow: var(--ledge-1);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-ui);
+}
+.iso .iso-navitem.is-rail:hover .iso-navtip,
+.iso .iso-navitem.is-rail:focus-visible .iso-navtip { opacity: 1; }
+
+.iso .iso-sidefoot { margin-top: auto; display: flex; flex-direction: column; gap: 14px; }
+.iso .iso-testcard { padding: 12px 14px; border: 1.5px solid rgb(255 250 241 / .18); background: rgb(255 250 241 / .06); font-size: 13px; line-height: 1.5; }
+.iso .iso-testcard p { margin: 8px 0 0; color: var(--side-text); }
+.iso .iso-sidefoot__links { display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid rgb(255 250 241 / .14); }
+
+/* Phone: the dark top bar and the grouped menu it opens. */
+.iso.iso-phonebar {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; padding: 0 12px 0 16px;
+  background: var(--side-gradient); color: var(--paper-warm);
+}
+.iso .iso-logo--phone { padding: 0; gap: 10px; }
+.iso .iso-logo--phone strong { font-size: 19px; }
+.iso .iso-phonebar__menu { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; background: none; border: 0; color: var(--paper-warm); cursor: pointer; }
+.iso .iso-phonebar__menu:focus-visible { outline: 2.5px solid var(--mint); outline-offset: 2px; }
+.iso.iso-side.iso-side--phone { display: flex; top: 56px; width: 100%; height: calc(100dvh - 56px); z-index: 45; overflow-y: auto; padding: 18px 16px 24px; }
+
+/* The top row, inside the content area: search, rate strip, Test mode, profile. */
+.iso.iso-toprow {
+  max-width: 1240px; margin: 0 auto 22px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+}
+.iso .iso-search { position: relative; flex: 1 1 280px; min-width: 0; }
+.iso .iso-search__box {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 44px; padding: 0 12px 0 14px;
+  background: var(--paper); border: 1.5px solid var(--line);
+  color: var(--ink);
+}
+.iso .iso-search__box:focus-within { border-color: var(--ink-deep); outline: 2.5px solid var(--teal); outline-offset: 1px; }
+.iso .iso-search__box input {
+  flex: 1 1 auto; min-width: 0; min-height: 40px;
+  padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none;
+  font: 500 14px var(--font-sans); color: var(--ink);
+}
+.iso .iso-search__box input:focus,
+.iso .iso-search__box input:focus-visible { outline: 0; box-shadow: none; border: 0; background: transparent; }
+.iso .iso-search__box input::placeholder { color: var(--text-2); }
+.iso .iso-search__box input::-webkit-search-cancel-button { display: none; }
+.iso .iso-search__key { padding: 1px 7px; font: 700 12px/1.4 var(--font-mono); color: var(--text-2); border: 1.5px solid var(--line); }
+.iso .iso-search__list {
+  position: absolute; z-index: 50; left: 0; right: 0; top: calc(100% + 6px);
+  max-height: 420px; overflow-y: auto;
+  padding: 6px 0;
+  background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-2);
+}
+.iso .iso-search__group { margin: 6px 0 2px; padding: 0 14px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-search__opt { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; cursor: pointer; color: var(--ink-deep); }
+.iso .iso-search__opt--active { background: var(--mint-wash); }
+.iso .iso-search__detail { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.iso .iso-search__empty { margin: 0; padding: 10px 14px; font-size: 14px; color: var(--text-2); }
+
+.iso .iso-ratestrip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  margin: 0; padding: 8px 14px;
+  font-size: 14px; font-variant-numeric: tabular-nums;
+  background: var(--paper); border: 1.5px solid var(--line); color: var(--text-2);
+}
+.iso .iso-ratestrip strong { color: var(--ink-deep); }
+.iso .iso-pagehead .iso-ratestrip { margin-top: 10px; display: inline-flex; }
+.iso .iso-profile { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink); text-decoration: none; }
+.iso a.iso-profile:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.iso .iso-profile__initials { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; background: var(--ink-deep); color: var(--paper-warm); font-weight: 800; }
+.iso .iso-profile__text { display: flex; flex-direction: column; }
+.iso .iso-profile__text strong { color: var(--ink-deep); }
+.iso .iso-profile__text span { font-size: 13px; color: var(--text-2); }
+@media (max-width: 767px) {
+  .iso .iso-desktop-only { display: none !important; }
+  .iso .iso-profile__text { display: none; }
+}
+@media (min-width: 768px) {
+  .iso .iso-phone-only { display: none !important; }
+}
+
+.iso.iso-appnote { max-width: 1240px; margin: 0 auto 18px; }
+.iso.iso-locked {
+  max-width: 520px; margin: 40px auto 0; padding: 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+  background: var(--paper); border: var(--border);
+}
+
+/* ── The floating Zeke (§3.5) ─────────────────────────────────────────── */
+.iso.iso-zk { position: fixed; right: 28px; bottom: 28px; z-index: 55; display: flex; flex-direction: column; align-items: flex-end; }
+.iso.iso-zk.iso-zk--raised { bottom: 104px; }
+.iso .iso-zk__launch { display: inline-flex; align-items: center; gap: 10px; padding: 0; background: none; border: 0; cursor: pointer; font: inherit; }
+.iso .iso-zk__launch:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 3px; }
+.iso .iso-zk__tile {
+  position: relative; display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center;
+  background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-1);
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso);
+}
+.iso .iso-zk__tile img { width: 46px; height: 46px; object-fit: contain; }
+.iso .iso-zk__launch:hover .iso-zk__tile { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink-deep); }
+.iso .iso-zk__launch:active .iso-zk__tile { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .iso-zk__count {
+  position: absolute; top: -9px; right: -9px;
+  min-width: 22px; height: 22px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--coral); border: 1.5px solid var(--ink-deep); color: var(--ink-deep);
+  font: 800 12px/1 var(--font-sans);
+}
+.iso .iso-zk__nudge {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px;
+  background: var(--ink-deep); color: var(--paper-warm);
+  font: 600 13px/1.2 var(--font-sans);
+  box-shadow: 2px 2px 0 var(--teal);
+  animation: iso-pop var(--t-sheet) var(--ease-iso) both;
+}
+.iso .iso-zk__panel {
+  position: relative;
+  width: 400px; max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 56px);
+  display: flex; flex-direction: column;
+  background: var(--paper); border: 2px solid var(--ink-deep); box-shadow: var(--ledge-hero);
+  animation: iso-pop var(--t-sheet) var(--ease-iso) both;
+}
+.iso .iso-zk__grab { display: none; }
+.iso .iso-zk__head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; background: var(--ink-deep); color: var(--paper-warm); cursor: grab; touch-action: none; }
+.iso .iso-zk__head:active { cursor: grabbing; }
+.iso .iso-zk__face { display: inline-flex; flex: 0 0 40px; width: 40px; height: 40px; align-items: center; justify-content: center; background: var(--paper); }
+.iso .iso-zk__face img { width: 32px; height: 32px; object-fit: contain; }
+.iso .iso-zk__who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.iso .iso-zk__name { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.iso .iso-zk__ai { padding: 1px 6px; border: 1.5px solid rgb(255 250 241 / .5); font-size: 12px; font-weight: 800; }
+.iso .iso-zk__role { font-size: 12px; color: rgb(255 250 241 / .86); }
+.iso .iso-zk__x {
+  display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center;
+  background: transparent; border: 1.5px solid rgb(255 250 241 / .35); color: var(--paper-warm); cursor: pointer; text-decoration: none;
+}
+.iso .iso-zk__x:hover { border-color: var(--paper-warm); color: var(--paper-warm); }
+.iso .iso-zk__head :focus-visible { outline-color: var(--mint); }
+.iso .iso-zk__ctx { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 14px; background: var(--mint-wash); border-bottom: 1.5px solid var(--line); font-size: 13px; color: var(--ink-deep); }
+.iso .iso-zk__ctxdot { width: 8px; height: 8px; background: var(--teal); }
+.iso .iso-zk__thread { display: flex; flex-direction: column; gap: 10px; padding: 14px; min-height: 120px; max-height: 300px; overflow-y: auto; }
+.iso .iso-zk__turn { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.iso .iso-zk__label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.iso .iso-zk__msg { margin: 0; max-width: 88%; padding: 10px 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.iso .iso-zk__msg--zeke { align-self: flex-start; background: var(--white); border: 1.5px solid var(--line); color: var(--ink); }
+.iso .iso-zk__msg--you { align-self: flex-end; background: var(--teal); color: var(--paper-warm); }
+.iso .iso-zk__activity { margin: 0; font-size: 13px; color: var(--text-2); }
+.iso .iso-zk__draft { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 10px 12px; background: var(--paper); border: 1.5px dashed var(--ink-deep); }
+.iso .iso-zk__open { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 700; }
+.iso .iso-zk__chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 12px; }
+.iso .iso-zk__chip {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; flex: 0 0 auto;
+  border: 1.5px solid rgb(12 62 72 / .3); background: var(--paper); color: var(--ink-deep);
+  font: 600 13px/1 var(--font-sans); white-space: nowrap; cursor: pointer;
+}
+.iso .iso-zk__chip:hover { border-color: var(--ink-deep); }
+.iso .iso-zk__compose { display: flex; gap: 8px; padding: 12px; border-top: 1.5px solid var(--line); background: var(--paper); }
+.iso .iso-zk__compose input[type="text"] {
+  flex: 1 1 auto; min-width: 0; min-height: 48px; padding: 0 12px;
+  border: 1.5px solid var(--line-strong); border-radius: 0; background: var(--white);
+  font: 500 15px var(--font-sans); color: var(--ink-deep);
+}
+.iso .iso-zk__compose input[type="text"]:focus-visible { outline: 2.5px solid var(--teal); outline-offset: 1px; border-color: var(--ink-deep); box-shadow: none; }
+.iso .iso-zk__ico {
+  display: inline-flex; flex: 0 0 48px; width: 48px; height: 48px; align-items: center; justify-content: center;
+  border: 1.5px solid var(--line-strong); background: var(--paper); color: var(--ink-deep); cursor: pointer;
+}
+.iso .iso-zk__send { background: var(--teal); border-color: var(--ink-deep); color: var(--paper-warm); box-shadow: 2px 2px 0 var(--ink-deep); }
+.iso .iso-zk__send:disabled { background: var(--paper); color: var(--text-2); box-shadow: none; cursor: not-allowed; }
+.iso .iso-zk__foot { margin: 0; padding: 0 14px 12px; font-size: 12px; line-height: 1.45; color: var(--text-2); }
+@media (max-width: 720px) {
+  .iso.iso-zk { right: 16px; bottom: 16px; }
+  .iso.iso-zk.iso-zk--raised { bottom: 96px; }
+  .iso.iso-zk:has(.iso-zk__panel) { left: 0; right: 0; bottom: 0; align-items: stretch; }
+  .iso .iso-zk__panel { width: 100%; max-width: 100%; max-height: 88dvh; border-bottom: 0; box-shadow: 0 -6px 0 var(--ink-deep); translate: none !important; }
+  .iso .iso-zk__grab { display: block; position: absolute; left: 50%; top: 6px; z-index: 1; width: 44px; height: 5px; margin-left: -22px; background: rgb(255 250 241 / .5); }
+  .iso .iso-zk__head { padding-top: 18px; cursor: default; }
+  .iso .iso-zk__thread { max-height: 40dvh; }
+}
+
+/* Which shell shows where. Desktop has the sidebar and no phone bar; a phone has the phone bar and
+   its menu. Set last, here, not by utility classes, which the rules above outrank. */
+@media (min-width: 768px) {
+  .iso.iso-phonebar,
+  .iso.iso-side.iso-side--phone { display: none; }
+}
+@media (max-width: 767px) {
+  .iso.iso-side:not(.iso-side--phone) { display: none; }
 }

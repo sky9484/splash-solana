@@ -108,6 +108,25 @@ export const MOCK_PARTNER_ENTRY: PartnerRegistryEntry = Object.freeze({
 
 export const PARTNER_REGISTRY: ReadonlyArray<PartnerRegistryEntry> = Object.freeze([MOCK_PARTNER_ENTRY]);
 
+/**
+ * Where a company can pay, and what is next (prompt 10 §4.2): read by the rate strip and Overview's
+ * "Where you can pay". Malaysia → Philippines is open, in test mode until a partner is signed and
+ * live; Indonesia is next and Vietnam later. No new corridor opens without a partner behind it.
+ */
+export interface Corridor {
+  route: string;
+  /** The currency pair the rate strip shows. */
+  pair: string;
+  status: 'test' | 'live' | 'next' | 'later';
+  detail: string;
+}
+
+export const CORRIDORS: ReadonlyArray<Corridor> = Object.freeze([
+  Object.freeze({ route: 'Malaysia → Philippines', pair: 'USD → PHP', status: (MOCK_PARTNER_ENTRY.signed && !MOCK_PARTNER_ENTRY.sandbox ? 'live' : 'test') as Corridor['status'], detail: 'Any bank by InstaPay or PESONet' }),
+  Object.freeze({ route: 'Malaysia → Indonesia', pair: 'USD → IDR', status: 'next' as const, detail: 'Bank payouts' }),
+  Object.freeze({ route: 'Malaysia → Vietnam', pair: 'USD → VND', status: 'later' as const, detail: 'Bank payouts' }),
+]);
+
 export function getPartnerEntry(id: string): PartnerRegistryEntry | undefined {
   return PARTNER_REGISTRY.find((p) => p.id === id);
 }

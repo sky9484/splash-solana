@@ -6,7 +6,7 @@
 //   - a native <select>: a choice is a Combobox or a Segmented control;
 //   - a colour that isn't a token: a hex or an rgb() whose colour isn't in the `.iso` block of
 //     styles/tokens.css;
-//   - more extruded displays (`iso-display` / <IsoDisplay>) than the file has visible states: one
+//   - more extruded displays (`iso-extrude` / <IsoDisplay>) than the file has visible states: one
 //     per state; a file with several states declares `// iso-ui states: N`. The Invoices chooser is
 //     the one exception (two titles, one state): `// iso-ui display-exception: chooser`.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -74,7 +74,7 @@ export function findings(file, raw, colours) {
     }
   });
   if (!css) {
-    const displays = (text.match(/<IsoDisplay\b/g) ?? []).length + (text.match(/['"`\s]iso-display(?:['"`\s])/g) ?? []).length;
+    const displays = (text.match(/<IsoDisplay\b/g) ?? []).length + (text.match(/['"`\s]iso-extrude(?:['"`\s])/g) ?? []).length;
     const declared = Number(/\/\/\s*iso-ui states:\s*(\d+)/.exec(raw)?.[1] ?? 1);
     const chooser = /\/\/\s*iso-ui display-exception:\s*chooser/.test(raw);
     const allowed = chooser ? 2 : declared;
