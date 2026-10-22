@@ -1430,3 +1430,53 @@
   .lp-ctrl-toggle:hover,
   .lp-close__card:hover img { transform: none; }
 }
+
+/* ── Wide desktop (Sky, 19 Oct): on a computer the landing runs to about 7% from each edge ─────────
+   Content and the header, partner rail and footer rows take 86% of the window, never narrower than
+   before (1,180 px of content, a 1,360 px row) and at most 2,080 px on an ultra-wide screen. Phones and
+   tablets keep the rules above. Landing only (`.lp`): working capital keeps its own width. */
+@media (min-width: 1024px) {
+  .lp .lp-wrap {
+    width: min(100% - 48px, max(1180px, 86vw), 2080px);
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  .lp .lp-story__pin {
+    width: min(100% - 48px, max(1180px, 86vw), 2080px);
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  .lp .lp-story__progress { right: 0; left: 0; }
+
+  .lp .iso-shell { width: min(100% - 48px, max(1360px, 86vw), 2080px); }
+}
+
+/* On a very wide window the type and the hero's pictures grow with it, so the wider page doesn't read as
+   small words in a big field. From 1,600 px; at 1,440 px nothing changes. */
+@media (min-width: 1600px) {
+  .lp .lp-display--hero { font-size: clamp(44px, min(6.2vw, 10.5vh), 128px); }
+  .lp .lp-display--beat { font-size: clamp(38px, min(4.6vw, 8.4vh), 96px); }
+  .lp .lp-display--section { font-size: clamp(34px, 4vw, 88px); }
+  .lp .lp-display--band { font-size: clamp(40px, 4.4vw, 96px); }
+  .lp .lp-display--close { font-size: clamp(36px, 4.2vw, 88px); }
+  .lp .lp-display--small { font-size: clamp(28px, 2.9vw, 60px); }
+  .lp .lp-lede { font-size: clamp(16px, 0.9vw, 19px); }
+  /* The pictures: 30% of the window (the district 36%), with `sizes` in HeroStory to match, and a stage tall
+     enough to hold them. */
+  .lp .lp-beat__stage { height: min(78vh, max(640px, 34vw)); }
+  .lp .lp-beat__art > img:first-child { max-width: min(100%, 30vw); max-height: min(60vh, 32vw); }
+  /* The district's box is its picture (never taller than 60% of the window), so the coins keep their places
+     on its corners and their 160 and 118 px share of the 560 px picture. */
+  .lp .lp-beat__art--district { width: min(100%, 36vw, 107vh); }
+  .lp .lp-beat__art--district > img:first-child { width: 100%; max-width: none; max-height: none; }
+  .lp .lp-token--usd { width: 28.6%; }
+  .lp .lp-token--php { width: 21%; }
+  /* The product card stays at its picture's lower right, not at the far edge of the wider column. */
+  .lp .lp-float {
+    right: max(0px, 50% - 18vw);
+    width: clamp(312px, 16vw, 380px);
+    font-size: clamp(12.5px, 0.66vw, 14.5px);
+  }
+}

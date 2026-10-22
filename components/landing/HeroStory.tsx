@@ -268,7 +268,7 @@ export default function HeroStory() {
                     alt=""
                     width={b.art.width}
                     height={b.art.height}
-                    sizes={index === 0 ? '(max-width: 1000px) 92vw, 600px' : '(max-width: 1000px) 60vw, 460px'}
+                    sizes={index === 0 ? '(max-width: 1000px) 92vw, (min-width: 1600px) 36vw, 600px' : '(max-width: 1000px) 60vw, (min-width: 1600px) 30vw, 460px'}
                     preload={index === 0}
                   />
                   {index === 0 ? (
