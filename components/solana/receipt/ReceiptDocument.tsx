@@ -86,7 +86,7 @@ export function ReceiptDocument({ doc, verified, shareUrl, heading = 'h2' }: { d
             <span>A business on Splash</span>
           ) : (
             <span>
-              {doc.paidTo.bank} <span className="iso-mono">•••• {doc.paidTo.last4}</span>
+              {doc.paidTo.bank} •••• {doc.paidTo.last4}
               {doc.paidTo.country ? `, ${doc.paidTo.country}` : null}
             </span>
           )}
@@ -146,9 +146,9 @@ export function ReceiptDocument({ doc, verified, shareUrl, heading = 'h2' }: { d
             </>
           ) : (
             <>
-              <span className="iso-a4__fig iso-a4__fig--sm">None</span>
+              <span className="iso-a4__fig iso-a4__fig--sm">No conversion</span>
               <span className="iso-a4__sub">
-                <span>No conversion: US dollars in, US dollars out</span>
+                <span>US dollars in, US dollars out</span>
               </span>
             </>
           )}

@@ -5364,8 +5364,7 @@ button.iso-product-row {
   gap: 12px;
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .admin-login-brand img {
@@ -5589,10 +5588,9 @@ button.iso-product-row {
 
 .admin-login-form-heading span {
   color: #9a4a2d;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .admin-login-form > p {
@@ -5606,10 +5604,9 @@ button.iso-product-row {
   gap: 7px;
   margin-top: 15px;
   color: #123f48;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .admin-login-form input {

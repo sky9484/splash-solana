@@ -20,10 +20,13 @@ export const BALANCE_ROWS = 8;
 
 const max0 = (v: bigint) => (v < 0n ? 0n : v);
 
+/** A moment's calendar day in Malaysia time (UTC+8), the day the receipt and History show (prompt 12 Phase 7). */
+const mytDayOf = (ms: number) => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+
 function dayLabel(iso: string, now: Date): string {
-  const d = new Date(iso);
-  if (d.toISOString().slice(0, 10) === now.toISOString().slice(0, 10)) return 'Today';
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const day = mytDayOf(Date.parse(iso));
+  if (day === mytDayOf(now.getTime())) return 'Today';
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
 type Tone = 'coral' | 'amber' | 'ok' | 'ink' | 'danger' | 'gold';

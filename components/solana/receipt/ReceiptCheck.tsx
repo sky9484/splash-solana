@@ -73,6 +73,8 @@ export function ReceiptCheck({ shareUrl, recordedAt, fingerprint, root }: { shar
           <span>
             root <span className="iso-mono">{root}</span>
           </span>
+          {/* A proof with one record has that record's fingerprint as its root: say so, or it reads as a mistake. */}
+          {fingerprint === root ? <span>The same value: this payment was the only record in that day’s proof.</span> : null}
         </p>
       </div>
     </section>
