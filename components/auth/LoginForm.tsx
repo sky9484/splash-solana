@@ -66,8 +66,8 @@ export default function LoginForm({ googleEnabled, initialError }: { googleEnabl
       eyebrow="Business workspace"
       title="Sign in to Splash"
       description="Your approvals are signed on this device. Splash never holds your keys."
-      art="/isometric/payment-intent.svg"
-      artAlt="Isometric payment moving from a business to a supplier"
+      art="/cinematic/settlement-machine.png"
+      artAlt="Isometric payment line: USDC goes in, is checked, and is delivered to the supplier"
       visualTitle="Every payment, one record"
       visualCopy="Invoice, approval, transfer and rate, kept together for the auditor."
     >

@@ -17,7 +17,7 @@ export default function SplashLoading({ label = 'Loading your dashboard' }: { la
           transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
           className="splash-loading-art"
         >
-          <Image src="/isometric/payment-intent.svg" alt="" width={1448} height={1086} priority />
+          <Image src="/cinematic/settlement-machine.png" alt="" width={2752} height={1536} priority />
         </motion.div>
         <div className="splash-loading-copy">
           <Image src="/splash-main-icon.png" alt="" width={48} height={47} priority />

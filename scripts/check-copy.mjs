@@ -62,7 +62,7 @@ const banned = [
 // OwnerCap. A guard that fights the work it is meant to protect gets
 // weakened, so it stops at the surfaces a reader actually reads.
 //
-// SECURITY.md and STATUS.md keep the record of what was removed and why.
+// SECURITY.md and docs/prior-work/STATUS-sui-build.md keep the record of what was removed and why.
 const claimSurfaceBanned = [
   /\bBitGo\b/i,
   /\bCoKeeps\b/i,
