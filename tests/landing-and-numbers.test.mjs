@@ -187,7 +187,9 @@ test('the landing is prompt 12’s page: sections in order, corridors on their o
   const landing = await source('components/IsometricLanding.tsx');
 
   const ids = [...landing.matchAll(/id="([a-z-]+)"/g)].map((m) => m[1]);
-  const expected = ['loops', 'how-it-works', 'platform', 'corridors', 'region', 'comparison', 'trust', 'copilot', 'control-plane'];
+  // Sky, 21 Oct: the Southeast Asia band joined Routes ("Routes | The corridors"), so there is no region section.
+  const expected = ['loops', 'how-it-works', 'platform', 'corridors', 'comparison', 'trust', 'copilot', 'control-plane'];
+  assert.doesNotMatch(landing, /id="region"/, 'the corridors live in Routes now');
   const inOrder = expected.map((id) => ids.indexOf(id));
   assert.ok(inOrder.every((i) => i >= 0), `every section is present; found ${ids.join(', ')}`);
   assert.deepEqual([...inOrder].sort((a, b) => a - b), inOrder, 'in this order');

@@ -153,7 +153,7 @@ test('landing is the v1 cinematic: hero district, five steps with manual entry, 
   // loop, OG image, copy lint) are unchanged; only the landing half is
   // retargeted at the page that actually renders.
   const landing = await readFile(new URL('../components/IsometricLanding.tsx', import.meta.url), 'utf8');
-  // Prompt 12 §2: the desktop hero story replaced SettlementCinematic and keeps the district on its first beat.
+  // Prompt 12 §2: the desktop hero story replaced SettlementCinematic; its first beat shows Sky's Southeast Asia map (21 Oct).
   const hero = await readFile(new URL('../components/landing/HeroStory.tsx', import.meta.url), 'utf8');
   const page = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
   const claims = await readFile(new URL('../content/claims.ts', import.meta.url), 'utf8');
@@ -165,10 +165,10 @@ test('landing is the v1 cinematic: hero district, five steps with manual entry, 
   const invoiceLoop = await readFile(new URL('../components/invoices/InvoiceLoop.tsx', import.meta.url), 'utf8');
 
   assert.match(claims, /headline: 'Pay suppliers abroad\. Prove every payment\.'/);
-  // The hero art is still the versioned district raster, owned by the hero
-  // story; the landing keeps the loops and copilot sections and shows the
-  // four steps prompt 07 §6.1 names.
-  assert.match(hero, /hero-district-v\d+\.png/);
+  // The hero art is Sky's map of the region (it replaced the district on
+  // 21 Oct), owned by the hero story; the landing keeps the loops and
+  // copilot sections and shows the four steps prompt 07 §6.1 names.
+  assert.match(hero, /hero-sea-map\.webp/);
   assert.match(landing, /id="loops"/);
   assert.match(landing, /Four steps\./);
   assert.match(landing, /title: 'Best route by pesos received'/);
