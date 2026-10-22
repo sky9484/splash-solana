@@ -2182,3 +2182,11 @@
   display: grid;
   align-content: center;
 }
+
+/* Sky, 15 Oct: the hero sits on one flat paper colour. The gold and mint glows, the
+   section's paper fade, the edge vignette, the glow behind the art and the grid lines are gone. */
+.cin-section { background: var(--cin-paper); }
+.cin-orb,
+.cin-vignette,
+.cin-object-glow,
+.cin-grid { display: none; }

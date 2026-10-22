@@ -18,6 +18,7 @@ import { deriveRecoveryKey, generateRecoveryWords, signPossessionChallenge } fro
 import { resetKms } from '../lib/server/kms/index.ts';
 import { revealBankNumber, revealChallenge } from '../lib/server/bank-details.ts';
 import { billCounts, billsView, checkView, dismissBill, payBill, readyBankBills, recordCallBack } from '../lib/solana-app/bills.ts';
+import { openInvoiceForPayout } from '../lib/solana-app/payout-number.ts';
 import { resetRuntime, runtime } from '../lib/solana-app/runtime.ts';
 import * as svc from '../lib/solana-app/service.ts';
 import { resetStore, store } from '../lib/solana-app/store.ts';
@@ -235,4 +236,17 @@ test('no stored copy of a bill keeps a full number: the store holds only the mas
   const { org } = await company();
   await svc.readInvoiceDraft(org.id, { sample: true });
   assert.doesNotMatch(text([...store().invoices.values()]), /002188304471|0021-8830-4471/);
+});
+
+test('the number printed on an invoice pays out only to the last four digits that were confirmed (review finding, 16 Oct)', async () => {
+  const { org } = await company();
+  const { invoice } = await svc.readInvoiceDraft(org.id, { text: SAMPLE_INVOICE_TEXT.replace('INV-0412', 'INV-0601'), source: 'paste' });
+  recordCallBack(org.id, invoice.id, { by: 'Aisyah', spokeTo: 'Rhea', numberCalled: '+63 2 8700 1100' });
+  const fields = Object.fromEntries(Object.entries(invoice.draft.fields).map(([k, v]) => [k, String(v)]));
+  await payBill(org.id, invoice.id, { by: 'Aisyah', fields, confirmed: invoice.draft.needsConfirmation });
+  const inv = svc.getInvoice(org.id, invoice.id);
+  assert.equal((await openInvoiceForPayout(org.id, inv)).last4, inv.confirmed.supplierAccountLast4, 'the matching number opens');
+  // The last four edited to another supplier's, with the printed number unchanged: refused.
+  inv.confirmed.supplierAccountLast4 = inv.confirmed.supplierAccountLast4 === '9999' ? '1111' : '9999';
+  await assert.rejects(openInvoiceForPayout(org.id, inv), (e) => e.code === 'bank_details_unverified');
 });

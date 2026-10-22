@@ -82,7 +82,7 @@
   --paper: #FFFAF4;
   --paper-warm: #FFFAF1;
   /* The dashboard's page: warm paper, no grid (prompt 11 §1.1). */
-  --ground: #F4EEE9;
+  --ground: #ECE5D8;        /* the page: sand, flat (Sky, 16 Oct) */
   /* The pay page someone else opens keeps today's ground and its grid (prompt 11 §1.2). */
   --ground-grid: #F6F0ED;
   --white: #FFFFFF;
@@ -93,6 +93,9 @@
   /* Accents, one job each */
   --teal: #0D6370;          /* routes, links, active, the selected lane */
   --teal-deep: #0A4B56;     /* the far end of Transfer's intent header (prompt 11 §2.1) */
+  --cyan: #0C5763;          /* dark cyan: money heroes, Transfer's header, the chooser cards (Sky, 15 Oct) */
+  --on-cyan: #F1F8F6;       /* figures and text on dark cyan: soft off-white, easy on the eyes */
+  --on-cyan-2: #CDE6E1;     /* labels and secondary text on dark cyan */
   --mint: #9FCFC7;          /* routes, the selected road, ok borders */
   --mint-wash: #DDEFEA;     /* hero wash start, Zeke's context bar */
   --mint-wash-2: #EAF4EF;   /* hero wash middle */
@@ -106,14 +109,14 @@
   --coral-ink: #9F4F2C;
   --amber-fill: #FBEFDD;    /* warnings only: new bank details, shortfall, quote about to expire */
   --amber-line: #E8C48D;
-  --amber-ink: #8A5208;
+  --amber-ink: #774505;
   --amber-mark: #B4690E;    /* icons and borders only: fails 4.5:1 as text */
   --ok-fill: #E4F1ED;
-  --ok-ink: #1F6152;
+  --ok-ink: #1A5446;
   --ok-mark: #2E7D6B;
   --danger-fill: #F9E7E3;
   --danger-line: #E2B0A6;
-  --danger-ink: #B3402F;
+  --danger-ink: #9E3426;
   --road: #E9E1D8;          /* a lane's road when not chosen */
   --road-edge: #CFC3B8;
 

@@ -2,7 +2,7 @@ import { ServiceError } from '@/lib/solana-app/errors';
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { invoiceView, startPeerTransfer } from '@/lib/solana-app/service';
 import { DirectoryError, payeeFor } from '@/lib/server/splash-directory';
-import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 import { setupDb } from '@/lib/server/setup-member';
 
 export const runtime = 'nodejs';
@@ -17,6 +17,7 @@ export async function POST(request: Request) {
   return companyRoute(
     request,
     async (ctx) => {
+      requireCanAct(ctx);
       const body = await readBody(request, schemas.peerTransfer);
       requireReadyToApprove(ctx);
       await requireMoneyGates(ctx);

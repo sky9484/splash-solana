@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 
-import type { CustomerSession } from '@/lib/auth/customer-session';
+import type { CustomerSession, CustomerWorkspaceRole } from '@/lib/auth/customer-session';
 import { findActiveDevice, findOrgVault, type OrgVault } from '@/lib/auth/devices';
 import { organizations, users } from '@/lib/db/schema';
 import { loadCompany, saveCompany } from '@/lib/solana-app/company';
@@ -29,6 +29,8 @@ export interface CompanyContext {
   orgId: string;
   userId: string;
   isOwner: boolean;
+  /** The member's role, from the membership row on this request. Checks read this, never the session. */
+  role: CustomerWorkspaceRole;
   email: string;
   personName: string;
   companyName: string;
@@ -80,6 +82,7 @@ export async function companyForRequest(request: Request): Promise<{ ctx: Compan
     orgId: auth.member.orgId,
     userId: auth.member.userId,
     isOwner: auth.member.isOwner,
+    role: auth.role,
     email: auth.email,
     personName: user?.name?.trim() || auth.email,
     companyName: org?.name ?? auth.member.orgId,
@@ -133,6 +136,14 @@ export async function requireMoneyGates(ctx: CompanyContext): Promise<void> {
 }
 
 /** Money routes need a device on record and a vault with that device in it. */
+/**
+ * A viewer reads; it never changes what gets paid. Every route that confirms a bill, quotes, discards
+ * or funds a payment, sends or cancels a request, or saves a template calls this first.
+ */
+export function requireCanAct(ctx: CompanyContext): void {
+  if (ctx.role === 'viewer') throw new ServiceError('not_authorized', 'Viewers can see payments but can’t change them. Ask your owner for a role that can.', 403);
+}
+
 export function requireReadyToApprove(ctx: CompanyContext): { deviceKey: string; vault: OrgVault } {
   if (!ctx.vault) throw new ServiceError('vault_missing', 'Your company has no vault yet. Finish setup first.', 409);
   if (!ctx.deviceKey) throw new ServiceError('keys_missing', 'Set up this device first: approvals are signed on it.', 409);

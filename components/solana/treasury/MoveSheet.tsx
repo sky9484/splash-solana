@@ -46,6 +46,7 @@ export function MoveSheet({ open, company, treasury, prefillMinor, back, onFlow,
   const why = !minor ? 'Enter an amount first.' : over ? `Your ${fromName} holds ${usd(balance[from])}.` : null;
 
   async function move() {
+    if (busy) return;
     setBusy('move');
     setProblem(null);
     setDone(null);
@@ -85,7 +86,7 @@ export function MoveSheet({ open, company, treasury, prefillMinor, back, onFlow,
       title="Move money between accounts"
       footer={
         <div className="iso-stack" style={{ gap: 8 }}>
-          <IsoButton variant="approve" size="lg" block onClick={() => void move()} busy={busy === 'move'} disabledReason={busy ? null : why}>
+          <IsoButton variant="approve" size="lg" block onClick={() => void move()} busy={busy === 'move'} disabledReason={busy === 'fund' ? 'Adding test money first…' : busy ? null : why}>
             {busy === 'move' ? 'Approving on this device…' : 'Approve on this device'}
           </IsoButton>
           <span className="iso-small">Your device asks you to confirm. Only your team can move this money.</span>

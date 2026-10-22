@@ -7,6 +7,7 @@ import ApprovalsInbox from '@/components/approvals/ApprovalsInbox';
 import ApprovalChannelCard from '@/components/settings/ApprovalChannelCard';
 import LocalTime from '@/components/LocalTime';
 import { useCustodyPhaseOn } from '@/components/dashboard/CustodyPhaseContext';
+import DashPageHeader from '@/components/dashboard/DashPageHeader';
 import {
   BadgeCheck,
   Building2,
@@ -119,19 +120,16 @@ export default function DashboardSettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <span className="dash-kicker">Operating policy</span>
-          <h1 className="dash-title mt-2">Settings</h1>
-          <p className="mt-1 max-w-2xl text-[13px] text-[#326273]">
-            Persisted controls applied to payment approvals and account security.
-          </p>
-        </div>
-        <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#073d49] px-5 py-3 text-sm font-bold text-white shadow-[0_5px_0_#022b33] transition-transform hover:-translate-y-0.5 disabled:opacity-50">
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          Save controls
-        </button>
-      </header>
+      <DashPageHeader
+        title="Settings"
+        description="Persisted controls applied to payment approvals and account security."
+        actions={
+          <button type="button" onClick={() => void save()} disabled={saving} className="iso-btn iso-btn--primary">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Save controls
+          </button>
+        }
+      />
 
       {notice && <div role="status" className="rounded-xl border border-[#5C9EAD]/25 bg-[#5C9EAD]/10 px-4 py-3 text-sm font-semibold text-[#1F4452]">{notice}</div>}
 

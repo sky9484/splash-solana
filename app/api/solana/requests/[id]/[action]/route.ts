@@ -1,6 +1,6 @@
 import { ServiceError } from '@/lib/solana-app/errors';
 import { cancelRequest, remindRequest, requestRow, sendRequest } from '@/lib/solana-app/requests';
-import { companyRoute, requireMoneyGates } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string; action: string }> }) {
   return companyRoute(request, async (ctx) => {
+    requireCanAct(ctx);
     const { id, action } = await params;
     if (action === 'send') {
       await requireMoneyGates(ctx);

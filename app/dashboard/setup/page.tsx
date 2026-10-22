@@ -4,6 +4,7 @@ import SetupStepper from '@/components/onboarding/SetupStepper';
 import DeviceSetup from '@/components/setup/DeviceSetup';
 import { getCustomerSession } from '@/lib/server/customer-auth';
 import { readOnboardingState, type OnboardingState } from '@/lib/server/onboarding';
+import DashPageHeader from '@/components/dashboard/DashPageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,14 +30,10 @@ export default async function SetupPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8">
-      <p className="dash-kicker">Account setup</p>
-      <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#1F4452]">
-        Finish setting up this workspace
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]">
-        Six steps; the last two are optional. Money movement unlocks when verification completes —
-        everything else here is yours to finish at your own pace.
-      </p>
+      <DashPageHeader
+        title="Finish setting up this workspace"
+        description="Six steps; the last two are optional. Money movement unlocks when verification completes — everything else here is yours to finish at your own pace."
+      />
 
       <section className="mt-8" aria-labelledby="device-vault-heading">
         <h2 id="device-vault-heading" className="text-lg font-bold text-[#1F4452]">This device and your accounts</h2>

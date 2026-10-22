@@ -139,7 +139,10 @@ export function OrderSheet({ company, treasury, intent, onFlow, onClose }: { com
       : `Your Reserve’s spare first, then your Payments account (${usd(treasury.available.totalMinor)} available to invest)`
     : `Investments account (you can ${kind} ${usd(preview?.redeemableMinor ?? (tbill ? (treasury.tbills.holding?.redeemableMinor ?? '0') : '0'))} now)`;
   const gateReason = needsGate && !(company.me.isOwner && tick) ? (company.me.isOwner ? 'Tick the confirmation above first. It’s asked once, before your first subscription or buy.' : 'Your company’s owner confirms this once, before the first subscription or buy.') : null;
-  const why = quoting ? 'Pricing the order…' : !preview ? (sweep ? 'Pricing the order…' : 'Enter an amount first.') : !preview.ok && !preview.gateOnly ? preview.problem : gateReason;
+  // The price on screen is for what was typed 280 ms ago until the new one answers: Approve waits for it,
+  // so an order is never approved at the previous amount (review finding, 16 Oct).
+  const stale = !sweep && preview !== null && preview.request.amountMinor !== minor;
+  const why = quoting || stale ? 'Pricing the order…' : !preview ? (sweep ? 'Pricing the order…' : 'Enter an amount first.') : !preview.ok && !preview.gateOnly ? preview.problem : gateReason;
 
   async function review() {
     setBusy(true);

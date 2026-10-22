@@ -836,7 +836,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    The sidebar keeps today's dark-teal gradient and its two faint rings; the
    page ground is warm paper with no grid (prompt 11 §1.2). The shell root itself is
    not `.iso` (the screens not yet rebuilt keep their own --ink); its parts are. */
-.iso-app { background-color: #F4EEE9; }
+.iso-app { background-color: #ECE5D8; }
 .iso-app::before { display: none; }
 /* Warm paper, no grid (prompt 11 §1.2): the boxes float off it.
    The main column clips its sideways overflow (overflow-x-clip in the shell), not hides it: a hidden
@@ -845,7 +845,7 @@ html[data-iso-actionbar] { scroll-padding-bottom: calc(var(--iso-actionbar-h, 80
    (data-sliding), never on a viewport resize (prompt 11 §1.4). */
 .iso-app .iso-main {
   padding: 18px 16px 112px;
-  background-color: #F4EEE9;
+  background-color: #ECE5D8;
 }
 .iso-app .iso-main[data-sliding] { transition: margin-left var(--t-sheet, 320ms) cubic-bezier(.2, .8, .2, 1); }
 @media (min-width: 768px) {
@@ -1213,8 +1213,8 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
 .iso .iso-money__promises {
   display: flex; flex-wrap: wrap; gap: 8px 22px;
   margin: 0; padding-top: 14px;
-  border-top: 1px dashed rgb(12 62 72 / .24);
-  font-size: var(--iso-13); color: rgb(12 62 72 / .9);
+  border-top: 1px dashed var(--line);
+  font-size: var(--iso-13); color: var(--text-2);
 }
 .iso .iso-money__promises span { display: inline-flex; align-items: center; gap: 6px; }
 .iso .iso-money__promises svg { color: var(--teal); }
@@ -1911,4 +1911,261 @@ html[data-iso-actionbar] .iso.iso-zk { bottom: calc(var(--iso-actionbar-h, 80px)
   .iso .iso-treasury__hero .iso-station__label { grid-area: label; }
   .iso .iso-treasury__hero .iso-station__amount { grid-area: amount; font-size: var(--iso-17); }
   .iso .iso-treasury__hero .iso-station__help, .iso .iso-treasury__hero .iso-station > .iso-testmode { grid-area: help; justify-self: start; max-width: none; }
+}
+
+/* ── Sky's restyle (15 Oct) ───────────────────────────────────────────────
+   No gradients anywhere on the dashboard. The money heroes (Overview, Balance,
+   Treasury), Transfer's intent header and the Invoices chooser cards are one
+   solid dark cyan; inside them the ink tokens turn light, so every label,
+   figure, bar and line follows without its own rule. Anything that keeps a
+   light fill of its own (buttons, tags, the Test mode badge, inner boxes,
+   fields) gets the normal ink back. Large figures are solid, with no outline
+   or extrusion. Boxes have 30 px corners, form fields 30 px. */
+.iso .iso-surface--hero { background: var(--surface); }
+.iso .iso-extrude {
+  color: var(--ink-deep);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  padding-bottom: 2px;
+}
+.iso .iso-money,
+.iso .iso-treasury__hero,
+.iso .iso-chooser__card,
+.iso .iso-txhead {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--on-cyan);
+  --ink: var(--on-cyan);
+  --ink-deep: var(--on-cyan);
+  --text-2: var(--on-cyan-2);
+  --teal: var(--mint);
+  --muted: rgb(241 248 246 / .5);
+  --line: rgb(241 248 246 / .3);
+  --line-soft: rgb(241 248 246 / .2);
+  --line-strong: rgb(241 248 246 / .45);
+}
+.iso .iso-chooser__card:hover { color: var(--on-cyan); }
+.iso .iso-money__sentence { color: var(--on-cyan-2); }
+.iso .iso-money__short,
+.iso .iso-money__short strong { color: var(--gold); }
+.iso :is(.iso-money, .iso-treasury__hero) .iso-bar,
+.iso :is(.iso-money, .iso-treasury__hero) .iso-resbar { background: rgb(241 248 246 / .14); }
+.iso :is(.iso-money, .iso-treasury__hero) .iso-wire line { stroke: rgb(241 248 246 / .35); }
+/* Light-filled things inside the dark cyan keep the normal ink. */
+.iso :is(.iso-money, .iso-treasury__hero, .iso-chooser__card, .iso-txhead) :is(.iso-btn, .iso-tag, .iso-testmode, .iso-balance__link, .iso-surface, .iso-field, .iso-seg) {
+  --ink: #0C3E48;
+  --ink-deep: #083640;
+  --text-2: rgb(12 62 72 / .86);
+  --teal: #0D6370;
+  --muted: rgb(12 62 72 / .35);
+  --line: rgb(12 62 72 / .2);
+  --line-soft: rgb(12 62 72 / .14);
+  --line-strong: rgb(12 62 72 / .35);
+}
+/* Corners: boxes 30 px, a box inside a box 20 px, form fields 30 px. */
+.iso .iso-surface,
+.iso .iso-chooser__card,
+.iso .iso-txhead { border-radius: 30px; }
+.iso .iso-surface .iso-surface,
+.iso .iso-balance__link,
+.iso .iso-surface .iso-ticket { border-radius: 20px; }
+.iso .iso-field__control,
+.iso .iso-seg { border-radius: 30px; overflow: hidden; }
+.iso .iso-seg__btn:first-child { padding-left: 22px; }
+.iso .iso-seg__btn:last-child { padding-right: 22px; }
+/* A segmented choice is as wide as its options, not the whole row. */
+.iso .iso-field > .iso-seg,
+.iso .iso-stack > .iso-seg { align-self: flex-start; }
+/* The Zeke page's conversation: plain paper, a 3.5 px dark cyan edge, 45 px corners. */
+.iso .iso-desk__chat {
+  background: var(--surface);
+  border: 3.5px solid var(--cyan);
+  border-radius: 45px;
+  overflow: hidden;
+}
+.iso .iso-desk__compose { background: transparent; }
+
+/* Edge-to-edge parts (the Needs you strip, the header's facts row) follow the rounded corners. */
+.iso .iso-txhead,
+.iso .iso-needs { overflow: hidden; }
+/* Smaller boxes on a page or inside a box: 20 px. */
+.iso .iso-desk__count,
+.iso .iso-reqpreview,
+.iso .iso-ichart__tiles > * { border-radius: 20px; }
+/* Explicit colours where the dark cyan's light ink is switched back, so the contrast audit
+   (which reads rules, not inherited custom properties) sees what the browser paints. */
+.iso .iso-balance__link { color: #0C3E48; }
+.iso .iso-balance__link strong { color: #083640; }
+.iso .iso-money .iso-bar,
+.iso .iso-treasury__hero .iso-resbar { color: var(--cyan); }
+/* The chooser cards' buttons are gold like the Test mode badge (Sky, 16 Oct): dark ink on gold,
+   the dark ledge kept. */
+.iso .iso-chooser__card .iso-btn--primary,
+.iso .iso-chooser__card .iso-btn--primary:hover { background: var(--gold); color: #083640; border-color: #083640; }
+
+/* ── The header (Sky, 16 Oct) ──────────────────────────────────────────────
+   One bar across the content area on every dashboard page, stuck to the top
+   while the page scrolls: where you are, search, the rate, Test mode, you.
+   From 768 px it runs edge to edge over the main column (it cancels main's
+   padding); on a phone the shell's own bar is the header and this row wraps. */
+@media (min-width: 768px) {
+  .iso.iso-toprow {
+    position: sticky; top: 0; z-index: 30;
+    max-width: none;
+    width: calc(100% + 72px);
+    margin: -18px -36px 26px;
+    padding: 12px 36px;
+    min-height: 68px;
+    flex-wrap: nowrap;
+    background: var(--surface);
+    border-bottom: 1px solid var(--surface-line);
+    box-shadow: var(--lift-1);
+  }
+}
+.iso .iso-toprow__where {
+  flex: 0 1 auto; min-width: 0;
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0; margin-right: 8px;
+  font-size: var(--iso-15); white-space: nowrap; color: var(--text-2);
+}
+.iso .iso-toprow__where strong { font-size: var(--iso-17); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-toprow__sep { color: var(--text-2); }
+.iso.iso-toprow .iso-search { flex: 1 1 260px; max-width: 460px; margin-left: auto; }
+.iso .iso-search__box { border-radius: 30px; padding: 0 14px 0 18px; }
+.iso .iso-search__key { border-radius: 6px; }
+.iso.iso-toprow .iso-ratestrip { flex: 0 1 auto; border-radius: 30px; padding: 7px 16px; flex-wrap: nowrap; white-space: nowrap; }
+.iso.iso-toprow .iso-ratestrip > span:not(:first-of-type) { display: none; }
+.iso .iso-profile__initials { border-radius: 50%; }
+.iso.iso-toprow .iso-profile { flex: 0 0 auto; padding-left: 14px; border-left: 1px solid var(--surface-line); }
+@media (min-width: 768px) and (max-width: 1180px) {
+  .iso.iso-toprow .iso-ratestrip { display: none; }
+}
+.iso.iso-toprow .iso-profile__text span { white-space: nowrap; }
+
+/* ── Older screens in the new look (Sky, 16 Oct) ─────────────────────────────
+   History, Batch payout, receipts, Rules, Devices and Recovery are Solana
+   screens (`sx-*`); Recipients, Settings, Support and Profile are Tailwind
+   pages. Both now sit under the header bar on the sand ground and take the
+   dashboard's parts: 30 px boxes on the near-white fill with the soft lift,
+   20 px boxes inside them, 30 px fields, the square ledged buttons, sentence-
+   case table headings and 800-weight section titles. */
+.iso .sx { color: var(--ink); font-size: var(--iso-15); }
+.iso .sx :is(h2, h3) { color: var(--ink-deep); font-weight: 800; letter-spacing: -.01em; }
+.iso .sx h2 { font-size: var(--iso-19); }
+.iso .sx h3 { font-size: var(--iso-17); }
+.iso .sx-muted,
+.iso .sx-lede,
+.iso .sx-hint,
+.iso .sx-hash,
+.iso .sx-kv dt { color: var(--text-2); }
+.iso .sx-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: 30px;
+  box-shadow: var(--lift-1);
+  padding: 24px 26px;
+}
+.iso .sx-card .sx-card,
+.iso .sx-card-quiet,
+.iso .sx-paper,
+.iso .sx-route,
+.iso .sx-notice { border-radius: 20px; }
+.iso .sx-card-quiet { background: var(--white); border: 1px solid var(--surface-line); }
+.iso .sx-approve { border-radius: 30px; box-shadow: var(--lift-1); }
+.iso .sx-table-wrap { padding: 6px 24px; }
+.iso .sx-table th { padding: 12px 12px 10px 0; font: 700 13px/1.3 var(--font-sans); letter-spacing: 0; text-transform: none; color: var(--text-2); border-bottom: 2px solid var(--ink-deep); }
+.iso .sx-table td { border-bottom-color: var(--line-soft); }
+.iso .sx-vault-kicker { font: 700 var(--iso-13)/1.3 var(--font-sans); letter-spacing: 0; text-transform: none; color: var(--text-2); }
+.iso .sx-chip { border-radius: 10px; border-color: var(--line); color: var(--ink); background: var(--white); }
+.iso .sx-btn {
+  min-height: 40px; padding: 0 18px;
+  border: 1.5px solid var(--ink-deep); border-radius: 0;
+  background: var(--teal); color: var(--paper-warm);
+  font: 700 15px/1 var(--font-sans);
+  box-shadow: var(--ledge-1);
+  transition: transform var(--t-press) var(--ease-iso), box-shadow var(--t-press) var(--ease-iso);
+}
+.iso .sx-btn:hover { background: var(--teal); border-color: var(--ink-deep); color: var(--paper-warm); transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink-deep); }
+.iso .sx-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink-deep); }
+.iso .sx-btn-ghost,
+.iso .sx-btn-ghost:hover { background: var(--paper); color: var(--ink-deep); border-color: var(--line-strong); box-shadow: none; transform: none; }
+.iso .sx-btn-ghost:hover { border-color: var(--ink-deep); }
+.iso .sx-btn[disabled],
+.iso .sx-btn[aria-disabled='true'] { background: var(--paper); color: var(--text-2); border-color: var(--line); box-shadow: none; transform: none; }
+.iso-app .iso .sx-input,
+.iso-app .iso .sx select { min-height: 52px; padding: 0 18px; border: 1.5px solid rgb(12 62 72 / .62); border-radius: 30px; background: var(--white); color: var(--ink-deep); }
+.iso-app .iso .sx textarea { padding: 14px 18px; border: 1.5px solid rgb(12 62 72 / .62); border-radius: 20px; background: var(--white); color: var(--ink-deep); }
+/* The Tailwind pages: their boxes and fields. */
+.iso-app .fintech-dashboard-main :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface) {
+  background: #FFFDFA;
+  border: 1px solid rgb(12 62 72 / .09);
+  border-radius: 30px;
+  box-shadow: var(--lift-1);
+}
+.iso-app .fintech-dashboard-main :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface) :is(.dash-card, .dash-card-raised, .dash-block, .dash-surface),
+.iso-app .fintech-dashboard-main [class~="rounded-xl"] { border-radius: 20px; }
+.iso-app .fintech-dashboard-main [class~="rounded-2xl"] { border-radius: 30px; }
+.iso-app .fintech-dashboard-main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select) { border-radius: 30px; padding-left: 16px; padding-right: 16px; }
+.iso-app .fintech-dashboard-main textarea { border-radius: 20px; }
+.iso-app .fintech-dashboard-main thead th { font-family: var(--font-sans); font-size: 13px; letter-spacing: 0; text-transform: none; }
+
+/* ── The receipt (Sky, 16 Oct): a standard fintech receipt ───────────────────
+   One centred column. The receipt itself first: status, who paid whom, the
+   amount, when, then label-and-value rows on hairlines and its actions. Under
+   it the Technical details: the Solscan trace (memo, transactions, accounts,
+   the programs it calls, each with its full ID to copy) and the five checks. */
+.iso .iso-receipt { width: 100%; max-width: 920px; margin-inline: auto; display: flex; flex-direction: column; gap: 22px; }
+.iso .iso-receipt__main { padding: 30px 32px 26px; }
+.iso .iso-receipt__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.iso .iso-receipt__status { display: inline-flex; align-items: center; gap: 10px; font: 800 var(--iso-15)/1.3 var(--font-sans); color: var(--ok-ink); }
+.iso .iso-receipt__tick { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 50%; background: var(--ok-fill); border: 1.5px solid var(--mint); color: var(--ok-ink); }
+.iso .iso-receipt__lede { margin: 22px 0 0; font-size: var(--iso-15); color: var(--text-2); }
+.iso .iso-receipt__amount { margin: 6px 0 0; font-size: clamp(36px, 4.4vw, 54px); font-weight: 900; letter-spacing: -.04em; line-height: 1.05; color: var(--ink-deep); }
+.iso .iso-receipt__sub { margin: 8px 0 0; font-size: var(--iso-15); color: var(--text-2); }
+.iso .iso-receipt__rows { margin: 24px 0 0; padding: 0; border-top: 1px solid var(--line-soft); }
+.iso .iso-receipt__row { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr); gap: 6px 20px; padding: 13px 0; border-bottom: 1px solid var(--line-soft); }
+.iso .iso-receipt__row dt { font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-receipt__row dd { margin: 0; font-size: var(--iso-15); color: var(--ink-deep); text-align: right; overflow-wrap: anywhere; }
+.iso .iso-receipt__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.iso .iso-receipt__kicker { margin: 0 0 4px; font: 700 var(--iso-13)/1.3 var(--font-sans); color: var(--text-2); }
+.iso .iso-receipt__group { margin: 0 0 4px; font-size: var(--iso-15); font-weight: 800; color: var(--ink-deep); }
+.iso .iso-receipt__memo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; border-radius: 20px; background: var(--white); border: 1px solid var(--surface-line); font-size: var(--iso-14); }
+.iso .iso-receipt__memolabel { font-weight: 700; color: var(--text-2); }
+.iso .iso-receipt__hash { font-size: 12.5px; overflow-wrap: anywhere; color: var(--text-2); }
+.iso .iso-receipt__tamper { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; color: var(--ink-deep); cursor: pointer; }
+.iso .iso-receipt__tamper input { width: 20px; height: 20px; accent-color: var(--teal); }
+.iso .iso-receipt__verdict { margin: 0; font-size: var(--iso-15); font-weight: 800; color: inherit; }
+.iso .iso-receipt__checks { margin: 0; padding: 0; list-style: none; }
+.iso .iso-receipt__checks li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--iso-14); color: var(--ink-deep); }
+.iso .iso-receipt__checks li:last-child { border-bottom: 0; }
+.iso .iso-receipt__mark { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 50%; margin-top: 1px; background: var(--ok-fill); color: var(--ok-ink); }
+.iso .iso-receipt__checks li[data-state="fail"] .iso-receipt__mark { background: var(--danger-fill); color: var(--danger-ink); }
+.iso .iso-receipt__checks li[data-state="skip"] .iso-receipt__mark { background: var(--paper); border: 1px solid var(--line); color: var(--text-2); }
+.iso .iso-receipt__detail { display: block; margin-top: 2px; font-size: var(--iso-13); color: var(--text-2); overflow-wrap: anywhere; }
+/* An ID row: label, the short ID, Copy, and Solscan (or a note). */
+.iso .iso-idrows { margin: 0; padding: 0; }
+.iso .iso-idrow { display: grid; grid-template-columns: minmax(160px, 280px) minmax(0, 1fr); gap: 4px 20px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.iso .iso-idrow:last-child { border-bottom: 0; }
+.iso .iso-idrow dt { font-size: var(--iso-14); color: var(--text-2); }
+.iso .iso-idrow dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.iso .iso-idrow__value { font-size: var(--iso-14); color: var(--ink-deep); }
+.iso .iso-idrow__copy {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 32px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 30px; background: var(--white);
+  font: 700 var(--iso-13)/1 var(--font-sans); color: var(--ink-deep); cursor: pointer;
+}
+.iso .iso-idrow__copy:hover { border-color: var(--ink-deep); }
+.iso .iso-idrow__open { display: inline-flex; align-items: center; gap: 5px; font-size: var(--iso-13); font-weight: 700; color: var(--teal); }
+.iso .iso-idrow__note { font-size: var(--iso-13); color: var(--text-2); }
+@media (max-width: 640px) {
+  .iso .iso-receipt__main { padding: 22px 18px; }
+  .iso .iso-receipt__row,
+  .iso .iso-idrow { grid-template-columns: minmax(0, 1fr); }
+  .iso .iso-receipt__row dd { text-align: left; }
+}
+@media print {
+  .iso .iso-receipt__actions,
+  .iso .iso-receipt__tamper { display: none !important; }
+  .iso .iso-receipt .iso-surface { box-shadow: none; }
 }

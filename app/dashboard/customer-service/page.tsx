@@ -6,6 +6,7 @@ import { Headphones, Send, Bug, MessageSquareWarning, MessageSquare, Mail, Phone
 import { toast } from 'sonner';
 
 import LocalTime from '@/components/LocalTime';
+import DashPageHeader from '@/components/dashboard/DashPageHeader';
 
 type SupportTicket = {
   id: string;
@@ -145,16 +146,11 @@ export default function CustomerServicePage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
-      <header className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <span className="dash-kicker">Operations support</span>
-          <h1 className="dash-title mt-2">Customer Service</h1>
-          <p className="mt-0.5 text-[13px] text-[#326273]">Submit issues, bugs, or complaints. We aim to respond within 24 hours.</p>
-        </div>
-        <div className="rounded-xl border border-[#326273]/10 bg-white px-3 py-2 text-[13px] font-medium text-[#326273]">
-          Tickets · Avg first reply &lt; 6h
-        </div>
-      </header>
+      <DashPageHeader
+        title="Support"
+        description="Submit issues, bugs, or complaints. We aim to respond within 24 hours."
+        actions={<span className="iso-tag">Tickets · Avg first reply &lt; 6h</span>}
+      />
 
       <section className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <div>

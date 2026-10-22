@@ -1,7 +1,7 @@
 import { payBill } from '@/lib/solana-app/bills';
 import { readBody, schemas } from '@/lib/solana-app/http';
 import { paymentView } from '@/lib/solana-app/service';
-import { companyRoute, requireMoneyGates } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return companyRoute(request, async (ctx) => {
+    requireCanAct(ctx);
     const { id } = await params;
     const body = await readBody(request, schemas.payBill);
     await requireMoneyGates(ctx);

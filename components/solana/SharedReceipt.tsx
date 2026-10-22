@@ -11,7 +11,7 @@ import './solana.css';
  */
 export function SharedReceipt({ token }: { token: string }) {
   return (
-    <main className="min-h-screen bg-[#F6F0ED] px-4 py-10">
+    <main className="iso min-h-screen bg-[var(--ground)] px-4 py-10">
       <div className="mx-auto max-w-3xl space-y-6">
         <header className="flex items-center justify-between gap-3">
           <Link href="/" className="inline-flex items-center gap-2 text-[#1F4452]">

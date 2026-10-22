@@ -1,7 +1,11 @@
 'use client';
+// iso-ui
 
 import Link from 'next/link';
+import { Check, Download, Minus, Printer, Share2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+
+import { TestModeBadge } from '@/components/iso';
 
 import type { CorridorPayoutBundle } from '@/lib/solana-evidence/bundle';
 import type { MerkleProof } from '@/lib/solana-evidence/merkle';
@@ -79,16 +83,16 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
 
   if (error) {
     return (
-      <div className="sx-narrow sx-stack">
-        {showTitle ? <h1>Receipt</h1> : null}
-        <div className="sx-notice sx-notice-error" role="alert">
-          <p>{error}</p>
-        </div>
+      <div className="iso-receipt iso-stack">
+        {showTitle ? <h1 className="iso-title">Receipt</h1> : null}
+        <p className="iso-note iso-note--danger" role="alert">
+          {error}
+        </p>
         {source.kind === 'company' ? <Link href="/dashboard/history">Back to payments</Link> : null}
       </div>
     );
   }
-  if (!receipt || !bundle) return <p className="sx-muted">Loading the receipt…</p>;
+  if (!receipt || !bundle) return <p className="iso-small">Loading the receipt…</p>;
   const s = receipt.summary;
   const onDevnet = !receipt.simulated;
 
@@ -114,13 +118,13 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         key: 'leaf',
         title: 'Recompute this payment’s fingerprint (leaf)',
         state: result ? (passed(['bundle_shape', 'leaf']) ? 'pass' : 'fail') : 'skip',
-        detail: result?.leafHex ? <span className="sx-hash">{result.leafHex}</span> : 'The proof isn’t recorded yet.',
+        detail: result?.leafHex ? <span className="iso-mono iso-receipt__hash">{result.leafHex}</span> : 'The proof isn’t recorded yet.',
       },
       {
         key: 'path',
         title: 'Check it belongs to the day’s proof',
         state: result ? (passed(['proof']) ? 'pass' : 'fail') : 'skip',
-        detail: result ? <span className="sx-hash">{result.computedRootHex ?? 'no root'}</span> : 'The proof isn’t recorded yet.',
+        detail: result ? <span className="iso-mono iso-receipt__hash">{result.computedRootHex ?? 'no root'}</span> : 'The proof isn’t recorded yet.',
       },
       {
         key: 'anchor',
@@ -128,7 +132,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         state: result ? (passed(['root_matches_anchor', 'count_matches_anchor', 'period', 'blob_ids', 'simulated_label']) ? 'pass' : 'fail') : 'skip',
         detail: result ? (
           <>
-            Recorded proof <span className="sx-hash">{result.anchoredRootHex}</span>
+            Recorded proof <span className="iso-mono iso-receipt__hash">{result.anchoredRootHex}</span>
             {result.checks
               .filter((c) => ['root_matches_anchor', 'count_matches_anchor', 'period', 'blob_ids', 'simulated_label'].includes(c.name) && !c.passed)
               .map((c) => (
@@ -163,7 +167,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           state: hex === blob.ciphertextSha256Hex ? 'pass' : 'fail',
           detail: (
             <>
-              sha256 <span className="sx-hash">{hex}</span>
+              sha256 <span className="iso-mono iso-receipt__hash">{hex}</span>
               {hex === blob.ciphertextSha256Hex ? ' matches the fingerprint recorded when it was stored.' : ` differs from the recorded ${blob.ciphertextSha256Hex}.`}
             </>
           ),
@@ -186,155 +190,129 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
   }
 
   const failed = steps?.some((x) => x.state === 'fail') ?? false;
+  const recorded = receipt.anchor.status === 'anchored';
+  const paidWord = s.kind === 'receivable' ? 'Received' : s.kind === 'treasury' ? 'Settled' : 'Paid';
+  const amount = s.kind === 'bank' ? php(s.receivePhpMinor) : usd(s.receiveUsdMinor);
+  const lede =
+    s.kind === 'receivable'
+      ? `${s.supplierName} paid ${receipt.companyName}`
+      : s.kind === 'treasury'
+        ? `${receipt.companyName} ${ORDER_PAST[s.treasury.orderKind]} ${s.supplierName}`
+        : `${receipt.companyName} paid ${s.supplierName}`;
+  const sub =
+    s.kind === 'treasury'
+      ? LANDS_IN[s.treasury.landsIn]
+      : s.kind === 'receivable'
+        ? 'Into your Payments account'
+        : s.kind === 'peer'
+          ? `Into ${s.supplierName}’s Splash account`
+          : `${s.supplierName} received`;
+  const approvers =
+    bundle.kindName === 'treasury'
+      ? { who: bundle.approval.who, key: bundle.approval.keyPublic }
+      : bundle.kindName !== 'receivable'
+        ? { who: [...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', '), key: bundle.approvals[0]?.keyPublic ?? null }
+        : null;
 
   return (
-    <div className="sx-stack-lg">
-      <div className="sx-row" style={{ justifyContent: 'space-between' }}>
-        <div>
-          {showTitle ? <h1>Receipt</h1> : null}
-          <p className="sx-lede">
-            {s.kind === 'receivable'
-              ? `${s.supplierName} paid ${receipt.companyName}`
-              : s.kind === 'treasury'
-                ? `${receipt.companyName} ${ORDER_PAST[s.treasury.orderKind]} ${s.supplierName}`
-                : `${receipt.companyName} paid ${s.supplierName}`}
-          </p>
-        </div>
-        {receipt.simulated ? <span className="sx-pill sx-pill-sim">Test mode · simulated</span> : <span className="sx-pill sx-pill-ok">Test mode</span>}
-      </div>
+    <div className="iso-receipt">
+      {showTitle ? <h1 className="iso-title">Receipt</h1> : null}
 
-      <section className="sx-card sx-stack" aria-labelledby="sum-title">
-        <h2 id="sum-title" className="sx-visually-hidden">
-          Summary
-        </h2>
-        {s.kind === 'treasury' ? (
-          <>
-            <div>
-              <p className="sx-big">{usd(s.receiveUsdMinor)}</p>
-              <p className="sx-muted">{LANDS_IN[s.treasury.landsIn]}</p>
-            </div>
-            <dl className="sx-kv">
-              <dt>Order</dt>
-              <dd>
+      {/* ── The receipt: what moved, to whom, when, for how much, and who approved it ── */}
+      <section className="iso-surface iso-receipt__main" aria-labelledby="rcpt-amount">
+        <div className="iso-receipt__head">
+          <span className="iso-receipt__status">
+            <span className="iso-receipt__tick" aria-hidden="true">
+              <Check size={16} strokeWidth={3} />
+            </span>
+            {paidWord} · {recorded ? 'proof recorded' : 'proof being recorded'}
+          </span>
+          <TestModeBadge inline label={receipt.simulated ? 'Test mode · simulated' : 'Test mode'} />
+        </div>
+        <p className="iso-receipt__lede">{lede}</p>
+        <p id="rcpt-amount" className="iso-receipt__amount iso-num">
+          {amount}
+        </p>
+        <p className="iso-receipt__sub">
+          {sub}
+          {s.paidAt ? (
+            <>
+              {' '}
+              · {dateShort(s.paidAt)}, {timeShort(s.paidAt)}
+            </>
+          ) : null}
+        </p>
+
+        <dl className="iso-receipt__rows">
+          {s.kind === 'treasury' ? (
+            <>
+              <Row label="Order">
                 {ORDER_NAME[s.treasury.orderKind]} · {s.supplierName}
                 {s.treasury.sweep ? ' · from your sweep rule' : ''}
-              </dd>
-              <dt>How</dt>
-              <dd>{s.treasury.path === 'ondo' ? 'Straight from Ondo' : 'On the market'}</dd>
-              <dt>Units</dt>
-              <dd className="sx-num">{unitsText(s.treasury.unitsMicro)} at a test price</dd>
-              {s.treasury.holdUntil ? (
-                <>
-                  <dt>Held until</dt>
-                  <dd>{dateShort(s.treasury.holdUntil)}</dd>
-                </>
-              ) : null}
-              <dt>Approved</dt>
-              <dd>
-                {dateShort(s.paidAt)} at {timeShort(s.paidAt)}
-              </dd>
-            </dl>
-          </>
-        ) : s.kind === 'receivable' ? (
-          <>
-            <div>
-              <p className="sx-big">{usd(s.receiveUsdMinor)}</p>
-              <p className="sx-muted">Into your Payments account</p>
-            </div>
-            <dl className="sx-kv">
-              <dt>Paid by</dt>
-              <dd>{s.supplierName}</dd>
-              <dt>Your request</dt>
-              <dd className="sx-mono">{s.invoiceNumber}</dd>
-              <dt>Paid</dt>
-              <dd>
-                {dateShort(s.paidAt)} at {timeShort(s.paidAt)}
-              </dd>
-              <dt>Matched</dt>
-              <dd>{s.matchedBy === 'splash_payment' ? 'A payment on Splash for this request' : 'By the reference and the exact amount'}</dd>
-            </dl>
-          </>
-        ) : s.kind === 'peer' ? (
-          <>
-            <div>
-              <p className="sx-big">{usd(s.receiveUsdMinor)}</p>
-              <p className="sx-muted">Into {s.supplierName}&rsquo;s Splash account</p>
-            </div>
-            <dl className="sx-kv">
-              <dt>Paid to</dt>
-              <dd>{s.supplierName}, a business on Splash</dd>
-              <dt>Reference</dt>
-              <dd className="sx-mono">{s.invoiceNumber}</dd>
-              {s.note ? (
-                <>
-                  <dt>Note</dt>
-                  <dd>{s.note}</dd>
-                </>
-              ) : null}
-              <dt>Paid</dt>
-              <dd>
-                {dateShort(s.paidAt)} at {timeShort(s.paidAt)}
-              </dd>
-              <dt>{source.kind === 'company' ? 'You paid' : 'Paid from'}</dt>
-              <dd className="sx-num">{usd(s.youPayUsdcMinor)}, no conversion and no Splash fee</dd>
-            </dl>
-          </>
-        ) : (
-          <>
-            <div>
-              <p className="sx-big">{php(s.receivePhpMinor)}</p>
-              <p className="sx-muted">Supplier received</p>
-            </div>
-            <dl className="sx-kv">
-              <dt>Supplier</dt>
-              <dd>
-                {s.supplierName}, {s.bank} <span className="sx-mono">•••• {s.accountLast4}</span>
-              </dd>
-              <dt>Invoice</dt>
-              <dd className="sx-mono">{s.invoiceNumber}</dd>
-              <dt>Paid</dt>
-              <dd>
-                {dateShort(s.paidAt)} at {timeShort(s.paidAt)} by {s.partnerLabel}
-              </dd>
-              <dt>Bank reference</dt>
-              <dd className="sx-mono">{s.bankReference}</dd>
-              <dt>{source.kind === 'company' ? 'You paid' : 'Paid from'}</dt>
-              <dd className="sx-num">{usd(s.youPayUsdcMinor)} from the company’s Payments account</dd>
+              </Row>
+              <Row label="How">{s.treasury.path === 'ondo' ? 'Straight from Ondo' : 'On the market'}</Row>
+              <Row label="Units" num>
+                {unitsText(s.treasury.unitsMicro)} at a test price
+              </Row>
+              {s.treasury.holdUntil ? <Row label="Held until">{dateShort(s.treasury.holdUntil)}</Row> : null}
+            </>
+          ) : s.kind === 'receivable' ? (
+            <>
+              <Row label="Paid by">{s.supplierName}</Row>
+              <Row label="Your request" mono>
+                {s.invoiceNumber}
+              </Row>
+              <Row label="Matched">{s.matchedBy === 'splash_payment' ? 'A payment on Splash for this request' : 'By the reference and the exact amount'}</Row>
+            </>
+          ) : s.kind === 'peer' ? (
+            <>
+              <Row label="Paid to">{s.supplierName}, a business on Splash</Row>
+              <Row label="Reference" mono>
+                {s.invoiceNumber}
+              </Row>
+              {s.note ? <Row label="Note">{s.note}</Row> : null}
+              <Row label={source.kind === 'company' ? 'You paid' : 'Paid from'} num>
+                {usd(s.youPayUsdcMinor)}, no conversion and no Splash fee
+              </Row>
+            </>
+          ) : (
+            <>
+              <Row label="Paid to">
+                {s.supplierName}, {s.bank} <span className="iso-mono">•••• {s.accountLast4}</span>
+              </Row>
+              <Row label="Invoice" mono>
+                {s.invoiceNumber}
+              </Row>
+              <Row label={source.kind === 'company' ? 'You paid' : 'Paid from'} num>
+                {usd(s.youPayUsdcMinor)} from the company’s Payments account
+              </Row>
               {bundle.kindName === 'corridor_payout' ? (
-                <>
-                  <dt>Rate</dt>
-                  <dd>
-                    {bundle.fx.rate} PHP per US$ <span className="sx-muted">({bundle.fx.reference})</span>
-                  </dd>
-                </>
+                <Row label="Exchange rate" num>
+                  {bundle.fx.rate} PHP per US$ <span className="iso-muted">({bundle.fx.reference})</span>
+                </Row>
               ) : null}
-            </dl>
-          </>
-        )}
-        {bundle.kindName === 'treasury' ? (
-          <dl className="sx-kv">
-            <dt>Approved by</dt>
-            <dd>
-              {bundle.approval.who}, on their device (key <span className="sx-mono">{shortKey(bundle.approval.keyPublic)}</span>)
-            </dd>
-          </dl>
-        ) : bundle.kindName !== 'receivable' ? (
-          <dl className="sx-kv">
-            <dt>Approved by</dt>
-            <dd>
-              {[...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', ')}, on their device · key{' '}
-              <span className="sx-mono">{shortKey(bundle.approvals[0]?.keyPublic)}</span>
-            </dd>
-          </dl>
-        ) : null}
-        <div className="sx-row">
-          <a className="sx-btn" href={p.pack} download>
+              <Row label="Paid out by">{s.partnerLabel}</Row>
+              <Row label="Bank reference" mono>
+                {s.bankReference}
+              </Row>
+            </>
+          )}
+          {approvers ? (
+            <Row label="Approved by">
+              {approvers.who}, on their device · key <span className="iso-mono">{shortKey(approvers.key)}</span>
+            </Row>
+          ) : null}
+        </dl>
+
+        <div className="iso-receipt__actions">
+          <a className="iso-btn iso-btn--primary" href={p.pack} download>
+            <Download size={16} aria-hidden="true" />
             Download evidence pack
           </a>
           {source.kind === 'company' ? (
             <button
               type="button"
-              className="sx-btn sx-btn-ghost"
+              className="iso-btn iso-btn--quiet"
               onClick={async () => {
                 try {
                   setShared((await copyText(await shareReceiptLink(source.id))) ? 'copied' : 'failed');
@@ -343,13 +321,18 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
                 }
               }}
             >
+              <Share2 size={16} aria-hidden="true" />
               {shared === 'copied' ? 'Auditor link copied' : 'Share with auditor'}
             </button>
           ) : null}
+          <button type="button" className="iso-btn iso-btn--quiet" onClick={() => window.print()}>
+            <Printer size={16} aria-hidden="true" />
+            Print
+          </button>
         </div>
-        {shared === 'copied' ? <p className="sx-small sx-muted">The link opens this receipt only, with its checks and the evidence pack. No sign-in.</p> : null}
+        {shared === 'copied' ? <p className="iso-small">The link opens this receipt only, with its checks and the evidence pack. No sign-in.</p> : null}
         {shared === 'failed' ? (
-          <p className="sx-small" role="alert">
+          <p className="iso-small" role="alert">
             The link could not be made or copied. Try again.
           </p>
         ) : null}
@@ -360,32 +343,45 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         memo={receipt.trace.memo}
         transactions={receipt.signatures}
         accounts={receipt.trace.accounts}
+        programs={receipt.programs}
         anchor={receipt.anchor.signature ? { signature: receipt.anchor.signature, simulated: receipt.anchor.simulated, solscanUrl: receipt.anchor.solscanUrl, explorerUrl: receipt.anchor.explorerUrl } : null}
       />
 
-      <section className="sx-card sx-stack" aria-labelledby="verify-title">
-        {/* The checks show fingerprints and the recorded proof as they are: a receipt's Technical details (§0.6). */}
-        <p className="sx-vault-kicker" style={{ margin: 0 }}>
-          Technical details
-        </p>
-        <h2 id="verify-title">Verify this receipt</h2>
-        <p className="sx-muted">Five checks, run in this browser. The server supplies the record; it does not supply the answer.</p>
-        <dl className="sx-kv">
-          <dt>Recorded proof</dt>
-          <dd className="sx-hash">{receipt.anchor.status === 'anchored' ? receipt.anchor.memo : 'Saved; the proof is still being recorded'}</dd>
-          <dt>{bundle.kindName === 'peer_transfer' ? 'Reference commitment' : bundle.kindName === 'receivable' ? 'Request commitment' : bundle.kindName === 'treasury' ? 'Approved order (sha256)' : 'Invoice commitment'}</dt>
-          <dd className="sx-hash">
-            {bundle.kindName === 'peer_transfer' ? bundle.reference.commitmentHex : bundle.kindName === 'receivable' ? bundle.request.commitmentHex : bundle.kindName === 'treasury' ? bundle.approval.messageSha256 : bundle.invoice.commitmentHex}
-          </dd>
-          <dt>Stored copy</dt>
-          <dd>
-            <span className="sx-mono">{shortKey(receipt.stored.blobId, 10)}</span>{' '}
-            <span className="sx-muted sx-small">
-              ({receipt.stored.mode === 'memory' ? 'offline store' : 'Walrus'}, {receipt.stored.sizeBytes} bytes, sealed)
-            </span>
-          </dd>
+      {/* ── Verify: five checks, run in this browser (a receipt's Technical details, §0.6) ── */}
+      <section className="iso-surface iso-surface--pad iso-stack iso-receipt__tech" aria-labelledby="verify-title">
+        <div>
+          <p className="iso-receipt__kicker">Technical details</p>
+          <h2 id="verify-title" className="iso-h2">
+            Verify this receipt
+          </h2>
+        </div>
+        <p className="iso-small">Five checks, run in this browser. The server supplies the record; it does not supply the answer.</p>
+        <dl className="iso-idrows">
+          <div className="iso-idrow">
+            <dt>Recorded proof</dt>
+            <dd>
+              <span className="iso-idrow__value iso-mono iso-receipt__hash">{recorded ? receipt.anchor.memo : 'Saved; the proof is still being recorded'}</span>
+            </dd>
+          </div>
+          <div className="iso-idrow">
+            <dt>{bundle.kindName === 'peer_transfer' ? 'Reference commitment' : bundle.kindName === 'receivable' ? 'Request commitment' : bundle.kindName === 'treasury' ? 'Approved order (sha256)' : 'Invoice commitment'}</dt>
+            <dd>
+              <span className="iso-idrow__value iso-mono iso-receipt__hash">
+                {bundle.kindName === 'peer_transfer' ? bundle.reference.commitmentHex : bundle.kindName === 'receivable' ? bundle.request.commitmentHex : bundle.kindName === 'treasury' ? bundle.approval.messageSha256 : bundle.invoice.commitmentHex}
+              </span>
+            </dd>
+          </div>
+          <div className="iso-idrow">
+            <dt>Stored copy</dt>
+            <dd>
+              <span className="iso-idrow__value iso-mono">{shortKey(receipt.stored.blobId, 10)}</span>
+              <span className="iso-idrow__note">
+                {receipt.stored.mode === 'memory' ? 'offline store' : 'Walrus'}, {receipt.stored.sizeBytes} bytes, sealed
+              </span>
+            </dd>
+          </div>
         </dl>
-        <label className="sx-toggle">
+        <label className="iso-receipt__tamper">
           <input
             type="checkbox"
             checked={tamper}
@@ -398,39 +394,38 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           Tamper with a field (demo)
         </label>
         {tamper ? (
-          <p className="sx-small">
+          <p className="iso-small">
             {receipt.bundle.kindName === 'treasury' ? (
               <>Changed who approved it in this browser&rsquo;s copy to &ldquo;{receipt.bundle.approval.who} (edited)&rdquo;.</>
             ) : receipt.bundle.kindName !== 'corridor_payout' ? (
               <>Changed who was paid in this browser&rsquo;s copy to &ldquo;{receipt.bundle.payee.name} (edited)&rdquo;.</>
             ) : (
               <>
-                Changed the bank reference in this browser&rsquo;s copy from <span className="sx-mono">{receipt.bundle.bank.reference}</span> to{' '}
-                <span className="sx-mono">{TAMPERED_REFERENCE}</span>.
+                Changed the bank reference in this browser&rsquo;s copy from <span className="iso-mono">{receipt.bundle.bank.reference}</span> to <span className="iso-mono">{TAMPERED_REFERENCE}</span>.
               </>
             )}
           </p>
         ) : null}
         <div>
-          <button type="button" className="sx-btn" onClick={verify} disabled={checking}>
+          <button type="button" className="iso-btn iso-btn--primary" onClick={verify} disabled={checking}>
             {checking ? 'Checking…' : 'Verify'}
           </button>
         </div>
         {steps ? (
-          <div aria-live="polite" className="sx-stack">
-            <div className={`sx-notice ${failed || !verdict?.ok ? 'sx-notice-error' : 'sx-notice-ok'}`}>
-              <h3>{failed || !verdict?.ok ? 'Does not verify. This record differs from the recorded proof or the stored copy.' : 'Verified. This record matches the recorded proof and the stored copy.'}</h3>
+          <div aria-live="polite" className="iso-stack">
+            <div className={`iso-note ${failed || !verdict?.ok ? 'iso-note--danger' : 'iso-note--ok'}`}>
+              <h3 className="iso-receipt__verdict">{failed || !verdict?.ok ? 'Does not verify. This record differs from the recorded proof or the stored copy.' : 'Verified. This record matches the recorded proof and the stored copy.'}</h3>
             </div>
-            <ol className="sx-verify">
+            <ol className="iso-receipt__checks">
               {steps.map((st) => (
-                <li key={st.key}>
-                  <span aria-hidden="true" className={`sx-check-mark sx-check-${st.state}`}>
-                    {st.state === 'pass' ? '✓' : st.state === 'fail' ? '✕' : '–'}
+                <li key={st.key} data-state={st.state}>
+                  <span aria-hidden="true" className="iso-receipt__mark">
+                    {st.state === 'pass' ? <Check size={14} strokeWidth={3} /> : st.state === 'fail' ? <X size={14} strokeWidth={3} /> : <Minus size={14} strokeWidth={3} />}
                   </span>
                   <span>
                     <strong>{st.title}</strong>
-                    <span className="sx-visually-hidden">{st.state === 'pass' ? ': passed' : st.state === 'fail' ? ': failed' : ': not run'}</span>
-                    <span className="sx-small sx-muted" style={{ display: 'block', overflowWrap: 'anywhere' }}>
+                    <span className="iso-sr">{st.state === 'pass' ? ': passed' : st.state === 'fail' ? ': failed' : ': not run'}</span>
+                    <span className="iso-receipt__detail">
                       {st.state === 'skip' ? 'Not run. ' : null}
                       {st.detail}
                     </span>
@@ -441,6 +436,16 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           </div>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+/** One line of the receipt: a label, and its value (in figures or in mono where it is a reference). */
+function Row({ label, children, mono = false, num = false }: { label: string; children: React.ReactNode; mono?: boolean; num?: boolean }) {
+  return (
+    <div className="iso-receipt__row">
+      <dt>{label}</dt>
+      <dd className={mono ? 'iso-mono' : num ? 'iso-num' : undefined}>{children}</dd>
     </div>
   );
 }

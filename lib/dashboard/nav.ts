@@ -44,7 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Control',
     items: [
-      { label: 'Rules', href: '/dashboard/settings/policy', icon: 'rules' },
       { label: 'Zeke', href: '/dashboard/zeke', icon: 'zeke', badge: 'ai' },
     ],
   },
@@ -80,6 +79,31 @@ export function badgeFor(kind: NavBadgeKind | undefined, counts: NavCounts | nul
 export function isActive(href: string, pathname: string): boolean {
   if (href === '/dashboard') return pathname === '/dashboard';
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Pages outside the sidebar groups (the footer links and the pages they lead to), for the header. */
+const OTHER_PAGES: { href: string; group: string | null; label: string }[] = [
+  { href: '/dashboard/settings/policy', group: 'Settings', label: 'Rules' },
+  { href: '/dashboard/settings/devices', group: 'Settings', label: 'Devices' },
+  { href: '/dashboard/settings/recovery', group: 'Settings', label: 'Recovery' },
+  { href: '/dashboard/settings/account', group: 'Settings', label: 'Account details' },
+  { href: '/dashboard/settings', group: null, label: 'Settings' },
+  { href: '/dashboard/customer-service', group: null, label: 'Support' },
+  { href: '/dashboard/profile', group: null, label: 'Your profile' },
+  { href: '/dashboard/setup', group: null, label: 'Account setup' },
+  { href: '/dashboard/receipts', group: 'Money', label: 'Receipt' },
+];
+
+/**
+ * Where a page sits, for the header: its sidebar group and its own name ("Money", "Balance"). Overview
+ * has no group. A page the sidebar doesn't list falls back to "Dashboard".
+ */
+export function locationFor(pathname: string): { group: string | null; label: string } {
+  for (const g of NAV_GROUPS) {
+    for (const item of g.items) if (isActive(item.href, pathname)) return { group: g.title, label: item.label };
+  }
+  for (const p of OTHER_PAGES) if (pathname === p.href || pathname.startsWith(`${p.href}/`)) return { group: p.group, label: p.label };
+  return { group: null, label: 'Dashboard' };
 }
 
 export interface SetupStepLite {

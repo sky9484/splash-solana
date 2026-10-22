@@ -209,6 +209,8 @@ function Composer({ company, hasAccount, onMade }: { company: string; hasAccount
   const setLine = (key: number, patch: Partial<LineDraft>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   async function make(send: boolean) {
+    // One at a time: Send and Save draft together made two requests (review finding, 16 Oct).
+    if (busy) return;
     setBusy(send ? 'send' : 'draft');
     setProblem(null);
     try {
@@ -323,10 +325,10 @@ function Composer({ company, hasAccount, onMade }: { company: string; hasAccount
         ) : null}
         <div className="iso-stack" style={{ gap: 8 }}>
           <div className="iso-row">
-            <IsoButton variant="primary" size="lg" busy={busy === 'send'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(true)}>
+            <IsoButton variant="primary" size="lg" busy={busy === 'send'} disabled={Boolean(reason) || (busy !== null && busy !== 'send')} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(true)}>
               {busy === 'send' ? 'Sending…' : 'Send request'}
             </IsoButton>
-            <IsoButton variant="quiet" busy={busy === 'draft'} disabled={Boolean(reason)} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(false)}>
+            <IsoButton variant="quiet" busy={busy === 'draft'} disabled={Boolean(reason) || (busy !== null && busy !== 'draft')} aria-describedby={reason ? 'gp-why' : undefined} onClick={() => void make(false)}>
               Save draft
             </IsoButton>
           </div>
@@ -488,6 +490,7 @@ function RequestSheet({ request, onClose, onChanged }: { request: Row | null; on
   if (!r) return null;
 
   async function act(action: 'remind' | 'send' | 'cancel') {
+    if (busy) return;
     setBusy(action);
     setProblem(null);
     setNote(null);
@@ -518,12 +521,12 @@ function RequestSheet({ request, onClose, onChanged }: { request: Row | null; on
       footer={
         <>
           {r.status.key === 'draft' ? (
-            <IsoButton variant="primary" busy={busy === 'send'} onClick={() => void act('send')}>
+            <IsoButton variant="primary" busy={busy === 'send'} disabled={busy !== null && busy !== 'send'} onClick={() => void act('send')}>
               Send request
             </IsoButton>
           ) : null}
           {sent ? (
-            <IsoButton variant="primary" busy={busy === 'remind'} onClick={() => void act('remind')}>
+            <IsoButton variant="primary" busy={busy === 'remind'} disabled={busy !== null && busy !== 'remind'} onClick={() => void act('remind')}>
               Remind {r.payer.name}
             </IsoButton>
           ) : null}
@@ -608,7 +611,7 @@ function RequestSheet({ request, onClose, onChanged }: { request: Row | null; on
         confirmCancel ? (
           <div className="iso-row">
             <span className="iso-small">Cancel this request? {r.payer.kind === 'external' ? 'Its link stops working.' : 'It leaves their inbox.'}</span>
-            <IsoButton variant="quiet" size="sm" busy={busy === 'cancel'} onClick={() => void act('cancel')}>
+            <IsoButton variant="quiet" size="sm" busy={busy === 'cancel'} disabled={busy !== null && busy !== 'cancel'} onClick={() => void act('cancel')}>
               Cancel request
             </IsoButton>
             <IsoButton variant="link" size="sm" onClick={() => setConfirmCancel(false)}>

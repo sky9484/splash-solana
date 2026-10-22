@@ -27,7 +27,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 import bs58 from 'bs58';
 
-import { explorerAddressUrl, explorerTxUrl, solscanAccount, solscanTx, usdcMint } from '../solana/config.ts';
+import { explorerAddressUrl, explorerTxUrl, SOLANA_PROGRAMS, solscanAccount, solscanTx, usdcMint } from '../solana/config.ts';
 import { buildDepositForBurnInstruction } from '../solana/cctp-v2-solana.ts';
 import { defaultSponsorPolicy, utcDay, type SponsorPolicy } from '../solana/kora.ts';
 import { cappedMicroLamports, computeBudgetInstructions, DEFAULT_UNIT_LIMITS, unitLimitFromSimulation } from '../solana/compute-budget.ts';
@@ -1531,6 +1531,12 @@ export async function prepareApproval(paymentId: string, input: { signer?: strin
   const org = getOrg(p.orgId);
   const vault = requireVault(org);
   if (!p.selectedQuoteId) throw new ServiceError('wrong_state', 'Choose a route that passes your rules first.', 409);
+  // A request its sender cancelled is not paid, even by a payment quoted before the cancel (review
+  // finding, 16 Oct): payBill refuses a new one, and this refuses the approval of an old one.
+  const billRequest = store().invoices.get(p.invoiceId)?.request;
+  if (billRequest?.cancelledAt && (p.state === 'checked' || p.state === 'proposed')) {
+    throw new ServiceError('wrong_state', `${billRequest.requesterName} cancelled this request. Nothing was sent.`, 409);
+  }
   if (!['checked', 'proposed', 'approved', 'execute_failed'].includes(p.state)) {
     throw new ServiceError('wrong_state', p.state === 'rejected_by_policy' || p.state === 'quote_expired' ? 'Choose a route that passes your rules first.' : `This payment is ${STATE_LABEL[p.state].toLowerCase()}; there is nothing to approve.`, 409);
   }
@@ -2301,6 +2307,23 @@ export function shareText(part: bigint, whole: bigint): string {
   return `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, '0')}%`;
 }
 
+/**
+ * The approval card with its planned move from the reserve as it stands now: what the Payments account
+ * is still short of this payment. The plan is made when the route is chosen; once that move has landed
+ * (or the account was topped up some other way), a retry or a reload must not ask for it again.
+ */
+async function liveApproval(p: PaymentRecord) {
+  const a = p.approval;
+  const planned = a?.reserveMoveMinor ?? 0n;
+  if (!a || planned <= 0n || p.state !== 'checked' || !p.selectedQuoteId) return a;
+  const q = findQuote(p, p.selectedQuoteId);
+  const vault = getOrg(p.orgId).vault;
+  if (!q || !vault) return a;
+  const short = q.source.amountMinor - (await runtime().chain.getUsdcBalance(vault.vaultPda));
+  const still = short <= 0n ? 0n : short < planned ? short : planned;
+  return still === planned ? a : { ...a, reserveMoveMinor: still };
+}
+
 export async function paymentView(paymentId: string) {
   const p = await getPayment(paymentId);
   const inv = getInvoice(p.orgId, p.invoiceId);
@@ -2392,7 +2415,7 @@ export async function paymentView(paymentId: string) {
     allInTarget: shareText(ALL_IN_TARGET_BPS, 10_000n),
     zeke: { suggests: POLICY_LABEL[p.router.primary.policy], primary: p.router.primary.text, alternative: p.router.alternative?.text ?? null, checks: checker ? { summary: checker.summary, blocked: checker.blocked, lines: checker.lines } : null },
     selectedQuoteId: p.selectedQuoteId,
-    approval: p.approval,
+    approval: await liveApproval(p),
     approvals: approvalStatus(p, getOrg(p.orgId)),
     rehearsal: p.rehearsal,
     timeline: p.timeline,
@@ -2546,7 +2569,26 @@ function treasuryReceipt(e: EvidenceRecord) {
   };
 }
 
+/**
+ * The on-chain programs a payment's transactions call, for a receipt's Technical details: each opens
+ * on Solscan, even in test mode (the programs exist on the network; only the test transactions don't).
+ */
+const RECEIPT_PROGRAMS: Array<{ label: string; id: keyof typeof SOLANA_PROGRAMS }> = [
+  { label: 'Squads multisig (v4): holds your accounts and runs the approval', id: 'squadsV4' },
+  { label: 'SPL Token: moves the USDC', id: 'token' },
+  { label: 'SPL Memo: carries the payment reference', id: 'memo' },
+  { label: 'Associated Token Account: the USDC account of each wallet', id: 'associatedToken' },
+];
+export function receiptPrograms() {
+  const cluster = runtime().env.cluster;
+  return RECEIPT_PROGRAMS.map((p) => ({ label: p.label, address: SOLANA_PROGRAMS[p.id], solscanUrl: solscanAccount(SOLANA_PROGRAMS[p.id], cluster), explorerUrl: explorerAddressUrl(SOLANA_PROGRAMS[p.id], cluster) }));
+}
+
 export async function receiptView(receiptId: string) {
+  return { ...(await receiptViewOf(receiptId)), programs: receiptPrograms() };
+}
+
+async function receiptViewOf(receiptId: string) {
   const e = getEvidence(receiptId);
   if (e.bundle.kindName === 'receivable') return receivableReceipt(e);
   if (e.bundle.kindName === 'treasury') return treasuryReceipt(e);

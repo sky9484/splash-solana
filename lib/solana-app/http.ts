@@ -2,6 +2,7 @@
  * Route-handler helpers for app/api/solana/**: zod-validated JSON in,
  * bigint-safe JSON out, and errors in the product's voice.
  */
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { scrubText } from '../server/log-scrub.ts';
@@ -33,10 +34,12 @@ export async function handle(fn: () => Promise<unknown> | unknown, status = 200)
     if (e instanceof ServiceError) {
       return jsonResponse({ error: { code: e.code, message: e.message, ...(e.detail ? { detail: e.detail } : {}) } }, { status: e.status });
     }
-    // Scrubbed: an unexpected error must not carry a bank number to the browser (prompt 10 §S.1.6).
-    const message = scrubText(e instanceof Error ? e.message : String(e));
-    console.error('[api/solana]', e);
-    return jsonResponse({ error: { code: 'server_error', message: `Something went wrong on the server: ${message}` } }, { status: 500 });
+    // The browser gets a fixed sentence and a reference; the detail (database, KMS or RPC text, which can
+    // name tables, hosts or keys) stays in the server log under that reference (review finding, 16 Oct).
+    // Scrubbed even there: an unexpected error must not carry a bank number (prompt 10 §S.1.6).
+    const ref = `ERR-${randomUUID().slice(0, 8).toUpperCase()}`;
+    console.error(`[api/solana] ${ref}`, scrubText(e instanceof Error ? (e.stack ?? e.message) : String(e)));
+    return jsonResponse({ error: { code: 'server_error', message: `Something went wrong on the server. Try again; if it keeps happening, tell support reference ${ref}.` } }, { status: 500 });
   }
 }
 

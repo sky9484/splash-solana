@@ -3,7 +3,7 @@ import { after } from 'next/server';
 import { withCompany } from '@/lib/solana-app/company';
 import { paymentFor, readBody, schemas } from '@/lib/solana-app/http';
 import { deliverPartnerEvents, noteProblem, paymentView, resumePayment, submitApproval } from '@/lib/solana-app/service';
-import { companyRoute, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates, requireReadyToApprove } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return companyRoute(request, async (ctx) => {
+    requireCanAct(ctx);
     const { id } = await params;
     const body = await readBody(request, schemas.approve);
     requireReadyToApprove(ctx);

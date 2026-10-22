@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return companyRoute(request, async (ctx) => {
     const { id } = await params;
-    const actor = { orgId: ctx.orgId, userId: ctx.userId, isOwner: ctx.isOwner, role: ctx.session.userRole, deviceKey: ctx.deviceKey };
+    const actor = { orgId: ctx.orgId, userId: ctx.userId, isOwner: ctx.isOwner, role: ctx.role, deviceKey: ctx.deviceKey };
     // Every attempt is logged, a malformed one too (decision 15).
     const body = await readBody(request, schemas.reveal).catch(async (e) => {
       await logRefusedReveal(actor, id, null, 'malformed request');

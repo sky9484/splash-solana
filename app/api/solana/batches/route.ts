@@ -2,7 +2,7 @@ import { parseSupplierRows, SAMPLE_BATCH_CSV } from '@/lib/solana-app/batch-rows
 import { batchView, createBatch, listBatches } from '@/lib/solana-app/batch-service';
 import { ServiceError } from '@/lib/solana-app/errors';
 import { readBody, schemas } from '@/lib/solana-app/http';
-import { companyRoute, requireMoneyGates } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   return companyRoute(
     request,
     async (ctx) => {
+      requireCanAct(ctx);
       const body = await readBody(request, schemas.batchCreate);
       await requireMoneyGates(ctx);
       const { rows, errors } = parseSupplierRows(body.sample ? SAMPLE_BATCH_CSV : body.csv!);

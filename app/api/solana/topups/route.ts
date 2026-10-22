@@ -2,7 +2,7 @@ import { ServiceError } from '@/lib/solana-app/errors';
 import { fundingView, startTopUp, topUpOptions } from '@/lib/solana-app/funding-service';
 import type { FundingSourceId } from '@/lib/solana-app/funding-router';
 import { readBody, schemas } from '@/lib/solana-app/http';
-import { companyRoute, requireMoneyGates } from '@/lib/server/solana-company';
+import { companyRoute, requireCanAct, requireMoneyGates } from '@/lib/server/solana-company';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +21,7 @@ export async function POST(request: Request) {
   return companyRoute(
     request,
     async (ctx) => {
+      requireCanAct(ctx);
       const body = await readBody(request, schemas.topUp);
       await requireMoneyGates(ctx);
       const f = await startTopUp(ctx.orgId, { ...body, source: body.source as FundingSourceId, amountMinor: BigInt(body.amountMinor), by: ctx.personName });
