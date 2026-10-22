@@ -1,0 +1,88 @@
+// Prompt 12 §2.12 (Sky's decision 15: "no repeated images incl landing & dashboard"): a raster image is
+// used by at most one of three surfaces, the landing, the sign-in pages and the dashboard. Repeats
+// within one surface are fine (D3: Reset password reuses Forgot's image, Verify email reuses Sign up's).
+// Code only: comments are stripped, so a note may name an image it doesn't show.
+import assert from 'node:assert/strict';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import test from 'node:test';
+
+const SURFACES = {
+  landing: ['components/IsometricLanding.tsx', 'components/landing'],
+  auth: ['components/auth', 'app/login/page.tsx', 'app/signup/page.tsx', 'app/forgot-password/page.tsx', 'app/reset-password/page.tsx', 'app/verify-email/page.tsx'],
+  dashboard: ['app/dashboard', 'components/solana', 'components/dashboard'],
+};
+
+/** Images every surface may share, and why. */
+const ALLOWED = [
+  { match: (path) => path === '/splash-main-icon.png', why: 'the brand mark: every surface carries the logo' },
+  { match: (path) => /^\/cinematic\/token-[a-z0-9-]+\.png$/.test(path), why: 'the currency token coins: the same money wherever it shows' },
+  { match: (path) => path === '/cinematic/agent-bot-cut.png', why: 'Zeke’s avatar, which belongs to the dashboard' },
+];
+
+/**
+ * TEMPORARY, until Phase 3 (§3.1) rebuilds the sign-in shell with its own images: the auth pages still
+ * show two pictures the landing now uses (loop 02 and platform 02). Phase 3 removes them from these
+ * files and deletes this list; the test below fails if an entry is no longer true, so it can't go stale.
+ */
+const PHASE_3_PENDING = [
+  { file: 'components/auth/LoginForm.tsx', path: '/cinematic/settlement-machine.png' },
+  { file: 'app/forgot-password/page.tsx', path: '/cinematic/treasury-island.png' },
+  { file: 'app/reset-password/page.tsx', path: '/cinematic/treasury-island.png' },
+  { file: 'app/verify-email/page.tsx', path: '/cinematic/treasury-island.png' },
+];
+
+const RASTER = /['"`](\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|webp|avif|gif))['"`]/g;
+const CODE = new Set(['.ts', '.tsx', '.mjs']);
+
+function filesOf(entry) {
+  if (!existsSync(entry)) throw new Error(`${entry} is on the surface list but doesn't exist`);
+  if (!statSync(entry).isDirectory()) return [entry];
+  return readdirSync(entry).flatMap((name) => filesOf(join(entry, name).replaceAll('\\', '/')));
+}
+
+function strip(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+}
+
+/** path → { surface → [files] } */
+function uses() {
+  const out = new Map();
+  for (const [surface, entries] of Object.entries(SURFACES)) {
+    for (const file of entries.flatMap(filesOf).filter((f) => CODE.has(extname(f)))) {
+      for (const [, path] of strip(readFileSync(file, 'utf8')).matchAll(RASTER)) {
+        if (!out.has(path)) out.set(path, {});
+        const where = out.get(path);
+        (where[surface] ??= []).includes(file) || where[surface].push(file);
+      }
+    }
+  }
+  return out;
+}
+
+test('no raster image appears on two of the landing, the sign-in pages and the dashboard', () => {
+  const pending = (path, file) => PHASE_3_PENDING.some((p) => p.path === path && p.file === file);
+  const repeats = [];
+  for (const [path, where] of uses()) {
+    if (ALLOWED.some((a) => a.match(path))) continue;
+    // A Phase 3 pending use doesn't count; anything else on the same surface still does.
+    const surfaces = Object.entries(where).filter(([, files]) => files.some((f) => !pending(path, f)));
+    if (surfaces.length > 1) repeats.push(`${path}: ${surfaces.map(([s, files]) => `${s} (${files.join(', ')})`).join(' and ')}`);
+  }
+  assert.deepEqual(repeats, [], `\n  ${repeats.join('\n  ')}\n`);
+});
+
+test('the Phase 3 pending list is still true, so it can only shrink', () => {
+  for (const { file, path } of PHASE_3_PENDING) {
+    assert.ok(strip(readFileSync(file, 'utf8')).includes(`"${path}"`) || strip(readFileSync(file, 'utf8')).includes(`'${path}'`), `${file} no longer shows ${path}: take it off PHASE_3_PENDING`);
+  }
+});
+
+test('the check sees the landing’s, the sign-in pages’ and the dashboard’s images', () => {
+  const all = uses();
+  const on = (surface) => [...all].filter(([, where]) => where[surface]).map(([path]) => path);
+  assert.ok(on('landing').includes('/isometric/gen/hero-01-zeke-reads-invoice.webp'), 'the landing hero art is read');
+  assert.ok(on('landing').includes('/cinematic/treasury-island.png'), 'loop 02 (D1) is read');
+  assert.ok(on('auth').length > 0, 'the sign-in pages are read');
+  assert.ok(on('dashboard').includes('/cinematic/agent-bot-cut.png'), 'the dashboard is read');
+});

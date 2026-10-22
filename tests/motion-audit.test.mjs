@@ -31,6 +31,13 @@ const ALLOWED = [
   { selector: '.iso .iso-livedot', why: 'Treasury’s live dot' },
 ];
 
+/** Prompt 12 §0.6 and Phase 7: the landing (styles/landing-p12.css) may loop these two by themselves, nothing else. */
+const LANDING_CSS = readFileSync('styles/landing-p12.css', 'utf8');
+const LANDING_ALLOWED = [
+  { selector: '.lp-token', why: 'the USD and PHP tokens bobbing over the district on the hero’s first beat (§2.2)' },
+  { selector: '.lp-bob', why: 'the Routes bridge, a gentle 6 s bob (§2.8)' },
+];
+
 function files(dir, exts) {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name).replaceAll('\\', '/');
@@ -45,6 +52,19 @@ test('nothing in the Iso styles loops on its own but the allowed movements', () 
   assert.deepEqual(unexpected, [], `loops not on the list:\n  ${unexpected.join('\n  ')}`);
   // The list can't grow stale either.
   for (const a of ALLOWED) assert.ok(looping.includes(a.selector), `${a.selector} (${a.why}) no longer loops; take it off the list`);
+});
+
+test('nothing on the landing loops on its own but the hero tokens and the bridge, and both stop with reduced motion', () => {
+  const looping = loopingRules(LANDING_CSS).map(([s]) => s);
+  const unexpected = looping.filter((s) => !LANDING_ALLOWED.some((a) => a.selector === s));
+  assert.deepEqual(unexpected, [], `loops not on the list:\n  ${unexpected.join('\n  ')}`);
+  for (const a of LANDING_ALLOWED) assert.ok(looping.includes(a.selector), `${a.selector} (${a.why}) no longer loops; take it off the list`);
+  const body = LANDING_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  const reduced = body.slice(body.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert.ok(reduced.length > 40, 'the landing has a reduced-motion block');
+  assert.match(reduced, /\.lp-token,[\s\S]*?\.lp-bob,[\s\S]*?\{ animation: none; \}/, 'the tokens and the bridge stop');
+  // The pinned story stops pinning: its beats stack as plain sections.
+  assert.match(reduced, /\.lp-story__pin \{[^}]*position: static;/);
 });
 
 test('the bob is the Invoices chooser’s only', () => {

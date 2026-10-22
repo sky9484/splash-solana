@@ -4,6 +4,7 @@
 @import "../styles/tokens.css";
 @import "../styles/sp-page.css";
 @import "../styles/cinematic.css";
+@import "../styles/landing-p12.css";
 @import "../styles/mobile-landing.css";
 @import "../styles/landing.css";
 /* Look 9 (prompt 10 §2): the redesigned dashboard's parts. Every rule is scoped to `.iso`. */
@@ -5838,11 +5839,6 @@ th.money { text-align: right; }
 }
 
 /* Continued fintech refinement */
-.iso-landing {
-  display: flex;
-  flex-direction: column;
-}
-
 /* ─── #trust — Trust · Four gates (dark control-plane fold) ─────────────
    Mirrors the #how-it-works dark grammar (ink-teal gradient, mint kicker,
    gold display span) so the two dark folds read as the same "inside the
@@ -5998,27 +5994,8 @@ th.money { text-align: right; }
   .iso-trust-card { transition: none; }
 }
 
-/* CANONICAL section order (founder-approved 2026-07-09; #trust added
-   2026-07-10) — the single source of truth for the landing flex order. The
-   JSX mirrors this sequence for DOM/reading order; .cin-section and
-   .iso-marquee share order 1 in cinematic.css (hero then marquee by DOM
-   order). Do not add a second order map elsewhere. */
-.iso-header { order: 0; }
-.iso-hero { order: 1; }
-.iso-loops { order: 2; }
-.iso-partner-rail { order: 3; }
-.iso-flow { order: 4; }
-.iso-corridors { order: 5; }
-.iso-comparison { order: 6; }
-.iso-trust { order: 7; } /* #trust — dark control-plane fold after the table's claims */
-.iso-operating { order: 8; } /* #platform (merged operating-layer + operations) */
-.iso-supply { order: 9; }
-.iso-copilot { order: 10; }
-.iso-final { order: 11; }
-.iso-footer { order: 12; }
-.iso-back-to-top { order: 99; }
-/* Removed 2026-07-10 (mainnet-ready pruning): marquee, #walrus, #readiness,
-   #operations tool grid + modal, and the fabricated client-proof section. */
+/* The landing's sections render in DOM order (prompt 12 §2.1, components/IsometricLanding.tsx);
+   the old flex order map that placed the v1 sections is gone with them. */
 
 .iso-stage-shadow {
   transform: translateX(16%) translateY(18%) scale(1.3) rotate(-7deg);
