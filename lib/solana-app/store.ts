@@ -81,11 +81,23 @@ export function ensureSupplierIds(org: { suppliers: Array<Omit<SupplierRecord, '
   return assigned;
 }
 
+/** Where the company is registered, from its onboarding profile (organizations.address_*). Country is ISO alpha-2. */
+export interface CompanyPlace {
+  city: string | null;
+  state: string | null;
+  country: string | null;
+}
+
 export interface OrgRecord {
   id: string;
   companyName: string;
   personName: string;
   createdAt: string;
+  /**
+   * The receipt's "Paid by" line and the default country of "Share with auditor" (prompt 12 §5.3, §5.4).
+   * Copied from the organization on each request; absent on companies not seen since it was added.
+   */
+  place?: CompanyPlace | null;
   /** 32 random bytes (hex). Per-invoice salts are HMAC(orgSalt, invoice) so one disclosure reveals no other. */
   saltHex: string;
   challenges: Record<string, PossessionChallenge & { role: 'device' | 'kit' }>;

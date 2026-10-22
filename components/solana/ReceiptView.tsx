@@ -2,16 +2,19 @@
 // iso-ui
 
 import Link from 'next/link';
-import { Check, Download, Minus, Printer, Share2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Check, CircleCheck, Download, FileJson, Minus, Printer, Share2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { TestModeBadge } from '@/components/iso';
+import { IsoButton, Tag, TestModeBadge } from '@/components/iso';
 
 import type { CorridorPayoutBundle } from '@/lib/solana-evidence/bundle';
 import type { MerkleProof } from '@/lib/solana-evidence/merkle';
 import { anchoredRootFromMemo, verifyBundle, type VerifyResult } from '@/lib/solana-evidence/verify';
 
 import { api, copyText, dateShort, php, shareReceiptLink, shortKey, timeShort, usd } from './client';
+import { MytDate } from './receipt/Myt';
+import { ReceiptDocument } from './receipt/ReceiptDocument';
+import { ShareSheet } from './receipt/ShareSheet';
 import { SolscanTrace } from './SolscanTrace';
 import type { ReceiptDTO } from './types';
 
@@ -60,13 +63,64 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
   const [verdict, setVerdict] = useState<VerifyResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [shared, setShared] = useState<'idle' | 'copied' | 'failed'>('idle');
+  // The auditor's copy: when its link stops opening (null: an older link with no expiry).
+  const [expiresAt, setExpiresAt] = useState<string | null | undefined>(undefined);
+  // The company's copy: its live auditor link, if any, for the QR code on the A4 page.
+  const [livePath, setLivePath] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [origin, setOrigin] = useState('');
+  const printed = useRef(false);
   const p = paths(source);
 
   useEffect(() => {
-    api<{ receipt: ReceiptDTO }>(p.read)
-      .then((r) => setReceipt(r.receipt))
+    api<{ receipt: ReceiptDTO; share?: { expiresAt: string | null } }>(p.read)
+      .then((r) => {
+        setReceipt(r.receipt);
+        if (r.share) setExpiresAt(r.share.expiresAt);
+      })
       .catch((e) => setError((e as Error).message));
   }, [p.read]);
+
+  const companyId = source.kind === 'company' ? source.id : null;
+  const readLive = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const r = await api<{ share: { path: string } | null }>(`/receipts/${companyId}/share`);
+      setLivePath(r.share?.path ?? null);
+    } catch {
+      setLivePath(null);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    // Where this page is served from, for the link the QR code and the share sheet show.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+    void readLive();
+  }, [readLive]);
+
+  const doc = receipt?.document ?? null;
+  const printDoc = useCallback(() => {
+    if (!doc) return;
+    // The saved PDF takes the page's title as its name.
+    const before = document.title;
+    const restore = () => {
+      document.title = before;
+      window.removeEventListener('afterprint', restore);
+    };
+    window.addEventListener('afterprint', restore);
+    document.title = `Splash receipt ${doc.number}`;
+    window.print();
+  }, [doc]);
+
+  useEffect(() => {
+    // Step 5's Download PDF opens this page with ?print=1: print once the document is here, then drop the flag.
+    if (!doc || printed.current || new URLSearchParams(window.location.search).get('print') !== '1') return;
+    printed.current = true;
+    window.history.replaceState(null, '', window.location.pathname);
+    const t = window.setTimeout(printDoc, 300);
+    return () => window.clearTimeout(t);
+  }, [doc, printDoc]);
 
   const bundle = useMemo(() => {
     if (!receipt) return null;
@@ -214,11 +268,67 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
         ? { who: [...new Set(bundle.approvals.filter((a) => a.action === 'approve').map((a) => a.who))].join(', '), key: bundle.approvals[0]?.keyPublic ?? null }
         : null;
 
+  const verified = Boolean(steps && !failed && verdict?.ok);
+  const shareUrl = source.kind === 'shared' ? (origin ? `${origin}/receipt/${source.token}` : null) : livePath && origin ? `${origin}${livePath}` : null;
+
   return (
     <div className="iso-receipt">
-      {showTitle ? <h1 className="iso-title">Receipt</h1> : null}
+      {showTitle && !doc ? <h1 className="iso-title">Receipt</h1> : null}
 
-      {/* ── The receipt: what moved, to whom, when, for how much, and who approved it ── */}
+      {doc ? (
+        <>
+          {/* ── Prompt 12 §5.4: the receipt as one A4 page, the same for the company, the auditor and the PDF ── */}
+          <div className="iso-r-actions iso-print-hide">
+            {source.kind === 'shared' ? (
+              <span className="iso-r-actions__tags">
+                <Tag tone="ok">Verify live</Tag>
+                <Tag tone="ink">Read-only</Tag>
+                {expiresAt === undefined ? null : expiresAt ? (
+                  <Tag tone="ink">
+                    Expires <MytDate at={expiresAt} />
+                  </Tag>
+                ) : (
+                  <Tag tone="ink">No expiry</Tag>
+                )}
+              </span>
+            ) : null}
+            <span className="iso-actions">
+              <IsoButton variant="primary" onClick={() => void verify()} busy={checking} disabledReason={recorded ? null : 'Opens once the proof is recorded.'}>
+                <CircleCheck size={16} aria-hidden="true" /> Verify receipt
+              </IsoButton>
+              {source.kind === 'company' ? (
+                <IsoButton variant="quiet" onClick={() => setSharing(true)} disabledReason={recorded ? null : 'Opens once the proof is recorded.'}>
+                  <Share2 size={16} aria-hidden="true" /> Share with auditor
+                </IsoButton>
+              ) : null}
+              <IsoButton variant="quiet" onClick={printDoc}>
+                <Download size={16} aria-hidden="true" /> Download PDF
+              </IsoButton>
+              <a className="iso-btn iso-btn--link" href={p.pack} download>
+                <FileJson size={16} aria-hidden="true" /> Evidence file
+              </a>
+            </span>
+          </div>
+          <ReceiptDocument doc={doc} verified={verified} shareUrl={shareUrl} heading={source.kind === 'shared' ? 'h1' : 'h2'} />
+          {source.kind === 'company' ? (
+            <ShareSheet
+              open={sharing}
+              onClose={() => {
+                setSharing(false);
+                void readLive();
+              }}
+              receiptId={source.id}
+              number={doc.number}
+              onPdf={() => {
+                setSharing(false);
+                printDoc();
+              }}
+              packHref={p.pack}
+            />
+          ) : null}
+        </>
+      ) : (
+      /* ── The receipt: what moved, to whom, when, for how much, and who approved it ── */
       <section className="iso-surface iso-receipt__main" aria-labelledby="rcpt-amount">
         <div className="iso-receipt__head">
           <span className="iso-receipt__status">
@@ -337,7 +447,9 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           </p>
         ) : null}
       </section>
+      )}
 
+      <div className={doc ? 'iso-receipt iso-print-hide' : 'iso-receipt'}>
       <SolscanTrace
         auditor={source.kind === 'shared'}
         memo={receipt.trace.memo}
@@ -436,6 +548,7 @@ export function ReceiptView({ source, showTitle = false }: { source: ReceiptSour
           </div>
         ) : null}
       </section>
+      </div>
     </div>
   );
 }

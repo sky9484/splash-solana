@@ -9,6 +9,7 @@ import { stationLabel, stationOf, STATIONS, type StationId } from '@/lib/solana-
 
 import { dateShort, payHref, php, timeShort, usd } from './client';
 import { DiscardButton } from './DiscardButton';
+import { StatementPicker } from './receipt/StatementPicker';
 import { StatusPill } from './StatusPill';
 import type { CompanyDTO } from './types';
 import { useCompany } from './useCompany';
@@ -77,6 +78,7 @@ export function History() {
 
   return (
     <div className="sx-stack-lg">
+      <StatementPicker createdAt={state.company.org.createdAt} />
       {station ? (
         <p className="sx-notice" role="status">
           Showing payments at <strong>{stationLabel(station)}</strong>.{' '}

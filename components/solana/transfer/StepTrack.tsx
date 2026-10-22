@@ -2,8 +2,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Fragment, useEffect, useReducer, useRef, useState } from 'react';
-import { Check, CircleCheck, Download, FileCheck2, Share2 } from 'lucide-react';
+import { Check, CircleCheck, Copy, Download, FileCheck2, Share2 } from 'lucide-react';
 import clsx from 'clsx';
 
 import { IsoButton, IsoSurface, Tag } from '@/components/iso';
@@ -13,7 +14,9 @@ import type { CorridorPayoutBundle } from '@/lib/solana-evidence/bundle';
 import type { MerkleProof } from '@/lib/solana-evidence/merkle';
 import { anchoredRootFromMemo, verifyBundle } from '@/lib/solana-evidence/verify';
 
-import { api, copyText, php, shareReceiptLink, usd } from '../client';
+import { api, copyText, php, usd } from '../client';
+import { MytDate, MytDateTime, MytTime } from '../receipt/Myt';
+import { ShareSheet } from '../receipt/ShareSheet';
 import type { PaymentDTO, ReceiptDTO } from '../types';
 import { notifyCompanyChanged } from '../useCompany';
 import { TxGrid } from './SoFar';
@@ -196,10 +199,16 @@ function ReceiptPending({ peer, paid }: { peer: boolean; paid: boolean }) {
   );
 }
 
-/** The receipt: Verify and Share only once the proof is recorded (§5.8). */
+/**
+ * The receipt as a document (prompt 12 §5.2, preview tab 4): the number, who and when, three amounts,
+ * the references in two columns, then one row of actions. Verify and Share open once the proof is
+ * recorded (§5.8 of prompt 10). Download PDF opens the A4 receipt and prints it.
+ */
 function Receipt({ payment, payee, receipt, problem, recorded }: { payment: PaymentDTO; payee: PayeeLabel; receipt: ReceiptDTO | null; problem: Problem | null; recorded: boolean }) {
+  const router = useRouter();
   const [verdict, setVerdict] = useState<null | 'ok' | 'bad'>(null);
-  const [shared, setShared] = useState<null | 'copied' | 'failed'>(null);
+  const [sharing, setSharing] = useState(false);
+  const [copied, setCopied] = useState<null | 'copied' | 'failed'>(null);
 
   function verify() {
     if (!receipt || receipt.anchor.status !== 'anchored') return;
@@ -211,88 +220,155 @@ function Receipt({ payment, payee, receipt, problem, recorded }: { payment: Paym
     setVerdict(result.ok ? 'ok' : 'bad');
   }
 
-  async function share() {
-    if (!payment.receiptId) return;
-    try {
-      setShared((await copyText(await shareReceiptLink(payment.receiptId))) ? 'copied' : 'failed');
-    } catch {
-      setShared('failed');
-    }
-  }
-
-  const s = receipt?.summary ?? null;
+  const doc = receipt?.document ?? null;
+  const pdf = () => (payment.receiptId ? router.push(`/dashboard/receipts/${payment.receiptId}?print=1`) : undefined);
   const peer = payment.kind === 'peer';
-  const rate = payment.cards.find((c) => c.quoteId === payment.selectedQuoteId)?.rate ?? null;
+  const fees = doc ? BigInt(doc.paid.feesMinor) : 0n;
   return (
-    <IsoSurface pad className="iso-stack iso-receipt" aria-labelledby="t5-receipt">
-      <div className="iso-row" style={{ justifyContent: 'space-between' }}>
-        <h2 id="t5-receipt" className="iso-h2">
-          Receipt
-        </h2>
-        <IsoButton variant="quiet" onClick={verify} disabledReason={recorded && receipt ? null : 'Opens once the proof is recorded.'}>
-          <CircleCheck size={16} aria-hidden="true" /> Verify receipt
-        </IsoButton>
+    <IsoSurface pad className="iso-stack iso-r5" aria-labelledby="t5-receipt">
+      <div className="iso-r5__top">
+        <div>
+          <h2 id="t5-receipt" className="iso-r5__label">
+            Receipt
+          </h2>
+          {doc ? (
+            <>
+              <p className="iso-r5__number iso-mono">{doc.number}</p>
+              <p className="iso-r5__who">
+                <span>{receipt?.companyName}</span>
+                <span>
+                  <MytDateTime at={doc.issuedAt} /> MYT
+                </span>
+              </p>
+            </>
+          ) : null}
+        </div>
+        {recorded ? (
+          <Tag tone="ok" tick>
+            Proof recorded
+          </Tag>
+        ) : (
+          <Tag tone="ink">Recording proof</Tag>
+        )}
       </div>
-      {!s ? (
+
+      {!doc ? (
         problem ? (
           <p className="iso-note iso-note--danger" role="alert">
             {problem.message}
           </p>
         ) : (
-          <div className="iso-skel" style={{ height: 120 }} aria-busy="true" aria-label="Loading the receipt" />
+          <div className="iso-skel" style={{ height: 160 }} aria-busy="true" aria-label="Loading the receipt" />
         )
       ) : (
-        <dl className="iso-dl iso-dl--rows iso-num iso-receipt__rows">
-          <div>
-            <dt>Invoice</dt>
-            <dd className="iso-mono">{s.invoiceNumber}</dd>
+        <>
+          <div className="iso-r5__amounts iso-num">
+            <div className="iso-r5__amount iso-r5__amount--cyan">
+              <span className="iso-r5__alabel">{peer ? 'They received' : 'Supplier received'}</span>
+              <strong>{doc.received.currency === 'PHP' ? php(doc.received.amountMinor) : usd(doc.received.amountMinor)}</strong>
+              <span className="iso-r5__asub">
+                {doc.received.rail ? (
+                  <>
+                    By {doc.received.rail}, ref <span className="iso-mono">{doc.received.bankReference}</span>
+                  </>
+                ) : (
+                  'Into their Splash account'
+                )}
+              </span>
+            </div>
+            <div className="iso-r5__amount">
+              <span className="iso-r5__alabel">You paid</span>
+              <strong>{usd(doc.paid.amountMinor)}</strong>
+              <span className="iso-r5__asub">{peer ? 'No conversion and no Splash fee' : `${usd(doc.paid.convertedMinor)} converted + ${usd(fees)} in fees`}</span>
+            </div>
+            <div className="iso-r5__amount">
+              <span className="iso-r5__alabel">Rate</span>
+              <strong>{doc.rate ? doc.rate.value : 'None'}</strong>
+              <span className="iso-r5__asub">
+                {doc.rate ? (
+                  <>
+                    PHP per US${doc.rate.test ? ', test rate' : ''}, locked <MytTime at={doc.rate.lockedAt} />
+                  </>
+                ) : (
+                  'No conversion'
+                )}
+              </span>
+            </div>
           </div>
-          <div>
-            <dt>Paid to</dt>
-            <dd>{s.supplierName}</dd>
-          </div>
-          <div>
-            <dt>{peer ? 'Into' : 'Bank'}</dt>
-            <dd>{peer ? 'Their Splash account' : `${s.bank} •••• ${s.accountLast4}`}</dd>
-          </div>
-          <div>
-            <dt>They received</dt>
-            <dd>
-              <strong>{peer ? usd(s.receiveUsdMinor ?? '0') : php(s.receivePhpMinor)}</strong>
-            </dd>
-          </div>
-          <div>
-            <dt>You paid</dt>
-            <dd>{usd(s.youPayUsdcMinor)}</dd>
-          </div>
-          {peer ? (
-            s.note ? (
-              <div>
-                <dt>Note</dt>
-                <dd>{s.note}</dd>
-              </div>
-            ) : null
-          ) : (
-            <div>
-              <dt>Rate</dt>
+
+          <dl className="iso-r5__rows">
+            <div className="iso-r5__row">
+              <dt>Paid to</dt>
               <dd>
-                {rate ?? '—'}
-                {payment.simulated ? ' (test rate)' : ''}
+                <span>{doc.paidTo.name}</span>
+                {peer ? (
+                  <span>A business on Splash</span>
+                ) : (
+                  <span>
+                    {doc.paidTo.bank} <span className="iso-mono">•••• {doc.paidTo.last4}</span>, {doc.paidTo.country}
+                  </span>
+                )}
+                {doc.paidTo.verifiedAt ? (
+                  <span>
+                    verified by call-back <MytDate at={doc.paidTo.verifiedAt} />
+                  </span>
+                ) : null}
               </dd>
             </div>
-          )}
-          <div>
-            <dt>Approved by</dt>
-            <dd>{payment.approvals.approvedBy.map((a) => a.name).join(' and ') || '—'}, on a device</dd>
-          </div>
-          {peer ? null : (
-            <div>
-              <dt>Bank reference</dt>
-              <dd className="iso-mono">{s.bankReference ?? '—'}</dd>
+            <div className="iso-r5__row">
+              <dt>{peer ? 'Reference' : 'Invoice'}</dt>
+              <dd className="iso-mono">{doc.refs[0]?.value}</dd>
             </div>
-          )}
-        </dl>
+            {doc.purpose ? (
+              <div className="iso-r5__row">
+                <dt>{peer ? 'Note' : 'Purpose'}</dt>
+                <dd>{doc.purpose}</dd>
+              </div>
+            ) : null}
+            {doc.route ? (
+              <div className="iso-r5__row">
+                <dt>Route</dt>
+                <dd>{doc.route}</dd>
+              </div>
+            ) : null}
+            {doc.approver ? (
+              <div className="iso-r5__row">
+                <dt>Approved by</dt>
+                <dd>
+                  <span>
+                    {doc.approver.name}, {doc.approver.role}
+                  </span>
+                  <span>approved on device {doc.approver.device}</span>
+                </dd>
+              </div>
+            ) : null}
+            {doc.received.bankReference ? (
+              <div className="iso-r5__row">
+                <dt>Bank reference</dt>
+                <dd className="iso-mono">{doc.received.bankReference}</dd>
+              </div>
+            ) : null}
+            <div className="iso-r5__row iso-r5__row--wide">
+              <dt>Splash payment id</dt>
+              <dd>
+                <span className="iso-r5__id">
+                  <span className="iso-mono">{payment.id}</span>
+                  <button
+                    type="button"
+                    className="iso-iconbtn"
+                    aria-label="Copy the Splash payment id"
+                    onClick={async () => setCopied((await copyText(payment.id)) ? 'copied' : 'failed')}
+                  >
+                    {copied === 'copied' ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                  </button>
+                </span>
+                {copied === 'failed' ? <span role="alert">Couldn’t copy. Select it and copy it.</span> : null}
+              </dd>
+            </div>
+          </dl>
+        </>
       )}
+
       <div className="iso-row iso-proofline">
         <FileCheck2 size={18} aria-hidden="true" />
         <span>
@@ -304,11 +380,14 @@ function Receipt({ payment, payee, receipt, problem, recorded }: { payment: Paym
           {verdict === 'ok' ? 'This receipt verifies. It matches the proof recorded for it.' : 'This record doesn’t match the proof recorded for it. Open the full receipt to see which check failed.'}
         </p>
       ) : null}
-      <div className="iso-actions">
-        <IsoButton variant="link" onClick={() => void share()} disabledReason={recorded ? null : 'Opens once the proof is recorded.'}>
-          <Share2 size={16} aria-hidden="true" /> {shared === 'copied' ? 'Auditor link copied' : 'Share with auditor'}
+      <div className="iso-actions iso-r5__actions">
+        <IsoButton variant="primary" onClick={verify} disabledReason={recorded && receipt ? null : 'Opens once the proof is recorded.'}>
+          <CircleCheck size={16} aria-hidden="true" /> Verify receipt
         </IsoButton>
-        <IsoButton variant="link" onClick={() => window.print()}>
+        <IsoButton variant="quiet" onClick={() => setSharing(true)} disabledReason={recorded && doc ? null : 'Opens once the proof is recorded.'}>
+          <Share2 size={16} aria-hidden="true" /> Share with auditor
+        </IsoButton>
+        <IsoButton variant="quiet" onClick={pdf} disabledReason={doc ? null : 'Opens once the receipt is ready.'}>
           <Download size={16} aria-hidden="true" /> Download PDF
         </IsoButton>
         {payment.receiptId ? (
@@ -317,12 +396,8 @@ function Receipt({ payment, payee, receipt, problem, recorded }: { payment: Paym
           </Link>
         ) : null}
       </div>
-      {shared === 'failed' ? (
-        <p className="iso-note iso-note--danger" role="alert">
-          The link couldn’t be copied. Open the full receipt to share it.
-        </p>
-      ) : null}
-      <TechnicalDetails payment={payment} bankReference={s?.bankReference ?? null} />
+      {doc && payment.receiptId ? <ShareSheet open={sharing} onClose={() => setSharing(false)} receiptId={payment.receiptId} number={doc.number} onPdf={pdf} packHref={`/api/solana/receipts/${payment.receiptId}/pack`} /> : null}
+      <TechnicalDetails payment={payment} bankReference={doc?.received.bankReference ?? null} />
       <span className="iso-sr">Paid to {payee.name}.</span>
     </IsoSurface>
   );

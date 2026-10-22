@@ -74,6 +74,7 @@ import { chainCallKey, DISCARDABLE_STATES, IllegalTransitionError, isCommitted, 
 import { StateConflictError, type ChainCall } from './payment-repo.ts';
 import { accountNumberFrom, bankCodeFor, maskedLines } from './invoice-document.ts';
 import { sealInvoiceNumber } from './invoice-number.ts';
+import { receiptDocument } from './receipt-document.ts';
 import { adoptInvoiceNumber, openForPayout, openInvoiceForPayout } from './payout-number.ts';
 import { runtime, splashKeys } from './runtime.ts';
 import {
@@ -81,6 +82,7 @@ import {
   store,
   type ApprovalCard,
   type BankVerification,
+  type CompanyPlace,
   type EvidenceRecord,
   type InvoiceRecord,
   type MoveRecord,
@@ -394,6 +396,8 @@ export interface AccountCompany {
   vault: (VaultInfo & { createdAt: string; signature: string; simulated: boolean; cluster: Cluster }) | null;
   /** This member's own device key (member_devices), or null before setup. */
   deviceKey: string | null;
+  /** Where the company is registered (organizations.address_*). Undefined leaves the stored one as it is. */
+  place?: CompanyPlace | null;
 }
 
 /**
@@ -414,6 +418,7 @@ export async function syncAccountCompany(input: AccountCompany): Promise<OrgReco
   }
   org.companyName = input.companyName;
   org.personName = input.personName;
+  if (input.place !== undefined) org.place = input.place;
   if (input.deviceKey && org.keys.device?.publicKey !== input.deviceKey) org.keys.device = { publicKey: input.deviceKey, provenAt: nowIso() };
   if (input.vault) {
     org.vault = input.vault;
@@ -432,25 +437,56 @@ export async function syncAccountCompany(input: AccountCompany): Promise<OrgReco
 
 /* ------------------------------------------------------------------ receipt share links */
 
+/** How long a new auditor link opens (prompt 12 D7, "Expires in 90 days"). */
+export const SHARE_TTL_MS = 90 * 86_400_000;
+
+/** A link still opens: nobody stopped sharing it, and it hasn't run out (links made before expiry existed never do). */
+function shareIsLive(sh: ShareRecord, now: Date): boolean {
+  return sh.revokedAt === null && (sh.expiresAt === undefined || Date.parse(sh.expiresAt) > now.getTime());
+}
+
 /**
  * A link a business hands its auditor: it opens this one receipt (the record, its verify steps, the
  * Solscan trace and the evidence pack) without signing in, and nothing else. One live link per
- * receipt; minting again returns it. The token is 128 random bits.
+ * receipt; minting again returns it, and a stopped or expired one is never handed out again. The
+ * token is 128 random bits; a new link opens for 90 days.
  */
 export function shareReceipt(orgId: string, receiptId: string, by: string, now = new Date()): ShareRecord {
   const e = getEvidence(receiptId);
   if (e.orgId !== orgId) throw new ServiceError('receipt_not_found', 'That receipt is not on the server for this company.', 404);
-  const s = store();
-  for (const sh of s.shares.values()) if (sh.receiptId === receiptId && sh.revokedAt === null) return sh;
-  const share: ShareRecord = { token: `shr_${randomHex(16)}`, receiptId, orgId, createdAt: nowIso(now), createdBy: by, revokedAt: null };
-  s.shares.set(share.token, share);
+  const live = liveShareOf(orgId, receiptId, now);
+  if (live) return live;
+  const share: ShareRecord = { token: `shr_${randomHex(16)}`, receiptId, orgId, createdAt: nowIso(now), createdBy: by, revokedAt: null, expiresAt: new Date(now.getTime() + SHARE_TTL_MS).toISOString() };
+  store().shares.set(share.token, share);
   return share;
 }
 
-/** The live share behind a token, or a not-found error that says nothing about why. */
-export function openShare(token: string): ShareRecord {
+/** This receipt's live link, if it has one: what "Share with auditor" shows before anyone makes a new one. */
+export function liveShareOf(orgId: string, receiptId: string, now = new Date()): ShareRecord | null {
+  assertReceiptOf(receiptId, orgId);
+  for (const sh of store().shares.values()) if (sh.receiptId === receiptId && sh.orgId === orgId && shareIsLive(sh, now)) return sh;
+  return null;
+}
+
+/**
+ * "Stop sharing": every live link to this receipt stops opening. Idempotent: with none live it changes
+ * nothing. Who may do it (an owner or admin) is the route's check, the same rule as revealing a bank number.
+ */
+export function stopSharing(orgId: string, receiptId: string, now = new Date()): { stopped: number } {
+  assertReceiptOf(receiptId, orgId);
+  let stopped = 0;
+  for (const sh of store().shares.values()) {
+    if (sh.receiptId !== receiptId || sh.orgId !== orgId || !shareIsLive(sh, now)) continue;
+    sh.revokedAt = nowIso(now);
+    stopped += 1;
+  }
+  return { stopped };
+}
+
+/** The live share behind a token, or a not-found error that says nothing about why (stopped, expired or never made). */
+export function openShare(token: string, now = new Date()): ShareRecord {
   const share = store().shares.get(token);
-  if (!share || share.revokedAt !== null) throw new ServiceError('receipt_not_found', 'This receipt link is not valid. Ask the business that shared it for a new one.', 404);
+  if (!share || !shareIsLive(share, now)) throw new ServiceError('receipt_not_found', 'This receipt link is not valid. Ask the business that shared it for a new one.', 404);
   return share;
 }
 
@@ -518,7 +554,7 @@ export async function orgSummary(orgId: string) {
   const treasuryPda = org.vault ? treasuryVaultPda(org.vault.multisigPda) : null;
   const treasuryMinor = treasuryPda ? await rt.chain.getUsdcBalance(treasuryPda) : 0n;
   return {
-    org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt, suspended: org.suspended },
+    org: { id: org.id, companyName: org.companyName, personName: org.personName, createdAt: org.createdAt, suspended: org.suspended, country: org.place?.country ?? null },
     mode: rt.env.mode,
     cluster: rt.env.cluster,
     simulated: rt.env.mode === 'offline',
@@ -2482,6 +2518,7 @@ function receivableReceipt(e: EvidenceRecord) {
     paymentId: e.paymentId,
     simulated: e.anchor.simulated || b.receipt.simulated,
     companyName: org.companyName,
+    document: null,
     summary: {
       kind: 'receivable' as const,
       supplierName: req?.payer.name ?? (b.payer.kind === 'splash' ? 'A business on Splash' : 'Payer'),
@@ -2534,6 +2571,7 @@ function treasuryReceipt(e: EvidenceRecord) {
     paymentId: e.paymentId,
     simulated: e.anchor.simulated || b.receipt.simulated,
     companyName: org.companyName,
+    document: null,
     summary: {
       kind: 'treasury' as const,
       supplierName: name,
@@ -2596,11 +2634,14 @@ async function receiptViewOf(receiptId: string) {
   const inv = getInvoice(p.orgId, p.invoiceId);
   const org = getOrg(p.orgId);
   const rt = runtime();
+  const simulated = e.anchor.simulated || e.bundle.receipt.simulated;
   return {
     receiptId: e.receiptId,
     paymentId: e.paymentId,
-    simulated: e.anchor.simulated || e.bundle.receipt.simulated,
+    simulated,
     companyName: org.companyName,
+    // The A4 receipt (prompt 12 §5.4): every figure from the records, every time a recorded one.
+    document: receiptDocument({ evidence: e, payment: p, invoice: inv, org, transitions: await repo().transitions(p.id), partnerLabel: rt.partner.entry.name, testMode: simulated }),
     summary:
       e.bundle.kindName === 'peer_transfer'
         ? {
