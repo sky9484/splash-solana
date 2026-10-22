@@ -94,7 +94,7 @@ export default function AdminSupportConsole({ initialTickets }: Props) {
         <div>
           <div className="mb-2 inline-flex rounded-full bg-[#E39774]/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#9a4a2d]">Customer Operations</div>
           <h1 className="text-3xl font-black tracking-[-0.03em] text-[#1f4350]">Feedback and complaint management</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#326273]/90">Staff can triage incoming bugs, feature requests, complaints, and general support tickets separately from the customer dashboard.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#326273]">Staff can triage incoming bugs, feature requests, complaints, and general support tickets separately from the customer dashboard.</p>
         </div>
         <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[#326273]/10 bg-white p-2 text-center shadow-sm">
           <Metric label="Open" value={openCount} />

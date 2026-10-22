@@ -99,7 +99,7 @@ export default function AdminMemberships({ initialAccounts, organizations }: Pro
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <h1 className="text-2xl font-black tracking-[-0.02em] text-[#1f4350]">Workspace access</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]/90">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#326273]">
           An account that signs up has no access. It can log in, see an empty workspace, and do nothing else until a
           membership is granted here. Authority is read from these rows on every request, so a change takes effect on
           the member&apos;s next action — there is no session to wait out.

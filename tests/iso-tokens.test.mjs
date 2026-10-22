@@ -44,6 +44,8 @@ export function ratio(fg, bg) {
 const PAIRS = [
   ['ink', 'paper'], ['ink-deep', 'paper'], ['ink', 'ground'], ['ink-deep', 'white'],
   ['text-2', 'paper'], ['text-2', 'ground'], ['text-2', 'white'],
+  // Prompt 12 §1.1: the Paper ground runs to --ground-2 at the bottom of the window (Sky, 18 Oct).
+  ['ink', 'ground-2'], ['ink-deep', 'ground-2'], ['text-2', 'ground-2'], ['teal', 'ground-2'],
   // Prompt 11 §1.2: every box's near-white fill, and the pay page's kept ground.
   ['ink', 'surface'], ['ink-deep', 'surface'], ['text-2', 'surface'], ['teal', 'surface'],
   ['ink', 'ground-grid'], ['text-2', 'ground-grid'],
@@ -104,8 +106,11 @@ test('check-iso-ui catches blurred shadows, native selects, stray colours and a 
 });
 
 test('prompt 11 §1.1 (Sky, 15 Oct): the landing’s warm paper with no grid, the box fill and edge, and the four lift shadows', () => {
-  assert.equal(token('ground'), '#ECE5D8'); // sand (Sky, 16 Oct)
-  assert.equal(token('surface'), '#FFFDFA');
+  // Prompt 12 §1.1 (Sky, 18 Oct): the ground is Paper, #FFFAF4 to #F3EBE0, and boxes are white so they
+  // don't disappear on it (was sand #ECE5D8 and a near-white #FFFDFA).
+  assert.equal(token('ground'), '#FFFAF4');
+  assert.equal(token('ground-2'), '#F3EBE0');
+  assert.equal(token('surface'), '#FFFFFF');
   assert.equal(token('surface-line'), 'rgb(12 62 72 / .09)');
   assert.equal(token('lift-1'), '0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26)');
   assert.equal(token('lift-2'), '0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34)');
@@ -135,13 +140,63 @@ test('prompt 11 decision 3: the screens outside .iso float on the same lift, wit
   const start = css.indexOf('\n.iso-app {');
   assert.ok(start > 0, 'the shell carries the lift tokens (.iso-app in styles/tokens.css)');
   const shell = css.slice(start, css.indexOf('\n}', start));
-  for (const name of ['lift-1', 'lift-2', 'rise', 't-lift']) {
+  for (const name of ['lift-1', 'lift-2', 'rise', 't-lift', 'ground', 'ground-2']) {
     const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(shell);
     assert.ok(m, `--${name} is on .iso-app`);
     assert.equal(m[1].trim(), token(name), `--${name} on .iso-app equals the .iso block`);
   }
   const ui = readFileSync('styles/iso-ui.css', 'utf8');
   assert.match(ui, /\.iso-app \.iso-main :is\(\.sx-card, \.dash-surface, \.dash-block\) \{\s*box-shadow: var\(--lift-1\);/);
+  // Prompt 12 §1.1 (Sky, 18 Oct): the shell paints Paper behind every screen, top to bottom and fixed to
+  // the window; the main column paints nothing of its own over it.
+  assert.match(ui, /\.iso-app \{ background: linear-gradient\(180deg, var\(--ground\), var\(--ground-2\)\) fixed; \}/);
+  const main = /\.iso-app \.iso-main \{([^}]*)\}/.exec(ui.replace(/\/\*[\s\S]*?\*\//g, ''))?.[1] ?? '';
+  assert.doesNotMatch(main, /background/);
+});
+
+test('prompt 12 §0.6 (Sky, 18 Oct): the pages outside the dashboard get their own sp- tokens, and their words read on Paper and Pale', () => {
+  const start = css.indexOf('\n.sp-page {');
+  assert.ok(start > 0, 'styles/tokens.css has a .sp-page block');
+  const sp = css.slice(start, css.indexOf('\n}', start));
+  const names = [...sp.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]);
+  assert.deepEqual(names.filter((n) => !n.startsWith('--sp-')), [], 'every token here is prefixed, so none collides with the .iso names');
+  const t = (name) => {
+    const m = new RegExp(`--sp-${name}:\\s*([^;]+);`).exec(sp);
+    assert.ok(m, `--sp-${name} is in the .sp-page block`);
+    return m[1].trim();
+  };
+  const table = {
+    paper: '#FFFAF4', 'paper-2': '#F3EBE0', pale: '#EFF4F3', 'pale-2': '#E1E9E8', surface: '#FFFFFF',
+    ink: '#0C3E48', deep: '#083640', teal: '#0D6370', cyan: '#0C5763', 'on-cyan': '#F1F8F6', 'on-cyan-2': '#CDE6E1',
+    mint: '#9FCFC7', 'mint-wash': '#DDEFEA', gold: '#EFC46F', coral: '#E39774', 'coral-ink': '#9F4F2C',
+    'amber-fill': '#FBEFDD', kick: '#0D6370', 'auth-night': '#022938',
+    'text-2': 'rgb(12 62 72 / .86)', muted: 'rgb(12 62 72 / .55)',
+    'lift-1': '0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26)',
+    'lift-2': '0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34)',
+    ease: 'cubic-bezier(.2, .7, .2, 1)', 't-ui': '180ms', 't-beat': '400ms', 't-art': '500ms', 't-sheet': '320ms',
+  };
+  for (const [name, value] of Object.entries(table)) assert.equal(t(name), value, `--sp-${name}`);
+  const failing = [];
+  for (const [fg, bg] of [
+    ['ink', 'paper'], ['ink', 'paper-2'], ['ink', 'pale'], ['ink', 'pale-2'], ['ink', 'surface'],
+    ['text-2', 'paper'], ['text-2', 'paper-2'], ['text-2', 'pale'], ['text-2', 'pale-2'], ['text-2', 'surface'],
+    ['teal', 'paper-2'], ['teal', 'pale-2'], ['teal', 'surface'], ['kick', 'paper-2'], ['kick', 'pale-2'],
+    ['on-cyan', 'cyan'], ['on-cyan-2', 'cyan'], ['gold', 'cyan'], ['on-cyan', 'auth-night'], ['on-cyan-2', 'auth-night'],
+    ['on-cyan', 'teal'], ['deep', 'gold'], ['deep', 'mint'], ['deep', 'coral'], ['coral-ink', 'amber-fill'],
+  ]) {
+    const r = ratio(t(fg), t(bg));
+    if (r < 4.5) failing.push(`--sp-${fg} on --sp-${bg}: ${r.toFixed(2)}:1`);
+  }
+  assert.deepEqual(failing, []);
+  assert.ok(ratio(t('muted'), t('paper')) < 4.5, '--sp-muted is for non-text only');
+  // The :root --teal stays #5C9EAD: white on it is about 3:1, which is why these pages never use it.
+  assert.match(css.slice(0, css.indexOf('\n}')), /--teal: #5C9EAD;/);
+  assert.ok(ratio('#FFFFFF', '#5C9EAD') < 3.5);
+  // The two grounds: tokens only, top to bottom, fixed to the window, no grid.
+  const grounds = readFileSync('styles/sp-page.css', 'utf8');
+  assert.match(grounds, /\.sp-page\.sp-ground-paper \{\s*background: linear-gradient\(180deg, var\(--sp-paper\), var\(--sp-paper-2\)\) fixed;/);
+  assert.match(grounds, /\.sp-page\.sp-ground-pale \{\s*background: linear-gradient\(180deg, var\(--sp-pale\), var\(--sp-pale-2\)\) fixed;/);
+  assert.doesNotMatch(grounds.replace(/\/\*[\s\S]*?\*\//g, ''), /#[0-9a-f]{3,8}\b|1px, transparent 1px/i);
 });
 
 test('prompt 11 §1.3: buttons are 40 px, the main action 48 px', () => {

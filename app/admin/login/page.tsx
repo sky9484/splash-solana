@@ -38,7 +38,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="admin-login-shell">
+    <main className="admin-login-shell sp-page sp-ground-pale">
       <section className="admin-login-story">
         <div className="admin-login-brand">
           <Image src="/splash-main-icon.png" alt="" width={48} height={47} priority />

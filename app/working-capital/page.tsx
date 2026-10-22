@@ -134,7 +134,7 @@ function FlowCards({ items }: { items: typeof receivableFacts }) {
 
 export default function WorkingCapitalPage() {
   return (
-    <main className="wc-page">
+    <main className="wc-page sp-page sp-ground-paper">
       <header className="wc-topbar">
         <div className="iso-shell wc-topbar-inner">
           <Link href="/" className="iso-brand" aria-label="Splash Finance home">

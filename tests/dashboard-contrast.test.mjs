@@ -56,20 +56,25 @@ test('the dashboard stylesheet is read the way the browser paints it', () => {
   );
 });
 
-test('the check finds the dashboard’s surfaces: the warm paper ground, the sidebar, boxes, sheets, cards and fields', (t) => {
+test('the check finds the dashboard’s surfaces: the Paper ground, the sidebar, boxes, sheets, cards and fields', (t) => {
   const white = [255, 255, 255];
-  // The page is sand (#ECE5D8), flat (Sky, 16 Oct), and every box floats on it in its
-  // near-white fill (#FFFDFA); sheets keep look 9's paper. The sidebar keeps its dark-teal gradient.
-  const ground = [236, 229, 216];
+  // The page is Paper, #FFFAF4 at the top of the window to #F3EBE0 at the bottom (Sky, 18 Oct; prompt 12
+  // §1.1), and every word is checked against both ends. Boxes float on it in white; sheets keep look 9's
+  // paper. The sidebar keeps its dark-teal gradient.
+  const top = [255, 250, 244];
+  const bottom = [243, 235, 224];
   const expected = {
-    'the page: warm paper': ground,
+    'the page: Paper, its top': top,
+    'the page: Paper, its bottom': bottom,
     'the sidebar, at the top of its gradient': [36, 85, 99],
-    'a box: its near-white fill': [255, 253, 250],
+    'a box: white (Sky, 18 Oct)': white,
     'a sheet: paper': [255, 250, 244],
     // Buttons, avatars: an ink element lifted towards white (the screens not yet rebuilt).
     'an ink element (bg-[#1F4452], lifted towards white)': over([31, 68, 82, 0.85], white),
-    'a .dash-surface card on the ground': over([255, 253, 249, 0.93], ground),
-    'a field in the dashboard (the field rule)': over([255, 253, 247, 0.92], over([255, 253, 249, 0.93], ground)),
+    'a .dash-surface card on the ground, its top': over([255, 253, 249, 0.93], top),
+    'a .dash-surface card on the ground, its bottom': over([255, 253, 249, 0.93], bottom),
+    'a field in the dashboard (the field rule), at the top': over([255, 253, 247, 0.92], over([255, 253, 249, 0.93], top)),
+    'a field in the dashboard (the field rule), at the bottom': over([255, 253, 247, 0.92], over([255, 253, 249, 0.93], bottom)),
   };
   const missing = Object.entries(expected).filter(([, colour]) => !RESULT.surfacesSeen.has(hex(colour))).map(([label, colour]) => `${label} ${hex(colour)}`);
   assert.deepEqual(missing, [], 'every surface is found');

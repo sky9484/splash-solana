@@ -1,0 +1,603 @@
+{
+  "taken": "2026-10-18T11:27:31.639Z",
+  "server": "next dev on 3300, own Postgres on 5435, after the green walkthrough (prompt 12 Phase 1)",
+  "probe": "ground = first element painting behind (6, mid-height); groundRight = behind (width-6, mid-height); grids = visible elements or pseudo-elements whose background is a 1 px hairline grid",
+  "routes": [
+    {
+      "route": "/",
+      "as": "signed out",
+      "landed": "/",
+      "ground": {
+        "el": "section#cinematic.cin-section",
+        "image": "none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "section#cinematic.cin-section",
+        "image": "none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll"
+      },
+      "grids": []
+    },
+    {
+      "route": "/working-capital",
+      "as": "signed out",
+      "landed": "/working-capital",
+      "ground": {
+        "el": "section.iso-section.wc-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "groundRight": {
+        "el": "section.iso-section.wc-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "grids": []
+    },
+    {
+      "route": "/trust",
+      "as": "signed out",
+      "landed": "/trust",
+      "ground": {
+        "el": "section.iso-section.wc-hero.trust-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "groundRight": {
+        "el": "section.iso-section.wc-hero.trust-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "grids": []
+    },
+    {
+      "route": "/nope",
+      "as": "signed out",
+      "landed": "/nope",
+      "ground": {
+        "el": "body.min-h-full.sp-page.sp-ground-paper.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "body.min-h-full.sp-page.sp-ground-paper.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/privacy-policy",
+      "as": "signed out",
+      "landed": "/privacy-policy",
+      "ground": {
+        "el": "section.iso-section.wc-hero.legal-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "groundRight": {
+        "el": "section.iso-section.wc-hero.legal-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "grids": []
+    },
+    {
+      "route": "/terms-of-service",
+      "as": "signed out",
+      "landed": "/terms-of-service",
+      "ground": {
+        "el": "section.iso-section.wc-hero.legal-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "groundRight": {
+        "el": "section.iso-section.wc-hero.legal-hero",
+        "image": "radial-gradient(circle at 84% 8%, rgba(227, 151, 116, 0.16), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 4% 92%, rgba(159, 207, 199, 0.2), rgba(0, 0, 0, 0) 34%), none",
+        "color": "rgb(255, 250, 244)",
+        "attachment": "scroll, scroll, scroll"
+      },
+      "grids": []
+    },
+    {
+      "route": "/login",
+      "as": "signed out",
+      "landed": "/login",
+      "ground": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/signup",
+      "as": "signed out",
+      "landed": "/signup",
+      "ground": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/forgot-password",
+      "as": "signed out",
+      "landed": "/forgot-password",
+      "ground": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/reset-password?token=sample",
+      "as": "signed out",
+      "landed": "/reset-password?token=sample",
+      "ground": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/verify-email",
+      "as": "signed out",
+      "landed": "/verify-email",
+      "ground": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/verify-email?token=sample",
+      "as": "signed out",
+      "landed": "/verify-email?token=sample",
+      "ground": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso-auth.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/admin/login",
+      "as": "signed out",
+      "landed": "/admin/login",
+      "ground": {
+        "el": "section.admin-login-story",
+        "image": "radial-gradient(circle at 70% 45%, rgb(24, 92, 102) 0%, rgb(14, 62, 71) 44%, rgb(8, 43, 50) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "main.admin-login-shell.sp-page.sp-ground-pale",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/receipt/shr_2b7668a7d709a640ee76da28c690de02",
+      "as": "signed out",
+      "landed": "/receipt/shr_2b7668a7d709a640ee76da28c690de02",
+      "ground": {
+        "el": "main.iso.iso-ground.min-h-screen.px-4.py-10",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.iso.iso-ground.min-h-screen.px-4.py-10",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/pay/mP2yu-3AbiReeK6fQFNdew",
+      "as": "signed out",
+      "landed": "/pay/mP2yu-3AbiReeK6fQFNdew",
+      "ground": {
+        "el": "main.iso.iso-paypage",
+        "image": "linear-gradient(rgba(12, 62, 72, 0.05) 1px, rgba(0, 0, 0, 0) 1px), linear-gradient(90deg, rgba(12, 62, 72, 0.05) 1px, rgba(0, 0, 0, 0) 1px)",
+        "color": "rgb(246, 240, 237)",
+        "attachment": "scroll, scroll"
+      },
+      "groundRight": {
+        "el": "main.iso.iso-paypage",
+        "image": "linear-gradient(rgba(12, 62, 72, 0.05) 1px, rgba(0, 0, 0, 0) 1px), linear-gradient(90deg, rgba(12, 62, 72, 0.05) 1px, rgba(0, 0, 0, 0) 1px)",
+        "color": "rgb(246, 240, 237)",
+        "attachment": "scroll, scroll"
+      },
+      "grids": [
+        "main.iso.iso-paypage (24px 24px, 24px 24px)"
+      ]
+    },
+    {
+      "route": "/dashboard",
+      "as": "demo owner",
+      "landed": "/dashboard",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/transfer",
+      "as": "demo owner",
+      "landed": "/dashboard/transfer",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/invoices",
+      "as": "demo owner",
+      "landed": "/dashboard/invoices",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/history",
+      "as": "demo owner",
+      "landed": "/dashboard/history",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/balance",
+      "as": "demo owner",
+      "landed": "/dashboard/balance",
+      "ground": {
+        "el": "body.min-h-full.sp-page.sp-ground-paper.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "body.min-h-full.sp-page.sp-ground-paper.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/treasury",
+      "as": "demo owner",
+      "landed": "/dashboard/treasury",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/recipients",
+      "as": "demo owner",
+      "landed": "/dashboard/recipients",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/batch",
+      "as": "demo owner",
+      "landed": "/dashboard/batch",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/zeke",
+      "as": "demo owner",
+      "landed": "/dashboard/zeke",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/settings",
+      "as": "demo owner",
+      "landed": "/dashboard/settings",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/dashboard/receipts/rcpt_fe70ff47445bd4ea",
+      "as": "demo owner",
+      "landed": "/dashboard/receipts/rcpt_fe70ff47445bd4ea",
+      "ground": {
+        "el": "aside.iso.iso-side.hidden.md:flex",
+        "image": "linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 55%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-dashboard-shell.iso-app.flex.min-h-screen",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/settings/kyb",
+      "as": "demo owner",
+      "landed": "/settings/kyb",
+      "ground": {
+        "el": "main.min-h-svh.sp-page.sp-ground-paper.px-6.py-8.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.min-h-svh.sp-page.sp-ground-paper.px-6.py-8.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/settings/security",
+      "as": "demo owner",
+      "landed": "/settings/security",
+      "ground": {
+        "el": "body.min-h-full.sp-page.sp-ground-paper.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "body.min-h-full.sp-page.sp-ground-paper.text-[#326273]",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/queue",
+      "as": "demo owner",
+      "landed": "/queue",
+      "ground": {
+        "el": "main.min-h-screen.bg-[#F6F0ED].px-4.py-6.text-[#326273].md:px-8",
+        "image": "none",
+        "color": "color(srgb 0.97 0.95 0.94)",
+        "attachment": "scroll"
+      },
+      "groundRight": {
+        "el": "main.min-h-screen.bg-[#F6F0ED].px-4.py-6.text-[#326273].md:px-8",
+        "image": "none",
+        "color": "color(srgb 0.97 0.95 0.94)",
+        "attachment": "scroll"
+      },
+      "grids": []
+    },
+    {
+      "route": "/admin",
+      "as": "staff",
+      "landed": "/admin",
+      "ground": {
+        "el": "aside.fintech-admin-sidebar.fixed.left-0.top-0.hidden.h-screen",
+        "image": "radial-gradient(circle at 20% 4%, rgba(159, 207, 199, 0.1), rgba(0, 0, 0, 0) 26%), linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 62%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll, scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-admin-shell.sp-page.min-h-screen.text-[#1f4350]",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/admin/orgs",
+      "as": "staff",
+      "landed": "/admin/orgs",
+      "ground": {
+        "el": "aside.fintech-admin-sidebar.fixed.left-0.top-0.hidden.h-screen",
+        "image": "radial-gradient(circle at 20% 4%, rgba(159, 207, 199, 0.1), rgba(0, 0, 0, 0) 26%), linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 62%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll, scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-admin-shell.sp-page.min-h-screen.text-[#1f4350]",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/admin/payments",
+      "as": "staff",
+      "landed": "/admin/payments",
+      "ground": {
+        "el": "aside.fintech-admin-sidebar.fixed.left-0.top-0.hidden.h-screen",
+        "image": "radial-gradient(circle at 20% 4%, rgba(159, 207, 199, 0.1), rgba(0, 0, 0, 0) 26%), linear-gradient(165deg, rgb(36, 85, 99) 0%, rgb(20, 60, 71) 62%, rgb(12, 48, 57) 100%)",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "scroll, scroll"
+      },
+      "groundRight": {
+        "el": "div.fintech-admin-shell.sp-page.min-h-screen.text-[#1f4350]",
+        "image": "linear-gradient(rgb(239, 244, 243), rgb(225, 233, 232))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    },
+    {
+      "route": "/onboarding/intent",
+      "as": "new business (fresh@acme.test)",
+      "landed": "/onboarding/intent",
+      "ground": {
+        "el": "main.sp-page.sp-ground-paper.min-h-dvh.px-4.py-14",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "groundRight": {
+        "el": "main.sp-page.sp-ground-paper.min-h-dvh.px-4.py-14",
+        "image": "linear-gradient(rgb(255, 250, 244), rgb(243, 235, 224))",
+        "color": "rgba(0, 0, 0, 0)",
+        "attachment": "fixed"
+      },
+      "grids": []
+    }
+  ]
+}

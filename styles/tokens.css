@@ -81,8 +81,10 @@
   /* Paper and ink */
   --paper: #FFFAF4;
   --paper-warm: #FFFAF1;
-  /* The dashboard's page: warm paper, no grid (prompt 11 §1.1). */
-  --ground: #ECE5D8;        /* the page: sand, flat (Sky, 16 Oct) */
+  /* The dashboard's page: Paper, no grid. Top to bottom, fixed to the window; boxes stay solid
+     (prompt 12 §1.1). */
+  --ground: #FFFAF4;        /* Paper, the top of the page (Sky, 18 Oct) */
+  --ground-2: #F3EBE0;      /* Paper, the bottom of the page (Sky, 18 Oct) */
   /* The pay page someone else opens keeps today's ground and its grid (prompt 11 §1.2). */
   --ground-grid: #F6F0ED;
   --white: #FFFFFF;
@@ -134,7 +136,7 @@
      shadow, square corners. They rise a little on hover and settle back. Only these four shadows may
      blur (and the phone's pinned bar, --lift-bar); buttons, tags and the sidebar keep their solid
      offset ledges below. */
-  --surface: #FFFDFA;
+  --surface: #FFFFFF;       /* white: a near-paper box on Paper would disappear; --lift-1 separates it (Sky, 18 Oct) */
   --surface-line: rgb(12 62 72 / .09);
   --lift-1: 0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26);
   --lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
@@ -186,4 +188,46 @@
   --lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
   --rise: -3px;
   --t-lift: 220ms cubic-bezier(.2, .7, .2, 1);
+  /* The shell paints the Paper ground behind every screen, rebuilt or not (prompt 12 §1.1). */
+  --ground: #FFFAF4;
+  --ground-2: #F3EBE0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   The pages outside the dashboard (prompt 12 §0.6): the landing, the auth pages,
+   working capital, the shared receipt, 404, error and /admin. They are not `.iso`
+   roots, so their tokens carry an `sp-` prefix and never collide with the dashboard's
+   names; a page puts `sp-page` on its root. Paper pages paint --sp-paper → --sp-paper-2,
+   the sign-in pages and /admin --sp-pale → --sp-pale-2 (Sky, 18 Oct; styles/sp-page.css).
+   Never use the :root --teal for text or buttons on these pages: white on it is about 3:1.
+   ───────────────────────────────────────────────────────────────────────── */
+.sp-page {
+  --sp-paper: #FFFAF4;
+  --sp-paper-2: #F3EBE0;
+  --sp-pale: #EFF4F3;
+  --sp-pale-2: #E1E9E8;
+  --sp-surface: #FFFFFF;
+  --sp-ink: #0C3E48;
+  --sp-deep: #083640;
+  --sp-teal: #0D6370;
+  --sp-cyan: #0C5763;
+  --sp-on-cyan: #F1F8F6;
+  --sp-on-cyan-2: #CDE6E1;
+  --sp-mint: #9FCFC7;
+  --sp-mint-wash: #DDEFEA;
+  --sp-gold: #EFC46F;
+  --sp-coral: #E39774;
+  --sp-coral-ink: #9F4F2C;
+  --sp-amber-fill: #FBEFDD;
+  --sp-kick: #0D6370;
+  --sp-auth-night: #022938;
+  --sp-text-2: rgb(12 62 72 / .86);
+  --sp-muted: rgb(12 62 72 / .55);
+  --sp-lift-1: 0 1px 2px rgb(8 54 64 / .06), 0 10px 24px -12px rgb(8 54 64 / .26);
+  --sp-lift-2: 0 2px 4px rgb(8 54 64 / .07), 0 22px 40px -14px rgb(8 54 64 / .34);
+  --sp-ease: cubic-bezier(.2, .7, .2, 1);
+  --sp-t-ui: 180ms;
+  --sp-t-beat: 400ms;
+  --sp-t-art: 500ms;
+  --sp-t-sheet: 320ms;
 }
