@@ -16,7 +16,9 @@
  *   approve   the device signature checked, then settled: money out of the Reserve's surplus first,
  *             then the Payments account's; money back into the Payments account; Ondo's redemption by
  *             wire to the company's bank, outside Splash, never into the Payments account
- *   sweep     at most one draft a day from the owner's rule; the job never approves or settles
+ *   sweep     at most one draft a day from the owner's rule, and once a quarter a draft to bring the
+ *             quarter's interest back (prompt 11 §4.4); "Not now" holds sweep-out drafts back for 7
+ *             days. The job never approves or settles: a person approves every move on a device
  *
  * Every settled order writes a receipt of kind 6 (`treasury`). Integers only.
  */
@@ -34,7 +36,8 @@ import { formatUsd } from '../solana-zeke/router.ts';
 import { adapterFor, PRICE_MOVED_LIMIT_BPS, testPrice, valueOf, type OrderKind, type OrderPath, type OrderQuote } from '../treasury/adapters.ts';
 import { ageDays, isFresh, STOCKS, stockRef, TBILLS, UNIT, type AssetId } from '../treasury/reference.ts';
 import { availableToInvest, drawPlan, isCovered, maxStockBuy, payablesDue, RESERVE_MARGIN_PCT_DEFAULT, reserveFloor, shortfall, STOCK_CAP_PCT_DEFAULT, stockSharePct, SWEEP_CUSHION_DEFAULT, type Position } from '../treasury/reserve.ts';
-import { sweepDraft, SWEEP_RULE_DEFAULT } from '../treasury/sweep.ts';
+import { bookedPrice, dailyInterest, interestBetween, previousQuarter, quarterOf, type UnitsEvent } from '../treasury/history.ts';
+import { quarterInterestDraft, sweepDraft, SWEEP_RULE_DEFAULT } from '../treasury/sweep.ts';
 import { ServiceError } from './errors.ts';
 import { accountBalances, payablesOf, positionFrom } from './money-position.ts';
 import { runtime } from './runtime.ts';
@@ -46,6 +49,8 @@ export const INVESTMENTS_VAULT_INDEX = 2;
 /** An order's text is signed within this. */
 export const ORDER_TTL_MS = 60_000;
 const DAY_MS = 86_400_000;
+/** "Not now" on a sweep-out draft: Zeke asks again after this many days (prompt 11 §4.3). */
+export const SWEEP_SNOOZE_DAYS = 7;
 const ASSETS: AssetId[] = ['usdy', 'spy', 'qqq', 'nvda', 'googl', 'tsla'];
 
 const utcDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -116,7 +121,7 @@ export function holdingsOf(org: OrgRecord, now: Date) {
   for (const asset of ASSETS) {
     const mine = lots.filter((l) => l.asset === asset);
     if (mine.length === 0) continue;
-    const price = testPrice(asset);
+    const price = testPrice(asset, now);
     const units = mine.reduce((n, l) => n + l.unitsMicro, 0n);
     const held = mine.filter((l) => l.heldUntil && Date.parse(l.heldUntil) > now.getTime());
     const heldUnits = held.reduce((n, l) => n + l.unitsMicro, 0n);
@@ -139,10 +144,21 @@ export async function treasuryPosition(org: OrgRecord, now: Date): Promise<{ pos
 
 /* ── Sweep ────────────────────────────────────────────────────────────── */
 
+const purposeOf = (d: SweepDraftRecord) => d.purpose ?? 'sweep';
+
+/** The T-bill units each settled order added or took, for the booked interest (history.ts). */
+export function unitsEventsOf(org: OrgRecord): UnitsEvent[] {
+  return book(org)
+    .orders.filter((o) => o.asset === 'usdy' && o.state === 'settled' && (o.kind === 'subscribe' || o.kind === 'redeem'))
+    .map((o) => ({ at: o.settlement?.at ?? o.approval?.at ?? o.createdAt, kind: o.kind as 'subscribe' | 'redeem', unitsMicro: o.unitsMicro }));
+}
+
 /**
  * Today's sweep draft, made once (the daily job, or the first read of the day): at most one a day, an
  * earlier draft nobody approved is replaced, not stacked. Hold makes nothing, and turning sweep off
- * withdraws a waiting draft. Never approves or settles anything.
+ * withdraws a waiting draft. "Not now" on a sweep-out draft holds sweep-out back for 7 days. Beside it,
+ * once a quarter, the quarter's interest to bring back (draftQuarterInterest). Never approves or
+ * settles anything: every draft waits for a person.
  */
 export async function draftSweep(orgId: string, now = new Date()): Promise<SweepDraftRecord | null> {
   const org = getOrg(orgId);
@@ -154,22 +170,87 @@ export async function draftSweep(orgId: string, now = new Date()): Promise<Sweep
     for (const d of drafts) if (d.state === 'drafted') d.state = 'withdrawn';
     return null;
   }
-  const today = drafts.find((d) => d.day === day && (d.state === 'drafted' || d.state === 'approved'));
-  if (today) return today.state === 'drafted' ? today : null;
-  for (const d of drafts) if (d.state === 'drafted') d.state = 'replaced';
   const { position, holdings } = await treasuryPosition(org, now);
   const usdy = holdings.per.find((h) => h.asset === 'usdy');
+  draftQuarterInterest(org, usdy?.redeemableMinor ?? 0n, now);
+  const sweeps = drafts.filter((d) => purposeOf(d) === 'sweep');
+  const today = sweeps.find((d) => d.day === day && (d.state === 'drafted' || d.state === 'approved' || d.state === 'dismissed'));
+  if (today) return today.state === 'drafted' ? today : null;
+  for (const d of sweeps) if (d.state === 'drafted') d.state = 'replaced';
   const draft = sweepDraft({ position, rule, redeemableMinor: usdy?.redeemableMinor ?? 0n });
   if (!draft) return null;
-  const rec: SweepDraftRecord = { id: `swp_${randomHex(8)}`, day, kind: draft.kind, amountMinor: draft.amountMinor, reason: draft.reason, createdAt: now.toISOString(), state: 'drafted', orderId: null, cushionMinor: rule.cushionMinor };
+  if (draft.kind === 'subscribe' && snoozedUntil(org, now)) return null;
+  const rec: SweepDraftRecord = { id: `swp_${randomHex(8)}`, day, kind: draft.kind, amountMinor: draft.amountMinor, reason: draft.reason, createdAt: now.toISOString(), state: 'drafted', orderId: null, cushionMinor: rule.cushionMinor, purpose: 'sweep' };
   drafts.push(rec);
+  trim(drafts);
+  return rec;
+}
+
+function trim(drafts: SweepDraftRecord[]) {
   if (drafts.length > 60) drafts.splice(0, drafts.length - 60);
+}
+
+/** Until when "Not now" holds sweep-out drafts back, if it still does at `now` (ISO), else null. */
+export function snoozedUntil(org: OrgRecord, now = new Date()): string | null {
+  let until: number | null = null;
+  for (const d of draftsOf(org)) {
+    if (purposeOf(d) !== 'sweep' || d.kind !== 'subscribe' || d.state !== 'dismissed' || !d.dismissed) continue;
+    const end = Date.parse(d.dismissed.at) + SWEEP_SNOOZE_DAYS * DAY_MS;
+    if (end > now.getTime() && (until === null || end > until)) until = end;
+  }
+  return until === null ? null : new Date(until).toISOString();
+}
+
+/**
+ * Prompt 11 §4.4 (decision 10): from the first business day after a calendar quarter ends, with Sweep
+ * on, one draft to bring that quarter's booked interest back to the Payments account, at least US$50 and
+ * no more than can be redeemed now. At most one a quarter (one withdrawn by turning sweep off may come
+ * back); it replaces an older quarter draft nobody approved, and it doesn't count against the daily
+ * sweep. Drafted only.
+ */
+export function draftQuarterInterest(org: OrgRecord, redeemableMinor: bigint, now = new Date()): SweepDraftRecord | null {
+  const rule = rulesOf(org).sweep;
+  const day = utcDay(now);
+  const q = quarterInterestDraft({ today: day, rule, events: unitsEventsOf(org), redeemableMinor });
+  if (!q) return null;
+  const drafts = draftsOf(org);
+  const mine = drafts.filter((d) => purposeOf(d) === 'quarter_interest');
+  const already = mine.find((d) => d.quarter === q.quarter.key && d.state !== 'withdrawn' && d.state !== 'replaced');
+  if (already) return already.state === 'drafted' ? already : null;
+  for (const d of mine) if (d.state === 'drafted') d.state = 'replaced';
+  const rec: SweepDraftRecord = { id: `swp_${randomHex(8)}`, day, kind: 'redeem', amountMinor: q.amountMinor, reason: 'quarter_interest', createdAt: now.toISOString(), state: 'drafted', orderId: null, cushionMinor: rule.cushionMinor, purpose: 'quarter_interest', quarter: q.quarter.key, months: q.quarter.months };
+  drafts.push(rec);
+  trim(drafts);
   return rec;
 }
 
 /** The draft waiting for a person today, if any (Overview's "Needs you", Treasury's row). Reads only. */
 export function waitingSweepDraft(org: OrgRecord, now = new Date()): SweepDraftRecord | null {
-  return draftsOf(org).find((d) => d.day === utcDay(now) && d.state === 'drafted') ?? null;
+  return draftsOf(org).find((d) => purposeOf(d) === 'sweep' && d.day === utcDay(now) && d.state === 'drafted') ?? null;
+}
+
+/** This quarter's drafted move to bring the last quarter's booked interest back, if it waits for a person. Reads only. */
+export function waitingQuarterDraft(org: OrgRecord, now = new Date()): SweepDraftRecord | null {
+  return waitingDrafts(org, now).find((d) => purposeOf(d) === 'quarter_interest') ?? null;
+}
+
+/** Every draft waiting for a person: today's sweep and this quarter's interest. Reads only. */
+export function waitingDrafts(org: OrgRecord, now = new Date()): SweepDraftRecord[] {
+  const quarter = previousQuarter(utcDay(now)).key;
+  return draftsOf(org).filter((d) => d.state === 'drafted' && (purposeOf(d) === 'sweep' ? d.day === utcDay(now) : d.quarter === quarter));
+}
+
+/**
+ * "Not now" (prompt 11 §4.3): a person sets a waiting draft aside. Nothing moves; a sweep-out draft is
+ * not drafted again for 7 days, a quarter's interest not again that quarter. Recorded with who and when.
+ */
+export function dismissSweepDraft(orgId: string, draftId: string, actor: { name: string }, now = new Date()): SweepDraftRecord {
+  const d = draftsOf(getOrg(orgId)).find((x) => x.id === draftId);
+  if (!d) throw new ServiceError('bad_request', 'That draft isn’t here.', 404);
+  if (d.state !== 'drafted') throw new ServiceError('wrong_state', 'That draft isn’t waiting any more.', 409);
+  d.state = 'dismissed';
+  d.dismissed = { by: actor.name, at: now.toISOString() };
+  return d;
 }
 
 /** The owner turns sweep on or off and sets the cushion. Recorded with who and when. */
@@ -251,10 +332,10 @@ export async function quoteOrder(orgId: string, req: OrderRequest, now = new Dat
   const adapter = adapterFor(req.asset);
   const paying = req.kind === 'subscribe' || req.kind === 'buy';
   // The planner: on the market when it stays within the limit, else straight from Ondo (T-bills only).
-  const marketQuote = adapter.quote({ asset: req.asset, kind: req.kind, path: 'market', amountMinor: req.amountMinor });
+  const marketQuote = adapter.quote({ asset: req.asset, kind: req.kind, path: 'market', amountMinor: req.amountMinor, now });
   // Never by wire unless the person picks it: a redemption the planner routes lands in the Payments account.
   const path: OrderPath = req.path ?? (marketQuote.withinLimit || req.asset !== 'usdy' || req.kind === 'redeem' ? 'market' : 'ondo');
-  const quote = path === 'market' ? marketQuote : adapter.quote({ asset: req.asset, kind: req.kind, path, amountMinor: req.amountMinor });
+  const quote = path === 'market' ? marketQuote : adapter.quote({ asset: req.asset, kind: req.kind, path, amountMinor: req.amountMinor, now });
   const holdUntil = quote.holdDays > 0 ? new Date(now.getTime() + quote.holdDays * DAY_MS).toISOString() : null;
 
   let limitMax: bigint;
@@ -287,7 +368,7 @@ export async function quoteOrder(orgId: string, req: OrderRequest, now = new Dat
   }
   if (marketMax !== null && marketMax < limitMax) {
     limitMax = marketMax;
-    limitWhy = `On the market, an order above ${formatUsd(marketMax)} would move the price more than ${movedText(PRICE_MOVED_LIMIT_BPS)}, so it would be stopped.${req.asset === 'usdy' && paying ? ' Straight from Ondo there is no such limit.' : req.asset !== 'usdy' ? ' Buying straight from Ondo needs your company onboarded with Ondo.' : ''}`;
+    limitWhy = `On the market, an order above ${formatUsd(marketMax)} would move the price more than ${movedText(PRICE_MOVED_LIMIT_BPS)}, so it would be stopped.${req.asset === 'usdy' && paying ? ' Straight from Ondo there is no such limit.' : req.asset !== 'usdy' ? ' Stock orders go on the market only.' : ''}`;
   }
 
   // The order's own limits first; the one-time eligibility gate only once the order itself may go.
@@ -504,7 +585,12 @@ export async function treasuryView(orgId: string, viewer: { isOwner: boolean }, 
   const available = availableToInvest(position);
   const usdy = holdings.per.find((h) => h.asset === 'usdy') ?? null;
   const draft = waitingSweepDraft(org, now);
+  const today = utcDay(now);
   const sharePct = stockSharePct(position);
+  const events = unitsEventsOf(org);
+  const interest30 = dailyInterest(today, 30, events);
+  const quarterNow = quarterOf(today);
+  const feesKept = await feesKeptThisMonth(org.id, now);
   const freeInPayments = max0(position.paymentsMinor - position.waitingMinor);
   const zeke = draft
     ? draft.kind === 'subscribe'
@@ -580,6 +666,14 @@ export async function treasuryView(orgId: string, viewer: { isOwner: boolean }, 
       holdConfirmed: false,
       priceMinor: TBILLS.testPriceMinor,
       holding: usdy ? { unitsText: unitsText(usdy.unitsMicro), valueMinor: usdy.valueMinor, heldMinor: usdy.valueMinor - usdy.redeemableMinor, heldUntil: usdy.heldUntil, heldUntilLabel: usdy.heldUntil ? shortDay(usdy.heldUntil) : null, redeemableMinor: usdy.redeemableMinor } : null,
+      /**
+       * For the live "Interest today" estimate (prompt 11 §4.2): today's booked price and the units held.
+       * The browser turns these into a floating-point figure for the eye; nothing comes back.
+       */
+      live: usdy ? { unitsMicro: usdy.unitsMicro, priceTodayMinor: bookedPrice(today), bps: TBILLS.rate.value.bps, day: today } : null,
+      /** Interest booked each of the last 30 days, oldest first (integers, history.ts). */
+      interest: interest30.map((d) => ({ day: d.day, label: shortDay(d.day), interestMinor: d.interestMinor })),
+      quarterSoFarMinor: interestBetween(quarterNow.first, today, events),
     },
     stocks: {
       sharePct,
@@ -590,10 +684,23 @@ export async function treasuryView(orgId: string, viewer: { isOwner: boolean }, 
         return { id: s.id, name: s.name, tracks: s.tracks, return12m: sourced(s.return12m, now), dividends12m: sourced(s.dividends12m, now), holdingMinor: h?.valueMinor ?? null, unitsText: h ? unitsText(h.unitsMicro) : null, priceMinor: s.testPriceMinor };
       }),
     },
-    sweep: { on: rules.sweep.on, cushionMinor: rules.sweep.cushionMinor, cushionDefaultMinor: SWEEP_CUSHION_DEFAULT, mayChange: viewer.isOwner, draft: draft ? { id: draft.id, kind: draft.kind, amountMinor: draft.amountMinor, reason: draft.reason } : null },
+    sweep: {
+      on: rules.sweep.on,
+      cushionMinor: rules.sweep.cushionMinor,
+      cushionDefaultMinor: SWEEP_CUSHION_DEFAULT,
+      mayChange: viewer.isOwner,
+      draft: draft ? { id: draft.id, kind: draft.kind, amountMinor: draft.amountMinor, reason: draft.reason } : null,
+      /** Hold or sweep's rows (prompt 11 §4.3): today's sweep and this quarter's interest, waiting or decided. */
+      rows: sweepRows(org, now),
+      snoozedUntil: snoozedUntil(org, now),
+    },
     eligibility: { confirmed: Boolean(rules.eligibility), by: rules.eligibility?.by ?? null, at: rules.eligibility?.at ?? null, mayConfirm: viewer.isOwner },
     positions,
     orders,
+    /** Treasury activity (prompt 11 §4.6): interest booked and moves in and out, newest first. */
+    activity: activityOf(org, interest30, now),
+    /** "Fees kept inside Splash, this month" (prompt 11 §4.3): recorded fees only, never an estimate. */
+    feesKept,
     zeke,
     technical: { investmentsAccount: investmentsAccount(org), usdyMint: TBILLS.mintSolana.value, usdyMintSource: TBILLS.mintSolana.sourceUrl, holdSource: TBILLS.holdDays.sourceUrl },
     testMode: true,
@@ -604,6 +711,74 @@ export async function treasuryView(orgId: string, viewer: { isOwner: boolean }, 
 }
 
 export type TreasuryView = Awaited<ReturnType<typeof treasuryView>>;
+
+/** Hold or sweep's rows: today's sweep draft and this quarter's interest draft, waiting, approved or set aside. */
+function sweepRows(org: OrgRecord, now: Date) {
+  const day = utcDay(now);
+  const quarter = previousQuarter(day).key;
+  const orders = book(org).orders;
+  return draftsOf(org)
+    .filter((d) => (d.state === 'drafted' || d.state === 'approved' || d.state === 'dismissed') && (purposeOf(d) === 'sweep' ? d.day === day : d.quarter === quarter))
+    .sort((a, b) => (purposeOf(a) === purposeOf(b) ? 0 : purposeOf(a) === 'sweep' ? -1 : 1))
+    .map((d) => {
+      const order = d.orderId ? (orders.find((o) => o.id === d.orderId) ?? null) : null;
+      return {
+        id: d.id,
+        purpose: purposeOf(d),
+        kind: d.kind,
+        amountMinor: d.amountMinor,
+        reason: d.reason,
+        months: d.months ?? null,
+        state: d.state as 'drafted' | 'approved' | 'dismissed',
+        /** The device key that approved it: the browser says "Approved on this device" when it is its own. */
+        approvedKey: order?.approval?.keyPublic ?? null,
+        approvedBy: order?.approval?.who ?? null,
+        dismissedAt: d.dismissed?.at ?? null,
+      };
+    });
+}
+
+/** Interest booked (last 7 days with any) and settled T-bill moves, newest first, at most 8. */
+function activityOf(org: OrgRecord, interest: Array<{ day: string; interestMinor: bigint }>, now: Date) {
+  const today = utcDay(now);
+  const rows: Array<{ id: string; at: string; label: string; what: 'interest' | 'in' | 'out'; amountMinor: bigint; approvedKey: string | null; approvedBy: string | null }> = [];
+  for (const d of interest.slice(-7)) {
+    if (d.interestMinor > 0n) rows.push({ id: `int_${d.day}`, at: `${d.day}T23:59:59.000Z`, label: d.day === today ? 'Today' : shortDay(d.day), what: 'interest', amountMinor: d.interestMinor, approvedKey: null, approvedBy: null });
+  }
+  for (const o of book(org).orders) {
+    if (o.asset !== 'usdy' || o.state !== 'settled') continue;
+    const at = o.settlement?.at ?? o.approval?.at ?? o.createdAt;
+    rows.push({ id: o.id, at, label: utcDay(new Date(at)) === today ? 'Today' : shortDay(at), what: o.kind === 'subscribe' ? 'in' : 'out', amountMinor: o.amountMinor, approvedKey: o.approval?.keyPublic ?? null, approvedBy: o.approval?.who ?? null });
+  }
+  return rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, 8);
+}
+
+/** Paid into another business's own Splash account (no partner): these states have left the account. */
+const PEER_PAID = ['executed', 'confirmed', 'partner_paid', 'evidenced', 'anchored', 'evidence_failed'];
+
+/**
+ * "Fees kept inside Splash, this month" (prompt 11 §4.3): the sum of fee_avoided_minor over this
+ * calendar month's (UTC) inside-Splash payments that were paid. Payments without it are left out, not
+ * estimated; `since` is the first day one was recorded, when that is inside this month.
+ */
+export async function feesKeptThisMonth(orgId: string, now = new Date()) {
+  const month = utcDay(now).slice(0, 7);
+  const all = await runtime().payments.listByOrg(orgId);
+  let sumMinor = 0n;
+  let count = 0;
+  let first: string | null = null;
+  for (const p of all) {
+    if (p.kind !== 'peer' || p.feeAvoidedMinor === undefined || p.feeAvoidedMinor === null) continue;
+    if (first === null || p.createdAt < first) first = p.createdAt;
+    if (!PEER_PAID.includes(p.state)) continue;
+    const paidAt = p.timeline.paidAt ?? p.execution.confirmedAt ?? p.updatedAt;
+    if (paidAt.slice(0, 7) !== month) continue;
+    sumMinor += p.feeAvoidedMinor;
+    count += 1;
+  }
+  const since = first !== null && first.slice(0, 7) === month && first.slice(0, 10) !== `${month}-01` ? shortDay(first) : null;
+  return { sumMinor, count, since };
+}
 
 /** For Overview and Balance: the Investments account at value, and whether it holds anything yet. */
 export function investmentsSummary(org: OrgRecord, now = new Date()) {

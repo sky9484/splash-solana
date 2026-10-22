@@ -22,7 +22,7 @@ Built for Colosseum (submission 12 Oct 2026). First corridor: Malaysia to the Ph
 | **Payout partner** | **Mock** ("Mock partner · devnet"): its peso rate is a fixed reference, not a live rate, and it pays no real bank. It stays a mock until a sandbox agreement is approved. |
 | Wallet screening (KYT) | **Stub**, labelled as such on every approval card and funds check. |
 | Funding from outside the vaults (bank or card top-ups, USDT or PYUSD swapped to USDC) | **Sandbox stand-ins**, labelled so on every screen: offline they credit the payments vault after a simulated funds check, and their charges are sandbox estimates. No agreement with any provider is signed. |
-| Treasury investments (T-bills via Ondo's USDY, US stocks and ETFs via Ondo) | **Test mode only**, until legal sign-off in Malaysia: orders are approved on a device and settled by a simulator. Every rate and past return is dated and sourced (`lib/treasury/reference.ts`). See `docs/solana-build/TREASURY.md`. |
+| Treasury investments (T-bills: Ondo's USDY; US stocks and ETFs through Splash's stock partner) | **Test mode only**, until legal sign-off in Malaysia: orders are approved on a device and settled by a simulator. Every rate and past return is dated and sourced (`lib/treasury/reference.ts`). See `docs/solana-build/TREASURY.md`. |
 | The run mode | **Offline by default**: every screen and receipt says "Test mode". The same code runs on devnet with `SPLASH_SOLANA_MODE=devnet`. |
 
 ## The problem

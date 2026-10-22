@@ -15,7 +15,7 @@ import { billHref, sweepHref } from '../dashboard/links.ts';
 import { formatPhp, formatUsd } from '../solana-zeke/router.ts';
 import { CORRIDORS } from '../solana-partner/registry.ts';
 import { availableToInvest, isCovered, payablesDue, reserveFloor, sharesPct, shortfall } from '../treasury/reserve.ts';
-import { investmentsSummary, waitingSweepDraft } from './investments.ts';
+import { investmentsSummary, waitingQuarterDraft, waitingSweepDraft } from './investments.ts';
 import { accountBalances, payablesOf, phpToUsdMinor, positionFrom } from './money-position.ts';
 import { needsYou, type NeedRow, type SetupIn } from './needs-you.ts';
 import { DEMO_LIMITS, getOrg } from './service.ts';
@@ -126,6 +126,10 @@ export async function overviewFor(input: OverviewInput) {
     sweep: (() => {
       const d = waitingSweepDraft(org, now);
       return d ? { kind: d.kind, amount: formatUsd(d.amountMinor), href: sweepHref(d.id) } : null;
+    })(),
+    quarter: (() => {
+      const q = waitingQuarterDraft(org, now);
+      return q ? { amount: formatUsd(q.amountMinor), months: q.months ?? 'last quarter', href: sweepHref(q.id) } : null;
     })(),
     setup: input.setupOpen,
     php: formatPhp,

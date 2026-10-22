@@ -3,7 +3,7 @@
 // by customers, so they are stripped first. A negation ("not yet a licensed …", "no … guarantee")
 // is the one way some of these words may appear.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import test from 'node:test';
 
@@ -51,6 +51,12 @@ const RULES = [
   { name: 'earn / APR', pattern: /\b[Ee]arn(?:s|ing)?\b|\bAPR\b/ },
   { name: 'an SLA', pattern: /\bSLAs?\b/ },
   { name: 'Ondo as a partner', pattern: /\bpartner:?\s+Ondo\b|\bOndo\b[^.]{0,30}\bour partner\b|\bour partner\b[^.]{0,30}\bOndo\b/i },
+  // Prompt 11 §0.4: the stock partner is named, never with a web address (nor a misspelt one).
+  { name: 'a web address for the stock partner', pattern: /\btreasurers?\.io\b|\btreasures\.io\b/i },
+  // Stocks are bought through Treasurers now; Ondo issues the T-bill note only. Nothing says "via Ondo".
+  { name: 'via Ondo', pattern: /\bvia Ondo\b/i },
+  // Prompt 11 decision 9: Zeke drafts every move and a person approves it. Nothing sweeps by itself.
+  { name: 'a sweep that runs by itself', pattern: /\bauto-?sweep|\bautomatic(?:ally)? sweep|\bsweeps? automatically\b/i },
 ];
 
 function violations(path, text) {
@@ -97,6 +103,33 @@ test('the rules catch what they claim to, and let the negations through', () => 
   assert.equal(violations('x.tsx', '<p>400ms settlement SLA</p>').length, 2);
   assert.equal(violations('x.tsx', '<p>Partner: Ondo</p>').length, 1);
   assert.equal(violations('x.tsx', '<p>USDY, issued by Ondo</p>').length, 0);
+  assert.equal(violations('x.tsx', '<p>See treasurers.io</p>').length, 1);
+  assert.equal(violations('x.tsx', '<p>treasurer.io and treasures.io</p>').length, 1, 'one entry per rule a line breaks');
+  assert.equal(violations('x.tsx', '<p>Bought through Treasurers, our stock partner.</p>').length, 0);
+  assert.equal(violations('x.tsx', '<p>US stocks and ETFs · via Ondo</p>').length, 1);
+  assert.equal(violations('x.tsx', '<p>Turn on auto-sweep</p>').length, 1);
+  assert.equal(violations('x.tsx', '<p>An automatic sweep moves idle cash</p>').length, 1);
+  assert.equal(violations('x.tsx', '<p>Idle cash sweeps automatically</p>').length, 1);
+  assert.equal(violations('x.tsx', '<p>Zeke drafts a sweep; nothing moves until you approve it.</p>').length, 0);
+});
+
+// Prompt 11 §0.4: "Treasurers" (the stock partner, waived by Sky for this name only) appears only on
+// the stocks card, its sheets and Risk and rules, and in the adapter that labels it.
+const TREASURERS_ALLOWED = ['components/solana/treasury/Stocks.tsx', 'components/solana/treasury/OrderSheet.tsx', 'components/solana/treasury/RiskRules.tsx', 'lib/treasury/adapters.ts'];
+
+test('"Treasurers" only on the stocks card, its sheets and Risk and rules', () => {
+  for (const f of TREASURERS_ALLOWED) assert.ok(existsSync(f), `${f} is allowed but doesn’t exist`);
+  const found = [];
+  const all = [...ROOTS.flatMap((r) => files(r)), ...SCREEN_LIB, 'lib/treasury/adapters.ts'];
+  for (const f of new Set(all)) {
+    if (TREASURERS_ALLOWED.includes(f)) continue;
+    strip(readFileSync(f, 'utf8'))
+      .split(/\r?\n/)
+      .forEach((line, i) => {
+        if (/\bTreasurers\b/.test(line)) found.push(`${f}:${i + 1} ${line.trim().slice(0, 110)}`);
+      });
+  }
+  assert.deepEqual(found, [], `\n  ${found.join('\n  ')}\n`);
 });
 
 // Prompt 10 §5.9: words that are gone from the dashboard. The landing and the legacy surfaces the

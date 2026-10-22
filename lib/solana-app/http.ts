@@ -278,6 +278,8 @@ export const schemas = {
     z.object({ sweepDraftId: z.string().regex(/^swp_[0-9a-f]{16}$/), path: z.enum(['market', 'ondo']).optional() }).strict(),
   ]),
   orderId: id('ord'),
+  /** A sweep or quarter-interest draft (prompt 11 §4.3). */
+  sweepDraftId: z.string().regex(/^swp_[0-9a-f]{16}$/),
   orderApprove: z.object({ signature: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{64,90}$/) }).strict(),
   sweepRule: z.object({ on: z.boolean(), cushionMinor: z.string().regex(/^\d{1,13}$/).optional() }).strict(),
   eligibility: z.object({ confirm: z.literal(true) }).strict(),

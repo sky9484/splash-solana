@@ -182,9 +182,17 @@ export interface SweepDraftRecord {
   amountMinor: bigint;
   reason: string;
   createdAt: string;
-  state: 'drafted' | 'approved' | 'replaced' | 'withdrawn';
+  /** 'dismissed': a person pressed "Not now" (prompt 11 §4.3). Only a person approves or dismisses. */
+  state: 'drafted' | 'approved' | 'replaced' | 'withdrawn' | 'dismissed';
   orderId: string | null;
   cushionMinor: bigint;
+  /** Prompt 11 §4.4: the daily sweep (absent, from before), or the quarter's interest brought back. */
+  purpose?: 'sweep' | 'quarter_interest';
+  /** For a quarter's interest: which quarter ("2026-Q3") and its months ("Jul–Sep"). */
+  quarter?: string;
+  months?: string;
+  /** Who pressed "Not now", and when. */
+  dismissed?: { by: string; at: string } | null;
 }
 
 /** Money in from outside the company, into its own Payments account. */
@@ -597,6 +605,12 @@ export interface PaymentRecord {
    * new quote (prompt 10 §5.7). `previousYouPayMinor` tells "The rate moved" from "The quote ran out".
    */
   approvalsReset?: { at: string; previous: number; previousYouPayMinor: bigint | null } | null;
+  /**
+   * Prompt 11 §4.3: on a payment into another Splash business's own account, the fee the cheapest bank
+   * route would have charged for the same amount, recorded when it is quoted. Absent or null: none
+   * recorded (a bank payout, or a payment from before it was kept), and nothing is estimated later.
+   */
+  feeAvoidedMinor?: bigint | null;
 }
 
 export interface OrgNotification {
