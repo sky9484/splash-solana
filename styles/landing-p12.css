@@ -11,9 +11,11 @@
 
 /* ── Shared pieces ─────────────────────────────────────────────────────── */
 
+/* 1,180 px of content, as the preview's sections have it (their `sec` padding zeroes the wrap's own),
+   plus the 24 px gutter that keeps narrow screens off the edge. */
 .lp-wrap {
   width: 100%;
-  max-width: 1180px;
+  max-width: 1228px;
   margin-inline: auto;
   padding-inline: 24px;
 }

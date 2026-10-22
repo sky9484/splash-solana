@@ -7,8 +7,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import test from 'node:test';
 
-/** lib/route-engine holds the fee code (fees.ts); lib/solana-app is the service that moves the money. */
-const ROOTS = ['lib/route-engine', 'lib/solana', 'lib/solana-app', 'lib/treasury'];
+/** lib/route-engine holds the fee code (fees.ts); lib/solana-app is the service that moves the money;
+ *  lib/working-capital is the working-capital page's illustration (prompt 12 Phase 4: integer cents). */
+const ROOTS = ['lib/route-engine', 'lib/solana', 'lib/solana-app', 'lib/treasury', 'lib/working-capital'];
 
 const FLOAT = [
   { name: 'parseFloat', pattern: /\bparseFloat\s*\(/ },
