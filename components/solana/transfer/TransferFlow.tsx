@@ -22,7 +22,7 @@ import { StepQuote, type PayeeLabel, type Rehearsal } from './StepQuote';
 import { bankLine, StepRecipient } from './StepRecipient';
 import { StepTrack } from './StepTrack';
 import { QuoteClock, TransferHeader, type HeaderFacts, type TransferStatus } from './TransferHeader';
-import { countryName, problemOf, shortName, STEP_ORDER, transferHref, type AmountDraft, type EstimateDTO, type Payee, type Problem, type RecipientRow, type RecipientsDTO, type StepId, type To } from './shared';
+import { countryName, laneTags, problemOf, shortName, STEP_ORDER, transferHref, type AmountDraft, type EstimateDTO, type Payee, type Problem, type RecipientRow, type RecipientsDTO, type StepId, type To } from './shared';
 
 type Template = Wire<TransferTemplate>;
 
@@ -409,6 +409,8 @@ function Flow({ company }: { company: CompanyDTO }) {
   const amountKey = `${to}:${recipient?.id ?? payee?.orgId ?? ''}`;
   const lanes = ready ? [...ready.cards, ...(ready.compare ? [ready.compare] : [])] : [];
   const card = ready ? (lanes.find((c) => c.quoteId === (step === 'quote' ? quoteId : (ready.selectedQuoteId ?? quoteId))) ?? ready.cards[0] ?? null) : null;
+  /** The picked lane's names for So far's Route row, "Cheapest" only when it truly is (shared.ts laneTags). */
+  const routeName = card ? (peer ? 'Inside Splash' : laneTags(card, lanes).map((t) => t.label).join(' · ') || 'Other route') : null;
   const est = step === 'amount' ? estimate : null;
   const reference = ready?.invoice.confirmed?.invoiceNumber ?? (draft?.reference || null);
   const peerInfo = ready?.invoice.peer ?? null;
@@ -440,13 +442,21 @@ function Flow({ company }: { company: CompanyDTO }) {
   const rows: SoFarRow[] = [
     { label: 'Paying', value: label.name || null, sub: peer ? 'into their own Splash account' : label.bank && label.last4 ? `${label.bank} •••• ${label.last4}` : undefined },
     { label: 'They receive', value: facts.receive },
-    { label: 'Route', value: ready && card && ready.selectedQuoteId && !BEFORE_APPROVAL.slice(0, 2).includes(ready.state) && ready.state !== 'quote_expired' ? `${peer ? 'Inside Splash' : card.labels.join(' · ') || 'Other route'} · ${usd(card.youPayUsdcMinor)}` : null },
+    // On Route the lane picked is known; later steps, the one the server holds (prompt 11 §2.2).
+    {
+      label: 'Route',
+      value:
+        ready && card && (step === 'quote' ? ready.state !== 'quote_expired' : ready.selectedQuoteId && !BEFORE_APPROVAL.slice(0, 2).includes(ready.state) && ready.state !== 'quote_expired')
+          ? `${routeName} · ${usd(card.youPayUsdcMinor)}`
+          : null,
+    },
     { label: 'Approval', value: ready && (APPROVED.includes(ready.state) || ready.approvals.approved > 0) ? `Approved by ${approvedBy || 'you'}` : null },
   ];
 
   const lead = (
     <>
-      {templates && templates.length > 0 ? <Templates templates={templates} onUse={(t) => void startFromTemplate(t)} onRemoved={(id) => setTemplates(templates.filter((x) => x.id !== id))} /> : null}
+      {/* "Pay again" shows the tab's own kind: a bank template under Bank account, a Splash one under Splash business. */}
+      {templates && templates.some((t) => t.to === to) ? <Templates templates={templates.filter((t) => t.to === to)} onUse={(t) => void startFromTemplate(t)} onRemoved={(id) => setTemplates(templates.filter((x) => x.id !== id))} /> : null}
       {problem ? (
         <p className="iso-note iso-note--danger" role="alert">
           {problem.message}

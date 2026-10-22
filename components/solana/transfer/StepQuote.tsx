@@ -13,7 +13,7 @@ import type { FundingOptionsDTO, PaymentDTO, RouteCardDTO } from '../types';
 import { AddMoneySheet } from './AddMoneySheet';
 import { HowItMoves } from './HowItMoves';
 import { SoFar, TxGrid, type SoFarRow } from './SoFar';
-import { shortName, usdWhole, type Problem } from './shared';
+import { laneTags, shortName, usdWhole, type Problem } from './shared';
 
 /** Test mode only: a problem the next step plays out, so each failure can be seen before it happens for real. */
 export type Rehearsal = 'none' | 'kyt_flag' | 'partner_return';
@@ -148,7 +148,8 @@ export function StepQuote({
         <div className={clsx('iso-routes', unavailable && 'iso-stale')} role="radiogroup" aria-label="Route" onKeyDown={radioKeys(values, card.quoteId, onQuoteId)}>
           {lanes.map((c) => {
             const on = c.quoteId === card.quoteId;
-            const tags: Array<{ label: string; tone: TagTone }> = peer ? [{ label: 'Inside Splash', tone: 'ok' }] : c.labels.length > 0 ? c.labels.map((l, i) => ({ label: l, tone: POLICY_TONE[c.policies[i] ?? ''] ?? 'ink' })) : [{ label: 'Other route', tone: 'ink' }];
+            const named = laneTags(c, lanes);
+            const tags: Array<{ label: string; tone: TagTone }> = peer ? [{ label: 'Inside Splash', tone: 'ok' }] : named.length > 0 ? named.map((t) => ({ label: t.label, tone: POLICY_TONE[t.policy] ?? 'ink' })) : [{ label: 'Other route', tone: 'ink' }];
             const stops = peer ? ['You', short] : c.lowerCostLane ? ['You', 'Lower-cost lane', 'Partner', bankShort] : ['You', 'Partner', bankShort];
             const line = peer
               ? `Straight into ${short}’s Splash account. No payout partner, no conversion.`
@@ -195,8 +196,8 @@ export function StepQuote({
         </div>
         <p className="iso-small iso-row iso-rules" aria-live="polite">
           <ShieldCheck size={16} aria-hidden="true" />
-          {checks && checks.quoteId === card.quoteId ? (checkFailed ? `Stopped by a rule: ${checkFailed.label}` : `Passed ${checks.passed} of ${checks.total} rules`) : 'Checking your rules…'}
-          <span> · checked again before you approve</span>
+          {/* One span, so a narrow screen wraps it as a sentence, never as a stray "· checked again" line. */}
+          <span>{checks && checks.quoteId === card.quoteId ? (checkFailed ? `Stopped by a rule: ${checkFailed.label}.` : `Passed ${checks.passed} of ${checks.total} rules. Checked again before you approve.`) : 'Checking your rules…'}</span>
         </p>
       </IsoSurface>
 
@@ -289,7 +290,7 @@ export function StepQuote({
             <HowItMoves payment={payment} payeeName={payee.name} />
             {payment.simulated && !peer ? (
               <Details summary="Rehearse a problem (test mode only)">
-                <span className="iso-stack" style={{ display: 'flex' }}>
+                <span className="iso-stack iso-rehearse" style={{ display: 'flex' }}>
                   <span className="iso-small">The next steps play it out with test money, so you can see what you’d see. Nothing real is stopped or returned.</span>
                   <Segmented
                     label="Rehearse a problem"

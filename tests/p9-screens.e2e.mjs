@@ -55,6 +55,8 @@ async function run(page) {
     n += 1;
     const base = `${String(n).padStart(2, '0')}-${name}`;
     await page.sleep(1200);
+    // The dev server's own "N" badge isn't part of the app: hidden so it covers nothing in the shot.
+    await page.evaluate(() => document.querySelectorAll('nextjs-portal').forEach((e) => e.style.setProperty('display', 'none')));
     await page.screenshot(path.join(OUT, `${base}-1440.webp`));
     await page.setViewport(...PHONE);
     await page.sleep(600);
@@ -112,8 +114,19 @@ async function run(page) {
   await page.fill('Company name, Splash handle or registration number', '@kuchingmarine');
   await page.find('text', 'Kuching Marine Supply');
   await shot('transfer-splash-1-recipient');
-  const how = await pressAny(page, ['Pay Kuching Marine Supply', 'Kuching Marine Supply']);
-  if (how === 'Kuching Marine Supply') await pressAny(page, ['Continue to amount']);
+  // Before prompt 11 a button paid the business; since Phase 2 a double-click on its row picks it and
+  // goes on to the amount.
+  const how = await page.evaluate(() => {
+    const button = [...document.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Pay Kuching Marine Supply');
+    if (button) return button.click(), 'button';
+    const row = [...document.querySelectorAll('.iso-pick__main')].find((b) => /Kuching Marine Supply/.test(b.innerText));
+    if (!row) return null;
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }));
+    row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+    return 'row';
+  });
+  assert.ok(how, 'Kuching Marine Supply can be picked');
   await page.waitFor(() => /step=amount/.test(location.search), [], { what: 'step 2 for a business on Splash' });
   await page.fill('Amount', '1,500');
   await page.fill('Note', 'Spare parts, October');

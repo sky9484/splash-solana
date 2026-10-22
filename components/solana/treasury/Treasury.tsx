@@ -222,10 +222,10 @@ export function Treasury({ prefillMoveMinor, back, sweepId }: { prefillMoveMinor
         </div>
       </div>
 
-      {/* ── Risk and rules, and Zeke ── */}
-      <div className="iso-split">
+      {/* ── Risk and rules, and Zeke in the same 320 px rail as above (prompt 11 §4.1) ── */}
+      <div className="iso-treasury__cols">
         <RiskRules data={d} />
-        <div className="iso-split__side iso-surface iso-surface--ink iso-strip iso-treasury__zeke iso-rise iso-rise-5">
+        <div className="iso-surface iso-surface--ink iso-strip iso-treasury__zeke iso-rise iso-rise-5">
           <Image src="/cinematic/agent-bot-cut.png" alt="" width={40} height={40} />
           <span>
             <strong>Zeke:</strong> {d.zeke}

@@ -94,7 +94,7 @@ export function StepRecipient({
     to === 'splash'
       ? payee
         ? null
-        : 'Pick a business to continue'
+        : 'Pick a recipient to continue'
       : !recipient
         ? 'Pick a recipient to continue'
         : recipient.payable
@@ -346,7 +346,7 @@ function FindBusiness({ payee, onPayee, onContinue, onBank }: { payee: Payee | n
           }}
         />
       ) : null}
-      <p className="iso-small" role="status" aria-live="polite" style={{ margin: 0 }}>
+      <p className="iso-small iso-pick__hint" role="status" aria-live="polite" style={{ margin: 0 }}>
         {hits && hits.length === 0 ? `No business on Splash matches “${q.trim()}”. ` : null}
         Only verified companies that chose “Let other Splash businesses find us” show here. Not listed?{' '}
         <button type="button" className="iso-btn iso-btn--link" onClick={() => void invite()}>

@@ -27,7 +27,7 @@ export function chartTiles<D extends { interestMinor: string | bigint }>(days: r
  * bar for its date and amount; the first and last bars carry their dates; a sentence says the same for
  * a screen reader. Under it: This period, Average a day, This quarter so far.
  */
-export function InterestChart({ days, quarterSoFarMinor }: { days: Day[]; quarterSoFarMinor: string }) {
+export function InterestChart({ days, quarterSoFarMinor, holds }: { days: Day[]; quarterSoFarMinor: string; holds: boolean }) {
   const [span, setSpan] = useState<'7' | '30'>('7');
   const [active, setActive] = useState<number | null>(null);
   const { shown, values, total, average } = chartTiles(days, span);
@@ -65,7 +65,9 @@ export function InterestChart({ days, quarterSoFarMinor }: { days: Day[]; quarte
         </p>
         {total === 0n ? (
           <p className="iso-small iso-ichart__empty" style={{ margin: 0 }}>
-            No interest booked in these {shown.length} days yet. It is booked once a day, for T-bills held at the start of the day.
+            {holds
+              ? `No interest booked in these ${shown.length} days yet. It is booked once a day, for T-bills held at the start of the day, so today’s live estimate is booked tomorrow.`
+              : `No interest booked in these ${shown.length} days. It is booked once a day, for T-bills held at the start of the day.`}
           </p>
         ) : null}
         <ol className="iso-ichart__bars" data-span={span}>

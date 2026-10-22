@@ -54,7 +54,6 @@ export const SWEEP_SNOOZE_DAYS = 7;
 const ASSETS: AssetId[] = ['usdy', 'spy', 'qqq', 'nvda', 'googl', 'tsla'];
 
 const utcDay = (d: Date) => d.toISOString().slice(0, 10);
-const max0 = (v: bigint) => (v < 0n ? 0n : v);
 const cents = (minor: bigint) => (minor / 10_000n) * 10_000n;
 function randomHex(bytes: number): string {
   const b = new Uint8Array(bytes);
@@ -591,16 +590,26 @@ export async function treasuryView(orgId: string, viewer: { isOwner: boolean }, 
   const interest30 = dailyInterest(today, 30, events);
   const quarterNow = quarterOf(today);
   const feesKept = await feesKeptThisMonth(org.id, now);
-  const freeInPayments = max0(position.paymentsMinor - position.waitingMinor);
+  // With nothing waiting, say why: today's sweep may already be decided, or "Not now" holds sweep-out back.
+  const decidedToday = draft ? null : (draftsOf(org).findLast((d) => purposeOf(d) === 'sweep' && d.day === today && (d.state === 'approved' || d.state === 'dismissed')) ?? null);
+  const snoozed = snoozedUntil(org, now);
   const zeke = draft
     ? draft.kind === 'subscribe'
       ? `I drafted a sweep of ${formatUsd(draft.amountMinor)} into T-bills under your sweep rule. Nothing moves until a person approves it.`
       : `I drafted a redemption of ${formatUsd(draft.amountMinor)} from T-bills, because bills due need the money back. Nothing moves until a person approves it.`
+    : rules.sweep.on && decidedToday
+      ? decidedToday.state === 'approved'
+        ? `Today’s ${decidedToday.kind === 'subscribe' ? 'sweep into' : 'redemption from'} T-bills, ${formatUsd(decidedToday.amountMinor)}, is approved. I’ll look again tomorrow, and I never pick an investment for you.`
+        : decidedToday.kind === 'subscribe' && snoozed
+          ? `You said not now to today’s sweep, so I won’t draft one into T-bills again before ${shortDay(snoozed)}. I never pick an investment for you.`
+          : `You said not now to today’s ${decidedToday.kind === 'subscribe' ? 'sweep' : 'redemption'}. I’ll look again tomorrow, and I never pick an investment for you.`
+    : rules.sweep.on && snoozed
+      ? `You said not now to a sweep, so I won’t draft one into T-bills again before ${shortDay(snoozed)}. I never pick an investment for you.`
     : rules.sweep.on
       ? 'Sweep is on. Nothing needs drafting today: your reserve is at its floor and your Payments account holds no more than its cushion. I never pick an investment for you.'
-      : freeInPayments > 0n
-        ? `${formatUsd(freeInPayments)} in your Payments account isn’t needed for anything due in the next 30 days. Sweep is off, so I won’t draft a move, and I never pick an investment for you.`
-        : 'Everything in your Payments account is needed for what’s waiting. Sweep is off, so I won’t draft a move, and I never pick an investment for you.';
+      : available.totalMinor > 0n
+        ? `${formatUsd(available.totalMinor)} is available to invest: what’s left after what’s waiting and your reserve’s floor. Sweep is off, so I won’t draft a move, and I never pick an investment for you.`
+        : 'Nothing is available to invest: what’s waiting and your reserve’s floor need it all. Sweep is off, so I won’t draft a move, and I never pick an investment for you.';
   const positions = holdings.per.map((h) => {
     const ref = h.asset === 'usdy' ? null : stockRef(h.asset);
     return {

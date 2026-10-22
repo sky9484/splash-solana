@@ -689,6 +689,8 @@ async function run(page, email) {
   await approveThenTrack();
   await page.find('heading', /^(Paid into their Splash account|Paid, with proof recorded)$/, { timeoutMs: 60_000 });
   await page.find('text', 'In their account');
+  // What happened lists it with its time ("14 Oct, 19:35": day first, 24-hour), from the chain's confirmation.
+  await page.waitFor(() => /In their account\s*\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2}/.test(document.querySelector('[aria-labelledby="t5-happened"]')?.innerText ?? ''), [], { what: 'In their account, with its time, in What happened' });
   await headerMatchesServer('track', /^Paid$/);
   await shot('transfer-splash-paid');
 
@@ -1006,7 +1008,8 @@ async function run(page, email) {
   await page.click('button', 'Approve on this device', { exact: true });
   await page.find('text', /^Approved by you\. Settled in test mode\. The units are in your Investments account\./, { timeoutMs: 60_000 });
   await page.click('button', 'Done');
-  await page.waitFor(() => /US\$80,000\.00 is in its 40-day hold until \d{1,2} [A-Z][a-z]{2}/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the hold and its release date' });
+  // The units and the hold sit in "How it works", closed (§4.2): read them without opening it.
+  await page.waitFor(() => /^You hold [\d,]+\.\d+ units · US\$80,000\.00 is in its 40-day hold until \d{1,2} [A-Z][a-z]{2}$/.test(document.querySelector('section[aria-labelledby="tr-usdy"] details .iso-num')?.textContent ?? ''), [], { what: 'the hold and its release date' });
   // Everything held: nothing to redeem yet.
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('section[aria-labelledby="tr-usdy"] button')].find((b) => b.innerText.trim() === 'Redeem')?.disabled), true, 'held units can’t be redeemed');
   // "Interest today" ticks every second while the tab is visible, and stops while it's hidden (§4.2).
@@ -1064,7 +1067,7 @@ async function run(page, email) {
   await page.click('button', 'Done');
   // What's held (prompt 11 §4.1 has no Positions box): the T-bill card's units, and the stock's row,
   // which now offers "Buy more" and "Sell".
-  await page.waitFor(() => /[\d,]+\.\d+ units/.test(document.querySelector('section[aria-labelledby="tr-usdy"]')?.innerText ?? ''), [], { what: 'the T-bill units' });
+  await page.waitFor(() => /^You hold [\d,]+\.\d+ units/.test(document.querySelector('section[aria-labelledby="tr-usdy"] details .iso-num')?.textContent ?? ''), [], { what: 'the T-bill units' });
   await page.waitFor(() => [...document.querySelectorAll('section[aria-labelledby="tr-stocks"] tbody tr')].some((r) => /S&P 500/.test(r.innerText) && /^US\$[\d,]+\.\d\d$/.test(r.querySelector('[data-label="You hold (test)"]')?.innerText.trim() ?? '') && /Buy more/.test(r.innerText)), [], { what: 'the stock held' });
   await shot('treasury-holdings');
 
@@ -1072,11 +1075,11 @@ async function run(page, email) {
   // Review opens it; "Approve" on the row opens the approval moment, and nothing moves before it; then
   // the row says "Approved on this device" and the activity "you approved"; Hold again.
   await page.click('button', 'Sweep', { exact: true });
-  await page.find('text', /^When cash builds above your reserve and a US\$5,000\.00 cushion, Zeke drafts a move into the T-bill pool\. Nothing moves until you approve it\./);
+  await page.find('text', /^When cash builds above your reserve and a US\$5,000 cushion, Zeke drafts a move into the T-bill pool\. Nothing moves until you approve it\./);
   await page.find('text', /^Move US\$[\d,]+\.\d\d in$/);
   await page.find('text', 'Idle cash above reserve and cushion');
   await page.find('text', /^Zeke: I drafted a sweep of US\$[\d,]+\.\d\d into T-bills under your sweep rule\. Nothing moves until a person approves it\.$/);
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.iso-draft[data-state="drafted"] button')].map((b) => [b.innerText.trim(), b.classList.contains('iso-btn--approve')])), [['Approve', true], ['Not now', false]]);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.iso-sweepdraft[data-state="drafted"] button')].map((b) => [b.innerText.trim(), b.classList.contains('iso-btn--approve')])), [['Approve', true], ['Not now', false]]);
   await shot('treasury-sweep');
   // Overview with Investments above zero and the sweep draft in Needs you (§4.2, §7.3).
   await page.goto(`${BASE}/dashboard`);
@@ -1095,7 +1098,7 @@ async function run(page, email) {
   await page.waitFor(() => !document.querySelector('.iso-sheet-root'), [], { what: 'the sheet closed' });
   // "Approve" on the row: the approval moment, and nothing has moved yet.
   const before = await invested();
-  await page.evaluate(() => [...document.querySelectorAll('.iso-draft[data-state="drafted"]')].find((r) => /Move US\$/.test(r.innerText))?.querySelector('.iso-btn--approve')?.click());
+  await page.evaluate(() => [...document.querySelectorAll('.iso-sweepdraft[data-state="drafted"]')].find((r) => /Move US\$/.test(r.innerText))?.querySelector('.iso-btn--approve')?.click());
   await page.find('heading', 'Approve this subscription', { timeoutMs: 60_000 });
   await page.find('text', /^Drafted by Zeke from your sweep rule/);
   assert.equal(await invested(), before, 'nothing moves until a person approves');
@@ -1108,6 +1111,8 @@ async function run(page, email) {
   assert.match(await page.evaluate(() => document.querySelector('section[aria-labelledby="tr-activity"]')?.innerText ?? ''), /Moved in · you approved · Today/);
   await page.click('button', 'Hold', { exact: true });
   await page.find('text', /^Idle cash stays in your Payments account\. Zeke won't draft sweeps\./);
+  // Under Hold there are no draft rows: a decided row's "Zeke will ask again" would no longer hold.
+  await page.waitFor(() => document.querySelectorAll('.iso-sweepdraft').length === 0, [], { what: 'no sweep rows under Hold' });
   // History's gold Treasury rows, one per settled order.
   await page.goto(`${BASE}/dashboard/history`);
   await page.find('heading', 'Treasury');

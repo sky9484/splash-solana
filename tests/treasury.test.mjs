@@ -143,6 +143,15 @@ test('the sweep job drafts at most once a day, replaces an unapproved draft the 
   assert.doesNotMatch(cron, /approveOrder|prepareOrder|settleTestOrder/);
 });
 
+test('with sweep off, Zeke’s idle figure is the page’s Available to invest, not the Payments account less what waits', async () => {
+  const env = await company();
+  await svc.fund(env.org.id);
+  const v = await inv.treasuryView(env.org.id, OWNER);
+  assert.equal(v.sweep.on, false);
+  const usd = (minor) => `US$${(BigInt(minor) / 1_000_000n).toLocaleString('en-US')}.${((BigInt(minor) % 1_000_000n) / 10_000n).toString().padStart(2, '0')}`;
+  assert.equal(v.zeke, `${usd(v.available.totalMinor)} is available to invest: what’s left after what’s waiting and your reserve’s floor. Sweep is off, so I won’t draft a move, and I never pick an investment for you.`);
+});
+
 test('a sweep draft opens as its own order and is marked approved once a person approves it', async () => {
   const env = await company();
   await svc.fund(env.org.id);
@@ -158,6 +167,9 @@ test('a sweep draft opens as its own order and is marked approved once a person 
   assert.equal(r.bundle.sweep.draftId, draft.id);
   assert.equal(r.bundle.sweep.cushionMinor, $(5_000));
   await assert.rejects(() => inv.prepareOrder(env.org.id, { asset: 'usdy', kind: 'subscribe', amountMinor: 0n, sweepDraftId: draft.id }, 'Aisyah'), (e) => e.code === 'wrong_state');
+  // Zeke says today's sweep is decided, not that nothing needed drafting.
+  const v = await inv.treasuryView(env.org.id, OWNER);
+  assert.equal(v.zeke, 'Today’s sweep into T-bills, US$20,000.00, is approved. I’ll look again tomorrow, and I never pick an investment for you.');
 });
 
 /* ── Orders ───────────────────────────────────────────────────────────── */

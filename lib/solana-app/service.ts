@@ -2397,6 +2397,8 @@ export async function paymentView(paymentId: string) {
     rehearsal: p.rehearsal,
     timeline: p.timeline,
     finalized: p.execution.finalizedAt !== null,
+    /** When the chain confirmed the transfer: for a payment inside Splash, when it was in their account. */
+    confirmedAt: p.execution.confirmedAt,
     signatures: p.signatures.map((s) => ({ ...s, ...(s.network === 'solana' ? traceLinks('tx', s.signature, s.simulated) : { solscanUrl: null, explorerUrl: null }) })),
     trace: paymentTrace(p),
     partnerEvents: p.partnerEvents.map((e) => ({ status: e.status, at: e.at, bankReference: e.bankReference ?? null })),

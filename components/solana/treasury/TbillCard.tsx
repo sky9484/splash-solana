@@ -11,10 +11,14 @@ import { InterestChart } from './InterestChart';
 import { liveEstimate, liveText, perDayText } from './live';
 import type { TreasuryDTO } from './Treasury';
 
-/** A clock that ticks every second while the tab is visible and stops while it is hidden. */
+/**
+ * A clock that ticks every second while the tab is visible and stops while it is hidden. With reduced
+ * motion it moves once a minute (prompt 11 Phase 5, motion audit).
+ */
 function useVisibleNow(ms = 1000): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    const step = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 60_000 : ms;
     let timer: number | null = null;
     const stop = () => {
       if (timer !== null) window.clearInterval(timer);
@@ -23,7 +27,7 @@ function useVisibleNow(ms = 1000): number {
     const sync = () => {
       if (document.hidden) return stop();
       setNow(Date.now());
-      if (timer === null) timer = window.setInterval(() => setNow(Date.now()), ms);
+      if (timer === null) timer = window.setInterval(() => setNow(Date.now()), step);
     };
     sync();
     document.addEventListener('visibilitychange', sync);
@@ -94,20 +98,17 @@ export function TbillCard({ data, onOrder, subscribeWhy, redeemWhy }: { data: Tr
           Redeem
         </IsoButton>
       </div>
-      {t.holding && BigInt(t.holding.heldMinor) > 0n ? (
-        <p className="iso-small iso-num" style={{ margin: 0 }}>
-          {t.holding.unitsText} units · {usd(t.holding.heldMinor)} is in its {t.holdDays}-day hold until {t.holding.heldUntilLabel}
-        </p>
-      ) : t.holding ? (
-        <p className="iso-small iso-num" style={{ margin: 0 }}>
-          {t.holding.unitsText} units
-        </p>
-      ) : null}
-
-      <InterestChart days={t.interest} quarterSoFarMinor={t.quarterSoFarMinor} />
+      <InterestChart days={t.interest} quarterSoFarMinor={t.quarterSoFarMinor} holds={Boolean(t.holding)} />
 
       <Details summary="How it works">
         <div className="iso-stack">
+          {/* What you hold, in units, and any hold on them: the card's foot before, moved here (§4.2). */}
+          {t.holding ? (
+            <p className="iso-small iso-num" style={{ margin: 0 }}>
+              You hold {t.holding.unitsText} units
+              {BigInt(t.holding.heldMinor) > 0n ? ` · ${usd(t.holding.heldMinor)} is in its ${t.holdDays}-day hold until ${t.holding.heldUntilLabel}` : ''}
+            </p>
+          ) : null}
           <p className="iso-body" style={{ margin: 0 }}>
             A note backed by short-term US Treasury bills and bank deposits. <strong>Not a bank deposit; its value can fall.</strong>
           </p>
