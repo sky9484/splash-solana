@@ -2,15 +2,18 @@
  * The top row's search (prompt 10 §3.3): the company's own payments, bills and recipients, by name,
  * invoice number, reference or amount. At most 8 results, grouped by type. Only this company's
  * records are read (the org comes from the session), and a recipient shows its last four digits
- * only: no full account number is searched or returned. Payment requests join in Phase 4.
+ * only: no full account number is searched or returned. Payment requests (Get paid) by payer, number
+ * or amount.
  */
+import { billHref, requestHref } from '../dashboard/links.ts';
 import { formatPhp, formatUsd } from '../solana-zeke/router.ts';
 import { STATE_LABEL } from './payment-machine.ts';
 import { runtime } from './runtime.ts';
+import { requestsOf } from './requests.ts';
 import { getOrg } from './service.ts';
-import { store } from './store.ts';
+import { isBill, store } from './store.ts';
 
-export type SearchKind = 'payment' | 'bill' | 'recipient';
+export type SearchKind = 'payment' | 'bill' | 'request' | 'recipient';
 
 export interface SearchResult {
   kind: SearchKind;
@@ -33,7 +36,7 @@ function shortDate(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
-const GROUP_LABEL: Record<SearchKind, string> = { payment: 'Payments', bill: 'Bills', recipient: 'Recipients' };
+const GROUP_LABEL: Record<SearchKind, string> = { payment: 'Payments', bill: 'Bills', request: 'Requests', recipient: 'Recipients' };
 
 /** Lower case, accents off, spaces squashed. */
 const norm = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -58,7 +61,7 @@ export async function searchCompany(orgId: string, rawQuery: string): Promise<{ 
   const q = rawQuery.trim().slice(0, 80);
   if (q.length < 2) return { query: q, groups: [], total: 0 };
 
-  const found: Record<SearchKind, SearchResult[]> = { payment: [], bill: [], recipient: [] };
+  const found: Record<SearchKind, SearchResult[]> = { payment: [], bill: [], request: [], recipient: [] };
   const invoices = [...store().invoices.values()].filter((i) => i.orgId === org.id);
 
   const payments = (await runtime().payments.listByOrg(org.id))
@@ -76,22 +79,31 @@ export async function searchCompany(orgId: string, rawQuery: string): Promise<{ 
       id: p.id,
       title: name || 'Payment',
       detail: [ref, php, STATE_LABEL[p.state]].filter(Boolean).join(' · '),
-      href: `/dashboard/${inv?.source === 'transfer' ? 'transfer' : 'invoices'}?payment=${p.id}`,
+      href: `/dashboard/transfer?payment=${p.id}`,
     });
   }
 
-  for (const i of invoices.filter((x) => x.source !== 'transfer')) {
+  for (const i of invoices.filter((x) => isBill(x) && !x.dismissed)) {
     const f = i.confirmed ?? i.draft?.fields ?? null;
     if (!f) continue;
-    const php = formatPhp(f.amountPhpMinor);
-    if (!matches(q, [f.supplierName, f.invoiceNumber], amountKeys(php))) continue;
+    // A request from a business on Splash is in US dollars; an invoice Zeke read, in pesos.
+    const amount = i.request && i.peer ? formatUsd(i.peer.amountUsdMinor) : formatPhp(f.amountPhpMinor);
+    const due = i.request?.dueDate ?? f.dueDate;
+    if (!matches(q, [f.supplierName, f.invoiceNumber], amountKeys(amount))) continue;
     found.bill.push({
       kind: 'bill',
       id: i.id,
       title: f.supplierName || 'Bill',
-      detail: [f.invoiceNumber, php, f.dueDate ? `due ${shortDate(f.dueDate)}` : null].filter(Boolean).join(' · '),
-      href: `/dashboard/invoices?invoice=${i.id}`,
+      detail: [f.invoiceNumber, amount, due ? `due ${shortDate(due)}` : null].filter(Boolean).join(' · '),
+      href: i.request ? '/dashboard/invoices/pay' : billHref(i.id),
     });
+  }
+
+  for (const r of requestsOf(org.id)) {
+    if (r.state === 'cancelled') continue;
+    const amount = formatUsd(r.amountMinor);
+    if (!matches(q, [r.payer.name, r.number], amountKeys(amount))) continue;
+    found.request.push({ kind: 'request', id: r.id, title: r.payer.name, detail: [r.number, amount, r.state === 'paid' ? 'paid' : `due ${shortDate(r.dueDate)}`].join(' · '), href: requestHref(r.id) });
   }
 
   for (const s of org.suppliers) {
@@ -101,8 +113,8 @@ export async function searchCompany(orgId: string, rawQuery: string): Promise<{ 
   }
 
   // At most 8, shared fairly across the groups (one from each in turn), then shown grouped.
-  const kinds: SearchKind[] = ['payment', 'bill', 'recipient'];
-  const take: Record<SearchKind, number> = { payment: 0, bill: 0, recipient: 0 };
+  const kinds: SearchKind[] = ['payment', 'bill', 'request', 'recipient'];
+  const take: Record<SearchKind, number> = { payment: 0, bill: 0, request: 0, recipient: 0 };
   let left = SEARCH_LIMIT;
   while (left > 0 && kinds.some((k) => take[k] < found[k].length)) {
     for (const k of kinds) {

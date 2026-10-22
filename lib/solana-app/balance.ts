@@ -56,7 +56,8 @@ function paymentRow(p: PaymentRecord, now: Date): MoneyRow | null {
   const kind = p.kind ?? 'bank';
   const st = stationOf(p.state as PaymentState, kind);
   const rail = p.approval?.arrives.split(',')[0] ?? '';
-  const href = p.receiptId ? `/dashboard/receipts/${p.receiptId}` : inv?.source === 'transfer' || inv?.source === 'peer' ? `/dashboard/transfer?payment=${p.id}` : `/dashboard/invoices?payment=${p.id}`;
+  // Transfer follows every kind of payment, an invoice's too (prompt 10 §6.2: one engine, one approval card).
+  const href = p.receiptId ? `/dashboard/receipts/${p.receiptId}` : `/dashboard/transfer?payment=${p.id}`;
   if (st === 'waiting') {
     return { id: p.id, at: p.createdAt, date: dayLabel(p.createdAt, now), what: name, detail: `${ref} · waiting for your approval`, amountMinor: -youPay, tag: { tone: 'ink', label: 'Not taken yet' }, href };
   }
@@ -96,6 +97,21 @@ export async function balanceFor(orgId: string, now = new Date()) {
   for (const [i, f] of org.fundings.entries()) {
     const words = fundingWords(f.note, f.simulated);
     rows.push({ id: `fund_${i}_${f.signature.slice(0, 8)}`, at: f.at, date: dayLabel(f.at, now), what: words.what, detail: words.detail, amountMinor: f.amountMinor, tag: { tone: 'ok', label: words.what }, href: null });
+  }
+  // Money in from outside: a business on Splash paying, or a request's link paid (prompt 10 §6.3).
+  for (const r of org.received ?? []) {
+    const req = r.requestId ? store().requests.get(r.requestId) : undefined;
+    const how = r.from.kind === 'splash' ? 'from a business on Splash' : 'paid by link';
+    rows.push({
+      id: r.id,
+      at: r.at,
+      date: dayLabel(r.at, now),
+      what: r.from.name,
+      detail: req ? `${req.number} · ${how}` : r.memo ? `${r.memo} · ${how}` : how,
+      amountMinor: r.amountMinor,
+      tag: { tone: 'ok', label: 'Received' },
+      href: req?.receiptId ? `/dashboard/receipts/${req.receiptId}` : null,
+    });
   }
   for (const m of org.moves ?? []) {
     if (m.state !== 'confirmed' || (m.from !== 'payments' && m.to !== 'payments')) continue;

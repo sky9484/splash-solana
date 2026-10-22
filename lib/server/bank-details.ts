@@ -18,6 +18,8 @@ import { openNumber, sealNumber, VaultError } from '@/lib/server/pii-vault';
  *   save       sealed into bank_account_secrets; the recipient keeps only the record's id and last4.
  *              New details for a recipient are a new record; the old one is marked replaced, and the
  *              recipient can't be paid until a call-back passes again.
+ *   invoice    the number printed on a supplier's invoice is sealed under the invoice's id when Zeke
+ *              reads it (lib/solana-app/invoice-number.ts) and shown the same way (prompt 10 §6.2).
  *   reveal     a person: owner or finance admin (`admin`), a device approval made seconds ago (a
  *              server challenge signed by this member's device key, single use, 60 seconds), and the
  *              number shown for 30 seconds. Every attempt is logged, allowed or refused.
@@ -130,9 +132,17 @@ async function refuse(actor: RevealActor, supplierId: string, secretId: string |
   throw new ServiceError(REFUSAL_CODE[status] ?? 'not_authorized', message, status);
 }
 
-/** The recipient, or a logged refusal: every attempt is in the reveal log, even one naming nobody. */
-async function recipientOrRefuse(actor: RevealActor, supplierId: string, now: Date) {
-  if (!getOrg(actor.orgId).suppliers.some((x) => x.id === supplierId)) await refuse(actor, supplierId, null, 'no such recipient', now, 404, 'That recipient is not on your saved list.');
+/**
+ * The recipient (`sup_…`), or an invoice whose printed number was sealed (`inv_…`, prompt 10 §6.2), or a
+ * logged refusal: every attempt is in the reveal log, even one naming nobody.
+ */
+async function recipientOrRefuse(actor: RevealActor, subjectId: string, now: Date) {
+  if (subjectId.startsWith('inv_')) {
+    const inv = store().invoices.get(subjectId);
+    if (!inv || inv.orgId !== actor.orgId || !inv.accountSecretId) await refuse(actor, subjectId, null, 'no such invoice number', now, 404, 'This invoice has no full account number on file.');
+    return;
+  }
+  if (!getOrg(actor.orgId).suppliers.some((x) => x.id === subjectId)) await refuse(actor, subjectId, null, 'no such recipient', now, 404, 'That recipient is not on your saved list.');
 }
 
 /** Step 1: a challenge for this member's device, bound to this recipient. */
@@ -167,7 +177,7 @@ export async function revealBankNumber(actor: RevealActor, supplierId: string, p
     valid = false;
   }
   if (!valid) return refuse(actor, supplierId, secretId, 'bad device signature', now, 401, 'The device approval did not check out. Try again.');
-  if (!secret) return refuse(actor, supplierId, null, 'no full number on file', now, 404, 'This recipient has no full account number on file.');
+  if (!secret) return refuse(actor, supplierId, null, 'no full number on file', now, 404, supplierId.startsWith('inv_') ? 'This invoice has no full account number on file.' : 'This recipient has no full account number on file.');
   let accountNumber: string;
   try {
     accountNumber = await openNumber(kms(), secret, { orgId: actor.orgId, beneficiaryId: supplierId });
@@ -198,6 +208,14 @@ export async function scheduleShredForRemoved(orgId: string, removed: Pick<Suppl
   const shredAfter = new Date((lastSettled ?? now.getTime()) + SHRED_AFTER_DAYS * 86_400_000);
   const records = await runtime().secrets.scheduleShred(orgId, removed.id, shredAfter);
   return { shredAfter, records };
+}
+
+/**
+ * A bill set aside ("Not this one", prompt 10 §6.2): the number printed on it is destroyed 30 days
+ * from now. Nothing was paid from it.
+ */
+export async function scheduleShredForInvoice(orgId: string, invoiceId: string, now = new Date()): Promise<number> {
+  return runtime().secrets.scheduleShred(orgId, invoiceId, new Date(now.getTime() + SHRED_AFTER_DAYS * 86_400_000));
 }
 
 /** The daily job: destroy what is due. Safe to run twice. */

@@ -400,7 +400,7 @@ export default function RecipientsPage() {
             <QuickLinksCard
               className="mt-3"
               links={[
-                { label: 'Pay an invoice', href: '/dashboard/invoices', icon: Send },
+                { label: 'Pay an invoice', href: '/dashboard/invoices/pay', icon: Send },
                 { label: 'Transfer', href: '/dashboard/transfer', icon: Send },
                 { label: 'Batch payout', href: '/dashboard/batch', icon: Layers },
                 { label: 'Balance', href: '/dashboard/fund', icon: Wallet },

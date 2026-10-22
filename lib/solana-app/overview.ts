@@ -11,6 +11,7 @@
  *   What did it cost?             month (paid, fees, average all-in)
  *   Where can we pay, and within what rules? corridors, checks
  */
+import { billHref } from '../dashboard/links.ts';
 import { formatPhp, formatUsd } from '../solana-zeke/router.ts';
 import { CORRIDORS } from '../solana-partner/registry.ts';
 import { MOCK_RATE } from '../solana-partner/mock-partner.ts';
@@ -19,8 +20,9 @@ import { needsYou, type NeedRow, type SetupIn } from './needs-you.ts';
 import { isCommitted, type PaymentState } from './payment-machine.ts';
 import { runtime } from './runtime.ts';
 import { DEMO_LIMITS, getOrg, treasuryVaultPda } from './service.ts';
+import { overdueRequests } from './requests.ts';
 import { isMovingInto, pipelineFor, stationLabel, stationOf, type StationId } from './stations.ts';
-import { store, type InvoiceRecord, type PaymentRecord } from './store.ts';
+import { isBill, store, type InvoiceRecord, type PaymentRecord } from './store.ts';
 
 const DAY_MS = 86_400_000;
 /** Above this a payment needs a second approver: a rule that isn't built yet, so it shows as Planned. */
@@ -65,15 +67,12 @@ function invoiceOf(p: PaymentRecord): InvoiceRecord | undefined {
   return store().invoices.get(p.invoiceId);
 }
 
-function kindOf(inv: InvoiceRecord | undefined): 'invoice' | 'transfer' {
-  return inv?.source === 'transfer' || inv?.source === 'peer' ? 'transfer' : 'invoice';
-}
-
 /** Where a payment's stations come from: a bank payout, or a payment into a Splash business's account. */
 const kindOfPayment = (p: PaymentRecord) => p.kind ?? 'bank';
 
+/** Transfer follows every payment, an invoice's too (prompt 10 §6.2: one engine, one approval card). */
 function payHref(p: PaymentRecord): string {
-  return `/dashboard/${kindOf(invoiceOf(p)) === 'transfer' ? 'transfer' : 'invoices'}?payment=${p.id}`;
+  return `/dashboard/transfer?payment=${p.id}`;
 }
 
 /** The status chip a payment shows: approval coral, warnings amber, proof ok, the rest ink. */
@@ -109,7 +108,7 @@ export async function overviewFor(input: OverviewInput) {
   // Accepted bills: Zeke read them and a person checked them; not sent; due in the next 30 days.
   const horizon30 = utcDay(new Date(now.getTime() + 30 * DAY_MS));
   const horizon7 = utcDay(new Date(now.getTime() + 7 * DAY_MS));
-  const bills = [...store().invoices.values()].filter((i) => i.orgId === org.id && i.source !== 'transfer');
+  const bills = [...store().invoices.values()].filter((i) => i.orgId === org.id && isBill(i) && !i.dismissed);
   const accepted = bills.filter((i) => i.confirmed && !sentFor.has(i.id));
   const billsDue30 = accepted.filter((i) => i.confirmed!.dueDate && i.confirmed!.dueDate <= horizon30);
   const billsDueMinor = billsDue30.reduce((n, i) => n + phpToUsdMinor(i.confirmed!.amountPhpMinor), 0n);
@@ -123,7 +122,7 @@ export async function overviewFor(input: OverviewInput) {
     .filter((i) => i.bankStatus === 'changed' && !i.bankVerification && !sentFor.has(i.id))
     .map((i) => {
       const f = i.confirmed ?? i.draft.fields;
-      return { invoiceId: i.id, supplierName: f.supplierName, bank: f.supplierBank, last4: f.supplierAccountLast4, href: '/dashboard/recipients' };
+      return { invoiceId: i.id, supplierName: f.supplierName, bank: f.supplierBank, last4: f.supplierAccountLast4, href: billHref(i.id) };
     });
   const dueSoon = accepted
     .filter((i) => i.confirmed!.dueDate && i.confirmed!.dueDate <= horizon7)
@@ -144,7 +143,7 @@ export async function overviewFor(input: OverviewInput) {
     }),
     verifications,
     dueSoon,
-    overdue: [],
+    overdue: overdueRequests(org.id, now),
     sweep: null,
     setup: input.setupOpen,
     php: formatPhp,

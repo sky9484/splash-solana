@@ -1,6 +1,6 @@
 {
   "baseline": 366,
-  "current": 233,
+  "current": 203,
   "targetMax": 54,
   "history": [
     {
@@ -22,6 +22,11 @@
       "phase": "3-transfer",
       "count": 233,
       "date": "2026-10-13"
+    },
+    {
+      "phase": "4-invoices",
+      "count": 203,
+      "date": "2026-10-14"
     }
   ],
   "byTerm": {

@@ -219,6 +219,11 @@ if (firstBoot) {
   await markEmailVerified(db, PEER.email);
   await grantMembership(db, { email: PEER.email, orgId: PEER.orgId, role: 'admin', grantedBy: 'staff@splash.finance' });
   const { rows } = await client.query('SELECT id FROM users WHERE email = $1', [PEER.email]);
+  // Verified and onboarded, like any business that can be found: it may also ask for money (Get paid,
+  // prompt 10 §6.3), which needs the current terms accepted.
+  await client.query(`INSERT INTO terms_acceptances (id, user_id, org_id, version) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`, [`terms_dev_${PEER.orgId}`, rows[0].id, PEER.orgId, TERMS_VERSION]);
+  await client.query(`UPDATE organizations SET intent = 'pay' WHERE id = $1`, [PEER.orgId]);
+  await client.query(`INSERT INTO org_settings (org_id, updated_by) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [PEER.orgId, rows[0].id]);
   await client.query(
     `INSERT INTO org_vaults (org_id, cluster, simulated, multisig_pda, vault_pda, threshold, members, config_authority_null, create_signature, created_by)
      VALUES ($1, 'devnet', true, $2, $3, 1, '[]'::jsonb, true, 'seeded-offline', $4) ON CONFLICT (org_id) DO NOTHING`,

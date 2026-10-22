@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import clsx from 'clsx';
 
-type Result = { kind: 'payment' | 'bill' | 'recipient'; id: string; title: string; detail: string; href: string };
+type Result = { kind: 'payment' | 'bill' | 'request' | 'recipient'; id: string; title: string; detail: string; href: string };
 type Group = { kind: Result['kind']; label: string; results: Result[] };
 
 /**

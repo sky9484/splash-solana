@@ -1,6 +1,6 @@
 /**
  * The retired transfer wizard's state, from the build before Solana. The wizard (components/transfer/Step*.tsx) is no longer
- * on any page: /dashboard/transfer is the Solana pay flow (components/solana/PayFlow.tsx). Kept only
+ * on any page: /dashboard/transfer is the Solana pay flow (components/solana/transfer/TransferFlow.tsx). Kept only
  * until the source-level tests that still read these files are retired with them.
  */
 import type { TravelRulePayment } from './TravelRuleFields';

@@ -73,7 +73,7 @@ test('needs you: approvals with a live quote first, then verifications, bills du
   assert.equal(r.total, 7);
   assert.equal(r.rows.length, NEEDS_LIMIT, 'at most five rows; the rest behind "See all"');
   assert.deepEqual(r.more.map((x) => x.kind), ['sweep', 'setup'], '"See all" opens the rest, still ranked');
-  assert.equal(r.rows[3].action.href, '/dashboard/invoices', 'bills due link to a page that exists (lib/dashboard/links.ts)');
+  assert.equal(r.rows[3].action.href, '/dashboard/invoices/pay', 'bills due open Pay an invoice (lib/dashboard/links.ts, prompt 10 Phase 4)');
   assert.deepEqual(r.rows.map((x) => x.kind), ['approve', 'approve', 'verify', 'due', 'overdue']);
   assert.equal(r.rows[0].title, 'Manila Freight · ₱287,000.00', 'the live quote first');
   assert.equal(r.rows[0].quote.fresh, true);

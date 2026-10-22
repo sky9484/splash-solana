@@ -64,14 +64,6 @@ export const schemas = {
     })
     .strict()
     .refine((v) => v.sample === true || (typeof v.text === 'string' && v.text.trim().length > 0), { message: 'text or sample required' }),
-  verifyBank: z
-    .object({
-      by: z.string().min(1).max(80),
-      method: z.enum(['call-back', 'supplier-account']),
-      bank: z.string().min(2).max(120),
-      accountLast4: z.string().regex(/^\d{4}$/),
-    })
-    .strict(),
   confirm: z
     .object({
       fields: z
@@ -184,6 +176,45 @@ export const schemas = {
       amountUsdMinor: z.string().regex(/^\d{1,15}$/),
       note: z.string().max(140).nullable().optional(),
       reference: z.string().max(64).nullable().optional(),
+    })
+    .strict(),
+  /** "Record the call-back" on a bill (prompt 10 §6.2): who answered, and the number called from the company's own records. */
+  callBack: z.object({ spokeTo: z.string().min(2).max(80), numberCalled: z.string().min(6).max(24) }).strict(),
+  /** "Confirm and pay" a bill: the fields as checked (an invoice only) and which were ticked. A request from a Splash business sends {}. */
+  payBill: z
+    .object({
+      fields: z
+        .object({
+          invoiceNumber: z.string().max(64),
+          supplierName: z.string().max(200),
+          supplierBank: z.string().max(120),
+          supplierAccountLast4: z.string().max(4),
+          amountPhpMinor: z.string().regex(/^\d{1,15}$/),
+          dueDate: z.string().max(10),
+          einvoiceRef: z.string().max(64).nullable().optional(),
+        })
+        .strict()
+        .optional(),
+      confirmed: z.array(z.enum(['invoiceNumber', 'supplierName', 'supplierBank', 'supplierAccountLast4', 'amountPhpMinor', 'dueDate', 'einvoiceRef'])).max(7).optional(),
+    })
+    .strict(),
+  /** Get paid (prompt 10 §6.3): a new request. Lines are quantity × unit price, US$ minor units (6 decimals). */
+  paymentRequest: z
+    .object({
+      payer: z.discriminatedUnion('kind', [
+        // The business that pays, by its directory id; the requester is always the session's company.
+        z.object({ kind: z.literal('splash'), payerOrgId: z.string().min(1).max(80) }).strict(),
+        z.object({ kind: z.literal('external'), name: z.string().min(2).max(120), email: z.string().min(5).max(254) }).strict(),
+      ]),
+      number: z.string().min(1).max(32),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      lines: z
+        .array(z.object({ description: z.string().min(1).max(120), quantity: z.string().regex(/^\d{1,6}$/), unitMinor: z.string().regex(/^\d{1,13}$/) }).strict())
+        .min(1)
+        .max(20),
+      myInvoisRef: z.string().max(64).nullable().optional(),
+      note: z.string().max(280).nullable().optional(),
+      send: z.boolean(),
     })
     .strict(),
   /** "Save as template" on a paid transfer (prompt 10 §5.8). */

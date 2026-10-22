@@ -1,5 +1,6 @@
 /**
- * Evidence bundle, kind 3 (corridor payout), and batch building.
+ * Evidence bundles, kind 3 (corridor payout), kind 4 (a payment to a Splash business), kind 5 (money
+ * received against a request), and batch building.
  *
  * One bundle per payout. It records, without plaintext invoice data:
  *   invoice commitment (salted sha256) + e-invoice ref
@@ -236,8 +237,74 @@ export function buildPeerTransferBundle(input: PeerTransferBundleInput): PeerTra
   return structuredClone(bundle);
 }
 
+/**
+ * Kind 5: money a company asked for and received (prompt 10 §6.3, "Get paid"). The request (a salted
+ * commitment over its number, lines and due date), who paid (another Splash company by id, or someone
+ * else by a commitment only: their name and email stay off the record), the transfer that brought the
+ * money into the requester's own Payments account, and how it was matched to the request.
+ *
+ * Builder invariants (throw on violation):
+ *   - the money landed in the requester's own account, and the amount is the amount asked
+ *   - a Splash payer is another company; its payment is named
+ *   - a match by reference names a reference
+ *   - any simulated chain signature ⇒ receipt.simulated === true (I-7)
+ */
+export const EVIDENCE_KIND_RECEIVABLE = 5 as const;
+
+export interface ReceivableBundle {
+  version: typeof EVIDENCE_BUNDLE_VERSION;
+  kind: typeof EVIDENCE_KIND_RECEIVABLE;
+  kindName: 'receivable';
+  bundleId: string;
+  requestId: string;
+  createdAt: string;
+  payee: { orgId: string; name: string; account: string };
+  payer: { kind: 'splash'; orgId: string } | { kind: 'external'; commitmentHex: string };
+  amount: { currency: 'USD'; amountMinor: bigint };
+  request: { commitmentHex: string; einvoiceRef: string | null };
+  incoming: { to: string; amountMinor: bigint; memo: string | null };
+  match: { method: 'splash_payment'; paymentId: string } | { method: 'reference_and_amount'; reference: string };
+  chain: { signatures: ChainSignatureRecord[] };
+  receipt: { receiptId: string; issuedAt: string; simulated: boolean };
+}
+
+export type ReceivableBundleInput = Omit<ReceivableBundle, 'version' | 'kind' | 'kindName' | 'bundleId'> & { bundleId?: string };
+
+export function buildReceivableBundle(input: ReceivableBundleInput): ReceivableBundle {
+  const hex64 = /^[0-9a-f]{64}$/;
+  if (!hex64.test(input.request.commitmentHex)) throw new EvidenceError('request commitment must be 32-byte hex');
+  if (input.payer.kind === 'external' && !hex64.test(input.payer.commitmentHex)) throw new EvidenceError('payer commitment must be 32-byte hex');
+  if (input.payer.kind === 'splash' && input.payer.orgId === input.payee.orgId) throw new EvidenceError('a company does not pay its own request');
+  if (input.amount.amountMinor <= 0n) throw new EvidenceError('a receivable is for an amount above zero');
+  if (input.incoming.to !== input.payee.account) throw new EvidenceError('the money did not land in the requester’s own account');
+  if (input.incoming.amountMinor !== input.amount.amountMinor) throw new EvidenceError('the amount received differs from the amount asked');
+  if (input.match.method === 'splash_payment' && (input.payer.kind !== 'splash' || !input.match.paymentId)) throw new EvidenceError('a Splash payment match names the payment');
+  if (input.match.method === 'reference_and_amount' && !input.match.reference) throw new EvidenceError('a reference match names the reference');
+  if (input.chain.signatures.length === 0) throw new EvidenceError('a receivable names the transfer that brought the money');
+  if (input.chain.signatures.some((s) => s.simulated) && !input.receipt.simulated) {
+    throw new EvidenceError('a simulated signature cannot back a receipt that is not marked simulated');
+  }
+  const bundle: ReceivableBundle = {
+    version: EVIDENCE_BUNDLE_VERSION,
+    kind: EVIDENCE_KIND_RECEIVABLE,
+    kindName: 'receivable',
+    bundleId: input.bundleId ?? `evb5_${input.requestId}`,
+    requestId: input.requestId,
+    createdAt: input.createdAt,
+    payee: input.payee,
+    payer: input.payer,
+    amount: input.amount,
+    request: input.request,
+    incoming: input.incoming,
+    match: input.match,
+    chain: input.chain,
+    receipt: input.receipt,
+  };
+  return structuredClone(bundle);
+}
+
 /** Any bundle a receipt can carry. */
-export type EvidenceBundle = CorridorPayoutBundle | PeerTransferBundle;
+export type EvidenceBundle = CorridorPayoutBundle | PeerTransferBundle | ReceivableBundle;
 
 export function bundleCanonical(bundle: EvidenceBundle): string {
   return canonicalJson(bundle);

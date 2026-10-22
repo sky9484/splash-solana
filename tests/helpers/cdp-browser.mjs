@@ -168,7 +168,11 @@ async function createPage(call, subscribe, viewport) {
       if (ready === 'complete' && inflight.size === 0 && Date.now() - lastActivity >= quietMs) return;
       await sleep(100);
     }
+    // A request still open after a whole wait is one Chrome never reports finished (a fetch cut off by a
+    // navigation, the e2e's forged webhook): name it once, then stop waiting on it, or every later wait
+    // would cost the full 30 s again.
     stuck.push(...inflight.values());
+    inflight.clear();
   }
 
   async function goto(url) {
@@ -208,20 +212,21 @@ async function createPage(call, subscribe, viewport) {
 
   const pattern = (name) => (name instanceof RegExp ? { source: name.source, flags: name.flags } : name);
 
-  async function find(role, name, { exact = false, timeoutMs = 30_000 } = {}) {
+  /**
+   * Find an element and mark it (data-e2e-hit). `enabled`: keep looking until the match is enabled.
+   * Found afresh on every poll: a button that re-renders when it becomes enabled (one whose "why it is
+   * disabled" note goes away) is a new node, and a mark on the old one would never come true.
+   */
+  async function find(role, name, { exact = false, timeoutMs = 30_000, enabled = false } = {}) {
     return waitFor(
-      new Function('role', 'name', 'exact', `const f = ${FIND}; document.querySelectorAll('[data-e2e-hit]').forEach((e) => e.removeAttribute('data-e2e-hit')); const el = f(role, name, exact); if (!el) return false; el.setAttribute('data-e2e-hit', '1'); return true;`),
-      [role, pattern(name), exact],
-      { timeoutMs, what: `${role} "${name}"` },
+      new Function('role', 'name', 'exact', 'enabled', `const f = ${FIND}; document.querySelectorAll('[data-e2e-hit]').forEach((e) => e.removeAttribute('data-e2e-hit')); const el = f(role, name, exact); if (!el) return false; if (enabled && (el.disabled || el.getAttribute('aria-disabled') === 'true')) return false; el.setAttribute('data-e2e-hit', '1'); return true;`),
+      [role, pattern(name), exact, enabled],
+      { timeoutMs, what: enabled ? `${role} "${name}" to be enabled` : `${role} "${name}"` },
     );
   }
 
   async function click(role, name, opts = {}) {
-    await find(role, name, opts);
-    await waitFor(() => {
-      const el = document.querySelector('[data-e2e-hit]');
-      return el && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
-    }, [], { what: `${role} "${name}" to be enabled` });
+    await find(role, name, { ...opts, enabled: true });
     await evaluate(() => {
       const el = document.querySelector('[data-e2e-hit]');
       el.removeAttribute('data-e2e-hit');

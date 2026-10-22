@@ -25,7 +25,14 @@ import type { ShareRecord } from './doc-store.ts';
 import type { WalletNetwork } from './funding-router.ts';
 import type { PaymentState } from './payment-machine.ts';
 
-export type BankVerification = { by: string; method: 'call-back' | 'supplier-account' | 'existing-record'; at: string };
+export type BankVerification = {
+  by: string;
+  method: 'call-back' | 'supplier-account' | 'existing-record';
+  at: string;
+  /** A call-back (prompt 10 §6.2): who answered at the supplier, and the number called, from the company's own records. */
+  spokeTo?: string;
+  numberCalled?: string;
+};
 
 export interface SupplierRecord {
   /**
@@ -108,6 +115,98 @@ export interface OrgRecord {
   notifications?: OrgNotification[];
   /** "Save as template" on a transfer's receipt (prompt 10 §5.8): who and how much, never a bank number. */
   transferTemplates?: TransferTemplate[];
+  /**
+   * Money that came into the Payments account from outside the company (prompt 10 §6.3): a business on
+   * Splash paying, or someone paying a request's link. Oldest first.
+   */
+  received?: ReceivedRecord[];
+}
+
+/** Money in from outside the company, into its own Payments account. */
+export interface ReceivedRecord {
+  id: string;
+  at: string;
+  amountMinor: bigint;
+  /** A business on Splash (by id), or someone who paid a request's link (the name they were asked as). */
+  from: { kind: 'splash'; orgId: string; name: string } | { kind: 'link'; name: string };
+  /** The request it paid, when it matched one. */
+  requestId: string | null;
+  /** A business on Splash: its payment. */
+  paymentId: string | null;
+  signature: string;
+  memo: string | null;
+  simulated: boolean;
+}
+
+/** One line of a payment request: integers only (quantity × unit price = amount, US$ minor units). */
+export interface RequestLine {
+  description: string;
+  quantity: bigint;
+  unitMinor: bigint;
+  amountMinor: bigint;
+}
+
+/**
+ * A payment request this company sent (prompt 10 §6.3, "Get paid"). A business on Splash finds it in
+ * its own "Pay an invoice" inbox, ready to pay; anyone else gets a link to a page with this company's
+ * own account details. The money always lands in the requester's Payments account.
+ */
+export interface PaymentRequestRecord {
+  id: string;
+  /** The requester. */
+  orgId: string;
+  /** "Your invoice number": unique among the company's requests that aren't cancelled. */
+  number: string;
+  payer: { kind: 'splash'; orgId: string; name: string; handle: string | null; country: string | null } | { kind: 'external'; name: string; email: string };
+  lines: RequestLine[];
+  amountMinor: bigint;
+  /** YYYY-MM-DD. */
+  dueDate: string;
+  /** Text only: kept with the request, never submitted anywhere. */
+  myInvoisRef: string | null;
+  note: string | null;
+  state: 'draft' | 'sent' | 'paid' | 'cancelled';
+  /** The pay link's token (someone else pays by link). */
+  slug: string | null;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  sentAt: string | null;
+  viewedAt: string | null;
+  paidAt: string | null;
+  /** A business on Splash: the bill this request became in its inbox. */
+  billId: string | null;
+  paid: { by: 'splash'; paymentId: string; signature: string } | { by: 'link'; signature: string } | null;
+  receiptId: string | null;
+  reminders: Array<{ at: string; by: string }>;
+  /** For the request's commitment on its receipt (kind 5). */
+  saltHex: string;
+}
+
+/** A request someone else pays by link: the token, and whose request it is. */
+export interface PayLinkRecord {
+  slug: string;
+  requestId: string;
+  orgId: string;
+}
+
+/** A request from a business on Splash, as it lands in the payer's "Pay an invoice" inbox. */
+export interface IncomingRequest {
+  requestId: string;
+  requesterOrgId: string;
+  requesterName: string;
+  number: string;
+  dueDate: string;
+  lines: Array<{ description: string; amountMinor: bigint }>;
+  note: string | null;
+  myInvoisRef: string | null;
+  sentAt: string;
+  /** The requester's last reminder. */
+  remindedAt?: string;
+  /** When the payer's inbox first listed it (its sender then sees "Viewed"). */
+  seenAt?: string;
+  /** The requester cancelled it: it can't be paid. */
+  cancelledAt?: string;
 }
 
 /** A transfer to start again from Step 2: the recipient by id (or the business on Splash) and the amount. */
@@ -243,9 +342,22 @@ export interface InvoiceRecord {
    * Where the fields came from: Zeke read a document (sample, paste, upload), a person typed a transfer
    * to a bank, or a person paid another business on Splash ('peer', prompt 10 §5.1).
    */
-  source: 'sample' | 'paste' | 'upload' | 'transfer' | 'peer';
+  source: 'sample' | 'paste' | 'upload' | 'transfer' | 'peer' | 'request';
   /** A payment to another business on Splash: who, into which account, how much, and the note. */
   peer?: PeerDestination;
+  /** 'request': a business on Splash asked this company to pay (prompt 10 §6.3). Paid as a `peer` payment. */
+  request?: IncomingRequest;
+  /**
+   * The document Zeke read, line by line, with the bank account number masked (prompt 10 §6.2): what
+   * "Check the invoice" shows. The full number is never kept here; it is sealed (`accountSecretId`).
+   */
+  document?: { lines: string[] };
+  /** The full account number printed on the invoice, sealed in bank_account_secrets under this invoice's id. */
+  accountSecretId?: string;
+  /** The invoice's bank, as the payout partner's list names it (lib/solana-partner/banks.ts), when it matched one. */
+  bankCode?: string | null;
+  /** "Not this one": a person set the bill aside. It leaves the inbox; its sealed number is shredded later. */
+  dismissed?: { at: string; by: string } | null;
   draft: ReaderOutput;
   /** Whether the draft's supplier bank details are already in the verified directory. */
   bankStatus: 'known' | 'new' | 'changed';
@@ -461,6 +573,9 @@ export interface SolanaAppStore {
   shares: Map<string, ShareRecord>;
   /** Batch payouts (batch-service.ts), by id. */
   batches: Map<string, BatchRecord>;
+  /** Payment requests (requests.ts), by id, and the pay links someone else opens, by token. */
+  requests: Map<string, PaymentRequestRecord>;
+  paylinks: Map<string, PayLinkRecord>;
   /** Which companies were loaded from the document store, and what was last written for each document. */
   docs: { loaded: Set<string>; written: Map<string, string> };
   /** The last 200 partner webhooks this server received, newest last. Process memory: since this server started. */
@@ -470,10 +585,12 @@ export interface SolanaAppStore {
 const G = globalThis as typeof globalThis & { __splashSolanaAppStore?: SolanaAppStore };
 
 export function store(): SolanaAppStore {
-  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), docs: { loaded: new Set(), written: new Map() }, webhookLog: [] });
+  const s = (G.__splashSolanaAppStore ??= { orgs: new Map(), invoices: new Map(), evidence: new Map(), shares: new Map(), batches: new Map(), requests: new Map(), paylinks: new Map(), docs: { loaded: new Set(), written: new Map() }, webhookLog: [] });
   // A store made by older code in this process (a dev reload) gains the maps added since.
   s.shares ??= new Map();
   s.batches ??= new Map();
+  s.requests ??= new Map();
+  s.paylinks ??= new Map();
   s.docs ??= { loaded: new Set(), written: new Map() };
   s.webhookLog ??= [];
   return s;
@@ -483,3 +600,12 @@ export function store(): SolanaAppStore {
 export function resetStore(): void {
   G.__splashSolanaAppStore = undefined;
 }
+
+/**
+ * A bill (prompt 10 §6.2): an invoice a supplier sent that Zeke read, or a request a business on Splash
+ * sent. Not a transfer or a payment a person typed in Transfer.
+ */
+export const isBill = (inv: Pick<InvoiceRecord, 'source'>) => inv.source === 'sample' || inv.source === 'paste' || inv.source === 'upload' || inv.source === 'request';
+
+/** Paid straight into another Splash company's own account: a payment typed in Transfer, or a request's bill. */
+export const paysPeer = (inv: Pick<InvoiceRecord, 'source'>) => inv.source === 'peer' || inv.source === 'request';

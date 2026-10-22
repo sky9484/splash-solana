@@ -15,6 +15,8 @@ export { StepRail, type RailStep } from './StepRail';
 export { Sheet, useIsClient } from './Sheet';
 export { ActionBar } from './ActionBar';
 export { Tag, type TagTone } from './Tag';
+export { Tabs, tabPanelProps, type TabItem } from './Tabs';
+export { Morph } from './Morph';
 export { QuoteRing, secondsLeft, clock, useNow } from './QuoteRing';
 export { TestModeBadge } from './TestModeBadge';
 export { Details } from './Details';
