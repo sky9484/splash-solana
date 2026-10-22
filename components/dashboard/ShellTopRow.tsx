@@ -18,7 +18,7 @@ export function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '·';
 }
 
-/** The rate strip (§4.2): the partner's USD → PHP rate and the next corridors, as text. */
+/** The rate strip (§4.2): the partner's USD → PHP rate, as text (no next corridors, prompt 12 B8). */
 export function RateStrip({ rate, className }: { rate: NavShellData['rate'] | null; className?: string }) {
   if (!rate) return null;
   return (
@@ -27,9 +27,6 @@ export function RateStrip({ rate, className }: { rate: NavShellData['rate'] | nu
         {rate.pair} {rate.rate}
       </strong>
       <span>{rate.label}</span>
-      {rate.next.map((n) => (
-        <span key={n}>· {n} next corridor</span>
-      ))}
     </p>
   );
 }

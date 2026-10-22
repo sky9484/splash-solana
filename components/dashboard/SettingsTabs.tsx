@@ -1,3 +1,4 @@
+// iso-ui
 'use client';
 
 import Link from 'next/link';
@@ -11,23 +12,21 @@ const TABS = [
   { href: '/dashboard/settings/account', label: 'Account details' },
 ];
 
-/** The settings sections, one row of tabs; the current one is marked for screen readers too. */
+/**
+ * The settings sections, one row of tabs in the Invoices tabs' style (prompt 12 §6.1): square tabs on
+ * the 2 px ink rule, the current one underlined in teal. They are links to pages, so the current one
+ * is `aria-current="page"`, for screen readers too.
+ */
 export default function SettingsTabs() {
   const pathname = usePathname() ?? '';
   return (
-    <nav aria-label="Settings sections" className="mx-auto mb-5 w-full max-w-6xl">
-      <ul className="flex flex-wrap gap-2">
+    <nav aria-label="Settings sections" className="iso iso-settabs">
+      <ul className="iso-tabs">
         {TABS.map((t) => {
           const active = pathname === t.href;
           return (
             <li key={t.href}>
-              <Link
-                href={t.href}
-                aria-current={active ? 'page' : undefined}
-                className={`inline-flex min-h-[44px] items-center rounded-full border px-4 text-sm font-semibold transition-colors ${
-                  active ? 'border-[#1F4452] bg-[#1F4452] text-white' : 'border-[#326273]/20 bg-white text-[#1F4452] hover:border-[#5C9EAD]'
-                }`}
-              >
+              <Link href={t.href} aria-current={active ? 'page' : undefined} className="iso-tabs__tab">
                 {t.label}
               </Link>
             </li>

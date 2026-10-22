@@ -201,7 +201,7 @@ export default function DashboardSettingsPage() {
           {INFORMATION.map(({ icon: Icon, label, text }) => (
             <div key={label} className="rounded-2xl border border-[#326273]/10 bg-[#F6F0ED] p-5">
               <Icon size={20} className="text-[var(--info)]" />
-              <div className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#326273]/90">{label}</div>
+              <div className="mt-3 text-[13px] font-bold text-[#326273]/90">{label}</div>
               <p className="mt-2 text-sm font-medium leading-6 text-[#326273]">{typeof text === 'function' ? text(custodyOn) : text}</p>
             </div>
           ))}
@@ -219,7 +219,7 @@ export default function DashboardSettingsPage() {
 function NumberControl({ label, value, suffix, onChange, disabled = false, note }: { label: string; value: number; suffix: string; onChange: (value: number) => void; disabled?: boolean; note?: string }) {
   return (
     <label className={`rounded-2xl border border-[#326273]/10 bg-[#F6F0ED] p-4 ${disabled ? 'cursor-not-allowed border-dashed' : ''}`}>
-      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[#326273]/90">{label}</span>
+      <span className="text-[13px] font-bold text-[#326273]/90">{label}</span>
       {/* Only the value dims; the reason below keeps full contrast. */}
       <span className={`mt-3 flex items-center gap-2 ${disabled ? 'opacity-50' : ''}`}>
         <input type="number" min={0} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent text-2xl font-bold text-[#326273] outline-none disabled:cursor-not-allowed" />

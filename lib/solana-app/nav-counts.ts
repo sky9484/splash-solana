@@ -9,7 +9,7 @@
  * - unverifiedRecipients: a supplier whose new or changed bank details nobody has verified yet.
  */
 import { MOCK_RATE } from '../solana-partner/mock-partner.ts';
-import { CORRIDORS, PARTNER_REGISTRY } from '../solana-partner/registry.ts';
+import { PARTNER_REGISTRY } from '../solana-partner/registry.ts';
 import { isCommitted, type PaymentState } from './payment-machine.ts';
 import { runtime } from './runtime.ts';
 import { getOrg } from './service.ts';
@@ -42,18 +42,18 @@ export async function navCounts(orgId: string, now = new Date()): Promise<NavCou
 }
 
 /**
- * The rate strip (§4.2): the payout partner's USD → PHP rate, and the next corridors as text. In
- * test mode it is the test partner's fixed rate, labelled "test rate"; a signed, live partner's rate
- * is labelled "indicative, not a quote". Never a scrolling ticker, never an unrelated pair.
+ * The rate strip (§4.2): the payout partner's USD → PHP rate. In test mode it is the test partner's
+ * fixed rate, labelled "test rate"; a signed, live partner's rate is labelled "indicative, not a
+ * quote". Never a scrolling ticker, never an unrelated pair, and no roadmap: the next corridors are
+ * marketing, not product chrome (prompt 12 B8).
  */
-export function rateStrip(): { pair: string; rate: string; label: string; next: string[] } {
+export function rateStrip(): { pair: string; rate: string; label: string } {
   const partner = PARTNER_REGISTRY[0];
   const live = Boolean(partner && partner.signed && !partner.sandbox);
   return {
     pair: 'USD → PHP',
     rate: MOCK_RATE,
     label: live ? 'indicative, not a quote' : 'test rate',
-    next: CORRIDORS.filter((c) => c.status === 'next').map((c) => c.pair),
   };
 }
 

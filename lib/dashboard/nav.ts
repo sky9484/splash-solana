@@ -122,14 +122,18 @@ const NEXT_WORDS: Record<string, string> = {
   second_approver: 'add a second approver',
 };
 
+/** The optional steps (lib/server/onboarding.ts): the first recipient and a second approver. */
+const OPTIONAL_STEPS = new Set(['recipient', 'second_approver']);
+
 /**
- * The Account setup card: "Account setup · 4 of 6", a bar and the next step. Null when every step is
- * done, so the card disappears (setup stays reachable from Settings). The count is the real one.
+ * The Account setup card: "Account setup · 4 of 6", a bar and the next step. Null once every required
+ * step is done (prompt 12 B6), so the card disappears; the optional steps stay on the setup page,
+ * reachable from Settings. The count is the real one.
  */
 export function setupCard(steps: SetupStepLite[] | null | undefined): { done: number; total: number; pct: number; next: string } | null {
   if (!steps || steps.length === 0) return null;
+  if (steps.every((s) => s.done || OPTIONAL_STEPS.has(s.id))) return null;
   const done = steps.filter((s) => s.done).length;
-  if (done === steps.length) return null;
   const next = steps.find((s) => !s.done)!;
   return { done, total: steps.length, pct: Math.round((done / steps.length) * 100), next: NEXT_WORDS[next.id] ?? next.title.toLowerCase() };
 }

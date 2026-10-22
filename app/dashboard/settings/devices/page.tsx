@@ -1,12 +1,13 @@
+import { PageHead } from '@/components/dashboard/PageHead';
 import { DevicesPanel } from '@/components/solana/DevicesPanel';
-import { SolanaDashPage } from '@/components/solana/SolanaDashPage';
 
 export const metadata = { title: 'Devices · Splash' };
 
 export default function DevicesPage() {
   return (
-    <SolanaDashPage kicker="Settings" title="Devices" description="The keys that can approve a payment from your accounts, as they are recorded.">
+    <div className="iso iso-page">
+      <PageHead title="Devices" context="The keys that can approve a payment from your accounts, as they are recorded." />
       <DevicesPanel />
-    </SolanaDashPage>
+    </div>
   );
 }

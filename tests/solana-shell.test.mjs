@@ -55,16 +55,21 @@ test('badges are the server counts, and a zero shows nothing', () => {
   assert.deepEqual(badgeFor('ai', null), { kind: 'tag', text: 'AI', label: 'an AI assistant' });
 });
 
-test('the setup card counts the real steps, names the next one, and disappears when all are done', () => {
+test('the setup card counts the real steps, names the next one, and disappears once every required step is done', () => {
   const steps = [
     { id: 'terms', title: 'Accept the terms', done: true },
     { id: 'profile', title: 'Business profile', done: true },
-    { id: 'verify', title: 'Verify the business', done: true },
+    { id: 'verify', title: 'Verify the business', done: false },
     { id: 'approvals', title: 'Approvals', done: true },
     { id: 'recipient', title: 'First recipient (optional)', done: false },
     { id: 'second_approver', title: 'Second approver (optional)', done: false },
   ];
-  assert.deepEqual(setupCard(steps), { done: 4, total: 6, pct: 67, next: 'save your first recipient' });
+  assert.deepEqual(setupCard(steps), { done: 3, total: 6, pct: 50, next: 'verify the business' });
+  // Prompt 12 B6: the four required steps done, the two optional ones open: no card ("5 of 6 · Next: add
+  // a second approver" stayed forever). The optional steps stay on the setup page.
+  const required = steps.map((s) => (s.id === 'verify' ? { ...s, done: true } : s));
+  assert.equal(setupCard(required), null);
+  assert.equal(setupCard(required.map((s) => (s.id === 'recipient' ? { ...s, done: true } : s))), null);
   assert.equal(setupCard(steps.map((s) => ({ ...s, done: true }))), null);
   assert.equal(setupCard(null), null, 'no database: no card rather than a made-up count');
   // The setup page keeps the same steps, with the second approver last and optional.
@@ -99,7 +104,8 @@ test('nav counts: approvals waiting, bills due within 7 days, unverified recipie
   assert.deepEqual(await navCounts(other.org.id, now), { approvals: 0, billsDue7d: 0, unverifiedRecipients: false });
 
   const shell = await navShell(env.org.id, now);
-  assert.deepEqual(shell.rate, { pair: 'USD → PHP', rate: '57.40', label: 'test rate', next: ['USD → IDR'] });
+  // Prompt 12 B8: the rate and its label only; no "USD → IDR next corridor" in the product's chrome.
+  assert.deepEqual(shell.rate, { pair: 'USD → PHP', rate: '57.40', label: 'test rate' });
 });
 
 test('search: own records only, by name, number or amount, at most 8 grouped, never a full account number', async () => {

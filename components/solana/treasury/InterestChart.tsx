@@ -25,7 +25,8 @@ export function chartTiles<D extends { interestMinor: string | bigint }>(days: r
  * "Interest per day" (prompt 11 §4.2): one bar a day for the last 7 or 30 days, each the interest
  * booked that day from the official daily price (lib/treasury/history.ts, integers). Hover or focus a
  * bar for its date and amount; the first and last bars carry their dates; a sentence says the same for
- * a screen reader. Under it: This period, Average a day, This quarter so far.
+ * a screen reader. Under it: This period, Average a day, This quarter so far. Before any interest is
+ * booked, one line instead (prompt 12 B3).
  */
 export function InterestChart({ days, quarterSoFarMinor, holds }: { days: Day[]; quarterSoFarMinor: string; holds: boolean }) {
   const [span, setSpan] = useState<'7' | '30'>('7');
@@ -37,6 +38,19 @@ export function InterestChart({ days, quarterSoFarMinor, holds }: { days: Day[];
   const first = shown[0];
   const last = shown.at(-1);
   const at = active === null ? null : shown[active];
+  // Prompt 12 B3: no chart until a day's interest is booked; an empty 200 px plot says nothing.
+  if (!days.some((d) => BigInt(d.interestMinor) > 0n)) {
+    return (
+      <div className="iso-ichart">
+        <h3 id="tr-ichart" className="iso-h3">
+          Interest per day
+        </h3>
+        <p className="iso-small" style={{ margin: 0 }}>
+          Interest shows here after your first full day.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="iso-ichart">
       <div className="iso-row" style={{ justifyContent: 'space-between' }}>

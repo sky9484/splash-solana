@@ -1,17 +1,15 @@
+// iso-ui
 'use client';
+
+import { Tag as Chip, type TagTone } from '@/components/iso';
 
 import { usd } from './client';
 import { useCompany } from './useCompany';
 
 type Tag = { text: string; tone: 'locked' | 'splash' | 'vault' | 'planned' | 'stub' };
 
-const TONE: Record<Tag['tone'], string> = {
-  locked: 'sx-pill sx-pill-ok',
-  splash: 'sx-pill',
-  vault: 'sx-pill sx-pill-sim',
-  stub: 'sx-pill sx-pill-warn',
-  planned: 'sx-pill sx-pill-pending',
-};
+/** Locked rules are ok, a stub is a warning, the rest say where they run in plain ink. */
+const TONE: Record<Tag['tone'], TagTone> = { locked: 'ok', splash: 'ink', vault: 'ink', stub: 'amber', planned: 'ink' };
 
 /** Rules as sentences with real values, each tagged with where it is enforced (design brief §6). */
 export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perPaymentMinor: string; dailyMinor: string; quoteTtlSec: number }) {
@@ -24,7 +22,7 @@ export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perP
     {
       text: (
         <>
-          Up to {usd(dailyMinor)} per day{used !== null ? <span className="sx-muted"> ({usd(used)} used today)</span> : null}.
+          Up to {usd(dailyMinor)} per day{used !== null ? <span className="iso-polrules__muted"> ({usd(used)} used today)</span> : null}.
         </>
       ),
       tags: [{ text: 'Enforced by Splash', tone: 'splash' }],
@@ -33,12 +31,12 @@ export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perP
       text: (
         <>
           Only verified suppliers. New or changed bank details need a call-back first.{' '}
-          <details style={{ display: 'inline-block' }}>
+          <details className="iso-polrules__more">
             <summary>View list ({suppliers.length})</summary>
             {suppliers.length === 0 ? (
-              <p className="sx-small sx-muted">No verified suppliers yet. A supplier joins the list after its first paid invoice.</p>
+              <p className="iso-small" style={{ margin: '6px 0 0' }}>No verified suppliers yet. A supplier joins the list after its first paid invoice.</p>
             ) : (
-              <ul className="sx-small" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              <ul className="iso-small" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {suppliers.map((s) => (
                   <li key={`${s.name}-${s.accountLast4}`}>
                     {s.name}, {s.bank} •••• {s.accountLast4}
@@ -59,15 +57,15 @@ export function PolicyRules({ perPaymentMinor, dailyMinor, quoteTtlSec }: { perP
     { text: 'Not built yet: Zeke could buy listed data (weather only) up to US$50 a month, only if your company’s owner turns it on.', tags: [{ text: 'Planned · needs the owner', tone: 'planned' }] },
   ];
   return (
-    <ul className="sx-rules">
+    <ul className="iso-polrules">
       {rules.map((r, i) => (
         <li key={i}>
-          <div className="sx-rule-text">{r.text}</div>
-          <div className="sx-row" style={{ gap: 6 }}>
+          <div className="iso-polrules__text">{r.text}</div>
+          <div className="iso-polrules__tags">
             {r.tags.map((t) => (
-              <span key={t.text} className={TONE[t.tone]}>
+              <Chip key={t.text} tone={TONE[t.tone]} tick={t.tone === 'locked'}>
                 {t.text}
-              </span>
+              </Chip>
             ))}
           </div>
         </li>

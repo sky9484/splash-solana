@@ -7,8 +7,9 @@ import { usd } from '../client';
 import type { TreasuryDTO } from './Treasury';
 
 /**
- * Treasury activity (prompt 11 §4.6): interest booked and moves in and out, dated, newest first. "You
- * approved" when this device's key approved the move; otherwise who did.
+ * Treasury activity (prompt 11 §4.6): interest booked and moves in and out, newest first, each with its
+ * day and time in MYT and where the money went (prompt 12 B4). "You approved" when this device's key
+ * approved the move; otherwise who did.
  */
 export function Activity({ data, myKey }: { data: TreasuryDTO; myKey: string | null }) {
   const rows = data.activity;
@@ -28,7 +29,7 @@ export function Activity({ data, myKey }: { data: TreasuryDTO; myKey: string | n
               <span>
                 <strong className="iso-ink">{r.what === 'interest' ? 'Interest' : r.what === 'in' ? 'Moved in' : 'Moved out'}</strong>
                 <span className="iso-small">
-                  {r.what === 'interest' || !(r.approvedKey || r.approvedBy) ? '' : r.approvedKey && r.approvedKey === myKey ? ' · you approved' : ` · approved by ${r.approvedBy ?? 'your team'}`} · {r.label}
+                  {r.what === 'interest' || !(r.approvedKey || r.approvedBy) ? '' : r.approvedKey && r.approvedKey === myKey ? ' · you approved' : ` · approved by ${r.approvedBy ?? 'your team'}`} · {r.label}, {r.time} MYT · {r.to}
                 </span>
               </span>
               <span className={`iso-num${r.what === 'out' ? ' iso-neg' : ''}`}>

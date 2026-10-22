@@ -22,9 +22,8 @@ export async function GET(request: Request) {
     let setupOpen: Array<{ id: string; title: string; href: string }> = [];
     try {
       const onboarding = await readOnboardingState(ctx.session);
-      setupOpen = onboarding.steps
-        .filter((s) => !s.done && (s.id === 'verify' || s.id === 'second_approver'))
-        .map((s) => ({ id: s.id, title: s.id === 'verify' ? 'Business documents' : 'Add a second approver', href: s.href }));
+      // Only a required step is a need (prompt 12 B5): the optional second approver stays in Account setup.
+      setupOpen = onboarding.steps.filter((s) => !s.done && s.id === 'verify').map((s) => ({ id: s.id, title: 'Business documents', href: s.href }));
     } catch {
       setupOpen = [];
     }
